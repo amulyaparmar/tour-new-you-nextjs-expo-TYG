@@ -46,6 +46,7 @@ import {
   updateSessionParticipantNotes,
 } from "../api";
 import { isOnline } from "../offline/sync-outbox";
+import { typingHaptic } from "../lib/haptics";
 import { ChatTypingIndicator, LiveChatMarkdown } from "./LiveChatMarkdown";
 import { isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
@@ -1347,7 +1348,10 @@ export function RecordingExperience({
                   </View>
                   <TextInput
                     value={chatInput}
-                    onChangeText={setChatInput}
+                    onChangeText={(value) => {
+                      if (value.length > chatInput.length) typingHaptic();
+                      setChatInput(value);
+                    }}
                     editable={!chatBusy}
                     placeholder="Ask Tour AI..."
                     placeholderTextColor={C.textMuted}

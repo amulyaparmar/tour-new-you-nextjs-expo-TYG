@@ -2,6 +2,7 @@ import { appendDictationText, type AnalysisResult } from "@tour/shared";
 import { ArrowUp, Sparkles } from "lucide-react-native";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { fetch as expoFetch } from "expo/fetch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Keyboard,
@@ -18,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getApiBaseUrl } from "../config";
 import { getCurrentSession } from "../auth";
+import { typingHaptic } from "../lib/haptics";
 import {
   filterMentionPrompts,
   SESSION_AI_DEFAULT_PROMPTS,
@@ -66,6 +68,10 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
     () =>
       new DefaultChatTransport({
         api: `${getApiBaseUrl()}/api/sessions/${sessionId}/chat`,
+        // React Native's global fetch may expose a successful response without a
+        // readable body. The AI SDK requires that stream for UI-message events.
+        // Expo's fetch provides the readable stream used by the live chat flow.
+        fetch: expoFetch as typeof fetch,
         headers: (): Record<string, string> => {
           const session = getCurrentSession();
           if (!session) return {};
@@ -128,6 +134,7 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
   );
 
   function handleInputChange(value: string) {
+    if (value.length > input.length) typingHaptic();
     setInput(value);
     const atMatch = /(?:^|\s)@([\w-]*)$/.exec(value);
     if (atMatch) {

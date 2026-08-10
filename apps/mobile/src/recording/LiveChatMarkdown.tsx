@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Linking, StyleSheet, Text, View } from "react-native";
 
+import { linkifyTimestampsInMarkdown, parseSeekHref } from "../session-ai-timestamps";
+
 const C = {
   brand: "#006CE5",
   text: "#101828",
@@ -132,7 +134,7 @@ function parseMarkdown(content: string): Block[] {
   return blocks;
 }
 
-function InlineText({ parts }: { parts: InlinePart[] }) {
+function InlineText({ parts, onSeek }: { parts: InlinePart[]; onSeek?: (seconds: number) => void }) {
   return (
     <Text style={styles.body}>
       {parts.map((part, index) => {
@@ -158,11 +160,16 @@ function InlineText({ parts }: { parts: InlinePart[] }) {
           );
         }
         if (part.type === "link") {
+          const seekSeconds = parseSeekHref(part.href);
           return (
             <Text
               key={index}
               style={styles.link}
               onPress={() => {
+                if (seekSeconds != null && onSeek) {
+                  onSeek(seekSeconds);
+                  return;
+                }
                 void Linking.openURL(part.href).catch(() => {});
               }}
             >
@@ -179,11 +186,12 @@ function InlineText({ parts }: { parts: InlinePart[] }) {
 type LiveChatMarkdownProps = {
   content: string;
   streaming?: boolean;
+  onSeek?: (seconds: number) => void;
 };
 
 /** Lightweight markdown renderer — avoids markdown-it/entities Metro issues. */
-export function LiveChatMarkdown({ content, streaming = false }: LiveChatMarkdownProps) {
-  const blocks = useMemo(() => parseMarkdown(content), [content]);
+export function LiveChatMarkdown({ content, streaming = false, onSeek }: LiveChatMarkdownProps) {
+  const blocks = useMemo(() => parseMarkdown(linkifyTimestampsInMarkdown(content)), [content]);
   if (!content.trim() && !streaming) return null;
 
   return (
@@ -205,7 +213,7 @@ export function LiveChatMarkdown({ content, streaming = false }: LiveChatMarkdow
                 block.level === 1 ? styles.h1 : block.level === 2 ? styles.h2 : styles.h3,
               ]}
             >
-              <InlineText parts={block.parts} />
+              <InlineText parts={block.parts} onSeek={onSeek} />
             </Text>
           );
         }
@@ -214,7 +222,7 @@ export function LiveChatMarkdown({ content, streaming = false }: LiveChatMarkdow
             <View key={index} style={styles.listRow}>
               <Text style={styles.bullet}>•</Text>
               <View style={styles.listBody}>
-                <InlineText parts={block.parts} />
+                <InlineText parts={block.parts} onSeek={onSeek} />
               </View>
             </View>
           );
@@ -224,14 +232,14 @@ export function LiveChatMarkdown({ content, streaming = false }: LiveChatMarkdow
             <View key={index} style={styles.listRow}>
               <Text style={styles.ordered}>{block.index}.</Text>
               <View style={styles.listBody}>
-                <InlineText parts={block.parts} />
+                <InlineText parts={block.parts} onSeek={onSeek} />
               </View>
             </View>
           );
         }
         return (
           <View key={index} style={styles.paragraph}>
-            <InlineText parts={block.parts} />
+            <InlineText parts={block.parts} onSeek={onSeek} />
           </View>
         );
       })}
