@@ -46,7 +46,7 @@ import {
   updateSessionParticipantNotes,
 } from "../api";
 import { isOnline } from "../offline/sync-outbox";
-import { typingHaptic } from "../lib/haptics";
+import { aiResponseCompleteHaptic, aiResponseStartHaptic } from "../lib/haptics";
 import { ChatTypingIndicator, LiveChatMarkdown } from "./LiveChatMarkdown";
 import { isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
@@ -913,6 +913,7 @@ export function RecordingExperience({
     setChatError(null);
     setChatInput("");
     setChatMessages([...nextMessages, { role: "assistant", content: "" }]);
+    let responseStarted = false;
 
     try {
       const liveSessionId = await ensureLiveSessionId();
@@ -927,6 +928,10 @@ export function RecordingExperience({
           propertyContext,
         },
         (partial) => {
+          if (!responseStarted) {
+            responseStarted = true;
+            aiResponseStartHaptic();
+          }
           setChatMessages((current) => {
             const copy = current.slice();
             const last = copy[copy.length - 1];
@@ -942,6 +947,7 @@ export function RecordingExperience({
         ...nextMessages,
         { role: "assistant", content: reply || "I do not have enough context yet." },
       ]);
+      if (responseStarted) aiResponseCompleteHaptic();
     } catch (error) {
       setChatMessages(nextMessages);
       setChatError(error instanceof Error ? error.message : "Tour AI could not answer right now.");
@@ -1348,10 +1354,7 @@ export function RecordingExperience({
                   </View>
                   <TextInput
                     value={chatInput}
-                    onChangeText={(value) => {
-                      if (value.length > chatInput.length) typingHaptic();
-                      setChatInput(value);
-                    }}
+                    onChangeText={setChatInput}
                     editable={!chatBusy}
                     placeholder="Ask Tour AI..."
                     placeholderTextColor={C.textMuted}

@@ -166,8 +166,8 @@ function InlineText({ parts, onSeek }: { parts: InlinePart[]; onSeek?: (seconds:
               key={index}
               style={styles.link}
               onPress={() => {
-                if (seekSeconds != null && onSeek) {
-                  onSeek(seekSeconds);
+                if (seekSeconds != null) {
+                  onSeek?.(seekSeconds);
                   return;
                 }
                 void Linking.openURL(part.href).catch(() => {});

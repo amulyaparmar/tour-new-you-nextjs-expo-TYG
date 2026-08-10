@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getApiBaseUrl } from "../config";
 import { getCurrentSession } from "../auth";
-import { typingHaptic } from "../lib/haptics";
+import { aiResponseCompleteHaptic, aiResponseStartHaptic } from "../lib/haptics";
 import {
   filterMentionPrompts,
   SESSION_AI_DEFAULT_PROMPTS,
@@ -62,6 +62,7 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [dictationError, setDictationError] = useState<string | null>(null);
   const listRef = useRef<ScrollView>(null);
+  const wasStreamingRef = useRef(false);
   const insets = useSafeAreaInsets();
 
   const transport = useMemo(
@@ -94,6 +95,13 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
   useEffect(() => {
     listRef.current?.scrollToEnd({ animated: true });
   }, [messages, status]);
+
+  useEffect(() => {
+    const isStreaming = status === "streaming";
+    if (isStreaming && !wasStreamingRef.current) aiResponseStartHaptic();
+    if (!isStreaming && wasStreamingRef.current) aiResponseCompleteHaptic();
+    wasStreamingRef.current = isStreaming;
+  }, [status]);
 
   useEffect(() => {
     const show = Keyboard.addListener("keyboardWillShow", (event) => {
@@ -134,7 +142,6 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
   );
 
   function handleInputChange(value: string) {
-    if (value.length > input.length) typingHaptic();
     setInput(value);
     const atMatch = /(?:^|\s)@([\w-]*)$/.exec(value);
     if (atMatch) {

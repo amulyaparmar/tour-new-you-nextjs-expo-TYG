@@ -8,12 +8,20 @@ export function impactHaptic(style: Haptics.ImpactFeedbackStyle = Haptics.Impact
   void Haptics.impactAsync(style).catch(() => undefined);
 }
 
-let lastTypingHapticAt = 0;
+function playQuickHapticPattern(count: number, intervalMs: number) {
+  for (let index = 0; index < count; index += 1) {
+    setTimeout(() => {
+      void Haptics.selectionAsync().catch(() => undefined);
+    }, index * intervalMs);
+  }
+}
 
-/** A quiet typing response that cannot overwhelm the device during fast input. */
-export function typingHaptic() {
-  const now = Date.now();
-  if (now - lastTypingHapticAt < 80) return;
-  lastTypingHapticAt = now;
-  void Haptics.selectionAsync().catch(() => undefined);
+/** Three light taps as Tour AI begins speaking. */
+export function aiResponseStartHaptic() {
+  playQuickHapticPattern(3, 58);
+}
+
+/** Two light taps after Tour AI has finished its reply. */
+export function aiResponseCompleteHaptic() {
+  playQuickHapticPattern(2, 82);
 }

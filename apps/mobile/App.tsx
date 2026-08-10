@@ -3643,6 +3643,7 @@ function SampleSessionDetailScreen({ sessionId, onBack }: { sessionId: string; o
       phases={sample.phases}
       comments={[]}
       actions={sample.actions}
+      audioInsights={null}
       sessionId={sessionId}
       onBack={onBack}
       onReload={() => void sampleQuery.refetch()}
@@ -3789,6 +3790,7 @@ function SessionDetailScreen({
         phases={phases}
         comments={comments}
         actions={actions}
+        audioInsights={audioInsights}
         sessionId={sessionId}
         onBack={onBack}
         onReload={load}
@@ -3898,6 +3900,7 @@ function SessionReviewExperience({
   phases,
   comments,
   actions,
+  audioInsights,
   sessionId,
   onBack,
   onReload,
@@ -3913,6 +3916,7 @@ function SessionReviewExperience({
   phases: ConversationPhaseSegmentation | null;
   comments: SessionComment[];
   actions: FollowUpAction[];
+  audioInsights: AudioInsights | null;
   sessionId: string;
   onBack: () => void;
   onReload: () => void;
@@ -4093,6 +4097,42 @@ function SessionReviewExperience({
       segment.speaker?.toLowerCase().includes(query)
     );
   }, [searchQuery, transcript]);
+  const audioSignalsBySegment = useMemo(() => {
+    const signals = new Map<string, { emotion: string; energy: string; ambience: string | null }>();
+    const insightSegments = audioInsights?.segments ?? [];
+    const ambienceCues = audioInsights?.ambienceCues ?? [];
+    if (insightSegments.length === 0) return signals;
+
+    for (const segment of transcript) {
+      let closest: (typeof insightSegments)[number] | null = null;
+      let closestDistance = Number.POSITIVE_INFINITY;
+      let largestOverlap = 0;
+
+      for (const insight of insightSegments) {
+        const overlap = Math.max(0, Math.min(segment.endTime, insight.endTime) - Math.max(segment.startTime, insight.startTime));
+        const distance = overlap > 0
+          ? 0
+          : Math.max(insight.startTime - segment.endTime, segment.startTime - insight.endTime, 0);
+        if (overlap > largestOverlap || (overlap === largestOverlap && distance < closestDistance)) {
+          closest = insight;
+          largestOverlap = overlap;
+          closestDistance = distance;
+        }
+      }
+
+      if (!closest || (largestOverlap === 0 && closestDistance > 3)) continue;
+      const ambience = ambienceCues.find((cue) =>
+        cue.startTime <= segment.endTime && cue.endTime >= segment.startTime,
+      )?.label ?? null;
+      signals.set(segment.id, {
+        emotion: closest.emotion,
+        energy: closest.energy,
+        ambience,
+      });
+    }
+
+    return signals;
+  }, [audioInsights, transcript]);
 
   function beginSegmentSelection(segmentId: string) {
     impactHaptic();
@@ -4445,6 +4485,7 @@ function SessionReviewExperience({
                 moment.seconds < segment.endTime
               );
               const segmentComments = commentsBySegment.get(segment.id) ?? [];
+              const audioSignal = audioSignalsBySegment.get(segment.id);
               return (
                 <Reanimated.View
                   key={segment.id || index}
@@ -4485,6 +4526,15 @@ function SessionReviewExperience({
                         <Text style={reviewSt.segmentTime}>{fmtSec(segment.startTime)}</Text>
                       </View>
                       <Text style={reviewSt.turnText}>{segment.text}</Text>
+                      {audioSignal ? (
+                        <View style={reviewSt.audioSignalRow}>
+                          <AudioSignalPill kind="emotion" value={audioSignal.emotion} />
+                          <AudioSignalPill kind="energy" value={audioSignal.energy} />
+                          {audioSignal.ambience ? (
+                            <AudioSignalPill kind="ambience" value={audioSignal.ambience} />
+                          ) : null}
+                        </View>
+                      ) : null}
                     </View>
                   </Pressable>
                   {(() => {
@@ -5654,6 +5704,46 @@ function BulletItem({ text, color }: { text: string; color: string }) {
       <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 21 }}>{text}</Text>
     </View>
   );
+}
+
+function AudioSignalPill({
+  kind,
+  value,
+}: {
+  kind: "emotion" | "energy" | "ambience";
+  value: string;
+}) {
+  const normalized = value.trim().toLowerCase();
+  const emotionTone: Record<string, { color: string; backgroundColor: string }> = {
+    happy: { color: "#15803d", backgroundColor: "#f0fdf4" },
+    excited: { color: "#7c3aed", backgroundColor: "#f5f3ff" },
+    concerned: { color: "#b45309", backgroundColor: "#fffbeb" },
+    sad: { color: "#2563eb", backgroundColor: "#eff6ff" },
+    angry: { color: "#dc2626", backgroundColor: "#fef2f2" },
+    neutral: { color: "#667085", backgroundColor: "#f2f4f7" },
+  };
+  const tone = kind === "emotion"
+    ? (emotionTone[normalized] ?? emotionTone.neutral!)
+    : kind === "energy"
+      ? { color: "#475467", backgroundColor: "#f2f4f7" }
+      : { color: "#0369a1", backgroundColor: "#f0f9ff" };
+  const icon = kind === "emotion" ? "sparkles-outline" : kind === "energy" ? "pulse-outline" : "volume-medium-outline";
+  const label = kind === "energy"
+    ? `${titleCase(value)} energy`
+    : kind === "ambience"
+      ? titleCase(value)
+      : titleCase(value);
+
+  return (
+    <View style={[reviewSt.audioSignalPill, { backgroundColor: tone.backgroundColor }]}>
+      <Ionicons name={icon} size={11} color={tone.color} />
+      <Text style={[reviewSt.audioSignalText, { color: tone.color }]}>{label}</Text>
+    </View>
+  );
+}
+
+function titleCase(value: string) {
+  return value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 // ═══════════════════════════════════════
@@ -6830,6 +6920,9 @@ const reviewSt = StyleSheet.create({
   turnSpeaker: { fontSize: 12, fontWeight: "900" },
   segmentTime: { color: "#98a2b3", fontSize: 11, fontWeight: "800", marginLeft: "auto" },
   turnText: { color: "#344054", fontSize: 14, lineHeight: 20, fontWeight: "600" },
+  audioSignalRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 7 },
+  audioSignalPill: { minHeight: 22, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, borderRadius: 999 },
+  audioSignalText: { fontSize: 10, fontWeight: "800" },
   annotationRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   annotationSheetBody: { fontSize: 15, fontWeight: "600", color: C.textSec, lineHeight: 22 },
   annotationSheetActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 4 },
