@@ -1,12 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Asset } from "expo-asset";
-import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import * as MediaLibrary from "expo-media-library";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Modal,
@@ -28,13 +26,15 @@ import {
   useVideoOutput,
 } from "react-native-vision-camera";
 
+import { LoadingDots } from "@/components/loading-dots";
 import { formatElapsed } from "../recording";
+import { isSimulator } from "../runtime";
 import { tourColors as C } from "../theme/tour-brand";
 
 const MAX_RECORDING_SECONDS = 10 * 60;
 const MAX_RECORDING_BYTES = 500 * 1024 * 1024;
 const MOCK_CAMERA_VIDEO = require("../../assets/videos/login-bg.mp4");
-const USE_SIMULATOR_CAMERA = __DEV__ && !(Constants.isDevice ?? false);
+const USE_SIMULATOR_CAMERA = __DEV__ && isSimulator();
 
 type RecordedVideoAsset = {
   uri: string;
@@ -133,7 +133,7 @@ function PermissionGate({
         onPress={canRequest ? onRequest : () => void Linking.openSettings()}
         style={({ pressed }) => [styles.permissionButton, pressed && styles.pressed, requesting && styles.disabled]}
       >
-        {requesting ? <ActivityIndicator color="#fff" /> : null}
+        {requesting ? <LoadingDots color="#fff" /> : null}
         <Text style={styles.permissionButtonText}>{canRequest ? "Allow access" : "Open Settings"}</Text>
       </Pressable>
     </View>
@@ -230,7 +230,7 @@ function RecordedVideoReview({
           style={({ pressed }) => [styles.saveButton, pressed && styles.pressed, (saving || uploading) && styles.disabled]}
         >
           {saving ? (
-            <ActivityIndicator size="small" color={C.brand} />
+            <LoadingDots size="small" color={C.brand} />
           ) : (
             <Ionicons name={saved ? "checkmark-circle" : "images-outline"} size={19} color={C.brand} />
           )}
@@ -242,7 +242,7 @@ function RecordedVideoReview({
           onPress={() => onUpload(name.trim(), description.trim())}
           style={({ pressed }) => [styles.uploadButton, pressed && styles.pressed, (uploading || !name.trim()) && styles.disabled]}
         >
-          {uploading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="cloud-upload-outline" size={19} color="#fff" />}
+          {uploading ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="cloud-upload-outline" size={19} color="#fff" />}
           <Text style={styles.uploadButtonText}>{uploading ? "Uploading…" : "Upload asset"}</Text>
         </Pressable>
       </View>
@@ -531,7 +531,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
             />
           ) : (
             <View style={styles.cameraLoading}>
-              <ActivityIndicator color="#fff" />
+              <LoadingDots color="#fff" />
               <Text style={styles.cameraLoadingText}>Starting camera…</Text>
             </View>
           )}

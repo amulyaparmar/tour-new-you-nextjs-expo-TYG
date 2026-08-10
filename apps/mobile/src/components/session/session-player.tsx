@@ -1,8 +1,9 @@
 import { LocateFixed, Pause, Play } from "lucide-react-native";
 import React, { useRef } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon";
+import { LoadingDots } from "@/components/loading-dots";
 
 import { SESSION_PAGE_PADDING } from "./session-layout";
 
@@ -99,7 +100,7 @@ export function SessionPlayer({
           style={[styles.playBtn, !ready && styles.playBtnDisabled]}
         >
           {!ready ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <LoadingDots color="#fff" size="small" />
           ) : (
             <Icon as={playing ? Pause : Play} size={22} color="#fff" />
           )}

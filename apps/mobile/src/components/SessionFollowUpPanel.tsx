@@ -3,7 +3,6 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Linking,
   Pressable,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
 
 import { sendSessionFollowUp, updateActionStatus } from "../api";
 import { getSiteBaseUrl } from "../config";
+import { LoadingDots } from "@/components/loading-dots";
 
 const C = {
   brand: "#006CE5",
@@ -128,7 +128,7 @@ export function SessionFollowUpPanel({ session, actions, sessionId, onActionsUpd
           style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.9 }]}
         >
           {sending ? (
-            <ActivityIndicator color="#fff" />
+            <LoadingDots color="#fff" />
           ) : (
             <>
               <Ionicons name="chatbubble-ellipses-outline" size={18} color="#fff" />
@@ -170,7 +170,7 @@ export function SessionFollowUpPanel({ session, actions, sessionId, onActionsUpd
                 style={styles.doneBtn}
               >
                 {updatingId === action.id ? (
-                  <ActivityIndicator size="small" color={C.green} />
+                  <LoadingDots size="small" color={C.green} />
                 ) : (
                   <Text style={styles.doneBtnText}>Done</Text>
                 )}

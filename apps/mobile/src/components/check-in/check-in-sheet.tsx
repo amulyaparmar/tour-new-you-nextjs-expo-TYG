@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -17,6 +16,7 @@ import {
 } from "react-native";
 
 import { submitCheckInLead } from "../../api";
+import { LoadingDots } from "@/components/loading-dots";
 import { TourMark } from "../TourLogo";
 
 const SHEET_HEIGHT = Math.round(Dimensions.get("window").height * 0.78);
@@ -360,7 +360,7 @@ export function CheckInSheet({
                   ]}
                 >
                   {submitting ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <LoadingDots size="small" color="#fff" />
                   ) : (
                     <Ionicons name="send-outline" size={16} color="#fff" />
                   )}

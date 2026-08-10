@@ -1,13 +1,13 @@
 import "react-native-get-random-values";
 
 import { authenticatedFetch } from "@/auth";
+import { LoadingDots } from "@/components/loading-dots";
 import { TourBackButton as BackBtn, TourEmptyState as EmptyState } from "@/components/tour";
 import { tourColors as C } from "@/theme/tour-brand";
 import Daily from "@daily-co/react-native-daily-js";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -16,6 +16,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { PracticeSessionSkeleton } from "./practice-loading";
 
 type Scenario = {
   id: string;
@@ -434,7 +435,7 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
   const waypoints = useMemo(() => launch?.scenario.waypoints ?? [], [launch]);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator color={C.brand} /><Text style={styles.loadingText}>Preparing your AI prospect…</Text></View>;
+    return <PracticeSessionSkeleton onBack={onBack} />;
   }
   if (error && !launch) {
     return <View style={styles.center}><EmptyState icon="alert-circle-outline" title="Practice unavailable" subtitle={error} /><Pressable onPress={() => void prepare()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View>;
@@ -463,14 +464,14 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
           <ScrollView ref={transcriptScrollRef} style={styles.transcriptScroll} contentContainerStyle={styles.transcriptContent} showsVerticalScrollIndicator>
             {error ? <View style={styles.error}><Ionicons name="alert-circle-outline" size={18} color={C.red} /><Text style={styles.errorText}>{error}</Text></View> : null}
             {transcript.length ? transcript.map((line) => <View key={line.id} style={[styles.line, line.role === "agent" ? styles.agentLine : styles.prospectLine]}><Text style={[styles.lineRole, line.role === "agent" ? styles.agentText : styles.prospectText]}>{line.role === "agent" ? "You" : "AI prospect"} · {timeLabel(line.seconds)}</Text><Text style={styles.lineText}>{line.text}</Text></View>) : <View style={styles.emptyTranscript}><Ionicons name="chatbubble-ellipses-outline" size={23} color={C.textMuted} /><Text style={styles.emptyTranscriptText}>{callState === "live" ? "The conversation will appear here as you speak." : "Start when you’re ready. The conversation will appear here."}</Text></View>}
-            {callState === "ended" ? <View style={styles.scoreCard}>{grading ? <><ActivityIndicator color={C.brand} /><Text style={styles.scoreTitle}>Reviewing your practice…</Text><Text style={styles.scoreCopy}>Your result will appear here as soon as it is ready.</Text></> : <>{scorecard?.score !== null && scorecard?.score !== undefined ? <Text style={styles.score}>{scorecard.score}%</Text> : <Ionicons name="time-outline" size={28} color={C.amber} />}<Text style={styles.scoreTitle}>{scorecard?.status === "passed" ? "Practice passed" : scorecard?.score != null ? "Practice complete" : "Analysis is still processing"}</Text>{scorecard?.summary ? <Text style={styles.scoreCopy}>{scorecard.summary}</Text> : null}<Text style={styles.scoreSaved}>{scorecard?.saved ? "Saved to your practice history." : "You can return to practice history for the full result."}</Text><Pressable onPress={onBack} style={styles.doneButton}><Text style={styles.doneButtonText}>Back to practice</Text></Pressable></>}</View> : null}
+            {callState === "ended" ? <View style={styles.scoreCard}>{grading ? <><LoadingDots color={C.brand} /><Text style={styles.scoreTitle}>Reviewing your practice…</Text><Text style={styles.scoreCopy}>Your result will appear here as soon as it is ready.</Text></> : <>{scorecard?.score !== null && scorecard?.score !== undefined ? <Text style={styles.score}>{scorecard.score}%</Text> : <Ionicons name="time-outline" size={28} color={C.amber} />}<Text style={styles.scoreTitle}>{scorecard?.status === "passed" ? "Practice passed" : scorecard?.score != null ? "Practice complete" : "Analysis is still processing"}</Text>{scorecard?.summary ? <Text style={styles.scoreCopy}>{scorecard.summary}</Text> : null}<Text style={styles.scoreSaved}>{scorecard?.saved ? "Saved to your practice history." : "You can return to practice history for the full result."}</Text><Pressable onPress={onBack} style={styles.doneButton}><Text style={styles.doneButtonText}>Back to practice</Text></Pressable></>}</View> : null}
           </ScrollView>
         </View>
       </View>
 
       <View style={styles.controlDock}>
         {callState === "ready" ? <View style={styles.readyControls}><Pressable onPress={() => void startCall()} style={styles.startButton} accessibilityRole="button" accessibilityLabel="Start live practice"><Ionicons name="mic" size={25} color="#fff" /></Pressable><View style={styles.readyGoals}><GoalsButton completed={completedWaypointIds.length} total={waypoints.length} onPress={() => setGoalsOpen(true)} /></View></View> : null}
-        {callState === "connecting" ? <View style={styles.connecting}><ActivityIndicator color={C.brand} /><Text style={styles.connectingText}>Connecting securely…</Text></View> : null}
+        {callState === "connecting" ? <View style={styles.connecting}><LoadingDots color={C.brand} /><Text style={styles.connectingText}>Connecting securely…</Text></View> : null}
         {callState === "live" ? <View style={styles.liveControlsRow}><Pressable onPress={toggleMute} style={[styles.control, styles.liveMuteControl]}><Ionicons name={muted ? "mic-off" : "mic"} size={22} color={C.text} /><Text style={styles.controlText}>{muted ? "Unmute" : "Mute"}</Text></Pressable><GoalsButton completed={completedWaypointIds.length} total={waypoints.length} onPress={() => setGoalsOpen(true)} /><Pressable onPress={endCall} style={[styles.control, styles.endControl, styles.liveEndControl]}><Ionicons name="call" size={22} color="#fff" /><Text style={[styles.controlText, styles.endControlText]}>End</Text></Pressable></View> : null}
       </View>
 

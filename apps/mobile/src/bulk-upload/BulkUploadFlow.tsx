@@ -5,7 +5,6 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   Pressable,
@@ -18,6 +17,7 @@ import {
 import Reanimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LoadingDots } from "@/components/loading-dots";
 import { fetchRubrics } from "../api";
 import { tourColors as C, scoreColor } from "../theme/tour-brand";
 import {
@@ -316,7 +316,7 @@ export function BulkUploadFlow({
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color={C.brand} />
+        <LoadingDots size="large" color={C.brand} />
         <Text style={styles.loadingText}>Restoring your upload workspace…</Text>
       </View>
     );
@@ -469,7 +469,7 @@ function SelectStep({
         <Text style={styles.heroTitle}>Turn a folder of recordings into a clear review queue.</Text>
         <Text style={styles.heroCopy}>Pick audio or video files once. Tour preserves the batch on this device and creates a separate analysis for every recording.</Text>
         <Pressable disabled={busy} onPress={onPick} style={({ pressed }) => [styles.heroButton, pressed && styles.pressed, busy && styles.disabled]}>
-          {busy ? <ActivityIndicator size="small" color={C.brand} /> : <Ionicons name="add" size={19} color={C.brand} />}
+          {busy ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="add" size={19} color={C.brand} />}
           <Text style={styles.heroButtonText}>{busy ? "Preparing files…" : "Choose recordings"}</Text>
         </Pressable>
       </LinearGradient>
@@ -843,7 +843,7 @@ function BatchItemRow({
     >
       <View style={[styles.statusIcon, { backgroundColor: presentation.bg }]}>
         {item.status === "creating" || item.status === "uploading" || item.status === "processing"
-          ? <ActivityIndicator size="small" color={presentation.color} />
+          ? <LoadingDots size="small" color={presentation.color} />
           : <Ionicons name={presentation.icon} size={18} color={presentation.color} />}
       </View>
       <View style={styles.flex}>

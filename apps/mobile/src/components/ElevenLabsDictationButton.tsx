@@ -7,7 +7,6 @@ import {
 import { Mic, Square } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   type StyleProp,
@@ -16,6 +15,7 @@ import {
 
 import { transcribeDictation } from "../dictation";
 import { Icon } from "@/components/ui/icon";
+import { LoadingDots } from "@/components/loading-dots";
 
 type DictationStatus = "idle" | "recording" | "transcribing";
 
@@ -45,8 +45,10 @@ export function ElevenLabsDictationButton({
   const stopTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const startedAtRef = useRef(0);
   const mountedRef = useRef(true);
+  const recordingRef = useRef(false);
   const lifecycleStartedRef = useRef(false);
   const stoppingRef = useRef(false);
+  const keepAudioSessionActiveRef = useRef(keepAudioSessionActive);
   const onBeforeStartRef = useRef(onBeforeStart);
   const onAfterStopRef = useRef(onAfterStop);
   const onTranscriptRef = useRef(onTranscript);
@@ -55,6 +57,7 @@ export function ElevenLabsDictationButton({
   onAfterStopRef.current = onAfterStop;
   onTranscriptRef.current = onTranscript;
   onErrorRef.current = onError;
+  keepAudioSessionActiveRef.current = keepAudioSessionActive;
 
   const reportError = useCallback((message: string | null) => {
     onErrorRef.current?.(message);
@@ -64,13 +67,13 @@ export function ElevenLabsDictationButton({
     if (!lifecycleStartedRef.current) return;
     lifecycleStartedRef.current = false;
     await onAfterStopRef.current?.();
-    if (!keepAudioSessionActive) {
+    if (!keepAudioSessionActiveRef.current) {
       await setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
       }).catch(() => {});
     }
-  }, [keepAudioSessionActive]);
+  }, []);
 
   const stopRecording = useCallback(async () => {
     if (stoppingRef.current) return;
@@ -79,7 +82,9 @@ export function ElevenLabsDictationButton({
     stopTimerRef.current = undefined;
 
     try {
-      await recorder.stop();
+      const wasRecording = recordingRef.current;
+      recordingRef.current = false;
+      if (wasRecording) await recorder.stop();
       const fileUri = recorder.uri;
       await finishAudioLifecycle();
 
@@ -119,12 +124,14 @@ export function ElevenLabsDictationButton({
       });
       await recorder.prepareToRecordAsync();
       recorder.record();
+      recordingRef.current = true;
       startedAtRef.current = Date.now();
       setStatus("recording");
       stopTimerRef.current = setTimeout(() => {
         void stopRecording();
       }, MAX_DICTATION_MS);
     } catch (error) {
+      recordingRef.current = false;
       await finishAudioLifecycle().catch(() => {});
       reportError(error instanceof Error ? error.message : "Could not start dictation.");
       setStatus("idle");
@@ -143,10 +150,21 @@ export function ElevenLabsDictationButton({
     return () => {
       mountedRef.current = false;
       if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
-      if (recorder.isRecording) {
-        void recorder.stop().finally(() => {
-          void finishAudioLifecycle();
-        });
+      const shouldStop = recordingRef.current;
+      recordingRef.current = false;
+      if (!shouldStop) {
+        void finishAudioLifecycle();
+        return;
+      }
+
+      try {
+        void recorder.stop()
+          .catch(() => {})
+          .finally(() => {
+            void finishAudioLifecycle();
+          });
+      } catch {
+        void finishAudioLifecycle();
       }
     };
   }, [finishAudioLifecycle, recorder]);
@@ -176,7 +194,7 @@ export function ElevenLabsDictationButton({
       ]}
     >
       {status === "transcribing" ? (
-        <ActivityIndicator size="small" color="#006CE5" />
+        <LoadingDots size="small" color="#006CE5" />
       ) : isRecording ? (
         <Icon as={Square} size={14} color="#D92D20" fill="#D92D20" />
       ) : (

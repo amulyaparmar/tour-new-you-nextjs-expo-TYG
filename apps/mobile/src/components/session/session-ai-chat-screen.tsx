@@ -1,6 +1,7 @@
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 
 import { SessionAiChat } from "@/components/SessionAiChat";
+import { LoadingDots } from "@/components/loading-dots";
 import { useAnalysisQuery } from "@/queries";
 
 import { TourScreenHeader } from "./tour-screen-header";
@@ -25,7 +26,7 @@ export function SessionAiChatScreen({
       <TourScreenHeader onBack={onBack} title={sessionTitle ?? "Tour AI"} subtitle={prospectName ?? "Coaching assistant"} />
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#006ce5" />
+          <LoadingDots color="#006ce5" />
         </View>
       ) : analysis ? (
         <View style={{ flex: 1, paddingHorizontal: 12 }}>

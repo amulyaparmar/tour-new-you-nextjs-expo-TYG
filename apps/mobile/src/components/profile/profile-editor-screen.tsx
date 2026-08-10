@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 import type { MobileAuthSession } from "../../auth";
 import { getCurrentSession } from "../../auth";
 import { useProfileQuery, useUpdateProfileMutation } from "../../queries";
+import { LoadingDots } from "@/components/loading-dots";
 
 const C = {
   bg: "#F7F8FB",
@@ -183,7 +183,7 @@ export function ProfileEditorScreen({
 
         {loadingProfile ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator color={C.brand} />
+            <LoadingDots color={C.brand} />
           </View>
         ) : (
           <ContactCardPreview
@@ -248,7 +248,7 @@ export function ProfileEditorScreen({
             pressed && dirty && !saving && { opacity: 0.9 },
           ]}
         >
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save profile</Text>}
+          {saving ? <LoadingDots color="#fff" /> : <Text style={styles.primaryBtnText}>Save profile</Text>}
         </Pressable>
 
         <Pressable

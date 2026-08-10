@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
-  ActivityIndicator,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,6 +10,7 @@ import {
 } from "react-native";
 
 import { tourColors } from "@/theme/tour-brand";
+import { LoadingDots } from "@/components/loading-dots";
 
 type CommunityListRowProps = {
   name: string;
@@ -58,7 +58,7 @@ export function CommunityListRow({
         </View>
         {accessory}
         {loading ? (
-          <ActivityIndicator size="small" color={tourColors.brand} />
+          <LoadingDots size="small" color={tourColors.brand} />
         ) : active ? (
           <Ionicons name="checkmark-circle" size={20} color={tourColors.green} />
         ) : (

@@ -10,7 +10,6 @@ import {
 import { Activity, RefreshCw } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import {
 
 import { fetchAudioInsights, fetchTranscript, startAudioInsights } from "@/api";
 import { Icon } from "@/components/ui/icon";
+import { LoadingDots } from "@/components/loading-dots";
 import { Text } from "@/components/ui/text";
 import { useSessionPlayback } from "@/hooks/use-session-playback";
 
@@ -154,7 +154,7 @@ export function SessionAudioInsightsScreen({
           <View style={[styles.empty, conversationStats ? styles.emptyCompact : null]}>
             {POLLING.has(status) ? (
               <>
-                <ActivityIndicator size="large" color="#006ce5" />
+                <LoadingDots size="large" color="#006ce5" />
                 <Text style={styles.emptyTitle}>{AUDIO_INSIGHTS_STATUS_LABELS[status]}</Text>
                 <Text style={styles.emptyHint}>
                   Gemini is adding sentiment, speaker dynamics, ambience, and semantic interactivity.
@@ -180,7 +180,7 @@ export function SessionAudioInsightsScreen({
             )}
             <Pressable disabled={starting} onPress={() => void handleStart()} style={styles.actionBtn}>
               {starting ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <LoadingDots color="#fff" size="small" />
               ) : (
                 <>
                   <Icon as={RefreshCw} size={14} color="#fff" />

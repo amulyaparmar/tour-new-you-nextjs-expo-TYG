@@ -4,7 +4,6 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -27,6 +26,7 @@ import {
 import { AiChatText } from "./AiChatText";
 import { ElevenLabsDictationButton } from "./ElevenLabsDictationButton";
 import { Icon } from "@/components/ui/icon";
+import { LoadingDots } from "@/components/loading-dots";
 
 const C = {
   brand: "#006CE5",
@@ -275,7 +275,7 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
             style={[styles.send, (!input.trim() || isBusy) && styles.sendDisabled]}
           >
             {isBusy ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <LoadingDots size="small" color="#fff" />
             ) : (
               <Icon as={ArrowUp} size={18} color="#fff" />
             )}

@@ -7,8 +7,9 @@ import {
 import { tourColors as C } from "@/theme/tour-brand";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NativePracticeSession } from "./NativePracticeSession";
+import { PracticeListSkeleton } from "./practice-loading";
 
 type Scenario = {
   id: string;
@@ -117,7 +118,7 @@ export function PracticeSessionsScreen({
         <PrimaryBtn label="Start live practice" icon="mic-outline" onPress={() => openPractice()} />
         <Text style={styles.webNote}>Practice stays in the app. Your scenarios and graded results stay synced to this property.</Text>
 
-        {loading ? <View style={styles.loading}><ActivityIndicator color={C.brand} /><Text style={styles.loadingText}>Loading practice…</Text></View> : null}
+        {loading ? <PracticeListSkeleton /> : null}
         {error ? (
           <View style={styles.error}>
             <Ionicons name="alert-circle-outline" size={18} color={C.red} />
@@ -195,7 +196,6 @@ const styles = StyleSheet.create({
   modeTabs: { flexDirection: "row", gap: 4, padding: 4, borderWidth: 1, borderColor: C.border, borderRadius: 13, backgroundColor: C.card },
   modeTab: { flex: 1, minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 9 },
   modeTabActive: { backgroundColor: C.brand + "10" }, modeTabText: { color: C.textMuted, fontSize: 12, fontWeight: "800" }, modeTabTextActive: { color: C.brand },
-  loading: { minHeight: 120, alignItems: "center", justifyContent: "center", gap: 10 }, loadingText: { color: C.textSec, fontSize: 13, fontWeight: "700" },
   error: { flexDirection: "row", alignItems: "center", gap: 9, padding: 12, borderRadius: 12, backgroundColor: C.redBg }, errorText: { color: C.red, fontSize: 13, fontWeight: "700" }, retry: { color: C.brand, fontSize: 13, fontWeight: "900" },
   sectionHeading: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }, historyHeading: { marginTop: 15 }, sectionTitle: { color: C.text, fontSize: 17, fontWeight: "900" }, sectionMeta: { minWidth: 20, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 99, backgroundColor: C.brand + "12", color: C.brand, fontSize: 11, fontWeight: "900", textAlign: "center" },
   scenario: { flexDirection: "row", alignItems: "center", gap: 11, padding: 13, borderWidth: 1, borderColor: C.border, borderRadius: 15, backgroundColor: C.card }, pressed: { opacity: 0.72 }, scenarioIcon: { width: 39, height: 39, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.brand + "10" }, scenarioTop: { flexDirection: "row", alignItems: "center", gap: 8 }, scenarioTitle: { flex: 1, color: C.text, fontSize: 14, fontWeight: "900" }, scenarioDesc: { marginTop: 3, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600" }, threshold: { marginTop: 5, color: C.textMuted, fontSize: 10, fontWeight: "800" }, difficulty: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 99 }, difficultyText: { fontSize: 9, fontWeight: "900", textTransform: "capitalize" },

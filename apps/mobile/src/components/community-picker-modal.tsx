@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
+import { LoadingDots } from "@/components/loading-dots";
 import {
   authorizedCommunitiesForSession,
   listBusinesses,
@@ -34,6 +34,16 @@ const SKELETON_ROWS = 9;
 
 type Community = MobileAuthSession["workspace"]["communities"][number];
 type AssignedProperty = BusinessOption | Community;
+
+const isEntrataSyncLabel = (value: string | null | undefined) => {
+  const label = value?.trim().toLowerCase() ?? "";
+  return label.includes("entrata") || /\bsync(?:ed|ing)?\b/.test(label);
+};
+
+const propertyDisplayName = (value: string) =>
+  value
+    .replace(/\s*(?:[·|—-]\s*)?entrata\s+sync(?:ed|ing)?\b/gi, "")
+    .trim() || value;
 
 type CommunityPickerModalProps = {
   visible: boolean;
@@ -179,10 +189,13 @@ export function CommunityPickerModal({
       const active = item.id === activeCommunityId;
       const loading = switchingId === item.id;
       const enrichment = enrichmentByCommunity.get(item.id);
+      const metadataLabels = [item.alias, item.companyName]
+        .filter((label): label is string => Boolean(label?.trim()) && !isEntrataSyncLabel(label))
+        .filter((label, index, labels) => labels.indexOf(label) === index);
       return (
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel={`${item.name}${active ? ", active property" : ""}`}
+          accessibilityLabel={`${propertyDisplayName(item.name)}${active ? ", active property" : ""}`}
           activeOpacity={0.72}
           disabled={switchLocked}
           onPress={() => onSelect(item.id)}
@@ -197,24 +210,19 @@ export function CommunityPickerModal({
             </View>
             <View style={styles.rowBody}>
               <Text style={styles.rowName} numberOfLines={1}>
-                {item.name}
+                {propertyDisplayName(item.name)}
               </Text>
               <View style={styles.rowMetadata}>
-                {item.alias ? (
-                  <Text style={styles.rowAlias} numberOfLines={1}>
-                    {item.alias}
+                {metadataLabels.map((label) => (
+                  <Text key={label} style={styles.rowAlias} numberOfLines={1}>
+                    {label}
                   </Text>
-                ) : null}
-                {item.companyName ? (
-                  <Text style={styles.rowAlias} numberOfLines={1}>
-                    {item.companyName}
-                  </Text>
-                ) : null}
+                ))}
                 {enrichment ? <EnrichmentBadge enrichment={enrichment} /> : null}
               </View>
             </View>
             {loading ? (
-              <ActivityIndicator size="small" color={tourColors.brand} />
+              <LoadingDots size="small" color={tourColors.brand} />
             ) : active ? (
               <Ionicons name="checkmark-circle" size={20} color={tourColors.green} />
             ) : (
@@ -372,7 +380,7 @@ export function CommunityPickerModal({
                   style={({ pressed }) => [styles.confirmButton, pressed && styles.addPropertyPressed]}
                 >
                   {joiningPlaceId ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <LoadingDots size="small" color="#fff" />
                   ) : (
                     <Ionicons name={selectedCandidate.alreadyAssigned ? "arrow-forward" : "add"} size={19} color="#fff" />
                   )}
@@ -398,7 +406,7 @@ export function CommunityPickerModal({
               </View>
             ) : propertySearchQuery.isLoading ? (
               <View style={styles.loadingSearch}>
-                <ActivityIndicator color={tourColors.brand} />
+                <LoadingDots color={tourColors.brand} />
                 <Text style={styles.loadingSearchText}>Checking Tour property intelligence…</Text>
               </View>
             ) : propertySearchQuery.error ? (
@@ -447,7 +455,7 @@ export function CommunityPickerModal({
           </View>
         ) : assignedSearchQuery.isLoading ? (
           <View style={styles.loadingSearch}>
-            <ActivityIndicator color={tourColors.brand} />
+            <LoadingDots color={tourColors.brand} />
             <Text style={styles.loadingSearchText}>Searching your assigned properties…</Text>
           </View>
         ) : assignedSearchQuery.error ? (

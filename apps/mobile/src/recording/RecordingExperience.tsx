@@ -1,10 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { setAudioModeAsync } from "expo-audio";
-import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -28,6 +26,7 @@ import Reanimated, {
   SlideOutRight,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LoadingDots } from "@/components/loading-dots";
 import {
   appendDictationText,
   formatRecordingUploadTitle,
@@ -48,7 +47,7 @@ import {
 } from "../api";
 import { isOnline } from "../offline/sync-outbox";
 import { ChatTypingIndicator, LiveChatMarkdown } from "./LiveChatMarkdown";
-import { supportsBackgroundRecording } from "../runtime";
+import { isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
 import { useRecording, WAVEFORM_BAR_COUNT } from "./RecordingProvider";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
@@ -87,7 +86,7 @@ const WAVE_MAX_HEIGHT = 28;
 const PERMISSION_TIP_KEY = "tour.recording.permissionTip.dismissed";
 const SUGGESTION_REFRESH_MS = 18_000;
 
-const IS_SIMULATOR = !(Constants.isDevice ?? false);
+const IS_SIMULATOR = isSimulator();
 
 type SpeechTranscriberModule = {
   requestPermissions: () => Promise<"authorized" | "denied" | "restricted" | "notDetermined">;
@@ -1165,7 +1164,7 @@ export function RecordingExperience({
                   onPress={() => void saveSessionNotes()}
                   style={({ pressed }) => [s.summarySaveButton, pressed && s.pressed, summarySaving && s.disabled]}
                 >
-                  {summarySaving ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
+                  {summarySaving ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
                   <Text style={s.summarySaveButtonText}>{summarySaving ? "Saving…" : "Save notes"}</Text>
                 </Pressable>
               </View>
@@ -1373,7 +1372,7 @@ export function RecordingExperience({
                     style={[s.sendButton, canSendChat ? s.sendButtonActive : s.sendButtonDisabled]}
                   >
                     {chatBusy ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <LoadingDots size="small" color="#fff" />
                     ) : (
                       <Ionicons name="arrow-up" size={18} color="#fff" />
                     )}
@@ -1541,7 +1540,7 @@ export function RecordingExperience({
               <SummaryField label="Reason for visit" value={personReason} onChangeText={setPersonReason} />
               {summaryMessage ? <Text style={s.personError}>{summaryMessage}</Text> : null}
               <Pressable disabled={personSaving} onPress={() => void saveNewPerson()} style={[s.personPrimaryButton, personSaving && s.disabled]}>
-                {personSaving ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="person-add-outline" size={18} color="#fff" />}
+                {personSaving ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="person-add-outline" size={18} color="#fff" />}
                 <Text style={s.personPrimaryButtonText}>{personSaving ? "Adding…" : "Add to session"}</Text>
               </Pressable>
             </ScrollView>
@@ -1587,7 +1586,7 @@ export function RecordingExperience({
                     style={s.summaryNotesInput}
                   />
                   <Pressable disabled={personSaving} onPress={() => void savePersonNotes()} style={[s.summarySaveButton, personSaving && s.disabled]}>
-                    {personSaving ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
+                    {personSaving ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
                     <Text style={s.summarySaveButtonText}>Save person notes</Text>
                   </Pressable>
                 </View>

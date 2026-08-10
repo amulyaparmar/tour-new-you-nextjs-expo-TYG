@@ -3,7 +3,6 @@ import type { VideoPlayer } from "expo-video";
 import { VideoView } from "expo-video";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   BackHandler,
@@ -26,6 +25,7 @@ import Reanimated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CommunityPickerModal } from "@/components/community-picker-modal";
+import { LoadingDots } from "@/components/loading-dots";
 
 import {
   type MobileAuthSession,
@@ -394,7 +394,7 @@ function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color="#fff" />
+        <LoadingDots color="#fff" />
       ) : (
         <Text style={styles.primaryButtonText}>{label}</Text>
       )}

@@ -3,7 +3,6 @@ import type { AnalysisResult, AnalysisRunSummary, SessionDetail } from "@tour/sh
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   Share,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 import Reanimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
+import { LoadingDots } from "@/components/loading-dots";
 import { fetchAnalysis, fetchAnalysisRuns, fetchSession } from "../api";
 import { TourLogo } from "../components/TourLogo";
 import { tourColors as C, scoreColor, scoreLabel } from "../theme/tour-brand";
@@ -120,7 +120,7 @@ export function SessionReportScreen({
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color={C.brand} />
+        <LoadingDots size="large" color={C.brand} />
         <Text style={styles.loadingTitle}>Building your report workspace</Text>
         <Text style={styles.loadingCopy}>Loading the latest analysis and available versions…</Text>
       </View>
@@ -151,7 +151,7 @@ export function SessionReportScreen({
           </Pressable>
           <View style={styles.navBrand}><TourLogo width={62} /></View>
           <Pressable accessibilityLabel="Refresh report" disabled={preparing} onPress={() => void prepare(true)} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed, preparing && styles.disabled]}>
-            {preparing ? <ActivityIndicator size="small" color={C.brand} /> : <Ionicons name="refresh" size={19} color={C.textSec} />}
+            {preparing ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="refresh" size={19} color={C.textSec} />}
           </Pressable>
         </View>
 
@@ -205,7 +205,7 @@ export function SessionReportScreen({
           onPress={() => void openNativeReport()}
           style={({ pressed }) => [styles.primaryAction, pressed && styles.primaryActionPressed, (preparing || sharing) && styles.disabled]}
         >
-          {preparing || sharing ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="eye-outline" size={20} color="#fff" />}
+          {preparing || sharing ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="eye-outline" size={20} color="#fff" />}
           <Text style={styles.primaryActionText}>
             {preparing ? "Preparing PDF…" : sharing ? "Opening…" : "Preview & share PDF"}
           </Text>

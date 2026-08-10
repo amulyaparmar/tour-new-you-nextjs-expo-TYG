@@ -9,8 +9,8 @@ import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppProviders } from "./src/components/app-providers";
+import { LoadingDots } from "./src/components/loading-dots";
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   Dimensions,
@@ -548,7 +548,7 @@ function UploadStatusCard({
     <View style={[st.card, { padding: 20, gap: 14 }]}>
       <View style={{ alignItems: "center", gap: 10 }}>
         <View style={[st.uploadRing, error && { backgroundColor: C.redBg }]}>
-          {error ? <Ionicons name="cloud-offline-outline" size={28} color={C.red} /> : <ActivityIndicator size="small" color={C.brand} />}
+          {error ? <Ionicons name="cloud-offline-outline" size={28} color={C.red} /> : <LoadingDots size="small" color={C.brand} />}
         </View>
         <Text style={st.formTitle}>{error ? "Upload Needs Retry" : title}</Text>
         <Text style={[st.pageSub, { textAlign: "center", marginTop: -6 }]}>
@@ -827,7 +827,7 @@ export default function App() {
       <AppProviders>
         <View style={[st.root, st.center]}>
           <StatusBar style="dark" />
-          <ActivityIndicator color={C.brand} size="large" />
+          <LoadingDots color={C.brand} size="large" />
         </View>
       </AppProviders>
     );
@@ -992,25 +992,28 @@ function CommunityTopBar({
   property,
   onCommunityPress,
 }: {
-  left: React.ReactNode;
-  right: React.ReactNode;
+  left?: React.ReactNode;
+  right?: React.ReactNode;
   property: string;
   onCommunityPress: () => void;
 }) {
+  const propertyLabel = property
+    .replace(/\s*(?:[·|—-]\s*)?entrata\s+sync(?:ed|ing)?\b/gi, "")
+    .trim() || property;
   return (
     <View style={homeSt.topBar}>
-      <View style={homeSt.topBarSide}>{left}</View>
+      {left ? <View style={homeSt.topBarSide}>{left}</View> : null}
       <View style={homeSt.topBarCenter}>
         <Pressable
           accessibilityLabel="Switch property"
           onPress={onCommunityPress}
           style={({ pressed }) => [homeSt.propertyPicker, pressed && st.pressed]}
         >
-          <Text style={homeSt.propertyPickerText} numberOfLines={1}>{property}</Text>
+          <Text style={homeSt.propertyPickerText} numberOfLines={1}>{propertyLabel}</Text>
           <Ionicons name="chevron-down" size={15} color={C.textSec} />
         </Pressable>
       </View>
-      <View style={[homeSt.topBarSide, homeSt.topBarSideEnd]}>{right}</View>
+      {right ? <View style={[homeSt.topBarSide, homeSt.topBarSideEnd]}>{right}</View> : null}
     </View>
   );
 }
@@ -1391,12 +1394,7 @@ function DashboardScreen({ sessions, upcomingSessions, materialCount, tourLibrar
       <CommunityTopBar
         property={property}
         onCommunityPress={onCommunityPress}
-        left={<Pressable accessibilityLabel="Open profile" onPress={onProfile}><TourLogo width={62} /></Pressable>}
-        right={
-          <Pressable accessibilityLabel="Edit profile" onPress={onProfile} style={homeSt.headerIcon}>
-            <Ionicons name="person-circle-outline" size={22} color={C.text} />
-          </Pressable>
-        }
+        left={<TourLogo width={62} />}
       />
 
       <MotionPressable
@@ -1698,7 +1696,7 @@ function SessionListSwipeRow({
             style={({ pressed }) => [slst.deleteAction, (pressed || isDeleting) && slst.deleteActionPressed]}
           >
             {isDeleting ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <LoadingDots color="#fff" size="small" />
             ) : (
               <>
                 <Ionicons name="trash-outline" size={20} color="#fff" />
@@ -2039,7 +2037,7 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
 
   const ListFooter = useMemo(() => {
     if (showSamples) return null;
-    if (loadingMore) return <ActivityIndicator style={{ paddingVertical: 20 }} color={C.brand} />;
+    if (loadingMore) return <LoadingDots style={{ paddingVertical: 20 }} color={C.brand} />;
     if (!hasMore && sessions.length > 0) return (
       <Text style={slst.endText}>All sessions loaded</Text>
     );
@@ -2311,7 +2309,7 @@ function CalendarScreen({
         left={<TourLogo width={62} />}
         right={
           <Pressable onPress={() => void runSync()} disabled={syncing} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-            {syncing ? <ActivityIndicator size="small" color={C.brand} /> : <Ionicons name="sync" size={18} color={C.text} />}
+            {syncing ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="sync" size={18} color={C.text} />}
           </Pressable>
         }
       />
@@ -2530,7 +2528,7 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
           }
           right={
             <Pressable onPress={() => void addAsset()} disabled={uploading} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-              {uploading ? <ActivityIndicator size="small" color={C.brand} /> : <Ionicons name="add" size={21} color={C.text} />}
+              {uploading ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="add" size={21} color={C.text} />}
             </Pressable>
           }
         />
@@ -2768,7 +2766,7 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
 
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
-        setStatus("Microphone permission was denied. Reset it in Simulator or iOS Settings and try again.");
+        setStatus("Microphone permission was denied. Enable it for Tour in iOS Settings and try again.");
         return;
       }
 
@@ -4594,7 +4592,7 @@ function SessionReviewExperience({
             onPress={() => void createSelectionClip()}
             style={reviewSt.selectionAction}
           >
-            {selectionBusy ? <ActivityIndicator size="small" color={C.brand} /> : <Ionicons name="film-outline" size={17} color={C.brand} />}
+            {selectionBusy ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="film-outline" size={17} color={C.brand} />}
             <Text style={reviewSt.selectionActionText}>Create clip</Text>
           </Pressable>
         </View>
@@ -4745,7 +4743,7 @@ function SessionReviewExperience({
                 (!selectionComment.trim() || selectionBusy) && { opacity: 0.5 },
               ]}
             >
-              {selectionBusy ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={16} color="#fff" />}
+              {selectionBusy ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="send" size={16} color="#fff" />}
               <Text style={reviewSt.commentModalSubmitText}>Add comment</Text>
             </Pressable>
           </View>
@@ -5334,7 +5332,7 @@ function UploadProcessCard({
         </Pressable>
         {status === "in_progress" && (
           <Pressable disabled={cancelling} onPress={confirmCancelSession} style={({ pressed }) => [st.cancelSessionBtn, pressed && st.pressed]}>
-            {cancelling ? <ActivityIndicator size="small" color={C.red} /> : <Ionicons name="close-circle-outline" size={18} color={C.red} />}
+            {cancelling ? <LoadingDots size="small" color={C.red} /> : <Ionicons name="close-circle-outline" size={18} color={C.red} />}
             <Text style={st.cancelSessionText}>{cancelling ? "Cancelling..." : "Cancel active session"}</Text>
           </Pressable>
         )}
@@ -5397,7 +5395,7 @@ function UploadProcessCard({
   if (phase === "processing") {
     return (
       <View style={[st.card, { padding: 20, gap: 14, alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={C.brand} />
+        <LoadingDots size="large" color={C.brand} />
         <Text style={st.formTitle}>{processingTitle(status)}</Text>
         <Text style={[st.pageSub, { textAlign: "center" }]}>{processingStatusMessage(status)}</Text>
         <ProcessingTimeline status={status} />
@@ -5598,7 +5596,7 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
   if (!sound) {
     return (
       <View style={[st.card, { padding: 16, flexDirection: "row", alignItems: "center", gap: 10 }]}>
-        <ActivityIndicator size="small" color={C.brand} />
+        <LoadingDots size="small" color={C.brand} />
         <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec }}>Loading audio...</Text>
       </View>
     );
@@ -5766,7 +5764,7 @@ function ActionsTab({
               )}
               {!readOnly && <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable onPress={() => handleStatus(a.id, "completed")} disabled={updatingId === a.id} style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.green, borderRadius: 12, paddingVertical: 10 }, pressed && st.pressed]}>
-                  {updatingId === a.id ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="checkmark-circle-outline" size={16} color="#fff" /><Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>Complete</Text></>}
+                  {updatingId === a.id ? <LoadingDots size="small" color="#fff" /> : <><Ionicons name="checkmark-circle-outline" size={16} color="#fff" /><Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>Complete</Text></>}
                 </Pressable>
                 <Pressable onPress={() => handleStatus(a.id, "dismissed")} disabled={updatingId === a.id} style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#f1f5f9", borderRadius: 12, paddingVertical: 10 }, pressed && st.pressed]}>
                   <Ionicons name="close-circle-outline" size={16} color={C.textSec} /><Text style={{ color: C.textSec, fontSize: 14, fontWeight: "800" }}>Dismiss</Text>
@@ -6386,7 +6384,7 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
           onPress={() => void saveAliases()}
           style={({ pressed }) => [st.aliasSaveButton, pressed && st.pressed, savingAliases && st.aliasSaveButtonDisabled]}
         >
-          {savingAliases ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
+          {savingAliases ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
           <Text style={st.aliasSaveText}>{savingAliases ? "Saving…" : "Save aliases"}</Text>
         </Pressable>
       </View>
@@ -6563,7 +6561,7 @@ const audioTestSt = StyleSheet.create({
 
 const homeSt = StyleSheet.create({
   topBar: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 },
-  topBarSide: { width: 44, alignItems: "flex-start", justifyContent: "center" },
+  topBarSide: { minWidth: 44, flexShrink: 0, alignItems: "flex-start", justifyContent: "center" },
   topBarSideEnd: { alignItems: "flex-end" },
   topBarCenter: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" },
   propertyPicker: { maxWidth: "100%", minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 16, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 999, backgroundColor: "#fff" },
