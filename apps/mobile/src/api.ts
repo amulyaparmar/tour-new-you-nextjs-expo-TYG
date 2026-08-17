@@ -841,7 +841,8 @@ export async function sendSessionFollowUp(
 export async function fetchMaterials() {
   const res = await authenticatedFetch("/api/materials");
   if (!res.ok) {
-    throw new Error("Failed to fetch materials.");
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? "Failed to fetch property assets.");
   }
   return (await res.json()) as { materials: Material[]; tourLibrary: TourLibraryLink | null };
 }

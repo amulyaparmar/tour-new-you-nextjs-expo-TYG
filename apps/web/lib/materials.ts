@@ -328,11 +328,14 @@ export async function resolveTourLibraryLink(propertyId: string): Promise<TourLi
         .maybeSingle<LegacyCommunityRow>();
       community = data ?? null;
     }
+    const magnetUuid = direct.magnetUuid ?? normalizeMagnetUuid(community?.community_magnets);
     return buildTourLibraryLink({
       source: "property",
       communityId: direct.communityId ?? community?.id ?? null,
-      magnetUuid: direct.magnetUuid ?? normalizeMagnetUuid(community?.community_magnets),
-      alias: direct.alias ?? (cleanString(community?.alias) || null),
+      magnetUuid,
+      // A canonical magnet UUID from propertiesTYG must win over a legacy
+      // @alias. Only use the alias when no magnet identifier is available.
+      alias: direct.alias ?? (magnetUuid ? null : (cleanString(community?.alias) || null)),
     });
   }
 
