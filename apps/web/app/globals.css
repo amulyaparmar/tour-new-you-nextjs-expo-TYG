@@ -4367,6 +4367,12 @@ button { border: 0; font: inherit; cursor: pointer; }
   transform: translateY(-1px);
 }
 
+.create-action-card.active {
+  border-color: var(--indigo-500);
+  background: var(--indigo-50);
+  box-shadow: inset 0 0 0 1px var(--indigo-500);
+}
+
 .create-primary-action.content:hover {
   border-color: var(--green-400);
   background: var(--green-50);
