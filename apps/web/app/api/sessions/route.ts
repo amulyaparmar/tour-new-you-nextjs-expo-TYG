@@ -131,6 +131,7 @@ export async function POST(request: Request) {
       unitLabel?: string | null;
       source?: "manual" | "qr";
       status?: SessionStatus;
+      sessionKind?: SessionKind;
     };
 
     if (!body.title?.trim() && !body.sourceFileName?.trim() && !body.prospectName?.trim() && !body.agentName?.trim() && !body.uploaderIsAgent) {
@@ -187,6 +188,7 @@ export async function POST(request: Request) {
       notes: body.notes ?? null,
       customerInterests: normalizeSessionCustomerInterests(body.customerInterests),
       source,
+      sessionKind: body.sessionKind,
       rubricId: rubric.id,
       agentId,
       propertyId: requestedPropertyId,

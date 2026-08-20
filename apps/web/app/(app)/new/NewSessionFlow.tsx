@@ -12,10 +12,10 @@ import {
   Library,
   Loader2,
   Mic,
+  Phone,
   Plus,
   Square,
   Upload,
-  UserRound
 } from "lucide-react";
 
 import { Toaster } from "sonner";
@@ -32,7 +32,7 @@ import {
 } from "./SessionRecordingUploadCard";
 import { RoleplayPanel } from "./roleplay/RoleplayPanel";
 
-type Phase = "choose" | "lead" | "recording" | "details" | "saving" | "bulk";
+type Phase = "choose" | "phone" | "lead" | "recording" | "details" | "saving" | "bulk";
 type CreateTab = "session" | "roleplay" | "content";
 type RecordingMode = "audio" | "video";
 type DraftType = "session" | "content";
@@ -53,7 +53,7 @@ function initialsForName(name: string) {
     .toUpperCase() || "ME";
 }
 
-export function NewSessionFlow({ propertyLocation, profileName }: { propertyLocation: string; profileName: string }) {
+export function NewSessionFlow({ propertyId, propertyLocation, propertyPhone, profileName }: { propertyId: string; propertyLocation: string; propertyPhone: string | null; profileName: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +66,8 @@ export function NewSessionFlow({ propertyLocation, profileName }: { propertyLoca
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const phoneDeviceRef = useRef<any>(null);
+  const phoneConnectionRef = useRef<any>(null);
 
   const [phase, setPhase] = useState<Phase>("choose");
   // The active tab lives in the URL (?tab=roleplay|content; session is the
@@ -98,6 +100,11 @@ export function NewSessionFlow({ propertyLocation, profileName }: { propertyLoca
   const [customerInterests, setCustomerInterests] = useState<SessionCustomerInterest[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStage, setUploadStage] = useState<string | null>(null);
+  const [phoneCallMode, setPhoneCallMode] = useState<"mystery_shop" | "prospect_follow_up">("mystery_shop");
+  const [phoneNumber, setPhoneNumber] = useState(propertyPhone ?? "");
+  const [phoneCallState, setPhoneCallState] = useState<"idle" | "starting" | "started" | "error">("idle");
+  const [phoneCallError, setPhoneCallError] = useState<string | null>(null);
+  const [phoneCallSessionId, setPhoneCallSessionId] = useState<string | null>(null);
   const defaultSessionTitle = cleanDateTourTitle(new Date());
   const profileInitials = initialsForName(profileName);
 
@@ -105,6 +112,8 @@ export function NewSessionFlow({ propertyLocation, profileName }: { propertyLoca
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      phoneConnectionRef.current?.disconnect?.();
+      phoneDeviceRef.current?.destroy?.();
     };
   }, []);
 
@@ -516,11 +525,11 @@ export function NewSessionFlow({ propertyLocation, profileName }: { propertyLoca
             </button>
 
             <div className="create-action-grid">
-              <button type="button" className="create-action-card" onClick={() => setPhase("lead")}>
-                <UserRound size={20} />
+              <button type="button" className="create-action-card" onClick={() => setPhase("phone")}>
+                <Phone size={20} />
                 <span>
-                  <span className="create-action-title">Capture Tour Lead</span>
-                  <span className="create-action-copy">Log prospect details, then record or upload after.</span>
+                  <span className="create-action-title">Record a Phone Call</span>
+                  <span className="create-action-copy">Conduct a mystery shop or record a prospect follow-up call.</span>
                 </span>
               </button>
             </div>
@@ -648,6 +657,106 @@ export function NewSessionFlow({ propertyLocation, profileName }: { propertyLoca
           }}
         />
         {errorMsg && <p className="create-error">{errorMsg}</p>}
+      </>
+    );
+  }
+
+  if (phase === "phone") {
+    async function startPhoneCall(event: React.FormEvent<HTMLFormElement>) {
+      event.preventDefault();
+      setPhoneCallState("starting");
+      setPhoneCallError(null);
+      try {
+        const result = await fetch("/api/phone-calls", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phoneNumber, mode: phoneCallMode }),
+        });
+        const body = await result.json().catch(() => ({}));
+        if (!result.ok) throw new Error(body.error || "Could not start the phone call.");
+        const sessionId = body.sessionId ?? null;
+        setPhoneCallSessionId(sessionId);
+        if (!sessionId) throw new Error("The phone session was not created.");
+
+        const tokenResult = await fetch("/api/phone-calls/token", { cache: "no-store" });
+        const tokenBody = await tokenResult.json().catch(() => ({}));
+        if (!tokenResult.ok || !tokenBody.token) {
+          throw new Error(tokenBody.error || "Twilio Voice is not configured.");
+        }
+
+        const sdk = await import("@twilio/voice-sdk");
+        const device = new sdk.Device(tokenBody.token, { logLevel: 1, edge: "roaming" });
+        phoneDeviceRef.current = device;
+        device.on("error", (error: any) => {
+          setPhoneCallState("error");
+          setPhoneCallError(error?.message || "Twilio Voice error.");
+        });
+        device.on("disconnect", () => {
+          phoneConnectionRef.current = null;
+          setPhoneCallState("started");
+        });
+        await device.register();
+        const connection = await device.connect({
+          params: {
+            To: phoneNumber,
+            sessionId,
+            propertyId,
+            propertyName: propertyLocation,
+            initiatedByEmail: profileName,
+          },
+        });
+        phoneConnectionRef.current = connection;
+        setPhoneCallState("started");
+      } catch (error) {
+        setPhoneCallState("error");
+        setPhoneCallError(error instanceof Error ? error.message : "Could not start the phone call.");
+      }
+    }
+
+    return (
+      <>
+        <button type="button" className="back-link" onClick={() => setPhase("choose")}>
+          <ArrowLeft size={14} style={{ marginRight: 4 }} /> Back
+        </button>
+        <div className="page-header create-page-header">
+          <h1>Record a Phone Call</h1>
+          <p>Conduct a mystery shop or record a prospect follow-up call.</p>
+        </div>
+        <form className="create-panel smart-session-page-panel" onSubmit={startPhoneCall}>
+          <label className="form-label" htmlFor="phone-call-number">Property phone number</label>
+          <input
+            id="phone-call-number"
+            className="form-input"
+            type="tel"
+            value={phoneNumber}
+            onChange={(event) => setPhoneNumber(event.target.value)}
+            placeholder="(555) 555-5555"
+            required
+            disabled={phoneCallState === "starting" || phoneCallState === "started"}
+          />
+          <div className="create-action-grid" style={{ marginTop: 16 }}>
+            <button type="button" className={`create-action-card ${phoneCallMode === "mystery_shop" ? "active" : ""}`} onClick={() => setPhoneCallMode("mystery_shop")} disabled={phoneCallState !== "idle" && phoneCallState !== "error"}>
+              <Phone size={20} />
+              <span><span className="create-action-title">Mystery Shop</span><span className="create-action-copy">AI acts as a prospective renter.</span></span>
+            </button>
+            <button type="button" className={`create-action-card ${phoneCallMode === "prospect_follow_up" ? "active" : ""}`} onClick={() => setPhoneCallMode("prospect_follow_up")} disabled={phoneCallState !== "idle" && phoneCallState !== "error"}>
+              <Phone size={20} />
+              <span><span className="create-action-title">Prospect Follow-up</span><span className="create-action-copy">AI follows up on an earlier inquiry.</span></span>
+            </button>
+          </div>
+          {phoneCallState === "started" ? (
+            <div className="create-success" style={{ marginTop: 20 }}>
+              <strong>Live phone call connected.</strong> The recording will become a session automatically when the call ends.
+              {phoneCallSessionId && <a className="btn btn-secondary" style={{ marginTop: 12 }} href={`/sessions/${phoneCallSessionId}`}>Open session</a>}
+              <button type="button" className="btn btn-secondary" style={{ marginTop: 12, marginLeft: 8 }} onClick={() => phoneConnectionRef.current?.disconnect?.()}>End call</button>
+            </div>
+          ) : (
+            <button className="btn btn-primary" style={{ marginTop: 20 }} type="submit" disabled={phoneCallState === "starting"}>
+              {phoneCallState === "starting" ? <><Loader2 size={16} className="animate-spin" /> Starting call…</> : <><Phone size={16} /> Start phone call</>}
+            </button>
+          )}
+          {phoneCallError && <p className="create-error">{phoneCallError}</p>}
+        </form>
       </>
     );
   }

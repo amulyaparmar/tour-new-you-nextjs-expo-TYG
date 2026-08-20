@@ -2,6 +2,8 @@ import "server-only";
 
 import twilio from "twilio";
 
+export const DEFAULT_TWILIO_VOICE_FROM = "+14157352992";
+
 /**
  * Normalize a raw phone string to E.164. Mirrors the helper in tour.video.
  * Returns null when the input has no usable digits.
@@ -31,6 +33,46 @@ type TwilioSmsConfig = {
   authToken: string;
   from: string;
 };
+
+function getTwilioVoiceConfig() {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const from =
+    process.env.TWILIO_VOICE_FROM ||
+    process.env.TWILIO_PHONE_NUMBER ||
+    process.env.TWILIO_FROM_NUMBER ||
+    process.env.TWILIO_SMS_FROM ||
+    DEFAULT_TWILIO_VOICE_FROM;
+  const apiKey = process.env.TWILIO_VOICE_API_KEY;
+  const apiSecret = process.env.TWILIO_VOICE_API_SECRET;
+  const twimlAppSid = process.env.TWILIO_VOICE_TWIML_APP_SID;
+  if (!accountSid || !authToken || !from) return null;
+  return { accountSid, authToken, from, apiKey, apiSecret, twimlAppSid };
+}
+
+export function getTwilioVoiceTokenConfig() {
+  const config = getTwilioVoiceConfig();
+  if (!config?.apiKey || !config.apiSecret || !config.twimlAppSid) return null;
+  return config;
+}
+
+export function getTwilioVoiceCallerId() {
+  return getTwilioVoiceConfig()?.from ?? DEFAULT_TWILIO_VOICE_FROM;
+}
+
+export function validateTwilioVoiceWebhook(
+  request: Request,
+  payload: Record<string, string>,
+): boolean {
+  const config = getTwilioVoiceConfig();
+  if (!config?.authToken) return false;
+  if (process.env.NODE_ENV !== "production" && process.env.TWILIO_VALIDATE_SIGNATURE !== "true") {
+    return true;
+  }
+  const signature = request.headers.get("x-twilio-signature");
+  if (!signature) return false;
+  return twilio.validateRequest(config.authToken, signature, request.url, payload);
+}
 
 /**
  * Reads Twilio SMS config from the environment. Unlike the reference repo, there
