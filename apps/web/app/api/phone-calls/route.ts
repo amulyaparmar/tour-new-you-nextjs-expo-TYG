@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { normalizeSessionCustomerInterests } from "@tour/shared";
 import { requireRoleplayWorkspace } from "@/lib/roleplay/apiAuth";
 import { createSession } from "@/lib/sessions";
-import { listRubrics } from "@/lib/rubrics";
+import { getDefaultRubric, getPrimaryRubricForProperty, listRubrics } from "@/lib/rubrics";
 import { normalizePhoneE164 } from "@/lib/twilio";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null) as {
       phoneNumber?: unknown;
       mode?: unknown;
+      rubricId?: unknown;
       prospectName?: unknown;
       notes?: unknown;
     } | null;
@@ -30,12 +31,17 @@ export async function POST(request: Request) {
 
     const mode: CallMode = body?.mode === "prospect_follow_up" ? "prospect_follow_up" : "mystery_shop";
     const propertyId = workspace.community.propertyTygId;
-    const phoneRubric = (await listRubrics()).find(
+    const rubrics = await listRubrics();
+    const selectedRubric = typeof body?.rubricId === "string"
+      ? rubrics.find((rubric) => rubric.id === body.rubricId && rubric.propertyId === propertyId)
+      : null;
+    const phoneRubric = selectedRubric ?? rubrics.find(
       (rubric) => rubric.propertyId === propertyId && rubric.sessionType === "phone_shop",
-    ) ?? (await listRubrics()).find((rubric) => rubric.sessionType === "phone_shop");
-    if (!phoneRubric) {
-      return response({ error: "The phone shop rubric is not configured for this property." }, 503);
-    }
+    )
+      ?? rubrics.find((rubric) => !rubric.propertyId && rubric.sessionType === "phone_shop")
+      // A property can use its normal/default rubric for a phone call until a
+      // dedicated phone-shop rubric is configured.
+      ?? await getPrimaryRubricForProperty(propertyId).catch(() => getDefaultRubric());
 
     const session = await createSession({
       title: mode === "mystery_shop" ? "Mystery Shop Call" : "Prospect Follow-up Call",

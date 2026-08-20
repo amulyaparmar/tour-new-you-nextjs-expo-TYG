@@ -36,6 +36,7 @@ type Phase = "choose" | "phone" | "lead" | "recording" | "details" | "saving" | 
 type CreateTab = "session" | "roleplay" | "content";
 type RecordingMode = "audio" | "video";
 type DraftType = "session" | "content";
+type PhoneCallRubric = { id: string; name: string; sessionType: string; isDefault: boolean };
 
 function cleanDateTourTitle(date: Date) {
   const day = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -53,7 +54,7 @@ function initialsForName(name: string) {
     .toUpperCase() || "ME";
 }
 
-export function NewSessionFlow({ propertyId, propertyLocation, propertyPhone, profileName }: { propertyId: string; propertyLocation: string; propertyPhone: string | null; profileName: string }) {
+export function NewSessionFlow({ propertyId, propertyLocation, propertyPhone, profileName, phoneCallRubrics }: { propertyId: string; propertyLocation: string; propertyPhone: string | null; profileName: string; phoneCallRubrics: PhoneCallRubric[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,6 +102,11 @@ export function NewSessionFlow({ propertyId, propertyLocation, propertyPhone, pr
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStage, setUploadStage] = useState<string | null>(null);
   const [phoneCallMode, setPhoneCallMode] = useState<"mystery_shop" | "prospect_follow_up">("mystery_shop");
+  const sortedPhoneCallRubrics = [...phoneCallRubrics].sort((a, b) => {
+    const phoneScore = (rubric: PhoneCallRubric) => /phone|call/i.test(rubric.sessionType) ? 0 : 1;
+    return phoneScore(a) - phoneScore(b) || Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name);
+  });
+  const [phoneCallRubricId, setPhoneCallRubricId] = useState<string>(sortedPhoneCallRubrics[0]?.id ?? "");
   const [phoneNumber, setPhoneNumber] = useState(propertyPhone ?? "");
   const [phoneCallState, setPhoneCallState] = useState<"idle" | "starting" | "started" | "error">("idle");
   const [phoneCallError, setPhoneCallError] = useState<string | null>(null);
@@ -670,7 +676,7 @@ export function NewSessionFlow({ propertyId, propertyLocation, propertyPhone, pr
         const result = await fetch("/api/phone-calls", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phoneNumber, mode: phoneCallMode }),
+          body: JSON.stringify({ phoneNumber, mode: phoneCallMode, rubricId: phoneCallRubricId || null }),
         });
         const body = await result.json().catch(() => ({}));
         if (!result.ok) throw new Error(body.error || "Could not start the phone call.");
@@ -734,6 +740,23 @@ export function NewSessionFlow({ propertyId, propertyLocation, propertyPhone, pr
             required
             disabled={phoneCallState === "starting" || phoneCallState === "started"}
           />
+          <label className="form-label" htmlFor="phone-call-rubric" style={{ marginTop: 16 }}>Evaluation rubric</label>
+          <select
+            id="phone-call-rubric"
+            className="form-input"
+            value={phoneCallRubricId}
+            onChange={(event) => setPhoneCallRubricId(event.target.value)}
+            disabled={phoneCallState === "starting" || phoneCallState === "started"}
+          >
+            {sortedPhoneCallRubrics.map((rubric) => (
+              <option key={rubric.id} value={rubric.id}>
+                {rubric.name} ({rubric.sessionType.replaceAll("_", " ")})
+              </option>
+            ))}
+          </select>
+          <small style={{ display: "block", marginTop: 6, color: "var(--slate-500)" }}>
+            Phone rubrics are listed first. You can choose any rubric configured for this property.
+          </small>
           <div className="create-action-grid" style={{ marginTop: 16 }}>
             <button type="button" className={`create-action-card ${phoneCallMode === "mystery_shop" ? "active" : ""}`} onClick={() => setPhoneCallMode("mystery_shop")} disabled={phoneCallState !== "idle" && phoneCallState !== "error"}>
               <Phone size={20} />
