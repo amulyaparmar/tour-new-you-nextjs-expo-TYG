@@ -697,10 +697,10 @@ export function NewSessionFlow({ propertyId, propertyLocation, propertyPhone, pr
           setPhoneCallState("error");
           setPhoneCallError(error?.message || "Twilio Voice error.");
         });
-        device.on("disconnect", () => {
-          phoneConnectionRef.current = null;
-          setPhoneCallState("started");
-        });
+      device.on("disconnect", () => {
+        phoneConnectionRef.current = null;
+        setPhoneCallState("idle");
+      });
         await device.register();
         const connection = await device.connect({
           params: {
@@ -758,11 +758,11 @@ export function NewSessionFlow({ propertyId, propertyLocation, propertyPhone, pr
             Phone rubrics are listed first. You can choose any rubric configured for this property.
           </small>
           <div className="create-action-grid" style={{ marginTop: 16 }}>
-            <button type="button" className={`create-action-card ${phoneCallMode === "mystery_shop" ? "active" : ""}`} onClick={() => setPhoneCallMode("mystery_shop")} disabled={phoneCallState !== "idle" && phoneCallState !== "error"}>
+            <button type="button" aria-pressed={phoneCallMode === "mystery_shop"} className={`create-action-card ${phoneCallMode === "mystery_shop" ? "active" : ""}`} onClick={() => { setPhoneCallMode("mystery_shop"); setPhoneCallError(null); }} disabled={phoneCallState === "starting" || phoneCallState === "started"}>
               <Phone size={20} />
               <span><span className="create-action-title">Mystery Shop</span><span className="create-action-copy">AI acts as a prospective renter.</span></span>
             </button>
-            <button type="button" className={`create-action-card ${phoneCallMode === "prospect_follow_up" ? "active" : ""}`} onClick={() => setPhoneCallMode("prospect_follow_up")} disabled={phoneCallState !== "idle" && phoneCallState !== "error"}>
+            <button type="button" aria-pressed={phoneCallMode === "prospect_follow_up"} className={`create-action-card ${phoneCallMode === "prospect_follow_up" ? "active" : ""}`} onClick={() => { setPhoneCallMode("prospect_follow_up"); setPhoneCallError(null); }} disabled={phoneCallState === "starting" || phoneCallState === "started"}>
               <Phone size={20} />
               <span><span className="create-action-title">Prospect Follow-up</span><span className="create-action-copy">AI follows up on an earlier inquiry.</span></span>
             </button>
