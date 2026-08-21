@@ -14,7 +14,13 @@ export function getSupabasePublicClient() {
     throw new Error("Missing Supabase public environment variables.");
   }
 
-  publicClient = createClient(supabaseUrl, supabaseAnonKey);
+  publicClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
 
   return publicClient;
 }

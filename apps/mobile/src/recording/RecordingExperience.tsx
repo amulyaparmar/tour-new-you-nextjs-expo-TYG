@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { setAudioModeAsync } from "expo-audio";
 import * as SecureStore from "expo-secure-store";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import QRCodeStyled from "react-native-qrcode-styled";
 import {
   FlatList,
   Keyboard,
@@ -10,6 +11,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,6 +40,7 @@ import type { LiveSessionChatMessage, Material } from "../api";
 import {
   addSessionAttachment,
   addSessionParticipant,
+  createCheckInLink,
   createSession,
   fetchLiveSessionSuggestions,
   materialUrl,
@@ -52,6 +55,10 @@ import { isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
 import { useRecording, WAVEFORM_BAR_COUNT } from "./RecordingProvider";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
+import {
+  useSessionParticipantRealtime,
+  type SessionParticipantRealtimeStatus,
+} from "../session-participants-realtime";
 
 const C = {
   bg: "#F7F8FB",
@@ -217,6 +224,10 @@ function transcriptText(lines: LiveTranscriptLine[]) {
 
 function personInitials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "?";
+}
+
+function sessionLeadKey(lead: SessionLead) {
+  return lead.createdAt || `${lead.email ?? ""}:${lead.phone ?? ""}:${lead.name}`;
 }
 
 function attachmentTypeForMaterial(material: Material): SessionAttachment["type"] {
@@ -401,6 +412,11 @@ export function RecordingExperience({
   const [startError, setStartError] = useState<string | null>(null);
   const [assetSheetOpen, setAssetSheetOpen] = useState(false);
   const [personSheetOpen, setPersonSheetOpen] = useState(false);
+  const [personEntryMode, setPersonEntryMode] = useState<"qr" | "manual">("qr");
+  const [checkInBinding, setCheckInBinding] = useState<{ sessionId: string; url: string } | null>(null);
+  const [checkInLinkLoading, setCheckInLinkLoading] = useState(false);
+  const [checkInLinkError, setCheckInLinkError] = useState<string | null>(null);
+  const [participantRealtimeStatus, setParticipantRealtimeStatus] = useState<SessionParticipantRealtimeStatus>("idle");
   const [selectedPerson, setSelectedPerson] = useState<SessionLead | null>(null);
   const [personFirstName, setPersonFirstName] = useState("");
   const [personLastName, setPersonLastName] = useState("");
@@ -439,6 +455,35 @@ export function RecordingExperience({
   const chatComposerMode = chatFocused && hasStarted;
   const showBottomDock = !chatComposerMode;
   const canSendChat = Boolean(chatInput.trim()) && !chatBusy;
+  const participantKeysRef = useRef(new Set(participants.map(sessionLeadKey)));
+
+  useEffect(() => {
+    for (const participant of participants) {
+      participantKeysRef.current.add(sessionLeadKey(participant));
+    }
+  }, [participants]);
+
+  const reconcileSessionParticipants = useCallback((nextParticipants: SessionLead[]) => {
+    const joinedNames: string[] = [];
+    for (const participant of nextParticipants) {
+      const key = sessionLeadKey(participant);
+      if (participantKeysRef.current.has(key)) continue;
+      participantKeysRef.current.add(key);
+      joinedNames.push(participant.firstName || participant.name.split(" ")[0] || participant.name);
+      onAddParticipant(participant);
+    }
+    if (joinedNames.length === 1) {
+      setSummaryMessage(`${joinedNames[0]} joined this session`);
+    } else if (joinedNames.length > 1) {
+      setSummaryMessage(`${joinedNames.length} people joined this session`);
+    }
+  }, [onAddParticipant]);
+
+  useSessionParticipantRealtime({
+    sessionId: resolvedSessionId,
+    onParticipants: reconcileSessionParticipants,
+    onStatusChange: setParticipantRealtimeStatus,
+  });
 
   const pauseTourForDictation = useCallback(async () => {
     if (!rec.isRecording || rec.isPaused) return;
@@ -809,7 +854,37 @@ export function RecordingExperience({
     setPersonHowHeard(first?.questionAnswers?.hear_about ?? "");
     setPersonReason(first?.reason ?? "");
     setSummaryMessage(null);
+    setPersonEntryMode("qr");
     setPersonSheetOpen(true);
+    void prepareRemoteCheckIn();
+  }
+
+  async function prepareRemoteCheckIn() {
+    setCheckInLinkError(null);
+    setCheckInLinkLoading(true);
+    try {
+      const liveSessionId = await ensureLiveSessionId();
+      if (!liveSessionId) {
+        throw new Error("Connect to the internet to create this live check-in QR.");
+      }
+      if (checkInBinding?.sessionId === liveSessionId) return;
+
+      const binding = await createCheckInLink({ sessionId: liveSessionId });
+      setCheckInBinding(binding);
+    } catch (caught) {
+      setCheckInLinkError(caught instanceof Error ? caught.message : "Could not create the live check-in QR.");
+    } finally {
+      setCheckInLinkLoading(false);
+    }
+  }
+
+  async function shareRemoteCheckIn() {
+    if (!checkInBinding?.url) return;
+    await Share.share({
+      title: "Tour check-in",
+      message: checkInBinding.url,
+      url: checkInBinding.url,
+    });
   }
 
   async function saveSessionNotes() {
@@ -846,6 +921,7 @@ export function RecordingExperience({
         reason: personReason.trim() || null,
         questionAnswers: personHowHeard.trim() ? { hear_about: personHowHeard.trim() } : undefined,
       });
+      participantKeysRef.current.add(sessionLeadKey(lead));
       onAddParticipant(lead);
       setPersonSheetOpen(false);
       setSummaryMessage(`${lead.name} joined this session`);
@@ -1530,27 +1606,114 @@ export function RecordingExperience({
             <View style={s.sheetHeader}>
               <View style={s.flex1}>
                 <Text style={s.assetSheetTitle}>Add another person</Text>
-                <Text style={s.assetSheetSubtitle}>They will join this same tour session.</Text>
+                <Text style={s.assetSheetSubtitle}>Let them scan, share the link, or enter their details here.</Text>
               </View>
               <Pressable accessibilityLabel="Close add person" onPress={() => setPersonSheetOpen(false)} style={s.assetClose}>
                 <Ionicons name="close" size={20} color={C.text} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={s.personForm} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <View style={s.personNameRow}>
-                <SummaryField label="First name" value={personFirstName} onChangeText={setPersonFirstName} autoCapitalize="words" />
-                <SummaryField label="Last name" value={personLastName} onChangeText={setPersonLastName} autoCapitalize="words" />
-              </View>
-              <SummaryField label="Email (optional)" value={personEmail} onChangeText={setPersonEmail} keyboardType="email-address" autoCapitalize="none" />
-              <SummaryField label="Phone (optional)" value={personPhone} onChangeText={setPersonPhone} keyboardType="phone-pad" />
-              <SummaryField label="How did you hear about us?" value={personHowHeard} onChangeText={setPersonHowHeard} />
-              <SummaryField label="Reason for visit" value={personReason} onChangeText={setPersonReason} />
-              {summaryMessage ? <Text style={s.personError}>{summaryMessage}</Text> : null}
-              <Pressable disabled={personSaving} onPress={() => void saveNewPerson()} style={[s.personPrimaryButton, personSaving && s.disabled]}>
-                {personSaving ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="person-add-outline" size={18} color="#fff" />}
-                <Text style={s.personPrimaryButtonText}>{personSaving ? "Adding…" : "Add to session"}</Text>
+            <View style={s.personModeTabs}>
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: personEntryMode === "qr" }}
+                onPress={() => {
+                  setPersonEntryMode("qr");
+                  void prepareRemoteCheckIn();
+                }}
+                style={[s.personModeTab, personEntryMode === "qr" && s.personModeTabActive]}
+              >
+                <Ionicons name="qr-code-outline" size={16} color={personEntryMode === "qr" ? C.brand : C.textMuted} />
+                <Text style={[s.personModeTabText, personEntryMode === "qr" && s.personModeTabTextActive]}>Scan or share</Text>
               </Pressable>
-            </ScrollView>
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: personEntryMode === "manual" }}
+                onPress={() => setPersonEntryMode("manual")}
+                style={[s.personModeTab, personEntryMode === "manual" && s.personModeTabActive]}
+              >
+                <Ionicons name="create-outline" size={16} color={personEntryMode === "manual" ? C.brand : C.textMuted} />
+                <Text style={[s.personModeTabText, personEntryMode === "manual" && s.personModeTabTextActive]}>Enter details</Text>
+              </Pressable>
+            </View>
+
+            <Reanimated.View key={personEntryMode} entering={FadeIn.duration(170)} style={s.personModeBody}>
+              {personEntryMode === "qr" ? (
+                <View style={s.personQrPanel}>
+                  <View style={s.personRealtimeStatus}>
+                    <View style={[
+                      s.personRealtimeDot,
+                      participantRealtimeStatus === "live" && s.personRealtimeDotLive,
+                    ]} />
+                    <Text style={s.personRealtimeText}>
+                      {participantRealtimeStatus === "live"
+                        ? "Live check-in connected"
+                        : participantRealtimeStatus === "connecting"
+                          ? "Connecting live check-in…"
+                          : "Check-ins will refresh automatically"}
+                    </Text>
+                  </View>
+
+                  {checkInLinkLoading || !checkInBinding?.url ? (
+                    <View style={s.personQrLoading}>
+                      {checkInLinkLoading ? <LoadingDots size="large" color={C.brand} /> : <Ionicons name="cloud-offline-outline" size={34} color={C.textMuted} />}
+                      <Text style={s.personQrLoadingTitle}>
+                        {checkInLinkLoading ? "Preparing live check-in…" : "Live QR unavailable"}
+                      </Text>
+                      <Text style={s.personQrLoadingCopy}>
+                        {checkInLinkError ?? "Connect to create a QR for this exact session."}
+                      </Text>
+                      {!checkInLinkLoading ? (
+                        <Pressable onPress={() => void prepareRemoteCheckIn()} style={s.personRetryButton}>
+                          <Ionicons name="refresh" size={16} color={C.brand} />
+                          <Text style={s.personRetryText}>Try again</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <>
+                      <View style={s.personQrCard}>
+                        <QRCodeStyled
+                          data={checkInBinding.url}
+                          size={210}
+                          padding={10}
+                          color={C.text}
+                          pieceScale={0.82}
+                          pieceCornerType="rounded"
+                          pieceBorderRadius={4}
+                          outerEyesOptions={{ borderRadius: 12, color: C.text }}
+                          innerEyesOptions={{ borderRadius: 10, color: C.brand }}
+                          errorCorrectionLevel="Q"
+                          style={s.personQrCode}
+                        />
+                      </View>
+                      <Text style={s.personQrTitle}>Scan to join this tour</Text>
+                      <Text style={s.personQrCopy}>Their check-in will appear here without interrupting the recording.</Text>
+                      <Text style={s.personQrUrl} numberOfLines={2}>{checkInBinding.url}</Text>
+                      <Pressable onPress={() => void shareRemoteCheckIn()} style={s.personPrimaryButton}>
+                        <Ionicons name="share-social-outline" size={18} color="#fff" />
+                        <Text style={s.personPrimaryButtonText}>Share check-in link</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              ) : (
+                <ScrollView contentContainerStyle={s.personForm} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                  <View style={s.personNameRow}>
+                    <SummaryField label="First name" value={personFirstName} onChangeText={setPersonFirstName} autoCapitalize="words" />
+                    <SummaryField label="Last name" value={personLastName} onChangeText={setPersonLastName} autoCapitalize="words" />
+                  </View>
+                  <SummaryField label="Email (optional)" value={personEmail} onChangeText={setPersonEmail} keyboardType="email-address" autoCapitalize="none" />
+                  <SummaryField label="Phone (optional)" value={personPhone} onChangeText={setPersonPhone} keyboardType="phone-pad" />
+                  <SummaryField label="How did you hear about us?" value={personHowHeard} onChangeText={setPersonHowHeard} />
+                  <SummaryField label="Reason for visit" value={personReason} onChangeText={setPersonReason} />
+                  {summaryMessage ? <Text style={s.personError}>{summaryMessage}</Text> : null}
+                  <Pressable disabled={personSaving} onPress={() => void saveNewPerson()} style={[s.personPrimaryButton, personSaving && s.disabled]}>
+                    {personSaving ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="person-add-outline" size={18} color="#fff" />}
+                    <Text style={s.personPrimaryButtonText}>{personSaving ? "Adding…" : "Add to session"}</Text>
+                  </Pressable>
+                </ScrollView>
+              )}
+            </Reanimated.View>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -1914,6 +2077,27 @@ const s = StyleSheet.create({
   assetPickMeta: { color: C.textSec, fontSize: 11, marginTop: 2, fontWeight: "600" },
   assetPickAction: { color: C.brandSoft, fontSize: 11, fontWeight: "900" },
   assetNotesInput: { minHeight: 74, maxHeight: 120, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 11, color: C.text, fontSize: 13, textAlignVertical: "top", backgroundColor: C.panel },
+  personModeTabs: { flexDirection: "row", gap: 5, padding: 4, marginBottom: 14, borderRadius: 15, backgroundColor: "#EEF1F5" },
+  personModeTab: { flex: 1, minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12 },
+  personModeTabActive: { backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 5, elevation: 2 },
+  personModeTabText: { color: C.textMuted, fontSize: 12, fontWeight: "900" },
+  personModeTabTextActive: { color: C.brand },
+  personModeBody: { flexShrink: 1 },
+  personQrPanel: { alignItems: "center", gap: 9, paddingBottom: 8 },
+  personRealtimeStatus: { minHeight: 30, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 11, borderRadius: 15, backgroundColor: C.brandSoft },
+  personRealtimeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.textMuted },
+  personRealtimeDotLive: { backgroundColor: C.green },
+  personRealtimeText: { color: C.textSec, fontSize: 11, fontWeight: "800" },
+  personQrCard: { width: 232, height: 232, alignItems: "center", justifyContent: "center", borderRadius: 26, backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 22, elevation: 5 },
+  personQrCode: { backgroundColor: "#fff", borderRadius: 20 },
+  personQrTitle: { color: C.text, fontSize: 17, fontWeight: "900" },
+  personQrCopy: { maxWidth: 310, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600", textAlign: "center" },
+  personQrUrl: { maxWidth: 310, color: C.textMuted, fontSize: 10, lineHeight: 14, fontWeight: "600", textAlign: "center" },
+  personQrLoading: { minHeight: 310, alignSelf: "stretch", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 24, borderWidth: 1, borderColor: C.line, borderRadius: 20, backgroundColor: C.panel },
+  personQrLoadingTitle: { color: C.text, fontSize: 16, fontWeight: "900", textAlign: "center" },
+  personQrLoadingCopy: { color: C.textSec, fontSize: 12, lineHeight: 18, fontWeight: "600", textAlign: "center" },
+  personRetryButton: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 14, borderRadius: 20, backgroundColor: C.brandSoft },
+  personRetryText: { color: C.brand, fontSize: 12, fontWeight: "900" },
   personForm: { gap: 12, paddingBottom: 10 },
   personNameRow: { flexDirection: "row", gap: 10 },
   summaryField: { flex: 1, gap: 6 },
