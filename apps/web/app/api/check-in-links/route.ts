@@ -138,25 +138,21 @@ function resolvePublicCheckInPath(
     throw new CheckInLinkError("The session property is not available.", 404);
   }
   const member = resolveSessionMember(workspace, community, agentId);
-  if (!member) {
-    throw new CheckInLinkError(
-      "The session's assigned team member does not have a public check-in profile.",
-      409,
-    );
-  }
-
   const propertySlug = defaultPropertyPublicAlias({
     alias: community.alias,
     name: community.name,
     propertyTygId: community.propertyTygId,
   });
+  if (!propertySlug) throw new CheckInLinkError("Could not build the public check-in URL.", 409);
+  if (!member) return `/p/${encodeURIComponent(propertySlug)}`;
+
   const memberSlug = defaultMemberPublicAlias({
     alias: member.alias,
     name: member.name,
     email: member.email,
     id: member.id || member.userId,
   });
-  if (!propertySlug || !memberSlug) {
+  if (!memberSlug) {
     throw new CheckInLinkError("Could not build the public check-in URL.", 409);
   }
   return `/p/${encodeURIComponent(propertySlug)}/${encodeURIComponent(memberSlug)}`;
