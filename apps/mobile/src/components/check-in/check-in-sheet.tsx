@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
   Image,
-  KeyboardAvoidingView,
+  View,
   Modal,
   Platform,
   Pressable,
@@ -12,14 +12,15 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
 } from "react-native";
 
 import { submitCheckInLead } from "../../api";
 import { LoadingDots } from "@/components/loading-dots";
 import { TourMark } from "../TourLogo";
 
-const SHEET_HEIGHT = Math.round(Dimensions.get("window").height * 0.78);
+// Keep the check-in form compact on tall devices. The form itself scrolls when
+// the keyboard is visible instead of making the entire sheet rise excessively.
+const SHEET_HEIGHT = Math.min(Math.round(Dimensions.get("window").height * 0.78), 720);
 
 const C = {
   text: "#101828",
@@ -106,7 +107,7 @@ export function CheckInSheet({
   agentName?: string | null;
   repSlug?: string | null;
   /** Exact remote session that both QR and native check-in add to. */
-  sessionId: string;
+  sessionId?: string | null;
   /** Personalized public check-in URL from property/member aliases. */
   checkInUrl?: string | null;
   /** After check-in, open the session and start recording. */
@@ -117,13 +118,16 @@ export function CheckInSheet({
   const checkInUrl = useMemo(() => {
     const fromProp = (checkInUrlProp ?? "").trim();
     if (fromProp) return fromProp;
-    // Prefer property/member live URL shape over legacy /p/{repSlug}.
+    // Show a property-level QR immediately. Once the server creates a
+    // session binding, checkInUrlProp replaces this with the session URL.
     const propertySlug = (property ?? "")
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "property";
-    return `https://tour.you/p/${encodeURIComponent(propertySlug)}/${encodeURIComponent(resolvedRepSlug)}?check-in=true&sessionId=${encodeURIComponent(sessionId)}`;
+    const sessionQuery = sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : "";
+    const memberPath = sessionId ? `/${encodeURIComponent(resolvedRepSlug)}` : "";
+    return `https://tour.you/p/${encodeURIComponent(propertySlug)}${memberPath}?check-in=true${sessionQuery}`;
   }, [checkInUrlProp, property, resolvedRepSlug, sessionId]);
   const checkInQrUrl = useMemo(
     () =>
@@ -237,10 +241,7 @@ export function CheckInSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetScrim} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.sheetKeyboard}
-      >
+      <View style={styles.sheetKeyboard}>
         <Pressable onPress={(event) => event.stopPropagation()} style={styles.checkInSheet}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetTabs}>
@@ -316,6 +317,7 @@ export function CheckInSheet({
             <ScrollView
               style={styles.flex1}
               keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.checkInForm}
             >
@@ -372,6 +374,7 @@ export function CheckInSheet({
             <ScrollView
               style={styles.flex1}
               keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.checkInForm}
             >
@@ -457,7 +460,7 @@ export function CheckInSheet({
           )}
           </View>
         </Pressable>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

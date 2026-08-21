@@ -1086,8 +1086,8 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
   const [checkInOpen, setCheckInOpen] = useState(false);
   const checkInStartingRef = useRef(false);
   const [checkInBinding, setCheckInBinding] = useState<{
-    sessionId: string;
-    url: string;
+    sessionId: string | null;
+    url: string | null;
   } | null>(null);
   const publicMemberAlias = defaultMemberPublicAlias({
     alias: authSession.workspace.teamMember?.alias,
@@ -1166,15 +1166,15 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
     if (checkInStartingRef.current) return;
 
     checkInStartingRef.current = true;
+    setCheckInBinding({ sessionId: null, url: null });
+    setCheckInOpen(true);
     try {
       const binding = await createCheckInLink();
       setCheckInBinding(binding);
-      setCheckInOpen(true);
     } catch (caught) {
-      showToast(
-        caught instanceof Error ? caught.message : "Could not start this check-in session",
-        "error",
-      );
+      // The check-in sheet can work without a pre-created session. If the
+      // binding request fails, the eventual lead submission creates the
+      // session and returns its ID.
     } finally {
       checkInStartingRef.current = false;
     }
