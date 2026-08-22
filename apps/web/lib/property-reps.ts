@@ -16,6 +16,10 @@ type PropertyRepRow = {
   metadata: unknown;
 };
 
+type LegacyCommunityAliasRow = {
+  gmbId: unknown;
+};
+
 export async function getPropertyProfile(propertyId: string): Promise<PropertyProfile | null> {
   const supabase = getSupabaseServiceClient();
   const { data, error } = await supabase
@@ -159,6 +163,38 @@ async function findPropertyByIdentity(propertyIdentity: string): Promise<Propert
   if (prefixedAliasError) throw new Error(prefixedAliasError.message);
   if (prefixedAlias) return prefixedAlias;
 
+  // Older public links use Community.alias. Resolve that alias through its
+  // Google place ID so it reaches the canonical propertiesTYG record.
+  for (const legacyAlias of [propertyKey, `@${propertyKey}`]) {
+    const { data: legacyCommunity, error: legacyAliasError } = await supabase
+      .from("Community")
+      .select("gmbId")
+      .ilike("alias", legacyAlias)
+      .limit(1)
+      .maybeSingle<LegacyCommunityAliasRow>();
+    if (legacyAliasError) throw new Error(legacyAliasError.message);
+
+    const legacyPropertyId = normalizeLegacyPropertyId(legacyCommunity?.gmbId);
+    if (!legacyPropertyId) continue;
+
+    const { data: legacyById, error: legacyIdError } = await supabase
+      .from("propertiesTYG")
+      .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
+      .eq("id", legacyPropertyId)
+      .maybeSingle<PropertyRepRow>();
+    if (legacyIdError) throw new Error(legacyIdError.message);
+    if (legacyById) return legacyById;
+
+    const { data: legacyByPlaceId, error: legacyPlaceIdError } = await supabase
+      .from("propertiesTYG")
+      .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
+      .eq("place_id", legacyPropertyId)
+      .limit(1)
+      .maybeSingle<PropertyRepRow>();
+    if (legacyPlaceIdError) throw new Error(legacyPlaceIdError.message);
+    if (legacyByPlaceId) return legacyByPlaceId;
+  }
+
   // The link generator falls back to a slug of the live property name when an
   // alias has not been saved. Narrow by its words, then confirm the exact slug.
   const namePattern = propertyKey.split("-").filter(Boolean).join("%");
@@ -179,6 +215,18 @@ async function findPropertyByIdentity(propertyIdentity: string): Promise<Propert
 
 function cleanString(value: unknown): string {
   return typeof value === "string" ? value.trim() : value === null || value === undefined ? "" : String(value).trim();
+}
+
+function normalizeLegacyPropertyId(value: unknown): string {
+  if (typeof value !== "string") return cleanString(value);
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = JSON.parse(trimmed);
+    return typeof parsed === "string" ? parsed.trim() : trimmed;
+  } catch {
+    return trimmed;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
