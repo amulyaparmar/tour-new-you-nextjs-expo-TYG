@@ -238,9 +238,11 @@ export function CheckInCard({
             <p className={styles.company}>{property.name}</p>
 
             <div className={styles.fields}>
-              <ContactField href={`mailto:${rep.email}`} icon={<Mail size={16} />}>
-                {rep.email}
-              </ContactField>
+              {rep.email ? (
+                <ContactField href={`mailto:${rep.email}`} icon={<Mail size={16} />}>
+                  {rep.email}
+                </ContactField>
+              ) : null}
               {rep.phoneValue ? (
                 <ContactField href={`tel:${rep.phoneValue}`} icon={<Phone size={16} />}>
                   {rep.phoneDisplay}
@@ -433,8 +435,8 @@ function ContactSheet({
           jobTitle: showJobTitle ? jobTitle : null,
           reason,
           questionAnswers: answers,
-          repSlug: rep.slug,
-          repName: rep.name,
+          repSlug: rep.slug || null,
+          repName: rep.slug ? rep.name : null,
           propertyName: property.name,
           propertyId: property.id ?? null,
           sessionId,
@@ -445,7 +447,7 @@ function ContactSheet({
         throw new Error(data?.error ?? "Something went wrong. Please try again.");
       }
 
-      if (phone.trim()) {
+      if (phone.trim() && rep.slug) {
         void fetch(`/api/p/${rep.slug}/text-contact`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
+import { getPropertyCheckInCard } from "@/lib/property-reps";
 import { getRepCard, offlineContactQrUrl, vCardDownloadUrl } from "@/lib/reps";
 import { CheckInCard } from "./CheckInCard";
 
@@ -15,6 +17,12 @@ type LeadPageProps = {
   }>;
 };
 
+export const dynamic = "force-dynamic";
+
+const getPublicCard = cache(async (slug: string) =>
+  getRepCard(slug) ?? await getPropertyCheckInCard(slug)
+);
+
 function wantsCheckIn(value: string | string[] | undefined) {
   const raw = Array.isArray(value) ? value[0] : value;
   const normalized = (raw ?? "").trim().toLowerCase();
@@ -27,7 +35,7 @@ function firstQueryValue(value: string | string[] | undefined) {
 
 export async function generateMetadata({ params }: LeadPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const card = getRepCard(slug);
+  const card = await getPublicCard(slug);
 
   if (!card) {
     return { title: "Tour contact" };
@@ -36,7 +44,7 @@ export async function generateMetadata({ params }: LeadPageProps): Promise<Metad
   const { rep, property } = card;
   const title = `${property.name} tour with ${rep.name}`;
   const description = `Check in for your tour at ${property.name} with ${rep.name}, ${rep.title}.`;
-  const cardImage = `/api/p/${rep.slug}/card`;
+  const cardImage = rep.slug ? `/api/p/${rep.slug}/card` : null;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002";
 
@@ -47,13 +55,13 @@ export async function generateMetadata({ params }: LeadPageProps): Promise<Metad
     openGraph: {
       title,
       description,
-      images: [{ url: cardImage, width: 1200, height: 630, alt: `${rep.name} tour card` }]
+      ...(cardImage ? { images: [{ url: cardImage, width: 1200, height: 630, alt: `${rep.name} tour card` }] } : {})
     },
     twitter: {
-      card: "summary_large_image",
+      card: cardImage ? "summary_large_image" : "summary",
       title,
       description,
-      images: [cardImage]
+      ...(cardImage ? { images: [cardImage] } : {})
     }
   };
 }
@@ -61,7 +69,7 @@ export async function generateMetadata({ params }: LeadPageProps): Promise<Metad
 export default async function LeadPage({ params, searchParams }: LeadPageProps) {
   const { slug } = await params;
   const query = await searchParams;
-  const card = getRepCard(slug);
+  const card = await getPublicCard(slug);
 
   if (!card) {
     notFound();

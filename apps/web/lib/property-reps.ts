@@ -35,49 +35,47 @@ export async function getPropertyProfile(propertyId: string): Promise<PropertyPr
   };
 }
 
+/** Property-level public check-in card used when a session has no matched agent. */
+export async function getPropertyCheckInCard(propertyIdentity: string): Promise<RepCard | null> {
+  const property = await findPropertyByIdentity(propertyIdentity);
+  if (!property) return null;
+
+  const propertyName = cleanString(property.name) || "Property";
+  const heroMedia = await getPropertyHeroMedia(property.id).catch(() => null);
+  return {
+    rep: {
+      // An empty slug intentionally keeps property-only check-ins unassigned.
+      slug: "",
+      name: "Leasing Team",
+      initials: "LT",
+      title: "Property Team",
+      company: cleanString(property.property_manager) || propertyName,
+      email: "",
+      phoneValue: "",
+      phoneDisplay: "",
+      website: property.website || undefined,
+      websiteDisplay: property.website ? property.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : undefined,
+      cardAccent: null,
+    },
+    property: {
+      id: property.id,
+      name: propertyName,
+      mediaUrl: heroMedia?.url || property.thumbnail_url || "",
+      mediaKind: heroMedia?.kind ?? (property.thumbnail_url ? "image" : undefined),
+    },
+    questions: DEFAULT_QUESTIONS,
+  };
+}
+
 export async function getPropertyRepCard(
   propertyIdentity: string,
   memberIdentity: string
 ): Promise<RepCard | null> {
-  const supabase = getSupabaseServiceClient();
   // Strip accidental query/hash fragments if a shared URL stuffed them into the path segment.
-  const propertyKey = propertyIdentity.trim().replace(/^@/, "").split(/[?#]/)[0]!.toLowerCase();
   const memberKey = memberIdentity.trim().replace(/^@/, "").split(/[?#]/)[0]!.toLowerCase();
-  if (!propertyKey || !memberKey) return null;
+  if (!memberKey) return null;
 
-  let property: PropertyRepRow | null = null;
-  const { data: byId, error: idError } = await supabase
-    .from("propertiesTYG")
-    .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
-    .eq("id", propertyIdentity)
-    .maybeSingle<PropertyRepRow>();
-  if (idError) throw new Error(idError.message);
-  property = byId ?? null;
-  if (!property) {
-    const { data: byAlias, error: aliasError } = await supabase
-      .from("propertiesTYG")
-      .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
-      .eq("alias", propertyKey)
-      .maybeSingle<PropertyRepRow>();
-    if (aliasError) throw new Error(aliasError.message);
-    property = byAlias ?? null;
-  }
-  if (!property) {
-    // Match defaults derived from the live property name before an alias is saved.
-    const { data: teamProperties, error: teamError } = await supabase
-      .from("propertiesTYG")
-      .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
-      .not("metadata->property_team", "is", null)
-      .order("id", { ascending: true })
-      .limit(500);
-    if (teamError) throw new Error(teamError.message);
-    const propertyRows: PropertyRepRow[] = Array.isArray(teamProperties as unknown)
-      ? (teamProperties as unknown[]).filter(isPropertyRepRow)
-      : [];
-    property = propertyRows.find((row) =>
-      toPublicAlias(row.alias) === propertyKey || toPublicAlias(row.name) === propertyKey
-    ) ?? null;
-  }
+  const property = await findPropertyByIdentity(propertyIdentity);
   if (!property || !isRecord(property.metadata) || !Array.isArray(property.metadata.property_team)) return null;
 
   const member = property.metadata.property_team.find((candidate) => {
@@ -129,6 +127,54 @@ export async function getPropertyRepCard(
     },
     questions: DEFAULT_QUESTIONS,
   };
+}
+
+async function findPropertyByIdentity(propertyIdentity: string): Promise<PropertyRepRow | null> {
+  const supabase = getSupabaseServiceClient();
+  const rawIdentity = propertyIdentity.trim().replace(/^@/, "").split(/[?#]/)[0]!;
+  const propertyKey = toPublicAlias(rawIdentity);
+  if (!propertyKey) return null;
+
+  const { data: byId, error: idError } = await supabase
+    .from("propertiesTYG")
+    .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
+    .eq("id", rawIdentity)
+    .maybeSingle<PropertyRepRow>();
+  if (idError) throw new Error(idError.message);
+  if (byId) return byId;
+
+  const { data: byAlias, error: aliasError } = await supabase
+    .from("propertiesTYG")
+    .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
+    .ilike("alias", propertyKey)
+    .maybeSingle<PropertyRepRow>();
+  if (aliasError) throw new Error(aliasError.message);
+  if (byAlias) return byAlias;
+
+  const { data: prefixedAlias, error: prefixedAliasError } = await supabase
+    .from("propertiesTYG")
+    .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
+    .ilike("alias", `@${propertyKey}`)
+    .maybeSingle<PropertyRepRow>();
+  if (prefixedAliasError) throw new Error(prefixedAliasError.message);
+  if (prefixedAlias) return prefixedAlias;
+
+  // The link generator falls back to a slug of the live property name when an
+  // alias has not been saved. Narrow by its words, then confirm the exact slug.
+  const namePattern = propertyKey.split("-").filter(Boolean).join("%");
+  const { data: nameMatches, error: nameError } = await supabase
+    .from("propertiesTYG")
+    .select("id,name,alias,website,thumbnail_url,property_manager,metadata")
+    .ilike("name", namePattern)
+    .order("id", { ascending: true })
+    .limit(100);
+  if (nameError) throw new Error(nameError.message);
+  const propertyRows: PropertyRepRow[] = Array.isArray(nameMatches as unknown)
+    ? (nameMatches as unknown[]).filter(isPropertyRepRow)
+    : [];
+  return propertyRows.find((row) =>
+    toPublicAlias(row.alias) === propertyKey || toPublicAlias(row.name) === propertyKey
+  ) ?? null;
 }
 
 function cleanString(value: unknown): string {
