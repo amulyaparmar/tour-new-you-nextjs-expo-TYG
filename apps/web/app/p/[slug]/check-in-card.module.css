@@ -400,6 +400,12 @@
   margin-top: 10px;
 }
 
+.selectField {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+}
+
 .floatingFieldFlush,
 .phoneInputField {
   margin-top: 0;

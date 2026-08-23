@@ -1,8 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
+import QRCodeStyled from "react-native-qrcode-styled";
+import Reanimated, {
+  FadeIn,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 import {
   Dimensions,
-  Image,
+  Linking,
   View,
   Modal,
   Platform,
@@ -63,6 +71,7 @@ const CHECK_IN_QUESTIONS: MobileCheckInQuestion[] = [
     placeholder: "Select a floor plan",
   },
 ];
+const INTEREST_OPTIONS = ["Availability", "Pricing", "Floor plans", "Amenities", "Schedule a tour", "Other"];
 
 function formatCheckInPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 10);
@@ -129,38 +138,52 @@ export function CheckInSheet({
     const memberPath = sessionId ? `/${encodeURIComponent(resolvedRepSlug)}` : "";
     return `https://tour.you/p/${encodeURIComponent(propertySlug)}${memberPath}?check-in=true${sessionQuery}`;
   }, [checkInUrlProp, property, resolvedRepSlug, sessionId]);
-  const checkInQrUrl = useMemo(
-    () =>
-      `https://api.qrserver.com/v1/create-qr-code/?size=420x420&margin=12&format=png&data=${encodeURIComponent(checkInUrl)}`,
-    [checkInUrl]
-  );
-
-  const [mode, setMode] = useState<"checkin" | "qr">("checkin");
+  const [mode, setMode] = useState<"checkin" | "qr">("qr");
+  const [tabSwitching, setTabSwitching] = useState(false);
+  const [tabSegmentWidth, setTabSegmentWidth] = useState(0);
+  const tabPosition = useSharedValue(1);
   const [step, setStep] = useState<"contact" | "questions" | "done">("contact");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [reason, setReason] = useState(`Tour ${property}`);
-  const [jobTitle, setJobTitle] = useState("");
-  const [showJobTitle, setShowJobTitle] = useState(false);
+  const [interest, setInterest] = useState("");
   const [wantsSummary, setWantsSummary] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultSessionId, setResultSessionId] = useState<string | null>(null);
 
+  const tabIndicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tabPosition.value * (tabSegmentWidth + 6) }],
+  }), [tabSegmentWidth]);
+
+  useEffect(() => {
+    tabPosition.value = withSpring(mode === "checkin" ? 0 : 1, {
+      damping: 20,
+      stiffness: 240,
+      mass: 0.72,
+    });
+  }, [mode, tabPosition]);
+
+  useEffect(() => {
+    if (!tabSwitching) return;
+    const timeout = setTimeout(() => setTabSwitching(false), 140);
+    return () => clearTimeout(timeout);
+  }, [mode, tabSwitching]);
+
   useEffect(() => {
     if (!visible) return;
-    setMode("checkin");
+    setMode("qr");
+    setTabSwitching(false);
     setStep("contact");
     setFirstName("");
     setLastName("");
     setEmail("");
     setPhone("");
     setReason(`Tour ${property}`);
-    setJobTitle("");
-    setShowJobTitle(false);
+    setInterest("");
     setWantsSummary(false);
     setAnswers({});
     setSubmitting(false);
@@ -178,9 +201,8 @@ export function CheckInSheet({
         email: email.trim(),
         phone: phone.replace(/\D/g, "") || null,
         wantsSummary,
-        jobTitle: showJobTitle ? jobTitle.trim() || null : null,
         reason: reason.trim() || `Tour ${property}`,
-        questionAnswers: answers,
+        questionAnswers: interest ? { ...answers, interest } : answers,
         repSlug: resolvedRepSlug,
         repName: agentName?.trim() || null,
         propertyName: property,
@@ -229,8 +251,7 @@ export function CheckInSheet({
     setLastName("");
     setEmail("");
     setPhone("");
-    setJobTitle("");
-    setShowJobTitle(false);
+    setInterest("");
     setWantsSummary(false);
     setAnswers(sharedHowHeard ? { hear_about: sharedHowHeard } : {});
     setError(null);
@@ -244,10 +265,23 @@ export function CheckInSheet({
       <View style={styles.sheetKeyboard}>
         <Pressable onPress={(event) => event.stopPropagation()} style={styles.checkInSheet}>
           <View style={styles.sheetHandle} />
-          <View style={styles.sheetTabs}>
+          <View
+            style={styles.sheetTabs}
+            onLayout={(event) => setTabSegmentWidth((event.nativeEvent.layout.width - 12) / 2)}
+          >
+            {tabSegmentWidth > 0 ? (
+              <Reanimated.View
+                pointerEvents="none"
+                style={[styles.sheetTabIndicator, { width: tabSegmentWidth }, tabIndicatorStyle]}
+              />
+            ) : null}
             <Pressable
-              onPress={() => setMode("checkin")}
-              style={[styles.sheetTab, mode === "checkin" && styles.sheetTabActive]}
+              onPress={() => {
+                if (mode === "checkin") return;
+                setTabSwitching(true);
+                setMode("checkin");
+              }}
+              style={styles.sheetTab}
             >
               <Ionicons name="send-outline" size={14} color={mode === "checkin" ? C.brand : C.textMuted} />
               <Text style={[styles.sheetTabText, mode === "checkin" && styles.sheetTabTextActive]}>
@@ -255,22 +289,53 @@ export function CheckInSheet({
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => setMode("qr")}
-              style={[styles.sheetTab, mode === "qr" && styles.sheetTabActive]}
+              onPress={() => {
+                if (mode === "qr") return;
+                setTabSwitching(true);
+                setMode("qr");
+              }}
+              style={styles.sheetTab}
             >
               <BrandedQrIcon size={15} />
               <Text style={[styles.sheetTabText, mode === "qr" && styles.sheetTabTextActive]}>QR</Text>
             </Pressable>
           </View>
 
-          <View style={styles.sheetBody}>
-          {mode === "qr" ? (
+          <Reanimated.View
+            key={mode}
+            entering={FadeIn.duration(160)}
+            layout={LinearTransition.duration(180)}
+            style={styles.sheetBody}
+          >
+          {tabSwitching ? (
+            <CheckInPanelSkeleton mode={mode} />
+          ) : mode === "qr" ? (
             <View style={styles.qrPanel}>
               <View style={styles.qrCard}>
-                <Image source={{ uri: checkInQrUrl }} style={styles.qrImage} resizeMode="contain" />
+                <QRCodeStyled
+                  data={checkInUrl}
+                  size={220}
+                  padding={10}
+                  color={C.text}
+                  pieceScale={0.82}
+                  pieceCornerType="rounded"
+                  pieceBorderRadius={4}
+                  outerEyesOptions={{ borderRadius: 12, color: C.text }}
+                  innerEyesOptions={{ borderRadius: 10, color: C.brand }}
+                  errorCorrectionLevel="Q"
+                  style={styles.qrCode}
+                />
               </View>
               <Text style={styles.qrTitle}>Scan to check in</Text>
-              <Text style={styles.qrSub}>{checkInUrl}</Text>
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel="Open check-in page"
+                onPress={() => void Linking.openURL(checkInUrl)}
+                style={({ pressed }) => [styles.qrLink, pressed && styles.pressed]}
+              >
+                <Text style={styles.qrLinkText} numberOfLines={2}>{checkInUrl}</Text>
+                <Ionicons name="open-outline" size={13} color={C.brand} />
+              </Pressable>
               <Pressable
                 onPress={() => void shareCheckInLink()}
                 style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
@@ -395,7 +460,6 @@ export function CheckInSheet({
                   value={firstName}
                   onChangeText={setFirstName}
                   autoComplete="given-name"
-                  autoFocus
                 />
                 <CheckInField
                   label="Last name"
@@ -430,22 +494,16 @@ export function CheckInSheet({
                 </View>
               </View>
               <CheckInField label="Reason for visit" value={reason} onChangeText={setReason} />
-              {showJobTitle ? (
-                <CheckInField
-                  label="Job title"
-                  value={jobTitle}
-                  onChangeText={setJobTitle}
-                  autoComplete="organization-title"
-                />
-              ) : (
-                <Pressable
-                  onPress={() => setShowJobTitle(true)}
-                  style={({ pressed }) => [styles.addJobButton, pressed && styles.pressed]}
-                >
-                  <Ionicons name="briefcase-outline" size={14} color="#111827" />
-                  <Text style={styles.addJobText}>Job title</Text>
-                </Pressable>
-              )}
+              <CheckInQuestionField
+                question={{
+                  id: "interest",
+                  label: "What are you interested in?",
+                  type: "select",
+                  options: INTEREST_OPTIONS,
+                }}
+                value={interest}
+                onChange={setInterest}
+              />
               {error ? <Text style={styles.fieldError}>{error}</Text> : null}
               <Pressable
                 onPress={nextFromContact}
@@ -458,7 +516,7 @@ export function CheckInSheet({
               <Text style={styles.checkInDestination}>QR opens {checkInUrl}</Text>
             </ScrollView>
           )}
-          </View>
+          </Reanimated.View>
         </Pressable>
       </View>
     </Modal>
@@ -549,6 +607,17 @@ function BrandedQrIcon({ size = 32 }: { size?: number }) {
   );
 }
 
+function CheckInPanelSkeleton({ mode }: { mode: "checkin" | "qr" }) {
+  return (
+    <View style={styles.panelSkeleton} accessibilityLabel={`Loading ${mode === "qr" ? "QR code" : "check-in form"}`}>
+      <View style={mode === "qr" ? styles.skeletonQr : styles.skeletonFormHead} />
+      <View style={styles.skeletonLineWide} />
+      <View style={styles.skeletonLineShort} />
+      <View style={styles.skeletonButton} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   sheetScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
   sheetKeyboard: { flex: 1, justifyContent: "flex-end" },
@@ -566,6 +635,43 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  panelSkeleton: {
+    flex: 1,
+    alignItems: "center",
+    gap: 14,
+    paddingTop: 24,
+  },
+  skeletonQr: {
+    width: 220,
+    height: 220,
+    borderRadius: 16,
+    backgroundColor: "#eef1f5",
+  },
+  skeletonFormHead: {
+    alignSelf: "stretch",
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#eef1f5",
+  },
+  skeletonLineWide: {
+    width: "72%",
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#eef1f5",
+  },
+  skeletonLineShort: {
+    width: "48%",
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#f3f4f6",
+  },
+  skeletonButton: {
+    width: "100%",
+    height: 46,
+    marginTop: "auto",
+    borderRadius: 13,
+    backgroundColor: "#eef1f5",
+  },
   sheetHandle: {
     alignSelf: "center",
     width: 36,
@@ -575,6 +681,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   sheetTabs: {
+    position: "relative",
     flexDirection: "row",
     gap: 6,
     padding: 3,
@@ -583,6 +690,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   sheetTab: {
+    zIndex: 1,
     flex: 1,
     minHeight: 36,
     flexDirection: "row",
@@ -591,7 +699,12 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: 11,
   },
-  sheetTabActive: {
+  sheetTabIndicator: {
+    position: "absolute",
+    left: 3,
+    top: 3,
+    bottom: 3,
+    borderRadius: 11,
     backgroundColor: "#fff",
     shadowColor: "#101828",
     shadowOffset: { width: 0, height: 1 },
@@ -750,15 +863,19 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   qrCard: {
-    width: 180,
-    height: 180,
+    width: 248,
+    height: 248,
     alignItems: "center",
     justifyContent: "center",
-    padding: 10,
-    borderRadius: 18,
-    backgroundColor: "#f8fafc",
+    borderRadius: 28,
+    backgroundColor: "#fff",
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 5,
   },
-  qrImage: { width: "100%", height: "100%" },
+  qrCode: { backgroundColor: "#fff", borderRadius: 22 },
   qrTitle: { color: C.text, fontSize: 16, fontWeight: "800" },
   qrSub: {
     maxWidth: 280,
@@ -767,6 +884,24 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontWeight: "600",
     textAlign: "center",
+  },
+  qrLink: {
+    maxWidth: 300,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  qrLinkText: {
+    flexShrink: 1,
+    color: C.brand,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
   qrBrandCenter: {
     position: "absolute",

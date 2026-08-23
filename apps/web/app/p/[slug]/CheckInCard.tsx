@@ -10,7 +10,6 @@ import type {
   RefObject
 } from "react";
 import {
-  Briefcase,
   Check,
   CheckCircle2,
   Download,
@@ -50,6 +49,7 @@ type FloatingInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className
 };
 
 const EMAIL_DOMAINS = ["gmail.com", "icloud.com", "yahoo.com", "outlook.com", "hotmail.com"];
+const INTEREST_OPTIONS = ["Availability", "Pricing", "Floor plans", "Amenities", "Schedule a tour", "Other"];
 
 function formatPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 10);
@@ -403,8 +403,7 @@ function ContactSheet({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [reason, setReason] = useState(`Tour ${property.name}`);
-  const [jobTitle, setJobTitle] = useState("");
-  const [showJobTitle, setShowJobTitle] = useState(false);
+  const [interest, setInterest] = useState("");
   const [wantsSummary, setWantsSummary] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers);
   const [step, setStep] = useState<"contact" | "questions">("contact");
@@ -432,9 +431,8 @@ function ContactSheet({
           email,
           phone: phone.replace(/\D/g, ""),
           wantsSummary,
-          jobTitle: showJobTitle ? jobTitle : null,
           reason,
-          questionAnswers: answers,
+          questionAnswers: interest ? { ...answers, interest } : answers,
           repSlug: rep.slug || null,
           repName: rep.slug ? rep.name : null,
           propertyName: property.name,
@@ -455,7 +453,7 @@ function ContactSheet({
         }).catch(() => {});
       }
 
-      onDone(answers);
+      onDone(interest ? { ...answers, interest } : answers);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -648,20 +646,13 @@ function ContactSheet({
             onChange={(e) => setReason(e.target.value)}
           />
 
-          {showJobTitle ? (
-            <FloatingInput
-              label="Job title"
-              autoComplete="organization-title"
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-            />
-          ) : (
-            <div className={styles.addRow}>
-              <button className={styles.addBtn} type="button" onClick={() => setShowJobTitle(true)}>
-                <Briefcase size={14} /> Job title
-              </button>
-            </div>
-          )}
+          <label className={styles.selectField}>
+            <span className={styles.selectLabel}>What are you interested in?</span>
+            <select className={styles.selectInput} value={interest} onChange={(e) => setInterest(e.target.value)}>
+              <option value="">Select one</option>
+              {INTEREST_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </label>
 
           {questions.length === 0 ? (
             <label className={styles.toggleRow}>
