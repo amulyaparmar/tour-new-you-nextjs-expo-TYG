@@ -519,19 +519,21 @@ function CheckInField({
   autoFocus?: boolean;
 }) {
   return (
-    <View style={styles.floatingField}>
-      {value.length > 0 ? <Text style={styles.floatingLabel}>{label}</Text> : null}
-      <TextInput
-        autoFocus={autoFocus}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={label}
-        placeholderTextColor="#6b7280"
-        keyboardType={keyboardType}
-        autoComplete={autoComplete}
-        autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
-        style={styles.floatingInput}
-      />
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.floatingField}>
+        <TextInput
+          autoFocus={autoFocus}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={label}
+          placeholderTextColor="#6b7280"
+          keyboardType={keyboardType}
+          autoComplete={autoComplete}
+          autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
+          style={styles.floatingInput}
+        />
+      </View>
     </View>
   );
 }
@@ -706,6 +708,8 @@ const styles = StyleSheet.create({
   },
   formHeadText: { flex: 1, color: "#111318", fontSize: 16, lineHeight: 21, fontWeight: "800" },
   formRow2: { flexDirection: "row", gap: 8 },
+  fieldGroup: { flex: 1, gap: 5 },
+  fieldLabel: { color: C.text, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   floatingField: {
     flex: 1,
     minHeight: 52,
@@ -714,16 +718,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d7dae3",
     borderRadius: 12,
-    backgroundColor: "#fff",
-  },
-  floatingLabel: {
-    position: "absolute",
-    left: 12,
-    top: -8,
-    paddingHorizontal: 4,
-    color: "#4b5563",
-    fontSize: 11,
-    fontWeight: "800",
     backgroundColor: "#fff",
   },
   floatingInput: { color: "#111318", fontSize: 15, fontWeight: "500", paddingVertical: 0 },
