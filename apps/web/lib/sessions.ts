@@ -182,6 +182,7 @@ export type ListSessionsParams = {
   propertyId?: string;
   propertyIds?: string[];
   agentId?: string;
+  agentIds?: string[];
   sessionKind?: SessionKind;
   excludeScheduled?: boolean;
   upcomingFrom?: string;
@@ -232,7 +233,9 @@ export async function listSessionsPaginated(params?: ListSessionsParams): Promis
       query = query.in("property_id", params.propertyIds);
     }
 
-    if (params?.agentId) {
+    if (params?.agentIds?.length) {
+      query = query.in("agent_id", params.agentIds);
+    } else if (params?.agentId) {
       query = query.eq("agent_id", params.agentId);
     }
     if (params?.sessionKind) {
@@ -309,7 +312,9 @@ export async function listSessionsPaginated(params?: ListSessionsParams): Promis
     } else if (params?.propertyIds?.length) {
       all = all.filter((session) => session.propertyId && params.propertyIds!.includes(session.propertyId));
     }
-    if (params?.agentId) {
+    if (params?.agentIds?.length) {
+      all = all.filter((session) => session.agentId && params.agentIds!.includes(session.agentId));
+    } else if (params?.agentId) {
       all = all.filter((session) => session.agentId === params.agentId);
     }
     if (params?.sessionKind) {

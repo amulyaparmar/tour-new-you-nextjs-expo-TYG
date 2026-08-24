@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Asset } from "expo-asset";
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import * as MediaLibrary from "expo-media-library";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -16,15 +17,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  Camera,
-  CommonResolutions,
-  type Recorder,
-  useCameraDevice,
-  useCameraPermission,
-  useMicrophonePermission,
-  useVideoOutput,
-} from "react-native-vision-camera";
 
 import { LoadingDots } from "@/components/loading-dots";
 import { formatElapsed } from "../recording";
@@ -39,7 +31,7 @@ const USE_SIMULATOR_CAMERA = __DEV__ && isSimulator();
 type RecordedVideoAsset = {
   uri: string;
   fileName: string;
-  mimeType: "video/mp4";
+  mimeType: "video/mp4" | "video/quicktime";
   name: string;
   description: string;
   durationSec: number;
@@ -114,7 +106,8 @@ function PermissionGate({
   onRequest: () => void;
   onClose: () => void;
 }) {
-  const canRequest = cameraStatus === "not-determined" || microphoneStatus === "not-determined";
+  const canRequest = ["undetermined", "not-determined"].includes(cameraStatus)
+    || ["undetermined", "not-determined"].includes(microphoneStatus);
   return (
     <View style={styles.permissionPage}>
       <Pressable accessibilityLabel="Close video recorder" onPress={onClose} style={styles.permissionClose}>
@@ -252,8 +245,8 @@ function RecordedVideoReview({
 
 export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRecorderProps) {
   const insets = useSafeAreaInsets();
-  const cameraPermission = useCameraPermission();
-  const microphonePermission = useMicrophonePermission();
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
   const [position, setPosition] = useState<"back" | "front">("back");
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -266,16 +259,11 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const recorderRef = useRef<Recorder | null>(null);
+  const cameraRef = useRef<CameraView | null>(null);
+  const recordingActiveRef = useRef(false);
+  const recordingGenerationRef = useRef(0);
   const recordingStartedAtRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
-  const device = useCameraDevice(position);
-  const videoOutput = useVideoOutput({
-    targetResolution: CommonResolutions.FHD_16_9,
-    targetBitRate: 8_000_000,
-    enableAudio: true,
-    fileType: "mp4",
-  });
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -284,7 +272,11 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
 
   const resetCapture = useCallback(() => {
     clearTimer();
-    recorderRef.current = null;
+    recordingGenerationRef.current += 1;
+    if (recordingActiveRef.current && !USE_SIMULATOR_CAMERA) {
+      cameraRef.current?.stopRecording();
+    }
+    recordingActiveRef.current = false;
     setIsRecording(false);
     setDurationSec(0);
     setRecordedUri(null);
@@ -307,15 +299,15 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
   const requestPermissions = useCallback(async () => {
     setRequestingPermission(true);
     try {
-      const cameraAllowed = cameraPermission.hasPermission
+      const cameraAllowed = cameraPermission?.granted
         ? true
-        : cameraPermission.canRequestPermission
-          ? await cameraPermission.requestPermission()
+        : cameraPermission?.canAskAgain !== false
+          ? (await requestCameraPermission()).granted
           : false;
-      const microphoneAllowed = microphonePermission.hasPermission
+      const microphoneAllowed = microphonePermission?.granted
         ? true
-        : microphonePermission.canRequestPermission
-          ? await microphonePermission.requestPermission()
+        : microphonePermission?.canAskAgain !== false
+          ? (await requestMicrophonePermission()).granted
           : false;
       if (!cameraAllowed || !microphoneAllowed) {
         setError("Camera and microphone access are required to record a video.");
@@ -323,12 +315,12 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
     } finally {
       setRequestingPermission(false);
     }
-  }, [cameraPermission, microphonePermission]);
+  }, [cameraPermission, microphonePermission, requestCameraPermission, requestMicrophonePermission]);
 
   const finishRecording = useCallback((path: string) => {
     clearTimer();
     const elapsed = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
-    recorderRef.current = null;
+    recordingActiveRef.current = false;
     setIsRecording(false);
     setRecordedDurationSec(elapsed);
     setRecordedUri(asFileUri(path));
@@ -337,7 +329,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
   }, [clearTimer]);
 
   const startRecording = useCallback(async () => {
-    if (!cameraReady || isRecording || recorderRef.current) return;
+    if (!cameraReady || isRecording || recordingActiveRef.current) return;
     setError(null);
     setSaved(false);
     if (USE_SIMULATOR_CAMERA) {
@@ -350,34 +342,50 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       return;
     }
+    const camera = cameraRef.current;
+    if (!camera) {
+      setError("The camera is still starting. Please try again.");
+      return;
+    }
     try {
-      const recorder = await videoOutput.createRecorder({
-        maxDuration: MAX_RECORDING_SECONDS,
-        maxFileSize: MAX_RECORDING_BYTES,
-      });
-      recorderRef.current = recorder;
+      const generation = recordingGenerationRef.current + 1;
+      recordingGenerationRef.current = generation;
+      recordingActiveRef.current = true;
       recordingStartedAtRef.current = Date.now();
-      await recorder.startRecording(
-        (path) => finishRecording(path),
-        (caught) => {
-          clearTimer();
-          recorderRef.current = null;
-          setIsRecording(false);
-          setError(caught.message || "Video recording failed.");
-        },
-      );
       setIsRecording(true);
       setDurationSec(0);
+      const recording = camera.recordAsync({
+        maxDuration: MAX_RECORDING_SECONDS,
+        maxFileSize: MAX_RECORDING_BYTES,
+        codec: "avc1",
+      });
+      void recording.then((result) => {
+        if (recordingGenerationRef.current !== generation) return;
+        if (!result?.uri) {
+          clearTimer();
+          recordingActiveRef.current = false;
+          setIsRecording(false);
+          setError("Video recording ended without creating a file.");
+          return;
+        }
+        finishRecording(result.uri);
+      }).catch((caught: unknown) => {
+        if (recordingGenerationRef.current !== generation) return;
+        clearTimer();
+        recordingActiveRef.current = false;
+        setIsRecording(false);
+        setError(caught instanceof Error ? caught.message : "Video recording failed.");
+      });
       timerRef.current = setInterval(() => {
         setDurationSec(Math.max(0, Math.floor((Date.now() - recordingStartedAtRef.current) / 1000)));
       }, 500);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (caught) {
-      recorderRef.current = null;
+      recordingActiveRef.current = false;
       setIsRecording(false);
       setError(caught instanceof Error ? caught.message : "Could not start video recording.");
     }
-  }, [cameraReady, clearTimer, finishRecording, isRecording, videoOutput]);
+  }, [cameraReady, clearTimer, finishRecording, isRecording]);
 
   const stopRecording = useCallback(async () => {
     if (USE_SIMULATOR_CAMERA && isRecording) {
@@ -391,13 +399,12 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
       }
       return;
     }
-    const recorder = recorderRef.current;
-    if (!recorder || !isRecording) return;
+    if (!recordingActiveRef.current || !isRecording) return;
     try {
-      await recorder.stopRecording();
+      cameraRef.current?.stopRecording();
     } catch (caught) {
       clearTimer();
-      recorderRef.current = null;
+      recordingActiveRef.current = false;
       setIsRecording(false);
       setError(caught instanceof Error ? caught.message : "Could not stop video recording.");
     }
@@ -414,20 +421,12 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
         text: "Discard",
         style: "destructive",
         onPress: () => {
-          const recorder = recorderRef.current;
-          clearTimer();
-          recorderRef.current = null;
-          setIsRecording(false);
-          if (recorder) {
-            void recorder.cancelRecording().finally(onClose);
-          } else {
-            resetCapture();
-            onClose();
-          }
+          resetCapture();
+          onClose();
         },
       },
     ]);
-  }, [clearTimer, isRecording, onClose, recordedUri, resetCapture, saved]);
+  }, [isRecording, onClose, recordedUri, resetCapture, saved]);
 
   const saveToPhotos = useCallback(async () => {
     if (!recordedUri || saving || saved) return;
@@ -461,10 +460,11 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
     setUploading(true);
     setError(null);
     try {
+      const quickTime = /\.mov(?:$|[?#])/i.test(recordedUri);
       await onUpload({
         uri: recordedUri,
-        fileName: `tour-video-${Date.now()}.mp4`,
-        mimeType: "video/mp4",
+        fileName: `tour-video-${Date.now()}.${quickTime ? "mov" : "mp4"}`,
+        mimeType: quickTime ? "video/quicktime" : "video/mp4",
         name,
         description,
         durationSec: recordedDurationSec,
@@ -479,7 +479,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
   }, [onClose, onUpload, recordedDurationSec, recordedUri, resetCapture, uploading]);
 
   const hasPermissions = USE_SIMULATOR_CAMERA
-    || (cameraPermission.hasPermission && microphonePermission.hasPermission);
+    || Boolean(cameraPermission?.granted && microphonePermission?.granted);
 
   return (
     <Modal
@@ -504,8 +504,8 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
         />
       ) : !hasPermissions ? (
         <PermissionGate
-          cameraStatus={cameraPermission.status}
-          microphoneStatus={microphonePermission.status}
+          cameraStatus={cameraPermission?.status ?? "undetermined"}
+          microphoneStatus={microphonePermission?.status ?? "undetermined"}
           requesting={requestingPermission}
           onRequest={() => void requestPermissions()}
           onClose={onClose}
@@ -514,26 +514,25 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
         <View style={styles.cameraPage}>
           {USE_SIMULATOR_CAMERA ? (
             <SimulatorCameraPreview position={position} />
-          ) : device ? (
-            <Camera
-              style={StyleSheet.absoluteFill}
-              device={device}
-              isActive={visible}
-              outputs={[videoOutput]}
-              constraints={[{ fps: 30 }, { videoStabilizationMode: "auto" }]}
-              torchMode={torchEnabled && device.hasTorch ? "on" : "off"}
-              enableNativeZoomGesture
-              enableNativeTapToFocusGesture
-              resizeMode="cover"
-              onStarted={() => setCameraReady(true)}
-              onStopped={() => setCameraReady(false)}
-              onError={(caught) => setError(caught.message)}
-            />
           ) : (
-            <View style={styles.cameraLoading}>
-              <LoadingDots color="#fff" />
-              <Text style={styles.cameraLoadingText}>Starting camera…</Text>
-            </View>
+            <CameraView
+              ref={cameraRef}
+              style={StyleSheet.absoluteFill}
+              active={visible}
+              facing={position}
+              mode="video"
+              mute={false}
+              enableTorch={torchEnabled}
+              videoQuality="1080p"
+              videoBitrate={8_000_000}
+              videoStabilizationMode="auto"
+              responsiveOrientationWhenOrientationLocked={false}
+              onCameraReady={() => setCameraReady(true)}
+              onMountError={(caught) => {
+                setCameraReady(false);
+                setError(caught.message);
+              }}
+            />
           )}
 
           <View style={[styles.cameraHeader, { paddingTop: insets.top + 8 }]}>
@@ -546,11 +545,11 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
             </View>
             <Pressable
               accessibilityLabel={torchEnabled ? "Turn flash off" : "Turn flash on"}
-              disabled={USE_SIMULATOR_CAMERA || !device?.hasTorch || isRecording}
+              disabled={USE_SIMULATOR_CAMERA || isRecording}
               onPress={() => setTorchEnabled((current) => !current)}
               style={[
                 styles.cameraButton,
-                (USE_SIMULATOR_CAMERA || !device?.hasTorch || isRecording) && styles.cameraButtonDisabled,
+                (USE_SIMULATOR_CAMERA || isRecording) && styles.cameraButtonDisabled,
               ]}
             >
               <Ionicons name={torchEnabled ? "flash" : "flash-off"} size={20} color="#fff" />

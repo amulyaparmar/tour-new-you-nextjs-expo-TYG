@@ -1,10 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { setAudioModeAsync } from "expo-audio";
 import * as SecureStore from "expo-secure-store";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCodeStyled from "react-native-qrcode-styled";
 import {
+  Dimensions,
   FlatList,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -26,9 +29,17 @@ import Reanimated, {
   LinearTransition,
   SlideInRight,
   SlideOutRight,
+  runOnJS,
+  withSpring,
+  withTiming,
+  useAnimatedStyle,
+  useSharedValue,
 } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import type { SharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LoadingDots } from "@/components/loading-dots";
+import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import {
   appendDictationText,
   formatRecordingUploadTitle,
@@ -38,7 +49,6 @@ import {
 } from "@tour/shared";
 import type { LiveSessionChatMessage, Material } from "../api";
 import {
-  addSessionAttachment,
   addSessionParticipant,
   createCheckInLink,
   createSession,
@@ -48,12 +58,13 @@ import {
   updateSessionNotes,
   updateSessionParticipantNotes,
 } from "../api";
+import { getApiBaseUrl } from "../config";
 import { isOnline } from "../offline/sync-outbox";
 import { aiResponseCompleteHaptic, aiResponseStartHaptic } from "../lib/haptics";
 import { ChatTypingIndicator, LiveChatMarkdown } from "./LiveChatMarkdown";
-import { isSimulator, supportsBackgroundRecording } from "../runtime";
+import { isExpoGo, isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
-import { useRecording, WAVEFORM_BAR_COUNT } from "./RecordingProvider";
+import { useRecording } from "./RecordingProvider";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
 import {
   useSessionParticipantRealtime,
@@ -76,6 +87,9 @@ const C = {
   green: "#30D158",
 } as const;
 
+const CHECK_IN_HEAR_ABOUT_OPTIONS = ["Google", "Apartments.com", "Drive by", "Referral", "Social media", "Other"];
+const CHECK_IN_REASON_OPTIONS = ["Tour", "Follow-up", "Application", "Move-in", "Resident question", "Other"];
+
 const TABS = ["Summary", "Transcript", "AI Chat"] as const;
 const DEFAULT_PROMPTS = [
   "Ask about move-in date",
@@ -91,6 +105,21 @@ const EMPTY_CHAT_PROMPTS = [
 ] as const;
 const WAVE_MIN_HEIGHT = 4;
 const WAVE_MAX_HEIGHT = 28;
+const LIVE_WAVE_BARS_PER_SIDE = 24;
+
+function LiveWaveBar({ height, opacity }: { height: number; opacity: number }) {
+  const animatedHeight = useSharedValue(height);
+
+  useEffect(() => {
+    animatedHeight.value = withTiming(height, { duration: 90 });
+  }, [animatedHeight, height]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    height: animatedHeight.value,
+  }));
+
+  return <Reanimated.View style={[s.waveBar, { opacity }, animatedStyle]} />;
+}
 const PERMISSION_TIP_KEY = "tour.recording.permissionTip.dismissed";
 const SUGGESTION_REFRESH_MS = 18_000;
 
@@ -110,8 +139,10 @@ type SpeechTranscriberModule = {
     isRecording: () => boolean;
   };
 };
+type NoteAccessory = "ai" | "reminders" | "assets" | null;
 
 function loadSpeechTranscriber(): SpeechTranscriberModule | null {
+  if (isExpoGo()) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require("expo-speech-transcriber") as SpeechTranscriberModule & {
@@ -189,10 +220,21 @@ type LiveTranscriptLine = {
   isInterim?: boolean;
 };
 
+type RecordingAssetPreview = {
+  id: string;
+  name: string;
+  description: string | null;
+  url: string | null;
+  previewUrl: string | null;
+  kind: SessionAttachment["type"];
+};
+
 type RecordingExperienceProps = {
   title?: string;
   notes: string;
   onNotesChange: (notes: string) => void;
+  uploaderIsAgent?: boolean;
+  onUploaderIsAgentChange?: (selected: boolean) => void;
   assets: Material[];
   selectedAssetIds: string[];
   attachments: SessionAttachment[];
@@ -202,6 +244,8 @@ type RecordingExperienceProps = {
   onUpdateParticipantNotes: (createdAt: string, notes: string | null) => void;
   onCancel: () => void | Promise<void>;
   onFinish: () => void | Promise<void>;
+  /** Session-detail close minimizes before recording starts; explicit cancellation remains separate. */
+  minimizeOnClose?: boolean;
   cancelIcon?: "chevron-down" | "close";
   cancelDisabled?: boolean;
   caption?: string;
@@ -212,6 +256,11 @@ type RecordingExperienceProps = {
   onBeforeRecordingStart?: () => void | Promise<void>;
   onUploadFile?: () => void | Promise<void>;
   onSessionCreated?: (sessionId: string) => void;
+  /** Shared presentation progress used by the navigation-style pull-down surface. */
+  presentation?: SharedValue<number>;
+  onSwipeDown?: () => void;
+  /** Begin recording as soon as the experience opens. */
+  autoStart?: boolean;
 };
 
 function speakerInitial(speaker: LiveTranscriptLine["speaker"]) {
@@ -236,6 +285,43 @@ function attachmentTypeForMaterial(material: Material): SessionAttachment["type"
   if (material.media?.imageUrl || /\.(png|jpe?g|gif|webp)(\?|$)/.test(url)) return "image";
   if (/^https?:/.test(url)) return material.fileUrl ? "document" : "link";
   return "other";
+}
+
+function previewUrlForMaterial(material: Material) {
+  const candidate = material.media?.imageUrl
+    ?? material.media?.gifUrl
+    ?? (material.fileUrl && /\.(?:jpe?g|png|gif|webp)(?:[?#].*)?$/i.test(material.fileUrl) ? material.fileUrl : null);
+  if (!candidate) return null;
+  return candidate.startsWith("/") ? `${getApiBaseUrl()}${candidate}` : candidate;
+}
+
+function previewForMaterial(material: Material): RecordingAssetPreview {
+  return {
+    id: material.id,
+    name: material.name,
+    description: material.description || null,
+    url: materialUrl(material),
+    previewUrl: previewUrlForMaterial(material),
+    kind: attachmentTypeForMaterial(material),
+  };
+}
+
+function previewForAttachment(attachment: SessionAttachment): RecordingAssetPreview {
+  return {
+    id: attachment.id,
+    name: attachment.name,
+    description: attachment.description || null,
+    url: attachment.url || null,
+    previewUrl: attachment.type === "image" ? attachment.url || null : null,
+    kind: attachment.type,
+  };
+}
+
+function RecordingAssetVideoPreview({ source }: { source: string }) {
+  const player = useVideoPlayer(source, (videoPlayer) => {
+    videoPlayer.loop = false;
+  });
+  return <VideoView player={player} style={s.assetPreviewMedia} contentFit="contain" nativeControls />;
 }
 
 /** Own listeners — package hook drops native `{ message }` errors. */
@@ -370,29 +456,20 @@ async function startSpeechEngine(): Promise<string | null> {
   return speechStartInFlight;
 }
 
-function AssetsEmptyState() {
-  return (
-    <View style={s.emptyState}>
-      <Ionicons name="folder-open-outline" size={28} color={C.textMuted} />
-      <Text style={s.emptyTitle}>No assets yet</Text>
-      <Text style={s.emptySubtitle}>Add community resources from the Assets tab.</Text>
-    </View>
-  );
-}
-
 export function RecordingExperience({
   title,
   notes,
   onNotesChange,
+  uploaderIsAgent = false,
+  onUploaderIsAgentChange,
   assets,
-  selectedAssetIds,
   attachments,
   participants,
-  onAddAsset,
   onAddParticipant,
   onUpdateParticipantNotes,
   onCancel,
   onFinish,
+  minimizeOnClose = false,
   cancelIcon = "chevron-down",
   cancelDisabled = false,
   caption,
@@ -403,20 +480,27 @@ export function RecordingExperience({
   onBeforeRecordingStart,
   onUploadFile,
   onSessionCreated,
+  presentation,
+  onSwipeDown,
+  autoStart = false,
 }: RecordingExperienceProps) {
   const rec = useRecording();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>("Summary");
   const [hasStarted, setHasStarted] = useState(rec.isRecording);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  const [assetSheetOpen, setAssetSheetOpen] = useState(false);
+  const [selectedAssetPreview, setSelectedAssetPreview] = useState<RecordingAssetPreview | null>(null);
+  const [uploadSheetOpen, setUploadSheetOpen] = useState(false);
   const [personSheetOpen, setPersonSheetOpen] = useState(false);
   const [personEntryMode, setPersonEntryMode] = useState<"qr" | "manual">("qr");
   const [checkInBinding, setCheckInBinding] = useState<{ sessionId: string; url: string } | null>(null);
   const [checkInLinkLoading, setCheckInLinkLoading] = useState(false);
   const [checkInLinkError, setCheckInLinkError] = useState<string | null>(null);
   const [participantRealtimeStatus, setParticipantRealtimeStatus] = useState<SessionParticipantRealtimeStatus>("idle");
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
+  const [finishCountdown, setFinishCountdown] = useState(5);
   const [selectedPerson, setSelectedPerson] = useState<SessionLead | null>(null);
   const [personFirstName, setPersonFirstName] = useState("");
   const [personLastName, setPersonLastName] = useState("");
@@ -428,12 +512,18 @@ export function RecordingExperience({
   const [summarySaving, setSummarySaving] = useState(false);
   const [personSaving, setPersonSaving] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
+  const [noteAccessory, setNoteAccessory] = useState<NoteAccessory>(null);
+  const [assetSearch, setAssetSearch] = useState("");
+  const [assetSheetOpen, setAssetSheetOpen] = useState(false);
+  const [reminderDraft, setReminderDraft] = useState("");
+  const [reminders, setReminders] = useState<string[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<LiveSessionChatMessage[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatBusy, setChatBusy] = useState(false);
   const [chatStreaming, setChatStreaming] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [waveformHistory, setWaveformHistory] = useState<number[]>(() => Array.from({ length: LIVE_WAVE_BARS_PER_SIDE }, () => 0.08));
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([...DEFAULT_PROMPTS]);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
   const [transcriptionRequested, setTranscriptionRequested] = useState(false);
@@ -444,6 +534,7 @@ export function RecordingExperience({
   const chatListRef = useRef<ScrollView>(null);
   const lastFinalTextRef = useRef("");
   const cancelledRef = useRef(false);
+  const autoStartAttemptedRef = useRef(false);
   const speechStartedRef = useRef(false);
   const ensuringSessionRef = useRef<Promise<string | null> | null>(null);
   const dictationPausedSessionRef = useRef(false);
@@ -453,9 +544,12 @@ export function RecordingExperience({
   const sessionElapsed = rec.elapsed;
   const chatFocused = activeTab === "AI Chat";
   const chatComposerMode = chatFocused && hasStarted;
-  const showBottomDock = !chatComposerMode;
+  const keyboardOpen = keyboardHeight > 0;
+  const showBottomDock = !chatComposerMode && !keyboardOpen;
   const canSendChat = Boolean(chatInput.trim()) && !chatBusy;
+  const meteringRef = useRef(rec.metering);
   const participantKeysRef = useRef(new Set(participants.map(sessionLeadKey)));
+  meteringRef.current = rec.metering;
 
   useEffect(() => {
     for (const participant of participants) {
@@ -484,6 +578,36 @@ export function RecordingExperience({
     onParticipants: reconcileSessionParticipants,
     onStatusChange: setParticipantRealtimeStatus,
   });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nextLevel = hasStarted && !sessionPaused ? Math.max(0.08, Math.min(1, meteringRef.current)) : 0.08;
+      setWaveformHistory((current) => [...current.slice(-(LIVE_WAVE_BARS_PER_SIDE - 1)), nextLevel]);
+    }, 90);
+    return () => clearInterval(timer);
+  }, [hasStarted, sessionPaused]);
+  const localPresentation = useSharedValue(1);
+  const dragPresentation = presentation ?? localPresentation;
+  const dismissGesture = useMemo(() => {
+    return Gesture.Pan()
+      .activeOffsetY(6)
+      .failOffsetX([-32, 32])
+      .onUpdate((event) => {
+        if (event.translationY > 0) {
+          dragPresentation.value = Math.max(0, 1 - event.translationY / 500);
+        }
+      })
+      .onEnd((event) => {
+        const shouldMinimize = Boolean(onSwipeDown) && (event.translationY > 92 || event.velocityY > 700);
+        if (shouldMinimize) {
+          dragPresentation.value = withTiming(0, { duration: 180 }, (finished) => {
+            if (finished && onSwipeDown) runOnJS(onSwipeDown)();
+          });
+        } else {
+          dragPresentation.value = withSpring(1, { damping: 19, stiffness: 220, mass: 0.68 });
+        }
+      });
+  }, [dragPresentation, onSwipeDown]);
 
   const pauseTourForDictation = useCallback(async () => {
     if (!rec.isRecording || rec.isPaused) return;
@@ -722,40 +846,35 @@ export function RecordingExperience({
     return () => clearTimeout(timer);
   }, [chatFocused, chatMessages, chatBusy, chatStreaming]);
 
-  const selectedAssets = useMemo(
-    () => assets.filter((asset) => selectedAssetIds.includes(asset.id)),
-    [assets, selectedAssetIds]
+  const visibleAttachments = attachments;
+  const filteredAssets = useMemo(() => {
+    const query = assetSearch.trim().toLowerCase();
+    if (!query) return assets;
+    return assets.filter((asset) => `${asset.name} ${asset.description ?? ""} ${asset.type}`.toLowerCase().includes(query));
+  }, [assetSearch, assets]);
+  const filteredAttachments = useMemo(() => {
+    const query = assetSearch.trim().toLowerCase();
+    if (!query) return visibleAttachments;
+    return visibleAttachments.filter((attachment) =>
+      `${attachment.name} ${attachment.description ?? ""} ${attachment.type}`.toLowerCase().includes(query),
+    );
+  }, [assetSearch, visibleAttachments]);
+  const hasAssets = visibleAttachments.length > 0 || assets.length > 0;
+  const latestAiNote = useMemo(
+    () => [...chatMessages].reverse().find((message) => message.role === "assistant")?.content ?? "",
+    [chatMessages],
   );
-  const visibleAttachments = useMemo(() => {
-    const storedMaterialIds = new Set(attachments.map((item) => item.materialId).filter(Boolean));
-    const localOnly: SessionAttachment[] = selectedAssets
-      .filter((asset) => !storedMaterialIds.has(asset.id))
-      .map((asset) => ({
-        id: `material:${asset.id}`,
-        name: asset.name,
-        type: attachmentTypeForMaterial(asset),
-        url: materialUrl(asset),
-        materialId: asset.id,
-        description: asset.description,
-        createdAt: asset.createdAt,
-      }));
-    return [...attachments, ...localOnly];
-  }, [attachments, selectedAssets]);
 
   const propertyContext = useMemo(() => {
-    const assetContext = selectedAssets
-      .map((asset) => `- ${asset.name}: ${asset.description || asset.type}`)
-      .join("\n");
     return [
       propertyName ? `Property/community: ${propertyName}` : null,
       prospectName ? `Prospect: ${prospectName}` : null,
       agentName ? `Agent: ${agentName}` : null,
       notes.trim() ? `Live notes:\n${notes.trim()}` : null,
-      assetContext ? `Selected assets:\n${assetContext}` : null,
     ]
       .filter(Boolean)
       .join("\n\n");
-  }, [agentName, notes, propertyName, prospectName, selectedAssets]);
+  }, [agentName, notes, propertyName, prospectName]);
 
   const transcriptSnapshot = useMemo(() => transcriptText(liveTranscript), [liveTranscript]);
 
@@ -787,20 +906,27 @@ export function RecordingExperience({
   }, [chatFocused, propertyContext, resolvedSessionId, transcriptSnapshot]);
 
   const waveformBars = useMemo(() => {
-    const levels = rec.waveformLevels;
-    const center = (WAVEFORM_BAR_COUNT - 1) / 2;
-    const activity = !hasStarted ? 0.22 : sessionPaused ? 0.28 : 1;
-
-    return Array.from({ length: WAVEFORM_BAR_COUNT }, (_, index) => {
-      const level = levels[index] ?? 0.08;
-      const distanceFromCenter = Math.abs(index - center) / center;
-      const centerWeight = 1 - distanceFromCenter * 0.28;
-      const height =
-        WAVE_MIN_HEIGHT +
-        (WAVE_MAX_HEIGHT - WAVE_MIN_HEIGHT) * level * activity * centerWeight;
-      return Math.max(WAVE_MIN_HEIGHT, Math.round(height));
+    // Use the recorder's rolling metering history rather than a fixed shape.
+    // This lets the waveform taper naturally when the conversation goes quiet.
+    const paddedHistory = Array.from({ length: LIVE_WAVE_BARS_PER_SIDE }, (_, index) => waveformHistory[index] ?? 0.08);
+    const liveLevels = paddedHistory.map((level, index) => {
+      const activity = hasStarted && !sessionPaused
+        ? Math.max(0, Math.min(1, (level - 0.08) / 0.92))
+        : 0;
+      // Keep a restrained resting silhouette so quiet speech does not make the
+      // waveform disappear completely, while real metering still drives peaks.
+      const quietShape = 0.12 + Math.sin((index / (LIVE_WAVE_BARS_PER_SIDE - 1)) * Math.PI) * 0.1;
+      const visibleActivity = Math.max(activity, quietShape);
+      return Math.max(WAVE_MIN_HEIGHT, Math.round(WAVE_MIN_HEIGHT + (WAVE_MAX_HEIGHT - WAVE_MIN_HEIGHT) * visibleActivity));
     });
-  }, [hasStarted, rec.waveformLevels, sessionPaused]);
+
+    // Keep the live envelope duplicated on both sides of the timer so the
+    // recorder has the balanced waveform treatment used in the reference UI.
+    return {
+      left: liveLevels,
+      right: [...liveLevels].reverse(),
+    };
+  }, [hasStarted, sessionPaused, waveformHistory]);
 
   const statusCaption =
     caption ??
@@ -956,28 +1082,6 @@ export function RecordingExperience({
     }
   }
 
-  async function attachAsset(asset: Material) {
-    if (selectedAssetIds.includes(asset.id)) return;
-    setSummaryMessage(null);
-    try {
-      const liveSessionId = await ensureLiveSessionId();
-      if (!liveSessionId) throw new Error("Could not create this session yet.");
-      const attachment = await addSessionAttachment(liveSessionId, {
-        id: `material:${asset.id}`,
-        name: asset.name,
-        type: attachmentTypeForMaterial(asset),
-        url: materialUrl(asset),
-        materialId: asset.id,
-        description: asset.description || null,
-        mimeType: null,
-      });
-      onAddAsset(asset, attachment);
-      setSummaryMessage(`${asset.name} attached`);
-    } catch (caught) {
-      setSummaryMessage(caught instanceof Error ? caught.message : "Could not attach this asset.");
-    }
-  }
-
   async function submitChat(text: string) {
     const trimmed = text.trim();
     if (!trimmed || chatBusy) return;
@@ -1039,22 +1143,19 @@ export function RecordingExperience({
     setTranscriptionRequested(false);
   }
 
-  async function startCountdownAndRecording() {
-    if (hasStarted || countdown !== null) return;
+  async function startSessionRecording() {
+    if (hasStarted || starting) return;
 
     cancelledRef.current = false;
+    setStarting(true);
     setStartError(null);
     setTranscriptionStatus(null);
     try {
-      for (const value of [3, 2, 1]) {
-        if (cancelledRef.current) return;
-        setCountdown(value);
-        await new Promise((resolve) => setTimeout(resolve, 850));
-      }
-      setCountdown(null);
-      if (cancelledRef.current) return;
-
-      await onBeforeRecordingStart?.();
+      const activationPromise = Promise.resolve()
+        .then(() => onBeforeRecordingStart?.())
+        .catch((error) => {
+          setStartError(error instanceof Error ? error.message : "Recording started, but the session could not be updated.");
+        });
 
       // Start file recording first. Speech starts afterward via effect (single-flight).
       // Starting both AVAudioEngine + AVAudioRecorder at once can native-crash.
@@ -1065,15 +1166,24 @@ export function RecordingExperience({
       }
 
       setHasStarted(true);
+      void activationPromise;
+      void ensureLiveSessionId();
       // Let the recorder settle before sharing the mic with SFSpeechRecognizer.
       await new Promise((resolve) => setTimeout(resolve, 400));
       if (cancelledRef.current) return;
       setTranscriptionRequested(true);
     } catch (error) {
-      setCountdown(null);
       setStartError(error instanceof Error ? error.message : "Could not start recording.");
+    } finally {
+      setStarting(false);
     }
   }
+
+  useEffect(() => {
+    if (!autoStart || autoStartAttemptedRef.current || hasStarted || starting) return;
+    autoStartAttemptedRef.current = true;
+    void startSessionRecording();
+  }, [autoStart, hasStarted, starting]);
 
   function selectTab(tab: Tab) {
     setActiveTab(tab);
@@ -1085,9 +1195,39 @@ export function RecordingExperience({
       ? "Paused"
       : "Live recording";
 
-  function finishRecording() {
+  const finishRequestedRef = useRef(false);
+
+  function completeSessionRecording() {
+    if (finishRequestedRef.current) return;
+    finishRequestedRef.current = true;
+    setFinishConfirmOpen(false);
     stopNativeTranscription();
     void onFinish();
+  }
+
+  function finishRecording() {
+    finishRequestedRef.current = false;
+    setFinishCountdown(5);
+    setFinishConfirmOpen(true);
+  }
+
+  function continueRecordingFromFinish() {
+    setFinishConfirmOpen(false);
+    setFinishCountdown(5);
+  }
+
+  useEffect(() => {
+    if (!finishConfirmOpen) return;
+    if (finishCountdown <= 0) {
+      completeSessionRecording();
+      return;
+    }
+    const timeout = setTimeout(() => setFinishCountdown((current) => current - 1), 1000);
+    return () => clearTimeout(timeout);
+  }, [finishConfirmOpen, finishCountdown]);
+
+  function confirmCancelSession() {
+    setCancelConfirmOpen(true);
   }
 
   function dismissPermissionTip() {
@@ -1110,78 +1250,102 @@ export function RecordingExperience({
     </View>
   );
 
+  async function shareSelectedAsset() {
+    if (!selectedAssetPreview) return;
+    try {
+      await Share.share({
+        title: selectedAssetPreview.name,
+        message: selectedAssetPreview.url
+          ? `${selectedAssetPreview.name}\n${selectedAssetPreview.url}`
+          : selectedAssetPreview.name,
+        url: selectedAssetPreview.url ?? undefined,
+      });
+    } catch {
+      // The native share sheet can be dismissed without an action.
+    }
+  }
+
+  async function downloadSelectedAsset() {
+    if (!selectedAssetPreview?.url) return;
+    try {
+      await Linking.openURL(selectedAssetPreview.url);
+    } catch {
+      // Keep the preview open if the device cannot open the asset URL.
+    }
+  }
+
   return (
     <KeyboardAvoidingView
       style={s.root}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+      behavior={Platform.OS === "ios" ? "height" : undefined}
+      keyboardVerticalOffset={0}
     >
       <View style={s.stackShadow} />
 
       <View style={[s.sheet, showBottomDock && s.sheetWithDock]}>
-        <View style={s.topBar}>
-          <Pressable
-            accessibilityLabel={hasStarted ? "Minimize recording" : "Cancel recording"}
-            disabled={cancelDisabled}
-            onPress={() => {
-              if (hasStarted) {
-                rec.minimizeExperience();
-                return;
-              }
-              cancelledRef.current = true;
-              setCountdown(null);
-              stopNativeTranscription();
-              void onCancel();
-            }}
-            style={[s.iconButton, cancelDisabled && s.disabled]}
-          >
-            <Ionicons name={hasStarted ? "chevron-down" : cancelIcon} size={24} color={C.text} />
-          </Pressable>
-          <Pressable accessibilityLabel="Open assets" onPress={() => setAssetSheetOpen(true)} style={s.assetsButton}>
-            <Ionicons name="folder-open-outline" size={18} color={C.brand} />
-            <Text style={s.assetsButtonText}>Assets</Text>
-          </Pressable>
-        </View>
+        <GestureDetector gesture={dismissGesture}>
+            <View>
+              <View style={s.topBar}>
+                <Pressable
+                  accessibilityLabel="Minimize recording"
+                  disabled={cancelDisabled}
+                  onPress={() => {
+                    if (hasStarted || minimizeOnClose) {
+                      rec.minimizeExperience();
+                      return;
+                    }
+                    cancelledRef.current = true;
+                    setStarting(false);
+                    stopNativeTranscription();
+                    void onCancel();
+                  }}
+                  style={[s.iconButton, cancelDisabled && s.disabled]}
+                >
+                  <Ionicons name={hasStarted || minimizeOnClose ? "chevron-down" : cancelIcon} size={24} color={C.text} />
+                </Pressable>
+              </View>
 
-        <Reanimated.View
-          key="recording-header"
-          entering={FadeInDown.duration(220)}
-          exiting={FadeOutUp.duration(160)}
-          layout={LinearTransition.duration(220)}
-          style={s.header}
-        >
-          <View style={s.livePill}>
-            <View style={[s.liveDot, !hasStarted && s.liveDotReady, sessionPaused && s.liveDotPaused]} />
-            <Text style={s.liveText}>{liveStatusLabel}</Text>
-          </View>
-          <Text style={s.title} numberOfLines={2}>
-            {title || "Live Mystery Shopping Calls"}
-          </Text>
-          <View style={s.metaRow}>
-            <MetaIcon
-              icon="calendar-outline"
-              text={new Date().toLocaleDateString(undefined, { weekday: "short", month: "numeric", day: "numeric" })}
-            />
-            <MetaIcon icon="time-outline" text={formatElapsed(sessionElapsed)} />
-            <MetaIcon icon="business-outline" text={agentName || "Tour agent"} />
-          </View>
-          <Text style={s.caption}>{statusCaption}</Text>
-        </Reanimated.View>
+              <Reanimated.View
+                key="recording-header"
+                entering={FadeInDown.duration(220)}
+                exiting={FadeOutUp.duration(160)}
+                layout={LinearTransition.duration(220)}
+                style={s.header}
+              >
+                <View style={s.livePill}>
+                  <View style={[s.liveDot, !hasStarted && s.liveDotReady, sessionPaused && s.liveDotPaused]} />
+                  <Text style={s.liveText}>{liveStatusLabel}</Text>
+                </View>
+                <Text style={s.title} numberOfLines={2}>
+                  {title || "Live Mystery Shopping Calls"}
+                </Text>
+                <View style={s.metaRow}>
+                  <MetaIcon
+                    icon="calendar-outline"
+                    text={new Date().toLocaleDateString(undefined, { weekday: "short", month: "numeric", day: "numeric" })}
+                  />
+                  <MetaIcon icon="time-outline" text={formatElapsed(sessionElapsed)} />
+                  <MetaIcon icon="business-outline" text={agentName || "Tour agent"} />
+                </View>
+                <Text style={s.caption}>{statusCaption}</Text>
+              </Reanimated.View>
 
-        <View style={s.tabs}>
-          {TABS.map((tab) => (
-            <Pressable
-              key={tab}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: activeTab === tab }}
-              onPress={() => selectTab(tab)}
-              style={s.tab}
-            >
-              <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>{tab}</Text>
-              {activeTab === tab && <View style={s.tabLine} />}
-            </Pressable>
-          ))}
-        </View>
+              <View style={s.tabs}>
+                {TABS.map((tab) => (
+                  <Pressable
+                    key={tab}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: activeTab === tab }}
+                    onPress={() => selectTab(tab)}
+                    style={s.tab}
+                  >
+                    <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>{tab}</Text>
+                    {activeTab === tab && <View style={s.tabLine} />}
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </GestureDetector>
 
         <View style={s.content}>
           {activeTab === "Summary" && (
@@ -1189,6 +1353,7 @@ export function RecordingExperience({
               contentContainerStyle={s.summaryContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
             >
               <View style={s.summarySection}>
                 <View style={s.summarySectionHead}>
@@ -1225,72 +1390,114 @@ export function RecordingExperience({
                 </ScrollView>
               </View>
 
-              <View style={s.summaryCard}>
-                <View style={s.summaryCardHead}>
-                  <View style={s.summaryIcon}><Ionicons name="document-text-outline" size={18} color={C.brand} /></View>
-                  <View style={s.flex1}>
-                    <Text style={s.summaryCardTitle}>Session notes</Text>
-                    <Text style={s.summaryCardCaption}>Shared with this session, separate from the transcript.</Text>
-                  </View>
-                </View>
+              <View style={[s.summaryCard, s.sessionNotesCard]}>
                 <TextInput
                   value={notes}
                   onChangeText={onNotesChange}
-                  placeholder="Add goals, context, or follow-up notes…"
+                  onBlur={() => void saveSessionNotes()}
+                  placeholder="Add a note…"
                   placeholderTextColor={C.textMuted}
                   multiline
                   textAlignVertical="top"
                   style={s.summaryNotesInput}
                 />
-                <Pressable
-                  disabled={summarySaving}
-                  onPress={() => void saveSessionNotes()}
-                  style={({ pressed }) => [s.summarySaveButton, pressed && s.pressed, summarySaving && s.disabled]}
-                >
-                  {summarySaving ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
-                  <Text style={s.summarySaveButtonText}>{summarySaving ? "Saving…" : "Save notes"}</Text>
-                </Pressable>
+                <View style={s.notesFooter}>
+                  <View style={s.autosaveRow}>
+                    <Text style={s.autosaveProperty} numberOfLines={1}>{propertyName || "This property"}</Text>
+                    <Text style={s.autosaveSeparator}>—</Text>
+                    <Text style={s.autosaveText}>{summarySaving ? "Saving…" : "Autosaved"}</Text>
+                  </View>
+                  <View style={s.noteActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Show AI note"
+                      onPress={() => setNoteAccessory((current) => current === "ai" ? null : "ai")}
+                      style={[s.noteAction, noteAccessory === "ai" && s.noteActionActive]}
+                    >
+                      <Ionicons name="sparkles-outline" size={14} color={noteAccessory === "ai" ? C.brand : C.textSec} />
+                      <Text style={[s.noteActionText, noteAccessory === "ai" && s.noteActionTextActive]}>AI</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Show reminders"
+                      onPress={() => setNoteAccessory((current) => current === "reminders" ? null : "reminders")}
+                      style={[s.noteAction, noteAccessory === "reminders" && s.noteActionActive]}
+                    >
+                      <Ionicons name="notifications-outline" size={14} color={noteAccessory === "reminders" ? C.brand : C.textSec} />
+                      <Text style={[s.noteActionText, noteAccessory === "reminders" && s.noteActionTextActive]}>
+                        {reminders.length ? `Reminders ${reminders.length}` : "Reminder"}
+                      </Text>
+                    </Pressable>
+                    {hasAssets ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Show assets"
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setAssetSearch("");
+                          setSelectedAssetPreview(null);
+                          setAssetSheetOpen(true);
+                        }}
+                        style={[s.noteAction, assetSheetOpen && s.noteActionActive]}
+                      >
+                        <Ionicons name="folder-open-outline" size={14} color={assetSheetOpen ? C.brand : C.textSec} />
+                        <Text style={[s.noteActionText, assetSheetOpen && s.noteActionTextActive]}>Assets</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+                {noteAccessory === "ai" ? (
+                  <View style={s.notesInsightPanel}>
+                    <View style={s.notesInsightIcon}><Ionicons name="sparkles-outline" size={18} color={C.brand} /></View>
+                    <View style={s.flex1}>
+                      <Text style={s.notesInsightBody}>
+                        {latestAiNote || "AI notes will appear as the session develops."}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                {noteAccessory === "reminders" ? (
+                  <View style={s.remindersPane}>
+                    <View style={s.reminderComposer}>
+                      <TextInput
+                        value={reminderDraft}
+                        onChangeText={setReminderDraft}
+                        placeholder="Add a reminder…"
+                        placeholderTextColor={C.textMuted}
+                        returnKeyType="done"
+                        onSubmitEditing={() => {
+                          const reminder = reminderDraft.trim();
+                          if (!reminder) return;
+                          setReminders((current) => [...current, reminder]);
+                          setReminderDraft("");
+                        }}
+                        style={s.reminderInput}
+                      />
+                      <Pressable
+                        accessibilityLabel="Add reminder"
+                        disabled={!reminderDraft.trim()}
+                        onPress={() => {
+                          const reminder = reminderDraft.trim();
+                          if (!reminder) return;
+                          setReminders((current) => [...current, reminder]);
+                          setReminderDraft("");
+                        }}
+                        style={[s.reminderAddButton, !reminderDraft.trim() && s.disabled]}
+                      >
+                        <Ionicons name="add" size={18} color="#fff" />
+                      </Pressable>
+                    </View>
+                    {reminders.map((reminder, index) => (
+                      <View key={`${reminder}-${index}`} style={s.reminderRow}>
+                        <Ionicons name="ellipse-outline" size={16} color={C.brand} />
+                        <Text style={s.reminderText}>{reminder}</Text>
+                      </View>
+                    ))}
+                    {!reminders.length ? <Text style={s.remindersEmpty}>Keep next steps here so nothing gets missed.</Text> : null}
+                  </View>
+                ) : null}
               </View>
 
-              <View style={s.summarySection}>
-                <View style={s.summarySectionHead}>
-                  <View>
-                    <Text style={s.sectionTitle}>Assets</Text>
-                    <Text style={s.sectionCaption}>Videos and resources attached to this session.</Text>
-                  </View>
-                  <Pressable onPress={() => setAssetSheetOpen(true)} style={s.smallAddButton}>
-                    <Ionicons name="add" size={17} color={C.brand} />
-                    <Text style={s.smallAddButtonText}>Add</Text>
-                  </Pressable>
-                </View>
-                {visibleAttachments.length ? (
-                  <View style={s.attachmentGrid}>
-                    {visibleAttachments.map((attachment) => (
-                      <Pressable
-                        key={attachment.id}
-                        disabled={!attachment.url}
-                        onPress={() => attachment.url && void Linking.openURL(attachment.url)}
-                        style={({ pressed }) => [s.attachmentCard, pressed && s.pressed]}
-                      >
-                        <View style={s.attachmentIcon}>
-                          <Ionicons name={attachment.type === "video" ? "play" : attachment.type === "image" ? "image-outline" : "document-attach-outline"} size={19} color={C.brand} />
-                        </View>
-                        <View style={s.flex1}>
-                          <Text style={s.attachmentTitle} numberOfLines={1}>{attachment.name}</Text>
-                          <Text style={s.attachmentMeta} numberOfLines={1}>{attachment.description || attachment.type}</Text>
-                        </View>
-                        {attachment.url ? <Ionicons name="open-outline" size={16} color={C.textMuted} /> : null}
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : (
-                  <Pressable onPress={() => setAssetSheetOpen(true)} style={s.emptyAttachmentCard}>
-                    <Ionicons name="videocam-outline" size={22} color={C.brand} />
-                    <Text style={s.emptyAttachmentTitle}>Attach your first asset</Text>
-                    <Text style={s.emptyAttachmentCaption}>Property videos, files, and links stay with this session.</Text>
-                  </Pressable>
-                )}
-              </View>
               {summaryMessage ? <Text style={s.summaryMessage}>{summaryMessage}</Text> : null}
             </ScrollView>
           )}
@@ -1492,56 +1699,90 @@ export function RecordingExperience({
             </Reanimated.View>
           ) : null}
           <View style={s.waveLine}>
-            {waveformBars.map((height, index) => (
-              <View
-                key={index}
-                style={[
-                  s.waveBar,
-                  {
-                    height,
-                    opacity: hasStarted ? (sessionPaused ? 0.48 : 0.95) : 0.42,
-                  },
-                ]}
-              />
-            ))}
+            <View style={[s.waveHalf, s.waveHalfLeft]}>
+              {waveformBars.left.map((height, index) => (
+                <LiveWaveBar
+                  key={`left-${index}`}
+                  height={height}
+                  opacity={hasStarted ? (sessionPaused ? 0.48 : 0.95) : 0.42}
+                />
+              ))}
+            </View>
             <Text style={s.waveTime}>{formatElapsed(sessionElapsed)}</Text>
+            <View style={[s.waveHalf, s.waveHalfRight]}>
+              {waveformBars.right.map((height, index) => (
+                <LiveWaveBar
+                  key={`right-${index}`}
+                  height={height}
+                  opacity={hasStarted ? (sessionPaused ? 0.48 : 0.95) : 0.42}
+                />
+              ))}
+            </View>
           </View>
           {hasStarted ? (
             <View style={s.recordControls}>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel session"
+                onPress={confirmCancelSession}
+                style={({ pressed }) => [s.roundControl, pressed && s.controlPressed]}
+              >
+                <Ionicons name="close" size={24} color={C.textSec} />
+              </Pressable>
+              <Pressable
                 accessibilityLabel={sessionPaused ? "Resume recording" : "Pause recording"}
                 onPress={() => void rec.togglePause()}
-                style={s.roundControl}
+                style={({ pressed }) => [s.roundControl, pressed && s.controlPressed]}
               >
-                <Ionicons name={sessionPaused ? "play" : "pause"} size={30} color={C.text} />
+                <Ionicons name={sessionPaused ? "play" : "pause"} size={24} color={C.text} />
               </Pressable>
-              <Pressable accessibilityLabel="Finish" onPress={finishRecording} style={s.stopControl}>
-                <View style={s.stopSquare} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Stop session"
+                onPress={finishRecording}
+                style={({ pressed }) => [s.stopControl, pressed && s.stopControlPressed]}
+              >
+                <Ionicons name="checkmark" size={20} color="#fff" />
+                <Text style={s.stopControlText}>Stop Session</Text>
               </Pressable>
-              <Pressable accessibilityLabel="Open AI chat" onPress={() => selectTab("AI Chat")} style={s.roundControl}>
-                <Ionicons name="chatbubble-ellipses-outline" size={24} color={C.text} />
+              <Pressable
+                accessibilityLabel="Open AI chat"
+                onPress={() => selectTab("AI Chat")}
+                style={({ pressed }) => [s.roundControl, pressed && s.controlPressed]}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={21} color={C.text} />
               </Pressable>
+              {onUploadFile ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Upload a recording"
+                  onPress={() => setUploadSheetOpen(true)}
+                  style={({ pressed }) => [s.roundControl, pressed && s.controlPressed]}
+                >
+                  <Ionicons name="cloud-upload-outline" size={21} color={C.brand} />
+                </Pressable>
+              ) : null}
             </View>
           ) : (
             <View style={s.readyActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Start recording"
-                disabled={countdown !== null}
-                onPress={() => void startCountdownAndRecording()}
-                style={[s.startRecordingButton, countdown !== null && s.startRecordingButtonDisabled]}
+                accessibilityLabel="Start session"
+                disabled={starting}
+                onPress={() => void startSessionRecording()}
+                style={[s.startRecordingButton, starting && s.startRecordingButtonDisabled]}
               >
-                {countdown !== null ? (
-                  <Text style={s.countdownText}>{countdown}</Text>
+                {starting ? (
+                  <LoadingDots size="small" color="#fff" />
                 ) : (
                   <>
                     <Ionicons name="mic" size={22} color="#fff" />
-                    <Text style={s.startRecordingText}>Start Recording</Text>
+                    <Text style={s.startRecordingText}>Start Session</Text>
                   </>
                 )}
               </Pressable>
-              {onUploadFile && countdown === null ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Upload a recording" onPress={() => void onUploadFile()} style={s.uploadRecordingButton}>
+              {onUploadFile && !starting ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Upload a recording" onPress={() => setUploadSheetOpen(true)} style={s.uploadRecordingButton}>
                   <Ionicons name="cloud-upload-outline" size={20} color={C.brand} />
                   <Text style={s.uploadRecordingText}>Upload</Text>
                 </Pressable>
@@ -1551,52 +1792,257 @@ export function RecordingExperience({
         </Reanimated.View>
       ) : null}
 
-      <Modal visible={assetSheetOpen} transparent animationType="slide" onRequestClose={() => setAssetSheetOpen(false)}>
+      <BottomSheetModal
+        visible={cancelConfirmOpen}
+        onClose={() => setCancelConfirmOpen(false)}
+        sheetHeight={390}
+        contentStyle={s.cancelConfirmContent}
+      >
+        <View style={s.cancelConfirmTopRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss cancel recording"
+            hitSlop={10}
+            onPress={() => setCancelConfirmOpen(false)}
+            style={({ pressed }) => [s.cancelConfirmClose, pressed && s.controlPressed]}
+          >
+            <Ionicons name="close" size={20} color={C.textSec} />
+          </Pressable>
+        </View>
+        <View style={s.cancelConfirmIcon}>
+          <Ionicons name="close" size={22} color={C.textSec} />
+        </View>
+        <Text style={s.cancelConfirmTitle}>Cancel recording?</Text>
+        <Text style={s.cancelConfirmCopy}>This recording will be discarded and cannot be recovered.</Text>
+        <View style={s.cancelConfirmActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel recording"
+            onPress={() => {
+              setCancelConfirmOpen(false);
+              stopNativeTranscription();
+              void onCancel();
+            }}
+            style={({ pressed }) => [s.cancelRecordingButton, pressed && s.controlPressed]}
+          >
+            <Ionicons name="trash-outline" size={18} color={C.textSec} />
+            <Text style={s.cancelRecordingButtonText}>Cancel Recording</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Continue recording"
+            onPress={() => setCancelConfirmOpen(false)}
+            style={({ pressed }) => [s.continueRecordingButton, pressed && s.stopControlPressed]}
+          >
+            <Ionicons name="mic" size={18} color="#fff" />
+            <Text style={s.continueRecordingButtonText}>Continue Recording</Text>
+          </Pressable>
+        </View>
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        visible={finishConfirmOpen}
+        onClose={continueRecordingFromFinish}
+        sheetHeight={385}
+        contentStyle={s.finishConfirmContent}
+      >
+        <View style={s.finishConfirmTopRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Continue recording"
+            hitSlop={10}
+            onPress={continueRecordingFromFinish}
+            style={({ pressed }) => [s.cancelConfirmClose, pressed && s.controlPressed]}
+          >
+            <Ionicons name="close" size={20} color={C.textSec} />
+          </Pressable>
+        </View>
+        <View style={s.finishConfirmIcon}>
+          <Ionicons name="checkmark" size={24} color={C.brand} />
+        </View>
+        <Text style={s.finishConfirmTitle}>Complete this session?</Text>
+        <Text style={s.finishConfirmCopy}>The recording will stop and begin processing automatically.</Text>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Complete session automatically in ${finishCountdown} seconds`}
+          onPress={completeSessionRecording}
+          style={({ pressed }) => [s.completeSessionCard, pressed && s.stopControlPressed]}
+        >
+          <View style={s.completeSessionCardIcon}>
+            <Ionicons name="checkmark" size={18} color="#fff" />
+          </View>
+          <View style={s.flex1}>
+            <Text style={s.completeSessionCardTitle}>Complete Session</Text>
+            <Text style={s.completeSessionCardCopy}>Stop recording and start processing</Text>
+          </View>
+          <View style={s.finishCountdownBadge}>
+            <Ionicons name="time-outline" size={14} color="#fff" />
+            <Text style={s.finishCountdownText}>{finishCountdown}</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color="#fff" />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Continue recording session"
+          onPress={continueRecordingFromFinish}
+          style={({ pressed }) => [s.continueSessionCard, pressed && s.controlPressed]}
+        >
+          <View style={s.continueSessionCardIcon}>
+            <Ionicons name="mic" size={18} color={C.brand} />
+          </View>
+          <View style={s.flex1}>
+            <Text style={s.continueSessionCardTitle}>Continue Recording</Text>
+            <Text style={s.continueSessionCardCopy}>Return to the live session</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color={C.brand} />
+        </Pressable>
+      </BottomSheetModal>
+
+      <Modal visible={uploadSheetOpen} transparent animationType="slide" onRequestClose={() => setUploadSheetOpen(false)}>
         <View style={s.sheetBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAssetSheetOpen(false)} />
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.assetSheet}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setUploadSheetOpen(false)} />
+          <View style={s.uploadSheet}>
             <View style={s.sheetHandle} />
             <View style={s.sheetHeader}>
               <View style={s.flex1}>
-                <Text style={s.assetSheetTitle}>Tour support</Text>
-                <Text style={s.assetSheetSubtitle}>Attach community resources or jot a follow-up.</Text>
+                <Text style={s.assetSheetTitle}>Upload a recording</Text>
+                <Text style={s.assetSheetSubtitle}>Confirm your role before choosing the audio or video file.</Text>
               </View>
-              <Pressable accessibilityLabel="Close assets" onPress={() => setAssetSheetOpen(false)} style={s.assetClose}>
+              <Pressable accessibilityLabel="Close upload" onPress={() => setUploadSheetOpen(false)} style={s.assetClose}>
                 <Ionicons name="close" size={20} color={C.text} />
               </Pressable>
             </View>
-            <ScrollView style={s.assetSheetList} contentContainerStyle={{ gap: 8 }} showsVerticalScrollIndicator={false}>
-              {assets.length ? (
-                assets.map((asset) => {
-                  const selected = selectedAssetIds.includes(asset.id);
-                  return (
-                    <Pressable key={asset.id} onPress={() => void attachAsset(asset)} style={[s.assetPickRow, selected && s.assetPickRowSelected]}>
-                      <View style={[s.materialIcon, selected && s.materialIconSelected]}>
-                        <Ionicons name={selected ? "checkmark" : "document-attach-outline"} size={18} color={selected ? C.green : C.brandSoft} />
-                      </View>
-                      <View style={s.flex1}>
-                        <Text style={s.assetPickTitle} numberOfLines={1}>{asset.name}</Text>
-                        <Text style={s.assetPickMeta} numberOfLines={1}>{asset.description || asset.type}</Text>
-                      </View>
-                      <Text style={[s.assetPickAction, selected && { color: C.green }]}>{selected ? "Added" : "Add"}</Text>
-                    </Pressable>
-                  );
-                })
-              ) : (
-                <AssetsEmptyState />
-              )}
-            </ScrollView>
-            <TextInput
-              value={notes}
-              onChangeText={onNotesChange}
-              placeholder="Add a quick follow-up note"
-              placeholderTextColor={C.textMuted}
-              multiline
-              style={s.assetNotesInput}
-            />
-          </KeyboardAvoidingView>
+
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: uploaderIsAgent }}
+              onPress={() => onUploaderIsAgentChange?.(!uploaderIsAgent)}
+              style={({ pressed }) => [s.agentIdentityToggle, uploaderIsAgent && s.agentIdentityToggleSelected, pressed && s.pressed]}
+            >
+              <View style={[s.agentIdentityCheck, uploaderIsAgent && s.agentIdentityCheckSelected]}>
+                {uploaderIsAgent ? <Ionicons name="checkmark" size={15} color="#fff" /> : null}
+              </View>
+              <View style={s.flex1}>
+                <Text style={s.agentIdentityTitle}>I am the leasing agent</Text>
+                <Text style={s.agentIdentityCopy}>
+                  {uploaderIsAgent
+                    ? `Use ${agentName?.trim() || "my profile name"} for this session.`
+                    : "Leave this off when uploading a recording from another agent."}
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setUploadSheetOpen(false);
+                setTimeout(() => void onUploadFile?.(), 220);
+              }}
+              style={({ pressed }) => [s.chooseUploadButton, pressed && s.pressed]}
+            >
+              <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
+              <Text style={s.chooseUploadButtonText}>Choose recording</Text>
+            </Pressable>
+          </View>
         </View>
       </Modal>
+
+      <BottomSheetModal
+        visible={assetSheetOpen}
+        onClose={() => {
+          if (selectedAssetPreview) {
+            setSelectedAssetPreview(null);
+          } else {
+            setAssetSheetOpen(false);
+          }
+        }}
+        swipeBackEnabled={Boolean(selectedAssetPreview)}
+        onSwipeBack={() => setSelectedAssetPreview(null)}
+        sheetHeight={Math.min(selectedAssetPreview ? 650 : 620, Math.round(Dimensions.get("window").height * (selectedAssetPreview ? 0.76 : 0.72)))}
+        header={selectedAssetPreview ? (
+          <View style={s.assetPreviewHeader}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back to all assets"
+              hitSlop={10}
+              onPress={() => setSelectedAssetPreview(null)}
+              style={({ pressed }) => [s.assetBackButton, pressed && s.pressed]}
+            >
+              <Ionicons name="chevron-back" size={20} color={C.text} />
+            </Pressable>
+            <View style={s.flex1}>
+              <Text style={s.assetSheetTitle} numberOfLines={2}>{selectedAssetPreview.name}</Text>
+              <Text style={s.assetSheetSubtitle}>Asset preview</Text>
+            </View>
+            <Pressable accessibilityLabel="Close assets" onPress={() => setAssetSheetOpen(false)} style={s.assetClose}>
+              <Ionicons name="close" size={20} color={C.text} />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={s.sheetHeader}>
+            <View style={s.flex1}>
+              <Text style={s.assetSheetTitle}>Assets</Text>
+              <Text style={s.assetSheetSubtitle}>{visibleAttachments.length + assets.length} session and community assets</Text>
+            </View>
+            <Pressable accessibilityLabel="Close assets" onPress={() => setAssetSheetOpen(false)} style={s.assetClose}>
+              <Ionicons name="close" size={20} color={C.text} />
+            </Pressable>
+          </View>
+        )}
+        contentStyle={selectedAssetPreview ? s.assetPreviewContent : s.assetViewerContent}
+      >
+        {selectedAssetPreview ? (
+          <>
+            <View style={s.assetPreviewStage}>
+              {selectedAssetPreview.kind === "video" && selectedAssetPreview.url ? (
+                <RecordingAssetVideoPreview source={selectedAssetPreview.url} />
+              ) : selectedAssetPreview.previewUrl ? (
+                <Image source={{ uri: selectedAssetPreview.previewUrl }} resizeMode="contain" style={s.assetPreviewMedia} />
+              ) : (
+                <View style={s.assetPreviewFallback}>
+                  <Ionicons name={selectedAssetPreview.kind === "image" ? "image-outline" : "document-outline"} size={48} color={C.brand} />
+                  <Text style={s.assetPreviewFallbackText}>Preview unavailable</Text>
+                </View>
+              )}
+            </View>
+            {selectedAssetPreview.description ? <Text style={s.assetPreviewDescription}>{selectedAssetPreview.description}</Text> : null}
+            <View style={s.assetPreviewActions}>
+              <Pressable onPress={() => void shareSelectedAsset()} style={({ pressed }) => [s.assetPreviewAction, pressed && s.pressed]}>
+                <Ionicons name="share-social-outline" size={17} color={C.text} />
+                <Text style={s.assetPreviewActionText}>Share</Text>
+              </Pressable>
+              <Pressable disabled={!selectedAssetPreview.url} onPress={() => void downloadSelectedAsset()} style={({ pressed }) => [s.assetPreviewAction, !selectedAssetPreview.url && s.disabled, pressed && s.pressed]}>
+                <Ionicons name="download-outline" size={17} color={C.text} />
+                <Text style={s.assetPreviewActionText}>Download</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <ScrollView contentContainerStyle={s.assetViewerList} showsVerticalScrollIndicator={false}>
+            <View style={s.assetInlineSearch}>
+              <Ionicons name="search-outline" size={16} color={C.textMuted} />
+              <TextInput value={assetSearch} onChangeText={setAssetSearch} placeholder="Search assets" placeholderTextColor={C.textMuted} style={s.assetInlineSearchInput} />
+            </View>
+            {filteredAttachments.map((attachment) => (
+              <Pressable key={`drawer-attachment-${attachment.id}`} disabled={!attachment.url} onPress={() => setSelectedAssetPreview(previewForAttachment(attachment))} style={({ pressed }) => [s.assetPickRow, pressed && s.pressed]}>
+                <View style={s.assetViewerThumb}><Ionicons name={attachment.type === "video" ? "play" : attachment.type === "image" ? "image-outline" : "document-attach-outline"} size={21} color={C.brand} /></View>
+                <View style={s.flex1}><Text style={s.assetPickTitle} numberOfLines={2}>{attachment.name}</Text><Text style={s.assetPickMeta}>{attachment.description || attachment.type}</Text></View>
+                {attachment.url ? <Ionicons name="chevron-forward" size={18} color={C.textMuted} /> : null}
+              </Pressable>
+            ))}
+            {filteredAssets.map((asset) => (
+              <Pressable key={`drawer-material-${asset.id}`} disabled={!materialUrl(asset)} onPress={() => setSelectedAssetPreview(previewForMaterial(asset))} style={({ pressed }) => [s.assetPickRow, pressed && s.pressed]}>
+                <View style={s.assetViewerThumb}>{previewUrlForMaterial(asset) ? <Image source={{ uri: previewUrlForMaterial(asset)! }} resizeMode="cover" style={s.assetPreviewImage} /> : <Ionicons name="folder-open-outline" size={21} color={C.brand} />}</View>
+                <View style={s.flex1}><Text style={s.assetPickTitle} numberOfLines={2}>{asset.name}</Text><Text style={s.assetPickMeta}>{asset.description || asset.type}</Text></View>
+                {materialUrl(asset) ? <Ionicons name="chevron-forward" size={18} color={C.textMuted} /> : null}
+              </Pressable>
+            ))}
+            {!filteredAttachments.length && !filteredAssets.length ? <Text style={s.sectionCaption}>No assets match your search.</Text> : null}
+          </ScrollView>
+        )}
+      </BottomSheetModal>
 
       <Modal visible={personSheetOpen} transparent animationType="slide" onRequestClose={() => setPersonSheetOpen(false)}>
         <View style={s.sheetBackdrop}>
@@ -1688,8 +2134,16 @@ export function RecordingExperience({
                       </View>
                       <Text style={s.personQrTitle}>Scan to join this tour</Text>
                       <Text style={s.personQrCopy}>Their check-in will appear here without interrupting the recording.</Text>
-                      <Text style={s.personQrUrl} numberOfLines={2}>{checkInBinding.url}</Text>
-                      <Pressable onPress={() => void shareRemoteCheckIn()} style={s.personPrimaryButton}>
+                      <Pressable
+                        accessibilityRole="link"
+                        accessibilityLabel="Open check-in page"
+                        onPress={() => void Linking.openURL(checkInBinding.url)}
+                        style={({ pressed }) => [s.personQrLink, pressed && s.pressed]}
+                      >
+                        <Text style={s.personQrUrl} numberOfLines={2}>{checkInBinding.url}</Text>
+                        <Ionicons name="open-outline" size={13} color={C.brand} />
+                      </Pressable>
+                      <Pressable onPress={() => void shareRemoteCheckIn()} style={[s.personPrimaryButton, s.personShareButton]}>
                         <Ionicons name="share-social-outline" size={18} color="#fff" />
                         <Text style={s.personPrimaryButtonText}>Share check-in link</Text>
                       </Pressable>
@@ -1704,8 +2158,18 @@ export function RecordingExperience({
                   </View>
                   <SummaryField label="Email (optional)" value={personEmail} onChangeText={setPersonEmail} keyboardType="email-address" autoCapitalize="none" />
                   <SummaryField label="Phone (optional)" value={personPhone} onChangeText={setPersonPhone} keyboardType="phone-pad" />
-                  <SummaryField label="How did you hear about us?" value={personHowHeard} onChangeText={setPersonHowHeard} />
-                  <SummaryField label="Reason for visit" value={personReason} onChangeText={setPersonReason} />
+                  <SummarySelectField
+                    label="How did you hear about us?"
+                    value={personHowHeard}
+                    options={CHECK_IN_HEAR_ABOUT_OPTIONS}
+                    onChange={setPersonHowHeard}
+                  />
+                  <SummarySelectField
+                    label="Reason for visit"
+                    value={personReason}
+                    options={CHECK_IN_REASON_OPTIONS}
+                    onChange={setPersonReason}
+                  />
                   {summaryMessage ? <Text style={s.personError}>{summaryMessage}</Text> : null}
                   <Pressable disabled={personSaving} onPress={() => void saveNewPerson()} style={[s.personPrimaryButton, personSaving && s.disabled]}>
                     {personSaving ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="person-add-outline" size={18} color="#fff" />}
@@ -1764,10 +2228,10 @@ export function RecordingExperience({
                   <Text style={s.sectionTitle}>Session assets</Text>
                   <Text style={s.sectionCaption}>These resources are available to everyone in this tour.</Text>
                   {visibleAttachments.length ? visibleAttachments.map((attachment) => (
-                    <Pressable key={attachment.id} disabled={!attachment.url} onPress={() => attachment.url && void Linking.openURL(attachment.url)} style={s.attachmentCard}>
+                    <Pressable key={attachment.id} disabled={!attachment.url} onPress={() => setSelectedAssetPreview(previewForAttachment(attachment))} style={s.attachmentCard}>
                       <View style={s.attachmentIcon}><Ionicons name={attachment.type === "video" ? "play" : "document-attach-outline"} size={18} color={C.brand} /></View>
                       <Text style={[s.attachmentTitle, s.flex1]} numberOfLines={1}>{attachment.name}</Text>
-                      {attachment.url ? <Ionicons name="open-outline" size={16} color={C.textMuted} /> : null}
+                      {attachment.url ? <Ionicons name="eye-outline" size={16} color={C.textMuted} /> : null}
                     </Pressable>
                   )) : <Text style={s.sectionCaption}>No assets have been attached yet.</Text>}
                 </View>
@@ -1787,6 +2251,40 @@ function SummaryField(props: React.ComponentProps<typeof TextInput> & { label: s
     <View style={s.summaryField}>
       <Text style={s.summaryFieldLabel}>{label}</Text>
       <TextInput {...inputProps} placeholderTextColor={C.textMuted} style={[s.summaryFieldInput, style]} />
+    </View>
+  );
+}
+
+function SummarySelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <View style={s.summarySelectField}>
+      <Text style={s.summaryFieldLabel}>{label}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.summarySelectOptions}>
+        {options.map((option) => {
+          const active = value === option;
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active }}
+              onPress={() => onChange(option)}
+              style={[s.summarySelectOption, active && s.summarySelectOptionActive]}
+            >
+              <Text style={[s.summarySelectOptionText, active && s.summarySelectOptionTextActive]}>{option}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -1860,15 +2358,56 @@ const s = StyleSheet.create({
   addPersonBubble: { width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderStyle: "dashed", borderColor: C.brand, backgroundColor: C.brandSoft },
   addPersonLabel: { color: C.brand, fontSize: 11, fontWeight: "900" },
   summaryCard: { gap: 11, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel },
+  sessionNotesCard: { gap: 8, padding: 0, borderWidth: 0, backgroundColor: "transparent" },
   summaryCardHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   summaryIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: C.brandSoft },
   summaryCardTitle: { color: C.text, fontSize: 15, fontWeight: "900" },
   summaryCardCaption: { color: C.textSec, fontSize: 11, lineHeight: 16, fontWeight: "600", marginTop: 1 },
-  summaryNotesInput: { minHeight: 92, maxHeight: 160, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.line, color: C.text, fontSize: 14, lineHeight: 20, fontWeight: "600", backgroundColor: C.bg },
+  summaryNotesInput: { minHeight: 72, maxHeight: 150, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: "rgba(16,24,40,0.08)", color: C.text, fontSize: 14, lineHeight: 20, fontWeight: "600", backgroundColor: C.panel },
+  notesFooter: { minHeight: 30, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, paddingHorizontal: 3 },
+  autosaveRow: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5 },
+  autosaveProperty: { maxWidth: "68%", color: C.textSec, fontSize: 10, fontWeight: "700" },
+  autosaveSeparator: { color: C.textMuted, fontSize: 10, fontWeight: "700" },
+  autosaveText: { color: C.textMuted, fontSize: 10, fontWeight: "700" },
+  noteActions: { flexDirection: "row", alignItems: "center", gap: 5 },
+  noteAction: { minHeight: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 14, backgroundColor: "rgba(16,24,40,0.045)" },
+  noteActionActive: { backgroundColor: C.brandSoft },
+  noteActionText: { color: C.textSec, fontSize: 10, fontWeight: "800" },
+  noteActionTextActive: { color: C.brand },
+  inlineAssetsSection: { gap: 9, paddingTop: 4 },
+  inlineAssetsHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  assetInlineSearch: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 11, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel },
+  assetInlineSearchInput: { flex: 1, color: C.text, fontSize: 12, fontWeight: "700" },
+  inlineAssetsRow: { gap: 10, paddingRight: 20 },
+  inlineAssetCard: { width: 126, gap: 5, padding: 8, borderRadius: 14, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel },
+  inlineAssetThumb: { height: 62, alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 10, backgroundColor: C.brandSoft },
+  inlineAssetThumbImage: { width: "100%", height: "100%" },
+  inlineAssetTitle: { color: C.text, fontSize: 12, fontWeight: "800" },
+  inlineAssetMeta: { color: C.textMuted, fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
+  notesAssetPanel: { gap: 8, paddingTop: 2 },
   summarySaveButton: { minHeight: 42, alignSelf: "flex-end", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 15, borderRadius: 21, backgroundColor: C.brand },
   summarySaveButtonText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  notesInsightPanel: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 11, borderRadius: 13, backgroundColor: C.brandSoft },
+  notesInsightIcon: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: C.panel },
+  notesInsightTitle: { color: C.text, fontSize: 12, fontWeight: "900", marginBottom: 4 },
+  notesInsightBody: { color: C.textSec, fontSize: 12, lineHeight: 18, fontWeight: "600" },
+  remindersPane: { gap: 9 },
+  reminderComposer: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 12, paddingRight: 5, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.bg },
+  reminderInput: { flex: 1, color: C.text, fontSize: 13, fontWeight: "600" },
+  reminderAddButton: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: C.brand },
+  reminderRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },
+  reminderText: { flex: 1, color: C.text, fontSize: 12, lineHeight: 17, fontWeight: "700" },
+  remindersEmpty: { color: C.textMuted, fontSize: 11, fontWeight: "600", paddingVertical: 4 },
   smallAddButton: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, borderRadius: 18, backgroundColor: C.brandSoft },
   smallAddButtonText: { color: C.brand, fontSize: 12, fontWeight: "900" },
+  assetSearchBar: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel },
+  assetSearchInput: { flex: 1, color: C.text, fontSize: 13, fontWeight: "700" },
+  assetLibrary: { gap: 7 },
+  assetLibraryRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 10, padding: 9, borderRadius: 13, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel },
+  assetPreviewThumb: { width: 42, height: 42, overflow: "hidden", alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.brandSoft },
+  assetPreviewImage: { width: "100%", height: "100%" },
+  compactAssetEmpty: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.brandSoft },
+  compactAssetEmptyText: { color: C.textSec, fontSize: 11, fontWeight: "800" },
   attachmentGrid: { gap: 8 },
   attachmentCard: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 13, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel },
   attachmentIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: C.brandSoft },
@@ -2046,37 +2585,84 @@ const s = StyleSheet.create({
     backgroundColor: C.brandSoft,
     transform: [{ rotate: "45deg" }],
   },
-  waveLine: { height: 34, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, overflow: "hidden" },
+  waveLine: { width: "100%", height: 34, flexDirection: "row", alignItems: "center", overflow: "hidden" },
+  waveHalf: { flex: 1, height: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, overflow: "hidden" },
+  waveHalfLeft: { paddingRight: 6 },
+  waveHalfRight: { paddingLeft: 6 },
   waveBar: { width: 3, borderRadius: 2, backgroundColor: C.brand },
-  waveTime: { position: "absolute", alignSelf: "center", color: C.text, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"], backgroundColor: C.bg, paddingHorizontal: 12 },
-  recordControls: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 28 },
-  roundControl: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: "#E4EAF2" },
-  stopControl: { width: 66, height: 66, borderRadius: 33, alignItems: "center", justifyContent: "center", backgroundColor: C.brandSoft, borderWidth: 1, borderColor: "rgba(0,108,229,0.18)" },
-  stopSquare: { width: 19, height: 19, borderRadius: 5, backgroundColor: C.brand },
+  waveTime: { width: 58, color: C.text, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"], textAlign: "center", backgroundColor: C.bg },
+  recordControls: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  roundControl: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#E4EAF2" },
+  controlPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  stopControl: { minWidth: 142, height: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 16, borderRadius: 27, backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.2, shadowRadius: 11, elevation: 3 },
+  stopControlPressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
+  stopControlText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   readyActions: { minHeight: 62, alignItems: "center", justifyContent: "center" },
   startRecordingButton: { alignSelf: "center", minWidth: 220, minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 22, borderRadius: 29, backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
   startRecordingButtonDisabled: { backgroundColor: "#5AA8F7" },
   startRecordingText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  countdownText: { color: "#fff", fontSize: 28, lineHeight: 32, fontWeight: "900", fontVariant: ["tabular-nums"] },
   uploadRecordingButton: { position: "absolute", right: 0, bottom: 2, minWidth: 58, minHeight: 52, alignItems: "center", justifyContent: "center", gap: 2, paddingHorizontal: 6, borderRadius: 16, borderWidth: 1, borderColor: "rgba(0,108,229,0.18)", backgroundColor: C.brandSoft },
   uploadRecordingText: { color: C.brand, fontSize: 10, fontWeight: "900" },
+  cancelConfirmContent: { alignItems: "center" },
+  cancelConfirmTopRow: { alignSelf: "stretch", minHeight: 38, alignItems: "flex-end", justifyContent: "center" },
+  cancelConfirmClose: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: "#F2F4F7" },
+  cancelConfirmIcon: { width: 48, height: 48, alignItems: "center", justifyContent: "center", marginTop: 2, marginBottom: 10, borderRadius: 24, backgroundColor: "#F2F4F7" },
+  cancelConfirmTitle: { color: C.text, fontSize: 21, fontWeight: "900", textAlign: "center" },
+  cancelConfirmCopy: { maxWidth: 310, marginTop: 6, color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600", textAlign: "center" },
+  cancelConfirmActions: { alignSelf: "stretch", gap: 10, marginTop: 20 },
+  cancelRecordingButton: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 26, backgroundColor: "#fff" },
+  cancelRecordingButtonText: { color: C.textSec, fontSize: 14, fontWeight: "900" },
+  continueRecordingButton: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 28, backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.2, shadowRadius: 11, elevation: 3 },
+  continueRecordingButtonText: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  finishConfirmContent: { alignItems: "center", gap: 9 },
+  finishConfirmTopRow: { alignSelf: "stretch", minHeight: 34, alignItems: "flex-end", justifyContent: "center" },
+  finishConfirmIcon: { width: 48, height: 48, alignItems: "center", justifyContent: "center", marginBottom: 2, borderRadius: 24, backgroundColor: C.brandSoft },
+  finishConfirmTitle: { color: C.text, fontSize: 21, fontWeight: "900", textAlign: "center" },
+  finishConfirmCopy: { maxWidth: 320, marginBottom: 7, color: C.textSec, fontSize: 13, lineHeight: 18, fontWeight: "600", textAlign: "center" },
+  completeSessionCard: { alignSelf: "stretch", minHeight: 70, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderRadius: 18, backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.18, shadowRadius: 11, elevation: 3 },
+  completeSessionCardIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "rgba(255,255,255,0.18)" },
+  completeSessionCardTitle: { color: "#fff", fontSize: 14, fontWeight: "900" },
+  completeSessionCardCopy: { marginTop: 2, color: "rgba(255,255,255,0.76)", fontSize: 10, fontWeight: "700" },
+  finishCountdownBadge: { minWidth: 43, height: 30, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 7, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.18)" },
+  finishCountdownText: { color: "#fff", fontSize: 13, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  continueSessionCard: { alignSelf: "stretch", minHeight: 64, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: "rgba(0,108,229,0.16)", borderRadius: 18, backgroundColor: C.brandSoft },
+  continueSessionCardIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "#fff" },
+  continueSessionCardTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
+  continueSessionCardCopy: { marginTop: 2, color: C.textSec, fontSize: 10, fontWeight: "700" },
   sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.58)" },
-  assetSheet: { maxHeight: "78%", minHeight: "52%", borderTopLeftRadius: 18, borderTopRightRadius: 18, backgroundColor: C.bg, paddingHorizontal: 18, paddingBottom: Platform.OS === "ios" ? 32 : 18 },
+  uploadSheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: C.bg, paddingHorizontal: 18, paddingBottom: Platform.OS === "ios" ? 34 : 20 },
+  agentIdentityToggle: { minHeight: 82, flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderWidth: 1, borderColor: C.line, borderRadius: 16, backgroundColor: C.panel },
+  agentIdentityToggleSelected: { borderColor: "rgba(0,108,229,0.42)", backgroundColor: C.brandSoft },
+  agentIdentityCheck: { width: 24, height: 24, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: C.textMuted, borderRadius: 8, backgroundColor: C.bg },
+  agentIdentityCheckSelected: { borderColor: C.brand, backgroundColor: C.brand },
+  agentIdentityTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
+  agentIdentityCopy: { marginTop: 3, color: C.textSec, fontSize: 11, lineHeight: 16, fontWeight: "600" },
+  chooseUploadButton: { minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, marginTop: 14, borderRadius: 27, backgroundColor: C.brand },
+  chooseUploadButtonText: { color: "#fff", fontSize: 15, fontWeight: "900" },
   personSheet: { maxHeight: "88%", minHeight: "58%", borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: C.bg, paddingHorizontal: 18, paddingBottom: Platform.OS === "ios" ? 32 : 18 },
   sheetHandle: { width: 40, height: 4, alignSelf: "center", borderRadius: 2, backgroundColor: "#51606F", marginTop: 9, marginBottom: 14 },
   sheetHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   assetSheetTitle: { color: C.text, fontSize: 20, fontWeight: "900" },
   assetSheetSubtitle: { color: C.textSec, fontSize: 12, marginTop: 2, fontWeight: "700" },
   assetClose: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.panel },
-  assetSheetList: { flexGrow: 0, marginBottom: 12 },
-  assetPickRow: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 11, borderWidth: 1, borderColor: C.line, borderRadius: 10, backgroundColor: C.panel },
-  assetPickRowSelected: { borderColor: "rgba(48,209,88,0.46)", backgroundColor: "rgba(48,209,88,0.1)" },
-  materialIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.panelSoft },
-  materialIconSelected: { backgroundColor: "rgba(48,209,88,0.16)" },
+  assetBackButton: { width: 52, height: 46, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: C.brandSoft },
+  assetViewerContent: { paddingBottom: 0 },
+  assetViewerList: { gap: 8, paddingBottom: 18 },
+  assetViewerThumb: { width: 64, height: 52, overflow: "hidden", alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.brandSoft },
+  assetSheetList: { flexGrow: 0 },
+  assetPickRow: { minHeight: 70, flexDirection: "row", alignItems: "center", gap: 11, padding: 9, borderWidth: 1, borderColor: C.line, borderRadius: 14, backgroundColor: C.panel },
   assetPickTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
   assetPickMeta: { color: C.textSec, fontSize: 11, marginTop: 2, fontWeight: "600" },
-  assetPickAction: { color: C.brandSoft, fontSize: 11, fontWeight: "900" },
-  assetNotesInput: { minHeight: 74, maxHeight: 120, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 11, color: C.text, fontSize: 13, textAlignVertical: "top", backgroundColor: C.panel },
+  assetPreviewHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
+  assetPreviewContent: { gap: 12, paddingBottom: 16 },
+  assetPreviewStage: { flex: 1, minHeight: 280, maxHeight: 440, overflow: "hidden", borderWidth: 1, borderColor: C.line, borderRadius: 18, backgroundColor: "#E9EEF5" },
+  assetPreviewMedia: { width: "100%", height: "100%" },
+  assetPreviewFallback: { flex: 1, alignItems: "center", justifyContent: "center", gap: 9 },
+  assetPreviewFallbackText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
+  assetPreviewDescription: { color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600" },
+  assetPreviewActions: { flexDirection: "row", gap: 10, paddingTop: 2 },
+  assetPreviewAction: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: 1, borderColor: C.line, borderRadius: 13, backgroundColor: C.panel },
+  assetPreviewActionText: { color: C.text, fontSize: 13, fontWeight: "900" },
   personModeTabs: { flexDirection: "row", gap: 5, padding: 4, marginBottom: 14, borderRadius: 15, backgroundColor: "#EEF1F5" },
   personModeTab: { flex: 1, minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12 },
   personModeTabActive: { backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 5, elevation: 2 },
@@ -2092,7 +2678,8 @@ const s = StyleSheet.create({
   personQrCode: { backgroundColor: "#fff", borderRadius: 20 },
   personQrTitle: { color: C.text, fontSize: 17, fontWeight: "900" },
   personQrCopy: { maxWidth: 310, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600", textAlign: "center" },
-  personQrUrl: { maxWidth: 310, color: C.textMuted, fontSize: 10, lineHeight: 14, fontWeight: "600", textAlign: "center" },
+  personQrLink: { maxWidth: 330, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 6, paddingVertical: 3 },
+  personQrUrl: { flexShrink: 1, color: C.brand, fontSize: 10, lineHeight: 14, fontWeight: "700", textAlign: "center", textDecorationLine: "underline" },
   personQrLoading: { minHeight: 310, alignSelf: "stretch", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 24, borderWidth: 1, borderColor: C.line, borderRadius: 20, backgroundColor: C.panel },
   personQrLoadingTitle: { color: C.text, fontSize: 16, fontWeight: "900", textAlign: "center" },
   personQrLoadingCopy: { color: C.textSec, fontSize: 12, lineHeight: 18, fontWeight: "600", textAlign: "center" },
@@ -2103,8 +2690,15 @@ const s = StyleSheet.create({
   summaryField: { flex: 1, gap: 6 },
   summaryFieldLabel: { color: C.textSec, fontSize: 11, fontWeight: "800" },
   summaryFieldInput: { minHeight: 48, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel, color: C.text, fontSize: 14, fontWeight: "600" },
+  summarySelectField: { gap: 6 },
+  summarySelectOptions: { gap: 6, paddingRight: 8 },
+  summarySelectOption: { minHeight: 34, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: "#d7dae3", borderRadius: 999, backgroundColor: C.panel },
+  summarySelectOptionActive: { borderColor: C.brand, backgroundColor: "#eff6ff" },
+  summarySelectOptionText: { color: C.textSec, fontSize: 12, fontWeight: "700" },
+  summarySelectOptionTextActive: { color: C.brand },
   personError: { color: C.red, fontSize: 12, lineHeight: 17, fontWeight: "800" },
   personPrimaryButton: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 26, backgroundColor: C.brand, marginTop: 2 },
+  personShareButton: { minWidth: 252, paddingHorizontal: 24 },
   personPrimaryButtonText: { color: "#fff", fontSize: 15, fontWeight: "900" },
   personDetailContent: { gap: 14, paddingBottom: 10 },
   personDetailHeader: { flexDirection: "row", alignItems: "center", gap: 11 },

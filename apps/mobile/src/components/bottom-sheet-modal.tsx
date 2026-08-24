@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Dimensions,
   KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -37,6 +38,9 @@ type BottomSheetModalProps = {
   dismissDisabled?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
   keyboardAvoiding?: boolean;
+  /** Enables a right-swipe back action inside a nested sheet state. */
+  swipeBackEnabled?: boolean;
+  onSwipeBack?: () => void;
 };
 
 export function BottomSheetModal({
@@ -49,9 +53,12 @@ export function BottomSheetModal({
   dismissDisabled = false,
   contentStyle,
   keyboardAvoiding = false,
+  swipeBackEnabled = false,
+  onSwipeBack,
 }: BottomSheetModalProps) {
   const insets = useSafeAreaInsets();
   const [rendered, setRendered] = useState(visible);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const isClosing = useRef(false);
   const hasPresented = useRef(false);
   const dismissDisabledRef = useRef(dismissDisabled);
@@ -118,6 +125,16 @@ export function BottomSheetModal({
     animatePresent();
   }, [animatePresent, rendered, visible]);
 
+  useEffect(() => {
+    if (!keyboardAvoiding || Platform.OS !== "ios") return;
+    const show = Keyboard.addListener("keyboardWillShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardWillHide", () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [keyboardAvoiding]);
+
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
@@ -143,6 +160,25 @@ export function BottomSheetModal({
           backdropOpacity.value = withTiming(1, { duration: 160, easing: SHEET_EASING });
         }),
     [animateDismiss, backdropOpacity, dismissDisabled, dismissDisabledValue, sheetHeightValue, translateY]
+  );
+
+  const horizontalBackGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(swipeBackEnabled && Boolean(onSwipeBack))
+        .activeOffsetX(8)
+        .failOffsetY([-18, 18])
+        .onEnd((event) => {
+          if (event.translationX > 72 || event.velocityX > DISMISS_VELOCITY) {
+            runOnJS(onSwipeBack!)();
+          }
+        }),
+    [onSwipeBack, swipeBackEnabled]
+  );
+
+  const sheetGesture = useMemo(
+    () => Gesture.Simultaneous(panGesture, horizontalBackGesture),
+    [horizontalBackGesture, panGesture]
   );
 
   const backdropStyle = useAnimatedStyle(() => ({
@@ -175,14 +211,14 @@ export function BottomSheetModal({
           pointerEvents="box-none"
           style={styles.keyboardAvoiding}
         >
-          <GestureDetector gesture={panGesture}>
+          <GestureDetector gesture={sheetGesture}>
             <AnimatedView
               style={[
                 styles.sheet,
                 sheetStyle,
                 {
                   height: sheetHeight,
-                  paddingBottom: Math.max(insets.bottom, 16),
+                  paddingBottom: keyboardVisible ? 0 : Math.max(insets.bottom, 16),
                 },
               ]}
             >

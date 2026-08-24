@@ -21,6 +21,7 @@
     "build:admin": "turbo build --filter=@tour/admin",
     "typecheck:admin": "turbo typecheck --filter=@tour/admin",
     "mobile": "turbo dev --filter=@tour/mobile",
+    "mobile:dev-client": "npm --workspace @tour/mobile run dev:client",
     "mobile:build:ios": "npm --workspace @tour/mobile run build:ios",
     "mobile:submit:ios": "npm --workspace @tour/mobile run submit:ios",
     "mobile:testflight": "npm --workspace @tour/mobile run testflight",

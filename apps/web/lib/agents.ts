@@ -20,7 +20,7 @@ export async function listTeamAgents(communities: AdminCommunity[]): Promise<Tea
         id: member.alias || member.id || member.email,
         name: member.name,
         fullName: member.name,
-        authUserId: null,
+        authUserId: member.userId ?? null,
         email: member.email,
       });
     }

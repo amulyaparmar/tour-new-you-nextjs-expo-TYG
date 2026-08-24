@@ -1,21 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 import { getApiBaseUrl } from "./config";
 
-/** Tokens only — stays under SecureStore's ~2KB limit. */
-const TOKENS_KEY = "tour.mobile.tokens.v1";
-/** Workspace payload — AsyncStorage (no SizeLimit). */
-const WORKSPACE_KEY = "tour.mobile.workspace.v1";
-/** Pre-split blob; migrated once then deleted. */
-const LEGACY_SESSION_KEY = "tour.mobile.session.v1";
-
-type StoredTokens = {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-};
+const SESSION_KEY = "tour.mobile.session.v2";
 
 function apiBaseUrl() {
   return getApiBaseUrl();
@@ -29,6 +17,7 @@ export type MobileWorkspace = {
     title?: string | null;
     phone?: string | null;
     cardAccent?: string | null;
+    aiTrainingDataFeedback?: boolean;
   };
   teamMember: {
     id: string | null;
@@ -158,47 +147,35 @@ export function authorizedCommunitiesForSession(
 }
 
 export async function restoreSession() {
-  let storedSession = await readPersistedSession();
-  if (!storedSession) {
-    try {
-      storedSession = await migrateLegacySession();
-    } catch {
-      storedSession = null;
-    }
-  }
-  if (!storedSession) {
-    const [orphanTokens, orphanWorkspace, legacy] = await Promise.all([
-      readStoredTokens(),
-      readStoredWorkspace(),
-      readLegacyStoredSession(),
-    ]);
-    if (orphanTokens || orphanWorkspace || legacy) await clearSession();
-    return null;
-  }
+  const storedSession = await readPersistedSession();
+  if (!storedSession) return null;
 
   currentSession = storedSession;
   const tokenStillValid = storedSession.expiresAt > Math.floor(Date.now() / 1000) + 30;
+  // A valid access token does not need a network round-trip on every launch.
+  // Returning the persisted session immediately also keeps a temporary API
+  // outage from turning an ordinary app restart into a sign-out.
+  if (tokenStillValid && hasCanonicalWorkspace(storedSession)) {
+    return storedSession;
+  }
+
   try {
-    // Always re-resolve propertiesTYG.metadata.property_team on a cold launch.
-    // Cap wait so a slow API cannot leave the app on the splash forever.
+    // The access token expired, so rotate it with the persisted refresh token.
+    // Cap the wait so a slow API cannot leave the app on the splash forever.
     const refreshed = await Promise.race([
       refreshSession(),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 12_000)),
     ]);
     if (refreshed) return refreshed;
-    if (tokenStillValid && hasCanonicalWorkspace(storedSession)) {
-      currentSession = storedSession;
-      return storedSession;
-    }
-    await clearSession();
-    return null;
+    if (!currentSession) return null;
+    // Keep the saved login during transient server/network failures. API calls
+    // will retry the refresh; only a definitive auth rejection clears storage.
+    currentSession = storedSession;
+    return storedSession;
   } catch {
-    if (tokenStillValid && hasCanonicalWorkspace(storedSession)) {
-      currentSession = storedSession;
-      return storedSession;
-    }
-    await clearSession();
-    return null;
+    if (!currentSession) return null;
+    currentSession = storedSession;
+    return storedSession;
   }
 }
 
@@ -212,7 +189,7 @@ export async function listBusinesses(query = "", options: { email?: string; limi
   const response = currentSession
     ? await authenticatedFetch(path, { cache: "no-store" })
     : await fetch(`${apiBaseUrl()}${path}`, { cache: "no-store" });
-  const body = await response.json().catch(() => null) as {
+  let body = await response.json().catch(() => null) as {
     businesses?: BusinessOption[];
     hasMore?: boolean;
     error?: string;
@@ -230,7 +207,7 @@ export async function signIn(email: string, password: string, communityId: strin
     },
     body: JSON.stringify({ email, password, communityId }),
   });
-  const body = await response.json().catch(() => null) as {
+  let body = await response.json().catch(() => null) as {
     workspace?: MobileWorkspace;
     session?: Omit<MobileAuthSession, "workspace">;
     error?: string;
@@ -245,40 +222,68 @@ export async function requestSignInCode(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
   assertWorkEmail(normalizedEmail);
 
+  const request = () => fetch(`${apiBaseUrl()}/api/admin/auth/otp/start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-tour-client": "mobile",
+    },
+    body: JSON.stringify({ email: normalizedEmail }),
+  });
+
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl()}/api/admin/auth/otp/start`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-tour-client": "mobile",
-      },
-      body: JSON.stringify({ email: normalizedEmail }),
-    });
+    response = await request();
   } catch {
-    throw new Error("Could not send a sign-in code. Check your connection and try again.");
+    // The server can deliver the email before a mobile connection times out.
+    // Retry once so the app can receive the challenge and show code entry.
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    try {
+      response = await request();
+    } catch {
+      throw new Error("Could not send a sign-in code. Check your connection and try again.");
+    }
   }
 
-  const body = await response.json().catch(() => null) as {
+  let body = await response.json().catch(() => null) as {
     sent?: boolean;
     email?: string;
     challengeId?: string;
     error?: string;
   } | null;
   const challengeId = body?.challengeId?.trim() ?? "";
-  if (response.ok && challengeId) {
+  // A recent request is rate-limited, but the API may return the still-active
+  // challenge so the user can enter the code that was already delivered.
+  if (challengeId) {
     return {
       email: body?.email ?? normalizedEmail,
       challengeId,
       emailSent: body?.sent !== false,
     } satisfies MobileSignInChallenge;
   }
-  throw new Error(
-    body?.error
+
+  if (!response.ok && response.status >= 500) {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    const retryResponse = await request().catch(() => null);
+    if (retryResponse) {
+      const retryBody = await retryResponse.json().catch(() => null) as typeof body;
+      const retryChallengeId = retryBody?.challengeId?.trim() ?? "";
+      if (retryChallengeId) {
+        return {
+          email: retryBody?.email ?? normalizedEmail,
+          challengeId: retryChallengeId,
+          emailSent: retryBody?.sent !== false,
+        } satisfies MobileSignInChallenge;
+      }
+      response = retryResponse;
+      body = retryBody;
+    }
+  }
+  const responseError = body?.error
     ?? (response.ok
       ? "The sign-in service did not return a verification challenge."
-      : deliveryErrorForStatus(response.status))
-  );
+      : `${deliveryErrorForStatus(response.status)} (HTTP ${response.status})`);
+  throw new Error(`${responseError} [${response.status} ${apiBaseUrl()}]`);
 }
 
 export async function verifySignInCode(email: string, challengeId: string, code: string) {
@@ -464,7 +469,10 @@ async function refreshSession() {
       session?: Omit<MobileAuthSession, "workspace">;
     } | null;
     if (!response.ok || !body?.workspace || !body.session) {
-      await clearSession();
+      // 401 means Supabase definitively rejected the refresh token. Preserve
+      // the persisted session for temporary 5xx responses and malformed
+      // responses so a flaky launch cannot permanently log the user out.
+      if (response.status === 401) await clearSession();
       return null;
     }
     return persistSession({ ...body.session, workspace: body.workspace });
@@ -481,28 +489,14 @@ async function persistSession(session: MobileAuthSession) {
   if (!hasCanonicalWorkspace(session)) {
     throw new Error("Your property access could not be verified. Please sign in again.");
   }
-  // Tokens → SecureStore; workspace → AsyncStorage. Drop team trees on
-  // inactive properties so the switcher list stays small.
-  const storedWorkspace: MobileWorkspace = {
-    ...session.workspace,
-    communities: (session.workspace.communities ?? []).map((community) => ({
-      ...community,
-      teamMembers: community.id === session.workspace.community.id
-        ? (session.workspace.community.teamMembers ?? community.teamMembers ?? [])
-        : [],
-    })),
-  };
   currentSession = session;
   try {
-    await Promise.all([
-      writeStoredTokens({
-        accessToken: session.accessToken,
-        refreshToken: session.refreshToken,
-        expiresAt: session.expiresAt,
-      }),
-      writeStoredWorkspace(storedWorkspace),
-      deleteLegacyStoredSession(),
-    ]);
+    const raw = JSON.stringify(session);
+    if (Platform.OS === "web") {
+      globalThis.localStorage?.setItem(SESSION_KEY, raw);
+    } else {
+      await AsyncStorage.setItem(SESSION_KEY, raw);
+    }
   } catch {
     // Disk write failed; in-memory session still works this launch.
   }
@@ -542,106 +536,24 @@ function withAuth(init: RequestInit, session: MobileAuthSession): RequestInit {
 }
 
 async function readPersistedSession(): Promise<MobileAuthSession | null> {
-  const [tokens, workspace] = await Promise.all([
-    readStoredTokens(),
-    readStoredWorkspace(),
-  ]);
-  if (!tokens?.accessToken || !tokens.refreshToken || !workspace?.community?.id) {
-    return null;
-  }
-  return {
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken,
-    expiresAt: tokens.expiresAt,
-    workspace,
-  };
-}
-
-async function migrateLegacySession(): Promise<MobileAuthSession | null> {
-  const raw = await readLegacyStoredSession();
-  if (!raw) return null;
-  try {
-    const legacy = JSON.parse(raw) as MobileAuthSession;
-    if (!legacy?.accessToken || !legacy.refreshToken || !legacy.workspace?.community?.id) {
-      await deleteLegacyStoredSession();
-      return null;
-    }
-    await persistSession(legacy);
-    return getCurrentSession();
-  } catch {
-    await deleteLegacyStoredSession();
-    return null;
-  }
-}
-
-async function readStoredTokens(): Promise<StoredTokens | null> {
   try {
     const raw = Platform.OS === "web"
-      ? (globalThis.localStorage?.getItem(TOKENS_KEY) ?? null)
-      : await SecureStore.getItemAsync(TOKENS_KEY);
+      ? globalThis.localStorage?.getItem(SESSION_KEY) ?? null
+      : await AsyncStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as StoredTokens;
+    const session = JSON.parse(raw) as MobileAuthSession;
+    return session?.accessToken && session?.refreshToken && session?.workspace?.community?.id
+      ? session
+      : null;
   } catch {
     return null;
-  }
-}
-
-async function writeStoredTokens(tokens: StoredTokens) {
-  const value = JSON.stringify(tokens);
-  if (Platform.OS === "web") {
-    globalThis.localStorage?.setItem(TOKENS_KEY, value);
-    return;
-  }
-  await SecureStore.setItemAsync(TOKENS_KEY, value);
-}
-
-async function readStoredWorkspace(): Promise<MobileWorkspace | null> {
-  try {
-    const raw = await AsyncStorage.getItem(WORKSPACE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as MobileWorkspace;
-  } catch {
-    return null;
-  }
-}
-
-async function writeStoredWorkspace(workspace: MobileWorkspace) {
-  await AsyncStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace));
-}
-
-async function readLegacyStoredSession() {
-  if (Platform.OS === "web") {
-    return globalThis.localStorage?.getItem(LEGACY_SESSION_KEY) ?? null;
-  }
-  return SecureStore.getItemAsync(LEGACY_SESSION_KEY);
-}
-
-async function deleteLegacyStoredSession() {
-  if (Platform.OS === "web") {
-    globalThis.localStorage?.removeItem(LEGACY_SESSION_KEY);
-    return;
-  }
-  try {
-    await SecureStore.deleteItemAsync(LEGACY_SESSION_KEY);
-  } catch {
-    // Key may not exist.
   }
 }
 
 async function deleteStoredSession() {
-  await Promise.all([
-    (async () => {
-      if (Platform.OS === "web") {
-        globalThis.localStorage?.removeItem(TOKENS_KEY);
-        return;
-      }
-      try {
-        await SecureStore.deleteItemAsync(TOKENS_KEY);
-      } catch {
-        // Key may not exist.
-      }
-    })(),
-    AsyncStorage.removeItem(WORKSPACE_KEY),
-    deleteLegacyStoredSession(),
-  ]);
+  if (Platform.OS === "web") {
+    globalThis.localStorage?.removeItem(SESSION_KEY);
+  } else {
+    await AsyncStorage.removeItem(SESSION_KEY);
+  }
 }

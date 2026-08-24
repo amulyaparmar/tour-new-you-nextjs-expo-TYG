@@ -10,9 +10,11 @@ import {
 } from "react-native";
 
 import type { MobileAuthSession } from "../../auth";
-import { getCurrentSession } from "../../auth";
+import { getCurrentSession, updateWorkspaceAliases } from "../../auth";
+import { getSiteBaseUrl } from "../../config";
 import { useProfileQuery, useUpdateProfileMutation } from "../../queries";
 import { LoadingDots } from "@/components/loading-dots";
+import { defaultMemberPublicAlias, defaultPropertyPublicAlias } from "@tour/shared";
 
 const C = {
   bg: "#F7F8FB",
@@ -111,7 +113,20 @@ export function ProfileEditorScreen({
   const [title, setTitle] = useState(user.title ?? "Leasing Consultant");
   const [phone, setPhone] = useState(user.phone ?? "");
   const [accent, setAccent] = useState(resolveCardAccent(user.cardAccent));
+  const [userAlias, setUserAlias] = useState(defaultMemberPublicAlias({
+    alias: session.workspace.teamMember?.alias,
+    name: session.workspace.teamMember?.name || user.fullName,
+    email: user.email,
+    id: session.workspace.teamMember?.id || user.id,
+  }));
+  const [propertyAlias, setPropertyAlias] = useState(defaultPropertyPublicAlias({
+    alias: session.workspace.community.alias,
+    name: session.workspace.community.name,
+    propertyTygId: session.workspace.community.propertyTygId,
+  }));
   const [error, setError] = useState<string | null>(null);
+  const [aliasError, setAliasError] = useState<string | null>(null);
+  const [savingAliases, setSavingAliases] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -124,6 +139,20 @@ export function ProfileEditorScreen({
     // Sync form when cached/remote profile arrives — avoid looping on onSaved identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
+
+  useEffect(() => {
+    setUserAlias(defaultMemberPublicAlias({
+      alias: session.workspace.teamMember?.alias,
+      name: session.workspace.teamMember?.name || user.fullName,
+      email: user.email,
+      id: session.workspace.teamMember?.id || user.id,
+    }));
+    setPropertyAlias(defaultPropertyPublicAlias({
+      alias: session.workspace.community.alias,
+      name: session.workspace.community.name,
+      propertyTygId: session.workspace.community.propertyTygId,
+    }));
+  }, [session.workspace.community.alias, session.workspace.community.name, session.workspace.community.propertyTygId, session.workspace.teamMember?.alias, session.workspace.teamMember?.id, session.workspace.teamMember?.name, user.email, user.fullName, user.id]);
 
   const baselineName = profile?.name ?? user.fullName ?? "";
   const baselineTitle = profile?.title ?? user.title ?? "Leasing Consultant";
@@ -156,6 +185,22 @@ export function ProfileEditorScreen({
       if (next) onSaved(next);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save profile.");
+    }
+  }
+
+  async function saveAliases() {
+    setSavingAliases(true);
+    setAliasError(null);
+    try {
+      const nextSession = await updateWorkspaceAliases({
+        userAlias: userAlias.trim() || null,
+        propertyAlias: propertyAlias.trim() || null,
+      });
+      onSaved(nextSession);
+    } catch (caught) {
+      setAliasError(caught instanceof Error ? caught.message : "Could not save check-in link.");
+    } finally {
+      setSavingAliases(false);
     }
   }
 
@@ -209,6 +254,51 @@ export function ProfileEditorScreen({
             <Text style={styles.label}>Community</Text>
             <Text style={styles.readOnlyValue}>{session.workspace.community.name}</Text>
           </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Public check-in link</Text>
+          <Text style={styles.sectionHint}>Choose the property and personal aliases guests will use to check in.</Text>
+          <View style={styles.field}>
+            <Text style={styles.label}>Property alias</Text>
+            <View style={styles.aliasInputRow}>
+              <Text style={styles.aliasPrefix}>tour.you/p/</Text>
+              <TextInput
+                accessibilityLabel="Property alias"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={propertyAlias}
+                onChangeText={setPropertyAlias}
+                style={styles.aliasInput}
+              />
+            </View>
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Your alias</Text>
+            <View style={styles.aliasInputRow}>
+              <Text style={styles.aliasPrefix}>/</Text>
+              <TextInput
+                accessibilityLabel="Your check-in alias"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={userAlias}
+                onChangeText={setUserAlias}
+                style={styles.aliasInput}
+              />
+            </View>
+          </View>
+          <Text style={styles.aliasPreview} numberOfLines={2}>
+            {`${getSiteBaseUrl().replace(/\/$/, "")}/p/${encodeURIComponent(propertyAlias.trim())}/${encodeURIComponent(userAlias.trim())}`}
+          </Text>
+          {aliasError ? <Text style={styles.error}>{aliasError}</Text> : null}
+          <Pressable
+            disabled={savingAliases}
+            onPress={() => void saveAliases()}
+            style={({ pressed }) => [styles.secondaryBtn, styles.aliasSaveBtn, pressed && { opacity: 0.85 }, savingAliases && styles.primaryBtnDisabled]}
+          >
+            {savingAliases ? <LoadingDots color={C.brand} /> : <Ionicons name="link-outline" size={17} color={C.brand} />}
+            <Text style={styles.aliasSaveText}>{savingAliases ? "Saving link…" : "Save check-in link"}</Text>
+          </Pressable>
         </View>
 
         <View style={styles.card}>
@@ -361,6 +451,12 @@ const styles = StyleSheet.create({
   sectionHint: { fontSize: 12, fontWeight: "600", color: C.textMuted, marginTop: -6 },
   field: { gap: 6 },
   label: { fontSize: 12, fontWeight: "800", color: C.textSec, textTransform: "uppercase", letterSpacing: 0.4 },
+  aliasInputRow: { minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 12, backgroundColor: "#f8fafc" },
+  aliasPrefix: { color: C.textMuted, fontSize: 13, fontWeight: "700" },
+  aliasInput: { flex: 1, minWidth: 0, paddingVertical: 10, color: C.text, fontSize: 14, fontWeight: "800" },
+  aliasPreview: { color: C.brand, fontSize: 12, lineHeight: 17, fontWeight: "800" },
+  aliasSaveBtn: { minHeight: 46, borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
+  aliasSaveText: { color: C.brand, fontSize: 13, fontWeight: "900" },
   input: {
     borderWidth: 1,
     borderColor: C.line,

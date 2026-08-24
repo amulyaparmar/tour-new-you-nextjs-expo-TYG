@@ -30,8 +30,19 @@ type SyncListener = (event: {
 }) => void;
 
 let draining = false;
+let drainRequested = false;
 let started = false;
 const listeners = new Set<SyncListener>();
+const directUploadLocalIds = new Set<string>();
+
+/** Prevent the background outbox from racing a foreground upload for the same file. */
+export function beginDirectLocalUpload(localId: string): void {
+  directUploadLocalIds.add(localId);
+}
+
+export function endDirectLocalUpload(localId: string): void {
+  directUploadLocalIds.delete(localId);
+}
 
 export function onSyncOutboxEvent(listener: SyncListener): () => void {
   listeners.add(listener);
@@ -71,6 +82,8 @@ export async function isOnline(): Promise<boolean> {
 }
 
 async function syncOne(session: LocalSessionMeta): Promise<LocalSessionMeta | null> {
+  if (directUploadLocalIds.has(session.localId)) return session;
+
   const recordingUri =
     (await ensureDurableRecording(session.localId, session.recordingSourceUri))
     ?? (await getRecordingUriAsync(session.localId))
@@ -148,7 +161,10 @@ async function syncOne(session: LocalSessionMeta): Promise<LocalSessionMeta | nu
 }
 
 export async function drainSyncOutbox(): Promise<void> {
-  if (draining) return;
+  if (draining) {
+    drainRequested = true;
+    return;
+  }
   if (!(await isOnline())) return;
 
   draining = true;
@@ -156,6 +172,7 @@ export async function drainSyncOutbox(): Promise<void> {
   try {
     // Promote interrupted recordings that already have durable audio into the outbox.
     for (const recoverable of listRecoverableRecordingSessions()) {
+      if (directUploadLocalIds.has(recoverable.localId)) continue;
       const durable =
         (await ensureDurableRecording(recoverable.localId, recoverable.recordingSourceUri))
         ?? (await getRecordingUriAsync(recoverable.localId))
@@ -174,6 +191,7 @@ export async function drainSyncOutbox(): Promise<void> {
     const pending = listPendingSyncSessions();
     for (const session of pending) {
       if (!(await isOnline())) break;
+      if (directUploadLocalIds.has(session.localId)) continue;
       await syncOne(session);
     }
     emit({ type: "done" });
@@ -184,6 +202,10 @@ export async function drainSyncOutbox(): Promise<void> {
     });
   } finally {
     draining = false;
+    if (drainRequested) {
+      drainRequested = false;
+      void drainSyncOutbox();
+    }
   }
 }
 

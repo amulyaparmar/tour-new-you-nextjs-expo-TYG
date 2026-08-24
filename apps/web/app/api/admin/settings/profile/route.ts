@@ -31,6 +31,7 @@ function profilePayload(workspace: Awaited<ReturnType<typeof requireAdminContext
   title?: string | null;
   phone?: string | null;
   cardAccent?: string | null;
+  aiTrainingDataFeedback?: boolean;
 }) {
   return {
     name: overrides?.name ?? workspace.user.fullName ?? workspace.user.email.split("@")[0],
@@ -43,6 +44,7 @@ function profilePayload(workspace: Awaited<ReturnType<typeof requireAdminContext
     cardAccent: overrides?.cardAccent !== undefined ? overrides.cardAccent : workspace.user.cardAccent,
     userAlias: workspace.teamMember.alias,
     propertyAlias: workspace.community.alias,
+    aiTrainingDataFeedback: overrides?.aiTrainingDataFeedback ?? workspace.user.aiTrainingDataFeedback,
   };
 }
 
@@ -68,6 +70,7 @@ export async function PATCH(request: Request) {
       title?: string | null;
       phone?: string | null;
       cardAccent?: string | null;
+      aiTrainingDataFeedback?: boolean;
     };
 
     const name = body.name?.trim();
@@ -77,7 +80,7 @@ export async function PATCH(request: Request) {
     const phone = body.phone === undefined ? undefined : (body.phone?.trim() || null);
     const cardAccentRaw = body.cardAccent === undefined ? undefined : (body.cardAccent?.trim() || null);
 
-    if (!name && userAlias === undefined && propertyAlias === undefined && title === undefined && phone === undefined && cardAccentRaw === undefined) {
+    if (!name && userAlias === undefined && propertyAlias === undefined && title === undefined && phone === undefined && cardAccentRaw === undefined && body.aiTrainingDataFeedback === undefined) {
       return NextResponse.json({ error: "At least one profile setting is required." }, { status: 400 });
     }
 
@@ -86,6 +89,14 @@ export async function PATCH(request: Request) {
     }
 
     const supabase = getSupabaseServiceClient();
+    if (body.aiTrainingDataFeedback !== undefined) {
+      const { data: currentUser, error: userError } = await supabase.auth.admin.getUserById(workspace.user.id);
+      if (userError || !currentUser.user) throw new Error(userError?.message ?? "User not found.");
+      const { error: updateError } = await supabase.auth.admin.updateUserById(workspace.user.id, {
+        user_metadata: { ...(currentUser.user.user_metadata ?? {}), ai_training_data_feedback: Boolean(body.aiTrainingDataFeedback) },
+      });
+      if (updateError) throw new Error(updateError.message);
+    }
     const propertyId = workspace.community.propertyTygId;
 
     if (propertyAlias !== undefined || userAlias !== undefined) {
@@ -170,6 +181,7 @@ export async function PATCH(request: Request) {
         title: title !== undefined ? title : refreshedWorkspace.user.title,
         phone: phone !== undefined ? phone : refreshedWorkspace.user.phone,
         cardAccent: cardAccentRaw !== undefined ? cardAccentRaw : refreshedWorkspace.user.cardAccent,
+        aiTrainingDataFeedback: body.aiTrainingDataFeedback,
       }),
     });
   } catch (caught) {

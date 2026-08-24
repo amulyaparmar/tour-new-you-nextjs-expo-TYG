@@ -1,12 +1,4 @@
-const fs = require("node:fs");
-const path = require("node:path");
-
 const appJson = require("./app.json");
-
-const iosGoogleServices = path.join(__dirname, "GoogleService-Info.plist");
-const androidGoogleServices = path.join(__dirname, "google-services.json");
-const hasIosFirebase = fs.existsSync(iosGoogleServices);
-const hasAndroidFirebase = fs.existsSync(androidGoogleServices);
 
 const plugins = [
   ...(appJson.expo.plugins ?? []),
@@ -17,11 +9,6 @@ const plugins = [
     },
   ],
 ];
-
-if (hasIosFirebase || hasAndroidFirebase) {
-  plugins.push("@react-native-firebase/app");
-  plugins.push("@react-native-firebase/analytics");
-}
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -34,11 +21,9 @@ const config = {
         new Set([...(appJson.expo.ios?.infoPlist?.UIBackgroundModes ?? []), "audio", "remote-notification"]),
       ),
     },
-    ...(hasIosFirebase ? { googleServicesFile: "./GoogleService-Info.plist" } : {}),
   },
   android: {
     ...appJson.expo.android,
-    ...(hasAndroidFirebase ? { googleServicesFile: "./google-services.json" } : {}),
   },
   plugins,
 };

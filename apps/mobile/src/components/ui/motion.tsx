@@ -5,9 +5,10 @@ import Reanimated, {
   FadeIn,
   FadeInDown,
   FadeOut,
+  Easing,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 import { impactHaptic, selectionHaptic } from "../../lib/haptics";
@@ -44,10 +45,10 @@ export function MotionPressable({
       disabled={disabled}
       entering={entering as never}
       onPressIn={() => {
-        scale.value = withSpring(0.975, { damping: 18, stiffness: 380 });
+        scale.value = withTiming(0.975, { duration: 80, easing: Easing.out(Easing.quad) });
       }}
       onPressOut={() => {
-        scale.value = withSpring(1, { damping: 16, stiffness: 320 });
+        scale.value = withTiming(1, { duration: 120, easing: Easing.out(Easing.cubic) });
       }}
       onPress={() => {
         if (disabled) return;

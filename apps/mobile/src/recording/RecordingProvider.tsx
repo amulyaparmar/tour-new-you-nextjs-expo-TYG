@@ -4,7 +4,6 @@ import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
-  useAudioRecorderState,
   type RecordingOptions,
   type RecordingStatus,
 } from "expo-audio";
@@ -25,7 +24,7 @@ import {
   stopRecordingLiveActivity,
   updateRecordingLiveActivity,
 } from "./recordingLiveActivity";
-import { supportsBackgroundRecording } from "../runtime";
+import { isExpoGo, supportsBackgroundRecording } from "../runtime";
 
 const CHECKPOINT_INTERVAL_MS = 30_000;
 const DRAFT_CHECKPOINT_DEBOUNCE_MS = 1_000;
@@ -64,20 +63,17 @@ export type OpenLiveExperienceInput = {
   meta: LiveRecordingMeta;
   draft: LiveRecordingDraft;
   onBeforeRecordingStart?: () => void | Promise<void>;
-  onUploadFile?: () => void | Promise<void>;
+  onUploadFile?: (draft: LiveRecordingDraft) => void | Promise<void>;
   onMinimize?: () => void;
   onCancel: (snapshot: LiveSessionSnapshot) => void | Promise<void>;
   onFinish: (snapshot: LiveSessionSnapshot) => void | Promise<void>;
 };
-
-export const WAVEFORM_BAR_COUNT = 52;
 
 export type RecordingCtx = {
   isRecording: boolean;
   isPaused: boolean;
   elapsed: number;
   metering: number;
-  waveformLevels: number[];
   experienceVisible: boolean;
   liveMeta: LiveRecordingMeta | null;
   draft: LiveRecordingDraft | null;
@@ -93,6 +89,7 @@ export type RecordingCtx = {
   setLiveSessionId: (sessionId: string) => void;
   setTranscriptPreview: (text: string) => void;
   setDraftNotes: (notes: string) => void;
+  setDraftUploaderIsAgent: (selected: boolean) => void;
   addDraftAsset: (asset: Material, attachment?: SessionAttachment) => void;
   addDraftParticipant: (lead: SessionLead) => void;
   updateDraftParticipantNotes: (createdAt: string, notes: string | null) => void;
@@ -114,14 +111,11 @@ const EMPTY_DRAFT: LiveRecordingDraft = {
   uploaderIsAgent: false,
 };
 
-const EMPTY_WAVEFORM = Array.from({ length: WAVEFORM_BAR_COUNT }, () => 0.08);
-
 const EMPTY_CTX: RecordingCtx = {
   isRecording: false,
   isPaused: false,
   elapsed: 0,
   metering: 0,
-  waveformLevels: EMPTY_WAVEFORM,
   experienceVisible: false,
   liveMeta: null,
   draft: null,
@@ -137,6 +131,7 @@ const EMPTY_CTX: RecordingCtx = {
   setLiveSessionId: () => {},
   setTranscriptPreview: () => {},
   setDraftNotes: () => {},
+  setDraftUploaderIsAgent: () => {},
   addDraftAsset: () => {},
   addDraftParticipant: () => {},
   updateDraftParticipantNotes: () => {},
@@ -203,7 +198,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [waveformLevels, setWaveformLevels] = useState<number[]>(EMPTY_WAVEFORM);
+  const [metering, setMetering] = useState(0);
   const [experienceVisible, setExperienceVisible] = useState(false);
   const [liveMeta, setLiveMeta] = useState<LiveRecordingMeta | null>(null);
   const [draft, setDraft] = useState<LiveRecordingDraft | null>(null);
@@ -218,10 +213,11 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   const liveActivityTickRef = useRef(0);
   const elapsedRef = useRef(0);
   const isPausedRef = useRef(false);
-  const waveformLevelsRef = useRef<number[]>(EMPTY_WAVEFORM);
+  const meteringRef = useRef(0);
+  const meteringActiveRef = useRef(false);
   const recorderRef = useRef<ReturnType<typeof useAudioRecorder> | null>(null);
   const beforeStartHandlerRef = useRef<(() => void | Promise<void>) | null>(null);
-  const uploadFileHandlerRef = useRef<(() => void | Promise<void>) | null>(null);
+  const uploadFileHandlerRef = useRef<((draft: LiveRecordingDraft) => void | Promise<void>) | null>(null);
   const minimizeHandlerRef = useRef<(() => void) | null>(null);
   const cancelHandlerRef = useRef<((snapshot: LiveSessionSnapshot) => void | Promise<void>) | null>(null);
   const finishHandlerRef = useRef<((snapshot: LiveSessionSnapshot) => void | Promise<void>) | null>(null);
@@ -298,7 +294,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     }, DRAFT_CHECKPOINT_DEBOUNCE_MS);
   }, [persistCheckpoint]);
 
-  const handleExternalStop = useCallback(
+  const handleRecorderStatus = useCallback(
     (status: RecordingStatus) => {
       if (!status.isFinished || stoppingRef.current) return;
 
@@ -313,20 +309,55 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       setElapsed(0);
       elapsedRef.current = 0;
       isPausedRef.current = false;
-      waveformLevelsRef.current = EMPTY_WAVEFORM;
-      setWaveformLevels(EMPTY_WAVEFORM);
+      meteringRef.current = 0;
+      setMetering(0);
+      meteringActiveRef.current = false;
       resetLiveUi();
       void configureRecordingAudioMode(false).catch(() => {});
     },
     [clearCheckpointTimer, persistCheckpoint, resetLiveUi],
   );
 
-  const recorder = useAudioRecorder(RECORDING_OPTIONS, handleExternalStop);
+  const recorder = useAudioRecorder(RECORDING_OPTIONS, handleRecorderStatus);
   recorderRef.current = recorder;
-  const recorderState = useAudioRecorderState(recorder, 80);
-  const metering = normalizeMetering(recorderState.metering);
-  const meteringRef = useRef(0);
-  meteringRef.current = metering;
+
+  useEffect(() => {
+    // Expo Go can recycle expo-audio shared objects during Fast Refresh. Its
+    // synchronous getStatus() poll then targets a released native object.
+    // Metering is enabled in the development/production build used by Tour.
+    if (!isRecording) {
+      meteringActiveRef.current = false;
+      meteringRef.current = 0;
+      setMetering(0);
+      return;
+    }
+
+    meteringActiveRef.current = true;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const updateMetering = () => {
+      if (!meteringActiveRef.current) return;
+      const activeRecorder = recorderRef.current;
+      if (!activeRecorder) return;
+      try {
+        const nextMetering = normalizeMetering(activeRecorder.getStatus().metering);
+        meteringRef.current = nextMetering;
+        setMetering((current) => Math.abs(current - nextMetering) > 0.01 ? nextMetering : current);
+      } catch {
+        // The native recorder can be released before React finishes an
+        // unmount/refresh. Stop polling that stale shared object immediately.
+        meteringActiveRef.current = false;
+        if (timer) clearInterval(timer);
+        timer = undefined;
+      }
+    };
+
+    updateMetering();
+    timer = setInterval(updateMetering, 80);
+    return () => {
+      meteringActiveRef.current = false;
+      if (timer) clearInterval(timer);
+    };
+  }, [isRecording]);
 
   useEffect(() => {
     void configureRecordingAudioMode(false).catch(() => {});
@@ -377,13 +408,14 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       await configureRecordingAudioMode(true);
       await activeRecorder.prepareToRecordAsync(RECORDING_OPTIONS);
       activeRecorder.record();
+      meteringActiveRef.current = true;
 
       setIsRecording(true);
       setIsPaused(false);
       setElapsed(0);
       elapsedRef.current = 0;
-      waveformLevelsRef.current = EMPTY_WAVEFORM;
-      setWaveformLevels(EMPTY_WAVEFORM);
+      meteringRef.current = 0;
+      setMetering(0);
       liveActivityTickRef.current = 0;
       startRecordingLiveActivity(liveMetaRef.current?.title);
       startCheckpointTimer();
@@ -452,6 +484,8 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     if (!activeRecorder || !isRecording) return null;
 
     stoppingRef.current = true;
+    // Invalidate the poll before releasing the native recorder object.
+    meteringActiveRef.current = false;
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = undefined;
     clearCheckpointTimer();
@@ -460,57 +494,44 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     stopRecordingLiveActivity(durationSec);
 
     try {
+      const uriBeforeStop = activeRecorder.uri;
       await activeRecorder.stop();
       await configureRecordingAudioMode(false);
-      const uri = activeRecorder.uri;
+      const uri = activeRecorder.uri ?? uriBeforeStop;
       const id = localIdRef.current;
       let durableUri = uri;
       if (id && uri) {
         writeCheckpoint(id, durationSec, uri);
-        durableUri = (await ensureDurableRecording(id, uri)) ?? uri;
-        copyRecordingToDurableStore(id, durableUri);
+        durableUri = await ensureDurableRecording(id, uri);
+        if (!durableUri) {
+          throw new Error("Recording stopped but no readable audio file was saved.");
+        }
       }
       setIsRecording(false);
       setIsPaused(false);
       setElapsed(0);
       elapsedRef.current = 0;
-      waveformLevelsRef.current = EMPTY_WAVEFORM;
-      setWaveformLevels(EMPTY_WAVEFORM);
+      meteringRef.current = 0;
+      setMetering(0);
+      meteringActiveRef.current = false;
       setExperienceVisible(false);
       return durableUri ? { uri: durableUri, durationSec } : null;
-    } catch {
+    } catch (error) {
+      console.warn("[recording] failed to finalize recording", { error });
       await configureRecordingAudioMode(false).catch(() => {});
       setIsRecording(false);
       setIsPaused(false);
       setElapsed(0);
       elapsedRef.current = 0;
-      waveformLevelsRef.current = EMPTY_WAVEFORM;
-      setWaveformLevels(EMPTY_WAVEFORM);
+      meteringRef.current = 0;
+      setMetering(0);
+      meteringActiveRef.current = false;
       setExperienceVisible(false);
       return null;
     } finally {
       stoppingRef.current = false;
     }
   }, [clearCheckpointTimer, isRecording]);
-
-  useEffect(() => {
-    if (!isRecording) {
-      waveformLevelsRef.current = EMPTY_WAVEFORM;
-      setWaveformLevels(EMPTY_WAVEFORM);
-      return undefined;
-    }
-
-    const timer = setInterval(() => {
-      const level = isPaused
-        ? 0.08
-        : Math.max(0.06, Math.min(1, meteringRef.current * 0.92 + 0.08));
-      const next = [...waveformLevelsRef.current.slice(1), level];
-      waveformLevelsRef.current = next;
-      setWaveformLevels(next);
-    }, 70);
-
-    return () => clearInterval(timer);
-  }, [isPaused, isRecording]);
 
   const clearLiveSession = useCallback(() => {
     clearCheckpointTimer();
@@ -560,12 +581,16 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   }, []);
 
   const minimizeExperience = useCallback(() => {
+    const id = localIdRef.current;
+    if (id) updateLocalSession(id, { minimized: true });
     setExperienceVisible(false);
     minimizeHandlerRef.current?.();
   }, []);
 
   const expandExperience = useCallback(() => {
     if (!liveMeta && !isRecording) return;
+    const id = localIdRef.current;
+    if (id) updateLocalSession(id, { minimized: false });
     setExperienceVisible(true);
   }, [isRecording, liveMeta]);
 
@@ -586,6 +611,15 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   const setDraftNotes = useCallback((notes: string) => {
     setDraft((current) => {
       const next = current ? { ...current, notes } : current;
+      draftRef.current = next;
+      return next;
+    });
+    scheduleDraftCheckpoint();
+  }, [scheduleDraftCheckpoint]);
+
+  const setDraftUploaderIsAgent = useCallback((selected: boolean) => {
+    setDraft((current) => {
+      const next = current ? { ...current, uploaderIsAgent: selected } : current;
       draftRef.current = next;
       return next;
     });
@@ -632,7 +666,9 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   }, []);
 
   const requestUploadFile = useCallback(() => {
-    void uploadFileHandlerRef.current?.();
+    const currentDraft = draftRef.current;
+    if (!currentDraft) return;
+    void uploadFileHandlerRef.current?.(currentDraft);
   }, []);
 
   const requestCancel = useCallback(() => {
@@ -653,7 +689,6 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       isPaused,
       elapsed,
       metering,
-      waveformLevels,
       experienceVisible,
       liveMeta,
       draft,
@@ -669,6 +704,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       setLiveSessionId,
       setTranscriptPreview,
       setDraftNotes,
+      setDraftUploaderIsAgent,
       addDraftAsset,
       addDraftParticipant,
       updateDraftParticipantNotes,
@@ -682,7 +718,6 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       isPaused,
       elapsed,
       metering,
-      waveformLevels,
       experienceVisible,
       liveMeta,
       draft,
@@ -698,6 +733,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       setLiveSessionId,
       setTranscriptPreview,
       setDraftNotes,
+      setDraftUploaderIsAgent,
       addDraftAsset,
       addDraftParticipant,
       updateDraftParticipantNotes,

@@ -71,7 +71,8 @@ type OtpDatabase = {
 export class AdminOtpError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    readonly code?: "cooldown" | "rate_email" | "rate_fingerprint"
   ) {
     super(message);
     this.name = "AdminOtpError";
@@ -124,19 +125,22 @@ export async function createAdminOtpChallenge(
   if (issueStatus === "rate_email") {
     throw new AdminOtpError(
       "Too many codes were requested for this email. Try again in 15 minutes.",
-      429
+      429,
+      "rate_email"
     );
   }
   if (issueStatus === "rate_fingerprint") {
     throw new AdminOtpError(
       "Too many sign-in codes were requested. Try again in 15 minutes.",
-      429
+      429,
+      "rate_fingerprint"
     );
   }
   if (issueStatus === "cooldown") {
     throw new AdminOtpError(
       "A code was just sent. Wait a moment before requesting another.",
-      429
+      429,
+      "cooldown"
     );
   }
   if (issueStatus !== "issued") {
@@ -150,6 +154,23 @@ export async function createAdminOtpChallenge(
     .lt("expires_at", new Date(now - 24 * 60 * 60 * 1000).toISOString());
 
   return { challengeId, expiresAt };
+}
+
+export async function getActiveAdminOtpChallenge(email: string) {
+  const { data, error } = await otpServiceClient()
+    .from(OTP_TABLE)
+    .select("id, expires_at")
+    .eq("email", email)
+    .is("used_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Could not load the active sign-in challenge: ${error.message}`);
+  }
+  return data;
 }
 
 export async function invalidateAdminOtpChallenge(challengeId: string, email: string) {

@@ -170,6 +170,13 @@ export function TourLogin() {
         ? body.challengeId.trim()
         : "";
       if (!response.ok || !nextChallengeId) {
+        if (!response.ok && response.status === 429 && nextChallengeId) {
+          setEmail(body.email ?? email.trim().toLowerCase());
+          setChallengeId(nextChallengeId);
+          setCode("");
+          go("code");
+          return;
+        }
         throw new Error(body.error ?? "Could not send a sign-in code.");
       }
       setEmail(body.email ?? email.trim().toLowerCase());

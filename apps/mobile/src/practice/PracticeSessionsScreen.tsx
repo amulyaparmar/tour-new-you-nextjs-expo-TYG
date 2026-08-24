@@ -6,9 +6,9 @@ import {
 } from "@/components/tour";
 import { tourColors as C } from "@/theme/tour-brand";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { NativePracticeSession } from "./NativePracticeSession";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { isExpoGo } from "../runtime";
 import { PracticeListSkeleton } from "./practice-loading";
 
 type Scenario = {
@@ -30,12 +30,21 @@ type Attempt = {
   created_at?: string;
 };
 
+type NativePracticeSessionProps = {
+  scenario: Scenario | null;
+  onBack: () => void;
+};
+
+const NativePracticeSession = Platform.OS !== "web" && !isExpoGo()
+  ? (require("./NativePracticeSession").NativePracticeSession as React.ComponentType<NativePracticeSessionProps>)
+  : null;
+
 export function PracticeSessionsScreen({
   onBack,
-  onOpenNewSession,
+  initialScenarioId,
 }: {
   onBack: () => void;
-  onOpenNewSession?: () => void;
+  initialScenarioId?: string;
 }) {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
@@ -44,6 +53,7 @@ export function PracticeSessionsScreen({
   const [error, setError] = useState<string | null>(null);
   const [livePractice, setLivePractice] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
+  const initialScenarioOpenedRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -67,7 +77,14 @@ export function PracticeSessionsScreen({
 
   useEffect(() => { void load(); }, [load]);
 
-  function openPractice(scenario?: Scenario) {
+  const openPractice = useCallback((scenario?: Scenario) => {
+    if (!NativePracticeSession) {
+      Alert.alert(
+        "Development build required",
+        "Live AI practice uses the Daily native call SDK. You can test the rest of Tour—including 360° capture—in Expo Go.",
+      );
+      return;
+    }
     if (!getCurrentSession()) {
       Alert.alert("Sign in required", "Sign in again, then start your practice session.");
       return;
@@ -79,7 +96,16 @@ export function PracticeSessionsScreen({
     }
     setSelectedScenario(selected);
     setLivePractice(true);
-  }
+  }, [scenarios]);
+
+  useEffect(() => {
+    if (!initialScenarioId || loading || error) return;
+    if (initialScenarioOpenedRef.current === initialScenarioId) return;
+    const scenario = scenarios.find((item) => item.id === initialScenarioId);
+    if (!scenario) return;
+    initialScenarioOpenedRef.current = initialScenarioId;
+    openPractice(scenario);
+  }, [error, initialScenarioId, loading, openPractice, scenarios]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -87,7 +113,7 @@ export function PracticeSessionsScreen({
     setRefreshing(false);
   };
 
-  if (livePractice) {
+  if (livePractice && NativePracticeSession) {
     return (
       <NativePracticeSession
         scenario={selectedScenario}
@@ -114,7 +140,6 @@ export function PracticeSessionsScreen({
           <Text style={styles.title}>Practice sessions</Text>
           <Text style={styles.subtitle}>Rehearse live conversations with an AI prospect and return here to review your graded attempts.</Text>
         </View>
-        {onOpenNewSession ? <PracticeModeTabs onSession={onOpenNewSession} /> : null}
         <PrimaryBtn label="Start live practice" icon="mic-outline" onPress={() => openPractice()} />
         <Text style={styles.webNote}>Practice stays in the app. Your scenarios and graded results stay synced to this property.</Text>
 
@@ -153,21 +178,6 @@ export function PracticeSessionsScreen({
   );
 }
 
-function PracticeModeTabs({ onSession }: { onSession: () => void }) {
-  return (
-    <View style={styles.modeTabs} accessibilityRole="tablist">
-      <Pressable accessibilityRole="tab" accessibilityState={{ selected: false }} onPress={onSession} style={styles.modeTab}>
-        <Ionicons name="mic-outline" size={15} color={C.textMuted} />
-        <Text style={styles.modeTabText}>New session</Text>
-      </Pressable>
-      <View accessibilityRole="tab" accessibilityState={{ selected: true }} style={[styles.modeTab, styles.modeTabActive]}>
-        <Ionicons name="sparkles-outline" size={15} color={C.brand} />
-        <Text style={[styles.modeTabText, styles.modeTabTextActive]}>Practice</Text>
-      </View>
-    </View>
-  );
-}
-
 function DifficultyBadge({ difficulty }: { difficulty: NonNullable<Scenario["difficulty"]> }) {
   const color = difficulty === "hard" ? C.red : difficulty === "easy" ? C.green : C.amber;
   return <View style={[styles.difficulty, { backgroundColor: `${color}18` }]}><Text style={[styles.difficultyText, { color }]}>{difficulty}</Text></View>;
@@ -193,9 +203,6 @@ const styles = StyleSheet.create({
   hero: { gap: 8, paddingTop: 4 }, heroIcon: { width: 46, height: 46, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: C.brand },
   title: { color: C.text, fontSize: 27, fontWeight: "900", lineHeight: 33 }, subtitle: { color: C.textSec, fontSize: 14, fontWeight: "600", lineHeight: 21 },
   webNote: { marginTop: -5, color: C.textMuted, fontSize: 11, lineHeight: 16, fontWeight: "600", textAlign: "center" },
-  modeTabs: { flexDirection: "row", gap: 4, padding: 4, borderWidth: 1, borderColor: C.border, borderRadius: 13, backgroundColor: C.card },
-  modeTab: { flex: 1, minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 9 },
-  modeTabActive: { backgroundColor: C.brand + "10" }, modeTabText: { color: C.textMuted, fontSize: 12, fontWeight: "800" }, modeTabTextActive: { color: C.brand },
   error: { flexDirection: "row", alignItems: "center", gap: 9, padding: 12, borderRadius: 12, backgroundColor: C.redBg }, errorText: { color: C.red, fontSize: 13, fontWeight: "700" }, retry: { color: C.brand, fontSize: 13, fontWeight: "900" },
   sectionHeading: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }, historyHeading: { marginTop: 15 }, sectionTitle: { color: C.text, fontSize: 17, fontWeight: "900" }, sectionMeta: { minWidth: 20, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 99, backgroundColor: C.brand + "12", color: C.brand, fontSize: 11, fontWeight: "900", textAlign: "center" },
   scenario: { flexDirection: "row", alignItems: "center", gap: 11, padding: 13, borderWidth: 1, borderColor: C.border, borderRadius: 15, backgroundColor: C.card }, pressed: { opacity: 0.72 }, scenarioIcon: { width: 39, height: 39, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.brand + "10" }, scenarioTop: { flexDirection: "row", alignItems: "center", gap: 8 }, scenarioTitle: { flex: 1, color: C.text, fontSize: 14, fontWeight: "900" }, scenarioDesc: { marginTop: 3, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600" }, threshold: { marginTop: 5, color: C.textMuted, fontSize: 10, fontWeight: "800" }, difficulty: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 99 }, difficultyText: { fontSize: 9, fontWeight: "900", textTransform: "capitalize" },

@@ -16,9 +16,9 @@ const MODES: Array<{
   label: string;
   icon: LucideIcon;
 }> = [
+  { id: "transcript", label: "Transcript", icon: MessageSquare },
   { id: "rubric", label: "Rubric", icon: ClipboardList },
   { id: "prospect", label: "Prospect", icon: HeartHandshake },
-  { id: "transcript", label: "Transcript", icon: MessageSquare },
   { id: "search", label: "Search", icon: Search },
   { id: "coaching", label: "Coaching", icon: GraduationCap },
   { id: "comments", label: "Comments", icon: MessageCircle },

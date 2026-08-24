@@ -1316,6 +1316,7 @@ function GeneratorPill({ children }: { children: ReactNode }) {
 }
 
 function footerHref(item: string) {
+  if (item === "Privacy") return "/privacy-policy";
   if (item === "Tour Record") return "/tour-record";
   if (item === "Ridealong") return "/tour-ridealong";
   if (item === "GMB Generator" || item === "Supabase") return "#generator";

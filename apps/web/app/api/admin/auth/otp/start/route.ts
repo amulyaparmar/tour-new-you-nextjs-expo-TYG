@@ -5,6 +5,7 @@ import {
   adminOtpRequestFingerprint,
   createAdminOtpChallenge,
   createAdminOtpCode,
+  getActiveAdminOtpChallenge,
   invalidateAdminOtpChallenge,
 } from "@/lib/admin-otp";
 import { sendTransactionalEmail } from "@/lib/transactional-email";
@@ -96,6 +97,19 @@ export async function POST(request: Request) {
       await invalidateAdminOtpChallenge(issuedChallengeId, email).catch(() => undefined);
     }
     const status = caught instanceof AdminOtpError ? caught.status : 500;
+    if (caught instanceof AdminOtpError && caught.code === "cooldown") {
+      const activeChallenge = await getActiveAdminOtpChallenge(email).catch(() => null);
+      if (activeChallenge) {
+        return NextResponse.json(
+          {
+            error: caught.message,
+            challengeId: activeChallenge.id,
+            expiresAt: activeChallenge.expires_at,
+          },
+          { status }
+        );
+      }
+    }
     return NextResponse.json(
       { error: caught instanceof Error ? caught.message : "Could not send a sign-in code." },
       { status }

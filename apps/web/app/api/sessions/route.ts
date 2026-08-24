@@ -78,11 +78,19 @@ export async function GET(request: NextRequest) {
     }
 
     const agentParam = sp.get("agentId")?.trim();
-    let agentId: string | undefined;
+    let agentIds: string[] | undefined;
     if (agentParam && workspace) {
       const teamAgents = await listTeamAgents(workspace.communities);
-      if (teamAgents.some((agent) => agent.id === agentParam)) {
-        agentId = agentParam;
+      const selectedAgent = teamAgents.find((agent) =>
+        agent.id === agentParam ||
+        (agent.authUserId ? `user:${agent.authUserId}` === agentParam : false)
+      );
+      if (selectedAgent) {
+        agentIds = [...new Set([
+          selectedAgent.id,
+          selectedAgent.authUserId ?? "",
+          selectedAgent.authUserId ? `user:${selectedAgent.authUserId}` : "",
+        ].filter(Boolean))];
       }
     }
 
@@ -95,7 +103,7 @@ export async function GET(request: NextRequest) {
       sort,
       propertyId,
       propertyIds,
-      agentId,
+      agentIds,
       sessionKind,
       excludeScheduled: !upcoming,
       upcomingFrom: upcoming ? new Date().toISOString() : undefined,

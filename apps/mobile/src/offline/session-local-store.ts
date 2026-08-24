@@ -20,6 +20,8 @@ export type LocalSessionMeta = {
   localId: string;
   remoteSessionId: string | null;
   status: LocalSessionStatus;
+  /** True when the user intentionally minimized the live experience. */
+  minimized?: boolean;
   title: string;
   prospectName: string | null;
   propertyName: string | null;
@@ -163,6 +165,7 @@ export function createLocalSession(input: {
     localId,
     remoteSessionId: input.remoteSessionId ?? input.meta.sessionId,
     status: "recording",
+    minimized: false,
     title: input.meta.title || "Tour conversation",
     prospectName: input.meta.prospectName,
     propertyName: input.meta.propertyName,
@@ -219,6 +222,7 @@ export function listPendingSyncSessions(): LocalSessionMeta[] {
 export function listRecoverableRecordingSessions(): LocalSessionMeta[] {
   return listLocalSessions().filter((session) => {
     if (session.status !== "recording") return false;
+    if (session.minimized) return false;
     return Boolean(getRecordingUri(session.localId) || session.recordingSourceUri);
   });
 }
@@ -280,6 +284,18 @@ async function waitForReadableFile(uri: string, attempts = 8): Promise<number | 
   return null;
 }
 
+function uniqueRecordingSources(
+  localId: string,
+  sourceUri: string | null | undefined,
+): string[] {
+  const destination = durableRecordingUri(localId);
+  const metaSource = readLocalSessionMeta(localId)?.recordingSourceUri ?? null;
+  const checkpointSource = readJsonFile<LocalSessionCheckpoint>(checkpointFile(localId))?.recordingSourceUri ?? null;
+  return Array.from(new Set([sourceUri, metaSource, checkpointSource].filter(
+    (candidate): candidate is string => Boolean(candidate) && candidate !== destination,
+  )));
+}
+
 /** Copy ExpoAudio/cache recording into Documents via legacy FileSystem (reliable on iOS). */
 export async function ensureDurableRecording(
   localId: string,
@@ -288,13 +304,34 @@ export async function ensureDurableRecording(
   const existing = await getRecordingUriAsync(localId);
   if (existing) return existing;
 
-  if (!documentDirectory) return sourceUri ?? null;
-  const destination = durableRecordingUri(localId);
-  if (!destination) return sourceUri ?? null;
+  const sourceCandidates = uniqueRecordingSources(localId, sourceUri);
+  let readableSource: string | null = null;
+  let sourceSize: number | null = null;
+  for (const candidate of sourceCandidates) {
+    const candidateSize = await waitForReadableFile(candidate);
+    if (candidateSize != null) {
+      readableSource = candidate;
+      sourceSize = candidateSize;
+      break;
+    }
+  }
 
-  if (!sourceUri) return null;
-  const sourceSize = await waitForReadableFile(sourceUri);
-  if (sourceSize == null) return null;
+  if (!readableSource || sourceSize == null) {
+    console.warn("[recording] no readable source found", {
+      localId,
+      destination: durableRecordingUri(localId),
+      sourceCandidates,
+    });
+    return null;
+  }
+
+  // Keep the recorder/cache URI as a recovery fallback. The durable destination
+  // is deterministic from localId and must never replace this source pointer.
+  updateLocalSession(localId, { recordingSourceUri: readableSource });
+
+  if (!documentDirectory) return readableSource;
+  const destination = durableRecordingUri(localId);
+  if (!destination) return readableSource;
 
   const dir = `${documentDirectory}sessions/${localId}`;
   try {
@@ -310,22 +347,31 @@ export async function ensureDurableRecording(
   }
 
   try {
-    await copyAsync({ from: sourceUri, to: destination });
+    await copyAsync({ from: readableSource, to: destination });
   } catch (error) {
-    console.warn("[recording] copyAsync failed", { localId, sourceUri, destination, error });
+    console.warn("[recording] copyAsync failed", {
+      localId,
+      sourceUri: readableSource,
+      sourceSize,
+      destination,
+      error,
+    });
   }
 
   const copied = await getRecordingUriAsync(localId);
   if (copied) {
-    updateLocalSession(localId, { recordingSourceUri: sourceUri });
     return copied;
   }
 
   // Last resort: upload from the still-readable cache path.
-  if ((await waitForReadableFile(sourceUri, 2)) != null) {
-    updateLocalSession(localId, { recordingSourceUri: sourceUri });
-    return sourceUri;
+  if ((await waitForReadableFile(readableSource, 2)) != null) {
+    return readableSource;
   }
+  console.warn("[recording] durable copy and source fallback are missing", {
+    localId,
+    sourceUri: readableSource,
+    destination,
+  });
   return null;
 }
 
@@ -340,8 +386,13 @@ export function markReadyToSync(
     mimeType?: string;
   },
 ): LocalSessionMeta | null {
-  const sourceUri = input.sourceUri ?? null;
-  if (!sourceUri && !getRecordingUri(localId) && !durableRecordingUri(localId)) {
+  const current = readLocalSessionMeta(localId);
+  const destination = durableRecordingUri(localId);
+  const requestedSource = input.sourceUri ?? null;
+  const sourceUri = requestedSource && requestedSource !== destination
+    ? requestedSource
+    : current?.recordingSourceUri ?? null;
+  if (!sourceUri && !getRecordingUri(localId)) {
     return updateLocalSession(localId, {
       status: "failed",
       lastError: "Recording file was not saved on device.",

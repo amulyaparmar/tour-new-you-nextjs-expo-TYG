@@ -2731,7 +2731,7 @@ function Footer() {
               <ul className="mt-4 space-y-3 text-sm text-white/55">
                 {links.map((link) => (
                   <li key={link}>
-                    <a href={link === "Generate Hub" ? "/generate/hub" : "#"} className="hover:text-white">
+                    <a href={link === "Generate Hub" ? "/generate/hub" : link === "Privacy" ? "/privacy-policy" : "#"} className="hover:text-white">
                       {link}
                     </a>
                   </li>

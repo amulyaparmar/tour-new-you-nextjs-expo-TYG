@@ -1,7 +1,8 @@
-import { Audio } from "expo-av";
+import { setAudioModeAsync, type AudioPlayer } from "expo-audio";
 import { useCallback, useEffect, useState } from "react";
 
 import { getRecordingSignedPlaybackUrl } from "@/api";
+import { createLoadedAudioPlayer } from "@/audio-player";
 import {
   cacheRecordingFromUrl,
   resolveSessionPlaybackUri,
@@ -24,7 +25,7 @@ export type SessionPlaybackState = {
 };
 
 export function useSessionPlayback(sessionId: string): SessionPlaybackState {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [sound, setSound] = useState<AudioPlayer | null>(null);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -36,7 +37,8 @@ export function useSessionPlayback(sessionId: string): SessionPlaybackState {
 
   useEffect(() => {
     let mounted = true;
-    let loadedSound: Audio.Sound | undefined;
+    let loadedSound: AudioPlayer | undefined;
+    let removeStatusListener: (() => void) | undefined;
 
     void (async () => {
       setLoading(true);
@@ -48,46 +50,37 @@ export function useSessionPlayback(sessionId: string): SessionPlaybackState {
       setFromCache(false);
 
       try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        await setAudioModeAsync({ playsInSilentMode: true });
         let resolved = await resolveSessionPlaybackUri(sessionId);
+        let loadedFromCache = resolved.fromCache;
 
         try {
-          const result = await Audio.Sound.createAsync(
-            { uri: resolved.uri },
-            { shouldPlay: false, progressUpdateIntervalMillis: 250 },
-          );
-          if (!mounted) {
-            await result.sound.unloadAsync();
-            return;
-          }
-          loadedSound = result.sound;
-          setSound(result.sound);
-          setFromCache(resolved.fromCache);
+          loadedSound = await createLoadedAudioPlayer(resolved.uri);
         } catch {
           if (resolved.fromCache) throw new Error("Cached audio could not be loaded.");
           const refreshed = await getRecordingSignedPlaybackUrl(sessionId);
           resolved = { uri: refreshed.signedUrl, fromCache: false };
           void cacheRecordingFromUrl(sessionId, refreshed.signedUrl).catch(() => {});
-          const result = await Audio.Sound.createAsync(
-            { uri: resolved.uri },
-            { shouldPlay: false, progressUpdateIntervalMillis: 250 },
-          );
-          if (!mounted) {
-            await result.sound.unloadAsync();
-            return;
-          }
-          loadedSound = result.sound;
-          setSound(result.sound);
-          setFromCache(false);
+          loadedSound = await createLoadedAudioPlayer(resolved.uri);
+          loadedFromCache = false;
         }
 
-        loadedSound.setOnPlaybackStatusUpdate((status) => {
-          if (!mounted || !status.isLoaded) return;
-          setPosition(status.positionMillis / 1000);
-          if (status.durationMillis) setDuration(status.durationMillis / 1000);
-          setPlaying(status.isPlaying);
+        if (!mounted) {
+          loadedSound.remove();
+          return;
+        }
+
+        setSound(loadedSound);
+        setFromCache(loadedFromCache);
+        setDuration(loadedSound.duration || 0);
+        const subscription = loadedSound.addListener("playbackStatusUpdate", (status) => {
+          if (!mounted) return;
+          setPosition(status.currentTime);
+          if (status.duration) setDuration(status.duration);
+          setPlaying(status.playing);
           if (status.didJustFinish) setPlaying(false);
         });
+        removeStatusListener = () => subscription.remove();
       } catch (caught) {
         if (mounted) {
           setError(caught instanceof Error ? caught.message : "Audio is unavailable for this session.");
@@ -99,7 +92,8 @@ export function useSessionPlayback(sessionId: string): SessionPlaybackState {
 
     return () => {
       mounted = false;
-      void loadedSound?.unloadAsync();
+      removeStatusListener?.();
+      loadedSound?.remove();
     };
   }, [sessionId, retryToken]);
 
@@ -107,23 +101,23 @@ export function useSessionPlayback(sessionId: string): SessionPlaybackState {
     async (seconds: number, shouldPlay = false) => {
       if (!sound) return;
       const next = Math.max(0, Math.min(duration || seconds, seconds));
-      await sound.setPositionAsync(next * 1000);
+      await sound.seekTo(next);
       setPosition(next);
-      if (shouldPlay) await sound.playAsync();
+      if (shouldPlay) sound.play();
     },
     [duration, sound],
   );
 
   const togglePlayback = useCallback(async () => {
     if (!sound) return;
-    if (playing) await sound.pauseAsync();
-    else await sound.playAsync();
+    if (playing) sound.pause();
+    else sound.play();
   }, [playing, sound]);
 
   const changeSpeed = useCallback(async () => {
     if (!sound) return;
     const next = speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1;
-    await sound.setRateAsync(next, true);
+    sound.setPlaybackRate(next);
     setSpeed(next);
   }, [sound, speed]);
 

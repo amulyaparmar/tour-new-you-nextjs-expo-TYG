@@ -10,6 +10,7 @@ type Context = { params: Promise<{ filename: string }> };
 const BUCKET_NAME = "recordings";
 const MIME_TYPES: Record<string, string> = {
   mp4: "video/mp4",
+  mov: "video/quicktime",
   webm: "video/webm",
   m4a: "audio/mp4",
   wav: "audio/wav",
@@ -17,7 +18,10 @@ const MIME_TYPES: Record<string, string> = {
   ogg: "audio/ogg",
   oga: "audio/ogg",
   flac: "audio/flac",
-  bin: "audio/webm"
+  bin: "audio/webm",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png"
 };
 
 export async function GET(request: Request, context: Context) {

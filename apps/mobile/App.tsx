@@ -1,10 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { Audio } from "expo-av";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioRecorder,
+  type AudioPlayer as ExpoAudioPlayer,
+} from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
+import { BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,10 +22,12 @@ import { AppProviders } from "./src/components/app-providers";
 import { LoadingDots } from "./src/components/loading-dots";
 import {
   Alert,
+  ActivityIndicator,
   AppState,
   Dimensions,
   FlatList,
   Image,
+  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -38,10 +50,8 @@ import Reanimated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
-  SlideInLeft,
-  SlideInRight,
-  SlideOutLeft,
-  SlideOutRight,
+  FadeOut,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -49,7 +59,11 @@ import Reanimated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { NavigationContainer, type NavigationContainerRef } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
   type AnalysisResult,
   type ConversationPhaseSegmentation,
@@ -66,7 +80,6 @@ import {
   formatSessionCardDescription,
   formatSessionCardMeta,
   defaultMemberPublicAlias,
-  defaultPropertyPublicAlias,
   formatRecordingUploadTitle,
   rubricItemCount,
   rubricTotalPoints,
@@ -106,12 +119,15 @@ import {
   updateActionStatus,
   uploadRecording,
   uploadMaterial,
+  uploadPanoramaMaterial,
   uploadRubric,
+  updateProfile,
 } from "./src/api";
 import { getApiBaseUrl, getSiteBaseUrl } from "./src/config";
+import { createLoadedAudioPlayer } from "./src/audio-player";
 import { computeDashboardMetrics } from "./src/dashboard";
 import type { UploadProgressInfo } from "./src/presignedUpload";
-import { authorizedCommunitiesForSession, type MobileAuthSession, authenticatedFetch, clearSession, getCurrentSession, restoreSession, switchCommunity, updateWorkspaceAliases } from "./src/auth";
+import { authorizedCommunitiesForSession, type MobileAuthSession, authenticatedFetch, clearSession, getCurrentSession, restoreSession, switchCommunity } from "./src/auth";
 import { useEasUpdateCheck } from "./src/hooks/use-eas-update-check";
 import {
   registerForPushNotifications,
@@ -128,6 +144,7 @@ import {
   RecordingProvider,
   formatElapsed,
   useRecording,
+  type LiveRecordingDraft,
   type LiveSessionSnapshot,
 } from "./src/recording";
 import {
@@ -141,9 +158,15 @@ import {
   type LocalSessionMeta,
   updateLocalSession,
 } from "./src/offline/session-local-store";
-import { drainSyncOutbox, isOnline, startSyncOutbox } from "./src/offline/sync-outbox";
+import {
+  beginDirectLocalUpload,
+  drainSyncOutbox,
+  endDirectLocalUpload,
+  isOnline,
+  startSyncOutbox,
+} from "./src/offline/sync-outbox";
 import { promoteLocalRecordingToCache, resolveSessionPlaybackUri } from "./src/session-audio-cache";
-import { MotionBlock, MotionPressable, AnimatedTabContent } from "./src/components/ui/motion";
+import { MotionPressable, AnimatedTabContent } from "./src/components/ui/motion";
 import {
   CollapsibleSection,
   RubricTab,
@@ -174,7 +197,10 @@ import { CommunityPickerModal } from "@/components/community-picker-modal";
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { CheckInSheet } from "./src/components/check-in/check-in-sheet";
 import { ProfileEditorScreen, resolveCardAccent } from "./src/components/profile/profile-editor-screen";
+import { PhotoAssetRecorder, type RecordedPhotoAsset } from "./src/assets/PhotoAssetRecorder";
 import { VideoAssetRecorder, type RecordedVideoAsset } from "./src/assets/VideoAssetRecorder";
+import { PanoramaAssetRecorder, type RecordedPanoramaAsset } from "./src/assets/PanoramaAssetRecorder";
+import { PanoramaImageViewer } from "./src/assets/PanoramaImageViewer";
 import {
   queryKeys,
   useCalendarEventsQuery,
@@ -183,6 +209,7 @@ import {
   useInfiniteSessionsQuery,
   useMaterialsQuery,
   usePostCommentMutation,
+  usePracticeScenarioPreviewsQuery,
   useProfileQuery,
   useActionsQuery,
   useAnalysisQuery,
@@ -219,6 +246,7 @@ type Screen =
   | { type: "session-report"; sessionId: string }
   | { type: "bulk-upload"; batchId?: string }
   | { type: "create-session" }
+  | { type: "practice"; scenarioId?: string }
   | { type: "audio-test" }
   | { type: "rubrics" }
   | { type: "profile" }
@@ -352,7 +380,7 @@ async function savePendingRecordingUpload(upload: PendingRecordingUpload & { loc
       return;
     }
     // Legacy fallback for uploads without a local session folder.
-    await SecureStore.setItemAsync(pendingUploadKey(upload.sessionId), JSON.stringify(upload));
+    await AsyncStorage.setItem(pendingUploadKey(upload.sessionId), JSON.stringify(upload));
   } catch {
     // Best-effort local retry metadata only.
   }
@@ -375,7 +403,15 @@ async function loadPendingRecordingUpload(sessionId: string): Promise<(PendingRe
         };
       }
     }
-    const raw = await SecureStore.getItemAsync(pendingUploadKey(sessionId));
+    const key = pendingUploadKey(sessionId);
+    let raw = await AsyncStorage.getItem(key);
+    if (!raw) {
+      raw = await SecureStore.getItemAsync(key);
+      if (raw) {
+        await AsyncStorage.setItem(key, raw);
+        await SecureStore.deleteItemAsync(key).catch(() => {});
+      }
+    }
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PendingRecordingUpload;
     return parsed?.uri && parsed?.mimeType && parsed?.name ? parsed : null;
@@ -390,7 +426,11 @@ async function clearPendingRecordingUpload(sessionId: string, localId?: string |
     // playback uses the audio cache / signed URL — not session meta cards.
     const resolvedLocalId = localId ?? findLocalSessionByRemoteId(sessionId)?.localId ?? null;
     if (resolvedLocalId) deleteLocalSession(resolvedLocalId);
-    await SecureStore.deleteItemAsync(pendingUploadKey(sessionId));
+    const key = pendingUploadKey(sessionId);
+    await Promise.all([
+      AsyncStorage.removeItem(key),
+      SecureStore.deleteItemAsync(key).catch(() => {}),
+    ]);
   } catch {
     // Best-effort local retry metadata only.
   }
@@ -485,22 +525,17 @@ function PulseDot({ color = C.red }: { color?: string }) {
 }
 
 function LoadingShimmer({ rows = 3 }: { rows?: number }) {
-  const shimmer = useSharedValue(0.35);
-  useEffect(() => {
-    shimmer.value = withRepeat(withSequence(
-      withTiming(1, { duration: 760 }),
-      withTiming(0.35, { duration: 760 })
-    ), -1, true);
-  }, [shimmer]);
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: shimmer.value }));
-
   return (
     <View style={{ gap: 10 }}>
       {Array.from({ length: rows }).map((_, index) => (
-        <Reanimated.View key={index} style={[st.shimmerCard, animatedStyle]}>
-          <View style={[st.shimmerBar, { width: index % 2 === 0 ? "68%" : "52%" }]} />
-          <View style={[st.shimmerBar, { width: index % 2 === 0 ? "44%" : "72%", height: 8 }]} />
-        </Reanimated.View>
+        <View key={index} style={st.shimmerCard}>
+          <View style={st.sessionSkeletonAvatar} />
+          <View style={st.sessionSkeletonBody}>
+            <View style={[st.shimmerBar, { width: index % 2 === 0 ? "68%" : "52%" }]} />
+            <View style={[st.shimmerBar, { width: index % 2 === 0 ? "44%" : "72%", height: 8 }]} />
+          </View>
+          <View style={st.sessionSkeletonChevron} />
+        </View>
       ))}
     </View>
   );
@@ -597,6 +632,7 @@ function screenKey(screen: Screen) {
   if (screen.type === "session-audio-insights") return `session-audio:${screen.sessionId}`;
   if (screen.type === "session-report") return `session-report:${screen.sessionId}`;
   if (screen.type === "bulk-upload") return `bulk-upload:${screen.batchId ?? "new"}`;
+  if (screen.type === "practice") return `practice:${screen.scenarioId ?? "list"}`;
   return screen.type;
 }
 
@@ -607,6 +643,7 @@ function screenRank(screen: Screen) {
   }
   if (screen.type === "tour") return 11;
   if (screen.type === "create-session") return 12;
+  if (screen.type === "practice") return 12;
   if (screen.type === "rubrics") return 12;
   if (screen.type === "profile") return 12;
   if (screen.type === "session-detail") return 13;
@@ -627,12 +664,14 @@ function ScreenTransition({
   transitionKey: string;
   direction: SlideDirection;
 }) {
-  const entering = direction === "forward"
-    ? SlideInRight.duration(260).easing(Easing.out(Easing.cubic))
-    : SlideInLeft.duration(260).easing(Easing.out(Easing.cubic));
-  const exiting = direction === "forward"
-    ? SlideOutLeft.duration(180).easing(Easing.in(Easing.cubic))
-    : SlideOutRight.duration(180).easing(Easing.in(Easing.cubic));
+  // Full-page horizontal slides make heavy ScrollViews feel like they lag.
+  // A short fade/lift keeps the hierarchy stable while the new tab mounts.
+  // Keep the premium lift cue, but limit it to a tiny deterministic movement
+  // so heavy dashboard content does not feel like it is catching up.
+  const entering = FadeInDown.duration(180)
+    .easing(Easing.out(Easing.cubic))
+    .withInitialValues({ opacity: 0, transform: [{ translateY: 6 }] });
+  const exiting = FadeOut.duration(100).easing(Easing.in(Easing.cubic));
 
   return (
     <Reanimated.View
@@ -653,27 +692,96 @@ function ScreenTransition({
 let _showToast: ((msg: string, type?: "error" | "success" | "info") => void) | null = null;
 
 function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toast, setToast] = useState<{ msg: string; type: string } | null>(null);
+  const [toast, setToast] = useState<{ id: number; msg: string; type: "error" | "success" | "info" } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const insets = useSafeAreaInsets();
+  const toastY = useSharedValue(-42);
+  const toastOpacity = useSharedValue(0);
+
+  const finishToastDismiss = useCallback(() => setToast(null), []);
+  const dismissToast = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    toastY.value = withTiming(-72, { duration: 170 });
+    toastOpacity.value = withTiming(0, { duration: 150 }, (finished) => {
+      if (finished) runOnJS(finishToastDismiss)();
+    });
+  }, [finishToastDismiss, toastOpacity, toastY]);
 
   _showToast = useCallback((msg: string, type?: "error" | "success" | "info") => {
     const t = type ?? "info";
-    setToast({ msg, type: t });
+    setToast({ id: Date.now(), msg, type: t });
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(null), 3000);
+    timer.current = setTimeout(dismissToast, 3500);
+  }, [dismissToast]);
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  const bg = toast?.type === "error" ? C.red : toast?.type === "success" ? C.green : C.brand;
+  useEffect(() => {
+    if (!toast) return;
+    toastY.value = -42;
+    toastOpacity.value = 0;
+    toastY.value = withSpring(0, { damping: 20, stiffness: 250, mass: 0.8 });
+    toastOpacity.value = withTiming(1, { duration: 170 });
+  }, [toast?.id, toastOpacity, toastY]);
+
+  const toastGesture = useMemo(
+    () => Gesture.Pan()
+      .activeOffsetY([-7, 7])
+      .failOffsetX([-32, 32])
+      .onUpdate((event) => {
+        if (event.translationY > 10) return;
+        toastY.value = Math.max(-100, event.translationY);
+        toastOpacity.value = Math.max(0.2, 1 - Math.abs(event.translationY) / 110);
+      })
+      .onEnd((event) => {
+        if (event.translationY < -38 || event.velocityY < -620) {
+          runOnJS(dismissToast)();
+          return;
+        }
+        toastY.value = withSpring(0, { damping: 20, stiffness: 270 });
+        toastOpacity.value = withTiming(1, { duration: 130 });
+      }),
+    [dismissToast, toastOpacity, toastY],
+  );
+
+  const toastAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: toastOpacity.value,
+    transform: [{ translateY: toastY.value }],
+  }));
+
+  const accent = toast?.type === "error" ? C.red : toast?.type === "success" ? C.green : C.brand;
+  const tint = toast?.type === "error"
+    ? "rgba(255,235,235,0.72)"
+    : toast?.type === "success"
+      ? "rgba(232,250,240,0.72)"
+      : "rgba(226,242,255,0.72)";
   const iconName: keyof typeof Ionicons.glyphMap = toast?.type === "error" ? "alert-circle" : toast?.type === "success" ? "checkmark-circle" : "information-circle";
 
   return (
     <View style={{ flex: 1 }}>
       {children}
       {toast && (
-        <Pressable onPress={() => setToast(null)} style={[st.toast, { backgroundColor: bg }]}>
-          <Ionicons name={iconName} size={18} color="#fff" />
-          <Text style={st.toastText}>{toast.msg}</Text>
-        </Pressable>
+        <GestureDetector gesture={toastGesture}>
+          <Reanimated.View style={[st.toast, { top: Math.max(insets.top, 10) + 8 }, toastAnimatedStyle]}>
+            <BlurView intensity={72} tint="light" style={[st.toastGlass, { backgroundColor: tint }]}>
+              <View style={[st.toastIcon, { backgroundColor: accent + "16" }]}>
+                <Ionicons name={iconName} size={19} color={accent} />
+              </View>
+              <Text style={st.toastText}>{toast.msg}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss notification"
+                hitSlop={10}
+                onPress={dismissToast}
+                style={({ pressed }) => [st.toastClose, pressed && st.pressed]}
+              >
+                <Ionicons name="close" size={18} color={C.textSec} />
+              </Pressable>
+            </BlurView>
+          </Reanimated.View>
+        </GestureDetector>
       )}
     </View>
   );
@@ -758,6 +866,168 @@ function OfflineSyncHost({ onOpenRemoteSession }: { onOpenRemoteSession: (sessio
 // Root App
 // ═══════════════════════════════════════
 
+type ProfileStackParamList = {
+  Main: undefined;
+  Profile: undefined;
+};
+
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+
+function ProfileNavigation({
+  showProfile,
+  onCloseProfile,
+  session,
+  onSaved,
+  onStartTour,
+  children,
+}: {
+  showProfile: boolean;
+  onCloseProfile: () => void;
+  session: MobileAuthSession;
+  onSaved: (session: MobileAuthSession) => void;
+  onStartTour: () => void;
+  children: React.ReactNode;
+}) {
+  const navigationRef = useRef<NavigationContainerRef<ProfileStackParamList>>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!ready || !navigationRef.current) return;
+    const current = navigationRef.current.getCurrentRoute()?.name;
+    if (showProfile && current !== "Profile") {
+      navigationRef.current.navigate("Profile");
+    } else if (!showProfile && current === "Profile") {
+      navigationRef.current.goBack();
+    }
+  }, [ready, showProfile]);
+
+  return (
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => setReady(true)}
+    >
+      <ProfileStack.Navigator
+        initialRouteName="Main"
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+          contentStyle: { backgroundColor: "#f7f8fb" },
+        }}
+      >
+        <ProfileStack.Screen name="Main">
+          {() => children}
+        </ProfileStack.Screen>
+        <ProfileStack.Screen name="Profile">
+          {({ navigation }) => (
+            <ProfileEditorScreen
+              session={session}
+              onBack={() => {
+                onCloseProfile();
+                navigation.goBack();
+              }}
+              onSaved={onSaved}
+              onStartTour={onStartTour}
+            />
+          )}
+        </ProfileStack.Screen>
+      </ProfileStack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+type SessionStackParamList = {
+  Sessions: undefined;
+  Detail: undefined;
+};
+
+const SessionStack = createNativeStackNavigator<SessionStackParamList>();
+
+function SessionNavigation({
+  showDetail,
+  sessionId,
+  autoStartRecording,
+  sample,
+  onClose,
+  children,
+  onOpenComments,
+  onOpenAiChat,
+  onOpenAudioInsights,
+  onOpenReport,
+}: {
+  showDetail: boolean;
+  sessionId: string | null;
+  autoStartRecording?: boolean;
+  sample?: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  onOpenComments: (meta: { sessionId: string; sessionTitle?: string }) => void;
+  onOpenAiChat: (meta: { sessionId: string; sessionTitle?: string; prospectName?: string }) => void;
+  onOpenAudioInsights: (meta: { sessionId: string; sessionTitle?: string; initialStatus?: AudioInsightsStatus; initialInsights?: AudioInsights | null }) => void;
+  onOpenReport: (sessionId: string) => void;
+}) {
+  const navigationRef = useRef<NavigationContainerRef<SessionStackParamList>>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!ready || !navigationRef.current) return;
+    const current = navigationRef.current.getCurrentRoute()?.name;
+    if (showDetail && sessionId && current !== "Detail") {
+      navigationRef.current.navigate("Detail");
+    } else if (!showDetail && current === "Detail") {
+      navigationRef.current.goBack();
+    }
+  }, [ready, sessionId, showDetail]);
+
+  return (
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => setReady(true)}
+      onStateChange={() => {
+        if (showDetail && navigationRef.current?.getCurrentRoute()?.name === "Sessions") {
+          onClose();
+        }
+      }}
+    >
+      <SessionStack.Navigator
+        initialRouteName="Sessions"
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+          contentStyle: { backgroundColor: "#f7f8fb" },
+        }}
+      >
+        <SessionStack.Screen name="Sessions">
+          {() => children}
+        </SessionStack.Screen>
+        <SessionStack.Screen name="Detail">
+          {({ navigation }) => {
+            if (!sessionId) return null;
+            const back = () => {
+              navigation.goBack();
+              onClose();
+            };
+            return sample ? (
+              <SampleSessionDetailScreen sessionId={sessionId} onBack={back} />
+            ) : (
+              <SessionDetailScreen
+                sessionId={sessionId}
+                autoStartRecording={Boolean(autoStartRecording)}
+                onBack={back}
+                onOpenComments={onOpenComments}
+                onOpenAiChat={onOpenAiChat}
+                onOpenAudioInsights={onOpenAudioInsights}
+                onOpenReport={onOpenReport}
+              />
+            );
+          }}
+        </SessionStack.Screen>
+      </SessionStack.Navigator>
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   useEasUpdateCheck();
   const player = useVideoPlayer(loginBackground, (vp) => {
@@ -772,6 +1042,11 @@ export default function App() {
   const [prospect, setProspect] = useState<ProspectData>({ name: "", email: "", phone: "", moveIn: "", bedrooms: "2 bed", budget: "$2,200 - $2,600" });
   const [transitionDirection, setTransitionDirection] = useState<SlideDirection>("forward");
   const [pendingCreateUpload, setPendingCreateUpload] = useState<PendingCreateSessionUpload | null>(null);
+  const screenRef = useRef<Screen>(screen);
+  const lastMainTabRef = useRef<MainTab>("home");
+
+  screenRef.current = screen;
+  if (screen.type === "main") lastMainTabRef.current = screen.tab;
 
   useEffect(() => {
     restoreSession()
@@ -793,7 +1068,9 @@ export default function App() {
   }, [authSession?.workspace.user.id]);
 
   const tourIdx = useMemo(() => tourSteps.findIndex((s) => s.id === tourStep), [tourStep]);
-  const routeKey = screen.type === "main" ? "main" : screenKey(screen);
+  const routeKey = screen.type === "main" || screen.type === "profile"
+    ? screen.type === "main" && screen.tab === "sessions" ? "sessions-stack" : "main-profile-stack"
+    : screen.type === "session-detail" ? "sessions-stack" : screenKey(screen);
   const nav = useCallback((next: Screen) => {
     setTransitionDirection(screenRank(next) >= screenRank(screen) ? "forward" : "back");
     setScreen(next);
@@ -850,6 +1127,41 @@ export default function App() {
     "Team member";
   const property = authSession.workspace.community.name;
 
+  const renderMainTabs = (tab: MainTab) => (
+    <MainTabs
+      key={authSession.workspace.community.id}
+      tab={tab}
+      onTab={(t) => nav({ type: "main", tab: t })}
+      onSession={(id, opts) => nav({
+        type: "session-detail",
+        sessionId: id,
+        autoStartRecording: opts?.autoStartRecording,
+      })}
+      onSampleSession={(id) => nav({ type: "session-detail", sessionId: id, sample: true })}
+      onCreate={() => nav({ type: "create-session" })}
+      onPractice={(scenarioId) => nav({ type: "practice", scenarioId })}
+      onAudioTest={() => nav({ type: "audio-test" })}
+      onGuestRegistration={() => {
+        setTourStep("contact");
+        nav({ type: "tour" });
+      }}
+      onProfile={() => nav({ type: "profile" })}
+      onRubrics={() => nav({ type: "rubrics" })}
+      onSignOut={() => {
+        void clearSession().then(() => {
+          appQueryClient.clear();
+          useAppStore.getState().resetCommunityPicker();
+          setScreen({ type: "main", tab: "home" });
+          setAuthSession(null);
+        });
+      }}
+      authSession={authSession}
+      onAuthSession={setAuthSession}
+      agentName={agentName}
+      property={property}
+    />
+  );
+
   return (
     <AppProviders>
     <View style={st.root}>
@@ -859,55 +1171,35 @@ export default function App() {
           <OfflineSyncHost onOpenRemoteSession={(sessionId) => nav({ type: "session-detail", sessionId })} />
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={st.flex1}>
             <ScreenTransition transitionKey={routeKey} direction={transitionDirection}>
-              {screen.type === "main" && (
-                <MainTabs
-                  key={authSession.workspace.community.id}
-                  tab={screen.tab}
-                  onTab={(t) => nav({ type: "main", tab: t })}
-                  onSession={(id, opts) => nav({
-                    type: "session-detail",
-                    sessionId: id,
-                    autoStartRecording: opts?.autoStartRecording,
-                  })}
-                  onSampleSession={(id) => nav({ type: "session-detail", sessionId: id, sample: true })}
-                  onCreate={() => nav({ type: "create-session" })}
-                  onAudioTest={() => nav({ type: "audio-test" })}
-                  onGuestRegistration={() => {
+              {((screen.type === "main" && screen.tab !== "sessions") || screen.type === "profile") && (
+                <ProfileNavigation
+                  showProfile={screen.type === "profile"}
+                  onCloseProfile={() => nav({ type: "main", tab: "home" })}
+                  session={authSession}
+                  onSaved={setAuthSession}
+                  onStartTour={() => {
                     setTourStep("contact");
                     nav({ type: "tour" });
                   }}
-                  onProfile={() => nav({ type: "profile" })}
-                  onRubrics={() => nav({ type: "rubrics" })}
-                  onSignOut={() => {
-                    void clearSession().then(() => {
-                      appQueryClient.clear();
-                      useAppStore.getState().resetCommunityPicker();
-                      setScreen({ type: "main", tab: "home" });
-                      setAuthSession(null);
-                    });
-                  }}
-                  authSession={authSession}
-                  onAuthSession={setAuthSession}
-                  agentName={agentName}
-                  property={property}
-                />
+                >
+                {renderMainTabs(screen.type === "main" ? screen.tab : "home")}
+                </ProfileNavigation>
               )}
-              {screen.type === "session-detail" && screen.sample ? (
-                <SampleSessionDetailScreen
-                  sessionId={screen.sessionId}
-                  onBack={() => nav({ type: "main", tab: "sessions" })}
-                />
-              ) : screen.type === "session-detail" ? (
-                <SessionDetailScreen
-                  sessionId={screen.sessionId}
-                  autoStartRecording={Boolean(screen.autoStartRecording)}
-                  onBack={() => nav({ type: "main", tab: "sessions" })}
+              {((screen.type === "main" && screen.tab === "sessions") || screen.type === "session-detail") && (
+                <SessionNavigation
+                  showDetail={screen.type === "session-detail"}
+                  sessionId={screen.type === "session-detail" ? screen.sessionId : null}
+                  autoStartRecording={screen.type === "session-detail" ? screen.autoStartRecording : false}
+                  sample={screen.type === "session-detail" ? screen.sample : false}
+                  onClose={() => nav({ type: "main", tab: "sessions" })}
                   onOpenComments={(meta) => nav({ type: "session-comments", ...meta })}
                   onOpenAiChat={(meta) => nav({ type: "session-ai-chat", ...meta })}
                   onOpenAudioInsights={(meta) => nav({ type: "session-audio-insights", ...meta })}
                   onOpenReport={(sessionId) => nav({ type: "session-report", sessionId })}
-                />
-              ) : null}
+                >
+                  {renderMainTabs("sessions")}
+                </SessionNavigation>
+              )}
               {screen.type === "session-comments" && (
                 <SessionCommentsScreen
                   sessionId={screen.sessionId}
@@ -952,9 +1244,13 @@ export default function App() {
               )}
               {screen.type === "create-session" && (
                 <CreateSessionScreen
-                  onBack={() => nav({ type: "main", tab: "sessions" })}
+                  onBack={() => nav({ type: "main", tab: lastMainTabRef.current })}
                   onCreated={(id) => nav({ type: "session-detail", sessionId: id })}
-                  onLiveRecordingOpened={() => nav({ type: "main", tab: "home" })}
+                  onLiveRecordingOpened={() => {
+                    if (screenRef.current.type === "create-session") {
+                      nav({ type: "main", tab: lastMainTabRef.current });
+                    }
+                  }}
                   pendingUpload={pendingCreateUpload}
                   onPendingUploadHandled={() => setPendingCreateUpload(null)}
                   onRecordingFinished={(payload) => {
@@ -965,19 +1261,14 @@ export default function App() {
                   agentName={agentName}
                 />
               )}
-              {screen.type === "audio-test" && <AudioTestScreen onBack={() => nav({ type: "main", tab: "home" })} />}
-              {screen.type === "rubrics" && <RubricsScreen session={authSession} onBack={() => nav({ type: "main", tab: "settings" })} onSession={(id) => nav({ type: "session-detail", sessionId: id })} />}
-              {screen.type === "profile" && (
-                <ProfileEditorScreen
-                  session={authSession}
-                  onBack={() => nav({ type: "main", tab: "home" })}
-                  onSaved={setAuthSession}
-                  onStartTour={() => {
-                    setTourStep("contact");
-                    nav({ type: "tour" });
-                  }}
+              {screen.type === "practice" && (
+                <PracticeSessionsScreen
+                  initialScenarioId={screen.scenarioId}
+                  onBack={() => nav({ type: "main", tab: "sessions" })}
                 />
               )}
+              {screen.type === "audio-test" && <AudioTestScreen onBack={() => nav({ type: "main", tab: "home" })} />}
+              {screen.type === "rubrics" && <RubricsScreen session={authSession} onBack={() => nav({ type: "main", tab: "settings" })} onSession={(id) => nav({ type: "session-detail", sessionId: id })} />}
               {screen.type === "tour" && (
                 <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
                   <TourStepper session={authSession} idx={tourIdx} prospect={prospect} step={tourStep} onBack={() => nav({ type: "profile" })} onChange={(k, v) => setProspect((c) => ({ ...c, [k]: v }))} onStep={setTourStep} />
@@ -1043,12 +1334,13 @@ const TAB_ITEMS: Array<{ id: MainTab; label: string; icon: keyof typeof Ionicons
   { id: "settings", label: "Settings", icon: "settings-outline", iconActive: "settings" },
 ];
 
-function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTest, onGuestRegistration, onProfile, onRubrics, onSignOut, authSession, onAuthSession, agentName, property }: {
+function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice, onAudioTest, onGuestRegistration, onProfile, onRubrics, onSignOut, authSession, onAuthSession, agentName, property }: {
   tab: MainTab;
   onTab: (t: MainTab) => void;
   onSession: (id: string, opts?: { autoStartRecording?: boolean }) => void;
   onSampleSession: (id: string) => void;
   onCreate: () => void;
+  onPractice: (scenarioId?: string) => void;
   onAudioTest: () => void;
   onGuestRegistration: () => void;
   onProfile: () => void;
@@ -1070,6 +1362,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
   const upcomingSessions = upcomingSessionsQuery.data?.sessions ?? [];
   const materials = materialsQuery.data?.materials ?? [];
   const tourLibrary = materialsQuery.data?.tourLibrary ?? null;
+  const propertyWebsite = materialsQuery.data?.propertyWebsite ?? null;
   const calendarEvents = calendarQuery.data?.events ?? [];
   const profile = profileQuery.data;
   const loading = sessionsQuery.isLoading || upcomingSessionsQuery.isLoading || calendarQuery.isLoading;
@@ -1105,11 +1398,10 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
 
   useEffect(() => {
     const activeIndex = Math.max(0, TAB_ITEMS.findIndex((item) => item.id === tab));
-    tabIndicatorX.value = withSpring((tabBarWidth / TAB_ITEMS.length) * activeIndex, {
-      damping: 22,
-      stiffness: 210,
-      mass: 0.72,
-    });
+    tabIndicatorX.value = withTiming(
+      (tabBarWidth / TAB_ITEMS.length) * activeIndex,
+      { duration: 220, easing: Easing.out(Easing.cubic) },
+    );
   }, [tab, tabBarWidth, tabIndicatorX]);
 
   useEffect(() => {
@@ -1195,9 +1487,11 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
               <DashboardScreen
                 sessions={sessions}
                 upcomingSessions={upcomingSessions}
+                materials={materials}
                 materialCount={materials.length}
                 tourLibrary={tourLibrary}
                 loading={loading}
+                materialsLoading={materialsLoading}
                 onSession={onSession}
                 onProfile={onProfile}
                 onCheckIn={() => void openSessionCheckIn()}
@@ -1218,6 +1512,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
               <MaterialsScreen
                 materials={materials}
                 tourLibrary={tourLibrary}
+                propertyWebsite={propertyWebsite}
                 loading={materialsLoading}
                 onReload={async () => { await materialsQuery.refetch(); }}
                 onBack={() => handleTabPress("home")}
@@ -1226,8 +1521,20 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
               />
             )}
             {tab === "settings" && (
-              <SettingsScreen
-                session={authSession}
+        <SettingsScreen
+          session={authSession}
+          aiTrainingDataFeedback={profile?.aiTrainingDataFeedback ?? authSession.workspace.user.aiTrainingDataFeedback ?? false}
+          onAiTrainingDataFeedback={async (enabled) => {
+            const nextProfile = await updateProfile({ aiTrainingDataFeedback: enabled });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+            onAuthSession({
+              ...authSession,
+              workspace: {
+                ...authSession.workspace,
+                user: { ...authSession.workspace.user, aiTrainingDataFeedback: nextProfile.aiTrainingDataFeedback },
+              },
+            });
+          }}
                 onSessionChange={onAuthSession}
                 onProfile={onProfile}
                 onRubrics={onRubrics}
@@ -1240,7 +1547,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
 
       {tab === "sessions" && (
         <ScreenTransition transitionKey="tab:sessions" direction={tabTransitionDirection}>
-          <SessionsListScreen onBack={() => handleTabPress("home")} onCommunityPress={() => setCommunityPickerOpen(true)} onSession={onSession} onSampleSession={onSampleSession} property={property} />
+          <SessionsListScreen authSession={authSession} onBack={() => handleTabPress("home")} onCommunityPress={() => setCommunityPickerOpen(true)} onSession={onSession} onSampleSession={onSampleSession} onCreate={onCreate} onPractice={onPractice} initialSessions={sessions} property={property} />
         </ScreenTransition>
       )}
 
@@ -1343,12 +1650,14 @@ const errorBannerSt = StyleSheet.create({
 // Dashboard
 // ═══════════════════════════════════════
 
-function DashboardScreen({ sessions, upcomingSessions, materialCount, tourLibrary, loading, onSession, onProfile, onCheckIn, onCreate, onAudioTest, onAssets, onCommunityPress, agentName, userTitle, userPhone, userEmail, cardAccent, property }: {
+function DashboardScreen({ sessions, upcomingSessions, materials, materialCount, tourLibrary, loading, materialsLoading, onSession, onProfile, onCheckIn, onCreate, onAudioTest, onAssets, onCommunityPress, agentName, userTitle, userPhone, userEmail, cardAccent, property }: {
   sessions: SessionSummary[];
   upcomingSessions: SessionSummary[];
+  materials: Material[];
   materialCount: number;
   tourLibrary: TourLibraryLink | null;
   loading: boolean;
+  materialsLoading: boolean;
   onSession: (id: string, opts?: { autoStartRecording?: boolean }) => void;
   onProfile: () => void;
   onCheckIn: () => void;
@@ -1363,6 +1672,9 @@ function DashboardScreen({ sessions, upcomingSessions, materialCount, tourLibrar
   cardAccent: string;
   property: string;
 }) {
+  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const { width: dashboardWidth } = useWindowDimensions();
+  const assetTileWidth = Math.max(96, Math.min(120, (dashboardWidth - 52) / 3));
   const todayTours = useMemo(() => {
     const todayKey = new Date().toDateString();
     return upcomingSessions
@@ -1383,12 +1695,7 @@ function DashboardScreen({ sessions, upcomingSessions, materialCount, tourLibrar
         left={<TourLogo width={62} />}
       />
 
-      <MotionPressable
-        onPress={onProfile}
-        haptic="selection"
-        entering={FadeInDown.delay(40).duration(420).springify()}
-        style={homeSt.profileCard}
-      >
+      <MotionPressable onPress={onProfile} haptic="selection" style={homeSt.profileCard}>
         <View style={[homeSt.profileHeader, { backgroundColor: accent }]} />
         <Pressable
           accessibilityLabel="Edit contact profile"
@@ -1420,11 +1727,11 @@ function DashboardScreen({ sessions, upcomingSessions, materialCount, tourLibrar
       <LiveRecordingCard />
 
       <View style={homeSt.actionPillRow}>
-        <MotionPressable onPress={onCheckIn} haptic="medium" entering={FadeInDown.delay(90)} style={homeSt.checkInPill}>
+        <MotionPressable onPress={onCheckIn} haptic="medium" style={homeSt.checkInPill}>
           <Ionicons name="navigate" size={21} color="#fff" />
           <Text style={homeSt.checkInPillText}>Check-In</Text>
         </MotionPressable>
-        <MotionPressable onPress={onCreate} haptic="medium" entering={FadeInDown.delay(120)} style={[homeSt.checkInPill, homeSt.newSessionPill]}>
+        <MotionPressable onPress={onCreate} haptic="medium" style={[homeSt.checkInPill, homeSt.newSessionPill]}>
           <Ionicons name="mic" size={21} color="#fff" />
           <Text style={homeSt.checkInPillText}>New Session</Text>
         </MotionPressable>
@@ -1463,34 +1770,104 @@ function DashboardScreen({ sessions, upcomingSessions, materialCount, tourLibrar
       )}
 
       <HomeSection title="Assets" action="Open" onAction={onAssets}>
-        <MotionPressable
-          accessibilityLabel="Open property assets"
-          onPress={onAssets}
-          haptic="selection"
-          style={homeSt.assetLinkCard}
-        >
-          <View style={[homeSt.assetLinkIcon, tourLibrary && homeSt.assetLinkIconConnected]}>
-            <Ionicons name={tourLibrary ? "play" : "folder-outline"} size={22} color={tourLibrary ? "#fff" : C.brand} />
-          </View>
-          <View style={st.flex1}>
-            <Text style={homeSt.assetLinkTitle}>
-              {tourLibrary ? "Tour Library connected" : "Local property assets"}
-            </Text>
-            <Text style={homeSt.assetLinkMeta}>
-              {tourLibrary
-                ? `${materialCount} local and Tour.video resources`
-                : `${materialCount} resources stored for this property`}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-        </MotionPressable>
+        <View style={homeSt.assetPreviewStack}>
+          {materialsLoading && materials.length === 0 ? (
+            <View style={homeSt.assetPreviewLoading}>
+              <LoadingDots size="small" color={C.brand} />
+              <Text style={homeSt.emptyInline}>Loading property assets…</Text>
+            </View>
+          ) : materials.length > 0 ? (
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              directionalLockEnabled
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={assetTileWidth + 10}
+              disableIntervalMomentum
+              contentContainerStyle={homeSt.mediaRow}
+            >
+              {materials.map((material) => {
+                const previewUrl = materialPreviewUrl(material);
+                const canOpen = Boolean(materialUrl(material));
+                return (
+                  <MotionPressable
+                    key={material.id}
+                    accessibilityLabel={`Preview ${material.name}`}
+                    onPress={() => setSelectedMaterial(material)}
+                    haptic="selection"
+                    style={[homeSt.mediaTile, { width: assetTileWidth }]}
+                  >
+                    <View style={homeSt.mediaThumb}>
+                      {previewUrl ? (
+                        <Image source={{ uri: previewUrl }} style={homeSt.mediaPreviewImage} resizeMode="cover" />
+                      ) : (
+                        <View style={homeSt.mediaFallbackIcon}>
+                          <Ionicons name={canOpen ? "play" : "document-outline"} size={canOpen ? 18 : 23} color={C.brand} />
+                        </View>
+                      )}
+                      {canOpen ? (
+                        <View style={homeSt.mediaPlayBadge}>
+                          <Ionicons name="play" size={11} color="#fff" />
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={homeSt.mediaLabel} numberOfLines={2}>{material.name}</Text>
+                  </MotionPressable>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <Text style={homeSt.emptyInline}>Reusable tour assets will appear here.</Text>
+          )}
+
+          <MotionPressable
+            accessibilityLabel="Open property assets"
+            onPress={onAssets}
+            haptic="selection"
+            style={homeSt.assetLinkCard}
+          >
+            <View style={[homeSt.assetLinkIcon, tourLibrary && homeSt.assetLinkIconConnected]}>
+              <Ionicons name={tourLibrary ? "play" : "folder-outline"} size={22} color={tourLibrary ? "#fff" : C.brand} />
+            </View>
+            <View style={st.flex1}>
+              <Text style={homeSt.assetLinkTitle}>
+                {tourLibrary ? "Tour Library connected" : "Local property assets"}
+              </Text>
+              <Text style={homeSt.assetLinkMeta}>
+                {tourLibrary
+                  ? `${materialCount} local and Tour.video resources`
+                  : `${materialCount} resources stored for this property`}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+          </MotionPressable>
+        </View>
       </HomeSection>
+      <MaterialPreviewModal material={selectedMaterial} onClose={() => setSelectedMaterial(null)} />
     </View>
   );
 }
 
 function materialPreviewUrl(material: Material) {
-  return material.media?.imageUrl ?? material.media?.gifUrl ?? null;
+  const candidate = material.media?.imageUrl
+    ?? material.media?.gifUrl
+    ?? (material.fileUrl && /\.(?:jpe?g|png|gif)(?:[?#].*)?$/i.test(material.fileUrl) ? material.fileUrl : null);
+  if (!candidate) return null;
+  return candidate.startsWith("/") ? `${getApiBaseUrl()}${candidate}` : candidate;
+}
+
+function isPanoramaMaterial(material: Material) {
+  if (/\/api\/recordings\/panorama-[^/]+\.jpe?g(?:[?#].*)?$/i.test(material.fileUrl ?? "")) {
+    return true;
+  }
+  if (!material.parsedText) return false;
+  try {
+    const metadata = JSON.parse(material.parsedText) as { kind?: unknown; projection?: unknown };
+    return metadata.kind === "panorama-360" || metadata.projection === "equirectangular";
+  } catch {
+    return false;
+  }
 }
 
 async function openMaterial(material: Material) {
@@ -1517,7 +1894,7 @@ function ProfileContact({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; 
 
 function HomeSection({ title, action, showLogo = false, onAction, children }: { title: string; action?: string; showLogo?: boolean; onAction?: () => void; children: React.ReactNode }) {
   return (
-    <MotionBlock style={{ gap: 12 }}>
+    <View style={{ gap: 12 }}>
       <View style={homeSt.sectionHeader}>
         {showLogo && <TourLogo width={58} />}
         <Text style={homeSt.sectionTitle}>{title}</Text>
@@ -1528,7 +1905,7 @@ function HomeSection({ title, action, showLogo = false, onAction, children }: { 
         )}
       </View>
       {children}
-    </MotionBlock>
+    </View>
   );
 }
 
@@ -1713,7 +2090,6 @@ function SessionListSwipeRow({
           onOpen();
         }}
         haptic="selection"
-        entering={FadeInDown.duration(260).springify()}
         style={[slst.sessionCard, isDeleting && slst.sessionCardDeleting]}
         disabled={isDeleting}
       >
@@ -1747,7 +2123,6 @@ function SampleSessionListRow({ session, onOpen }: { session: SessionSummary; on
     <MotionPressable
       onPress={onOpen}
       haptic="selection"
-      entering={FadeInDown.duration(260).springify()}
       style={[slst.sessionCard, slst.sampleSessionCard]}
     >
       <View style={slst.sampleSessionIcon}>
@@ -1768,26 +2143,78 @@ function SampleSessionListRow({ session, onOpen }: { session: SessionSummary; on
   );
 }
 
-function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSession, property }: { onBack: () => void; onCommunityPress: () => void; onSession: (id: string) => void; onSampleSession: (id: string) => void; property: string }) {
+function SessionsListScreen({
+  authSession,
+  onBack,
+  onCommunityPress,
+  onSession,
+  onSampleSession,
+  onCreate,
+  onPractice,
+  initialSessions,
+  property,
+}: {
+  authSession: MobileAuthSession;
+  onBack: () => void;
+  onCommunityPress: () => void;
+  onSession: (id: string) => void;
+  onSampleSession: (id: string) => void;
+  onCreate: () => void;
+  onPractice: (scenarioId?: string) => void;
+  initialSessions: SessionSummary[];
+  property: string;
+}) {
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showSamples, setShowSamples] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [practicePreviewEnabled, setPracticePreviewEnabled] = useState(false);
 
   const search = useAppStore((state) => state.sessionsSearch);
   const statusFilter = useAppStore((state) => state.sessionsStatusFilter);
   const sort = useAppStore((state) => state.sessionsSort);
-  const showSort = useAppStore((state) => state.showSessionsSort);
   const showSearch = useAppStore((state) => state.showSessionsSearch);
   const setSearch = useAppStore((state) => state.setSessionsSearch);
   const setStatusFilter = useAppStore((state) => state.setSessionsStatusFilter);
   const setSort = useAppStore((state) => state.setSessionsSort);
-  const setShowSort = useAppStore((state) => state.setShowSessionsSort);
   const setShowSearch = useAppStore((state) => state.setShowSessionsSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const deleteSessionMutation = useDeleteSessionMutation();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
+
+  const teamMembers = useMemo(() => {
+    const seen = new Set<string>();
+    return authSession.workspace.community.teamMembers
+      .map((member) => ({
+        ...member,
+        agentId: member.alias?.trim() || member.id?.trim() || member.email.trim(),
+      }))
+      .filter((member) => {
+        const key = member.email.trim().toLowerCase();
+        if (!member.agentId || !key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+  }, [authSession.workspace.community.teamMembers]);
+  const currentTeamMember = useMemo(() => {
+    const currentEmail = authSession.workspace.user.email.trim().toLowerCase();
+    return teamMembers.find((member) =>
+      member.userId === authSession.workspace.user.id || member.email.trim().toLowerCase() === currentEmail
+    ) ?? null;
+  }, [authSession.workspace.user.email, authSession.workspace.user.id, teamMembers]);
+  const currentAgentId = currentTeamMember?.agentId ?? `user:${authSession.workspace.user.id}`;
+  const selectedTeamMember = teamMembers.find((member) => member.agentId === selectedAgentId) ?? null;
+  const sessionViewLabel = showSamples
+    ? "Samples"
+    : selectedAgentId
+      ? selectedAgentId === currentAgentId
+        ? "You"
+        : selectedTeamMember?.name ?? "Team member"
+      : "Your Team";
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -1799,32 +2226,53 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
     limit: SESSIONS_PAGE_SIZE,
     sort,
     search: debouncedSearch.trim() || undefined,
+    agentId: showSamples ? undefined : selectedAgentId ?? undefined,
   });
 
   // Remote-only list. Local folders hold in-flight live audio, not session cards.
-  const sessions = useMemo(
+  const fetchedSessions = useMemo(
     () => sessionsQuery.data?.pages.flatMap((pageData) => pageData.sessions) ?? [],
     [sessionsQuery.data],
   );
-  const total = sessionsQuery.data?.pages[0]?.total ?? sessions.length;
-  const sampleSessionsQuery = useSampleSessionsQuery(true);
+  const canUseInitialSessions = sort === "newest"
+    && !debouncedSearch.trim()
+    && selectedAgentId === null
+    && !showSamples;
+  const sessions = sessionsQuery.isSuccess || fetchedSessions.length > 0
+    ? fetchedSessions
+    : canUseInitialSessions
+      ? initialSessions.slice(0, SESSIONS_PAGE_SIZE)
+      : [];
+  const sampleSessionsQuery = useSampleSessionsQuery(showSamples);
   const sampleSessions = sampleSessionsQuery.data?.sessions ?? [];
   const samplePropertyName = sampleSessionsQuery.data?.propertyName ?? "1540 Place Apartments";
   const samplesAvailable = sampleSessionsQuery.isSuccess && sampleSessions.length > 0;
   const visibleSessions = showSamples ? sampleSessions : sessions;
   const hasMore = sessionsQuery.hasNextPage;
-  const loading = sessionsQuery.isLoading;
+  const loading = sessionsQuery.isLoading && sessions.length === 0;
   const loadingMore = sessionsQuery.isFetchingNextPage;
+  const practiceScenariosQuery = usePracticeScenarioPreviewsQuery(practicePreviewEnabled);
+  const practiceScenarios = practiceScenariosQuery.data ?? [];
+  const practiceLoading = !practiceScenariosQuery.data && !practiceScenariosQuery.error;
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setPracticePreviewEnabled(true);
+    });
+    return () => task.cancel();
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await drainSyncOutbox();
-    await Promise.all([
+    const requests: Promise<unknown>[] = [
       sessionsQuery.refetch(),
-      sampleSessionsQuery.refetch(),
-    ]);
+      practiceScenariosQuery.refetch(),
+    ];
+    if (showSamples) requests.push(sampleSessionsQuery.refetch());
+    await Promise.all(requests);
     setRefreshing(false);
-  }, [sampleSessionsQuery, sessionsQuery]);
+  }, [practiceScenariosQuery, sampleSessionsQuery, sessionsQuery, showSamples]);
 
   const onEndReached = useCallback(() => {
     if (hasMore && !loadingMore && !loading) void sessionsQuery.fetchNextPage();
@@ -1910,13 +2358,16 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
       : [];
   }, [samplePropertyName, showSamples, statusFilter, visibleSessions]);
 
+  const sessionMetrics = useMemo(() => computeDashboardMetrics(visibleSessions), [visibleSessions]);
+  const averageScore = sessionMetrics.averageScore !== null ? `${sessionMetrics.averageScore}%` : "--";
+
   const renderItem = useCallback(({ item }: { item: SessionListItem }) => {
     if (item.kind === "header") {
       return (
-        <Reanimated.View entering={FadeIn.delay(80)} style={slst.groupHeader}>
+        <View style={slst.groupHeader}>
           <Text style={slst.groupLabel}>{item.label}</Text>
           <View style={slst.groupCount}><Text style={slst.groupCountText}>{item.count}</Text></View>
-        </Reanimated.View>
+        </View>
       );
     }
     const session = item.session;
@@ -1938,8 +2389,13 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
   }, [closeOpenSwipeable, confirmDeleteSession, deletingId, handleSwipeClose, handleSwipeOpen, onSampleSession, onSession, openSession, showSamples]);
 
   const keyExtractor = useCallback((item: SessionListItem) => item.id, []);
-  const sessionMetrics = useMemo(() => computeDashboardMetrics(visibleSessions), [visibleSessions]);
-  const averageScore = sessionMetrics.averageScore !== null ? `${sessionMetrics.averageScore}%` : "--";
+  const activeFilterCount = Number(selectedAgentId !== null || showSamples) + Number(statusFilter !== "all") + Number(sort !== "newest");
+  const selectSessionView = useCallback((agentId: string | null, samples = false) => {
+    selectionHaptic();
+    setSelectedAgentId(agentId);
+    setShowSamples(samples);
+    setFiltersOpen(false);
+  }, []);
 
   const ListHeader = useMemo(() => (
     <View style={slst.header}>
@@ -1966,13 +2422,23 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
       <View style={slst.titleRow}>
         <View>
           <Text style={st.pageTitle}>{showSamples ? "Sample sessions" : "Sessions"}</Text>
-          {showSamples ? <Text style={slst.sampleHeadingSub}>Curated from {samplePropertyName} · Read only</Text> : null}
+          <Text style={slst.sampleHeadingSub}>
+            {showSamples ? `Curated from ${samplePropertyName} · Read only` : sessionViewLabel}
+          </Text>
         </View>
-        <View style={slst.avgPill}>
-          <Ionicons name="analytics-outline" size={14} color={sessionMetrics.averageScore !== null ? scoreColor(sessionMetrics.averageScore) : C.brand} />
-          <Text style={slst.avgPillValue}>{averageScore}</Text>
-          <Text style={slst.avgPillLabel}>Avg</Text>
-        </View>
+        {loading ? (
+          <View style={slst.avgPill}>
+            <View style={slst.metricSkeletonIcon} />
+            <View style={slst.metricSkeletonValue} />
+            <View style={slst.metricSkeletonLabel} />
+          </View>
+        ) : (
+          <View style={slst.avgPill}>
+            <Ionicons name="analytics-outline" size={14} color={sessionMetrics.averageScore !== null ? scoreColor(sessionMetrics.averageScore) : C.brand} />
+            <Text style={slst.avgPillValue}>{averageScore}</Text>
+            <Text style={slst.avgPillLabel}>Avg</Text>
+          </View>
+        )}
       </View>
 
       {showSamples ? (
@@ -1991,46 +2457,85 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
         </Reanimated.View>
       )}
 
-      {!showSamples && <ScrollView horizontal nestedScrollEnabled directionalLockEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={slst.chipsRow}>
-        <View style={[slst.chip, slst.personChip]}><Ionicons name="person-circle-outline" size={18} color={C.text} /><Text style={slst.chipText}>You</Text><Ionicons name="chevron-down" size={12} color={C.textSec} /></View>
-        <Pressable style={[slst.chip, slst.teamChip]}><Text style={slst.teamChipText}>Your team</Text></Pressable>
-        <Pressable onPress={() => setShowSort((v) => !v)} style={[slst.chip, slst.sortChip]}>
-          <Text style={slst.chipText}>{SORT_OPTS.find((o) => o.value === sort)?.label}</Text>
-          <Ionicons name="chevron-down" size={12} color={C.textSec} />
-        </Pressable>
-      </ScrollView>}
-
-      {!showSamples && <ScrollView horizontal nestedScrollEnabled directionalLockEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={slst.filterRow}>
-        {FILTER_CHIPS.map((chip) => {
-          const active = statusFilter === chip.value;
-          return (
-            <Pressable
-              key={chip.value}
-              onPress={() => { selectionHaptic(); setStatusFilter(chip.value); }}
-              style={[slst.filterChip, active && slst.filterChipActive]}
-            >
-              <Text style={[slst.filterChipText, active && slst.filterChipTextActive]}>{chip.label}</Text>
+      {!showSamples && (
+        <View style={slst.practiceSection}>
+          <View style={slst.practiceHeading}>
+            <View style={st.flex1}>
+              <Text style={slst.practiceTitle}>Practice sessions</Text>
+              <Text style={slst.practiceSubtitle}>Train with an AI prospect</Text>
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => onPractice()} style={({ pressed }) => [slst.practiceOpen, pressed && st.pressed]}>
+              <Text style={slst.practiceOpenText}>Open</Text>
+              <Ionicons name="arrow-forward" size={14} color={C.brand} />
             </Pressable>
-          );
-        })}
-      </ScrollView>}
+          </View>
 
-      {!showSamples && showSort && (
-        <View style={slst.sortPanel}>
-          {SORT_OPTS.map((o) => (
-            <Pressable
-              key={o.value}
-              onPress={() => { selectionHaptic(); setSort(o.value); setShowSort(false); }}
-              style={[slst.sortOpt, sort === o.value && slst.sortOptActive]}
-            >
-              <Ionicons name={o.icon} size={16} color={sort === o.value ? C.brand : C.textMuted} />
-              <Text style={[slst.sortOptText, sort === o.value && { color: C.brand, fontWeight: "700" }]}>{o.label}</Text>
+          {practiceLoading ? (
+            <View style={slst.practiceLoadingRow}>
+              {[0, 1, 2].map((index) => <View key={index} style={slst.practiceSkeleton} />)}
+            </View>
+          ) : practiceScenarios.length ? (
+            <ScrollView horizontal nestedScrollEnabled directionalLockEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={slst.practiceCards}>
+              {practiceScenarios.map((scenario, index) => {
+                const colors = [C.brand, C.purple, C.green];
+                const accent = colors[index % colors.length] ?? C.brand;
+                return (
+                  <MotionPressable
+                    key={scenario.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Start ${scenario.name} practice`}
+                    onPress={() => onPractice(scenario.id)}
+                    haptic="selection"
+                    style={[slst.practiceCard, { borderColor: `${accent}28` }]}
+                  >
+                    <View style={[slst.practiceIcon, { backgroundColor: `${accent}14` }]}>
+                      <Ionicons name="chatbubbles-outline" size={20} color={accent} />
+                    </View>
+                    <Text style={slst.practiceCardTitle} numberOfLines={2}>{scenario.name}</Text>
+                    <View style={slst.practiceCardFooter}>
+                      <Text style={[slst.practiceDifficulty, { color: accent }]}>{scenario.difficulty ?? "Practice"}</Text>
+                      <Ionicons name="play-circle" size={19} color={accent} />
+                    </View>
+                  </MotionPressable>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <Pressable accessibilityRole="button" onPress={() => onPractice()} style={({ pressed }) => [slst.practiceEmpty, pressed && st.pressed]}>
+              <View style={slst.practiceEmptyIcon}><Ionicons name="sparkles" size={19} color={C.brand} /></View>
+              <View style={st.flex1}>
+                <Text style={slst.practiceEmptyTitle}>Open practice training</Text>
+                <Text style={slst.practiceEmptySubtitle}>View available scenarios and recent attempts.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
             </Pressable>
-          ))}
+          )}
         </View>
       )}
+
+      {!showSamples && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open session filters"
+          onPress={() => setFiltersOpen(true)}
+          style={({ pressed }) => [slst.filterButton, pressed && st.pressed]}
+        >
+          <Ionicons name="options-outline" size={17} color={C.brand} />
+          <Text style={slst.filterButtonText}>Filter</Text>
+          <View style={st.flex1} />
+          {activeFilterCount > 0 && <View style={slst.filterCount}><Text style={slst.filterCountText}>{activeFilterCount}</Text></View>}
+          <Ionicons name="chevron-down" size={15} color={C.textMuted} />
+        </Pressable>
+      )}
+      {!showSamples && loading ? (
+        <View style={slst.loadingGroupHeader}>
+          <View style={slst.loadingGroupLabel} />
+          <View style={st.flex1} />
+          <View style={slst.loadingGroupCount} />
+        </View>
+      ) : null}
     </View>
-  ), [averageScore, onBack, onCommunityPress, property, samplePropertyName, search, sessionMetrics.averageScore, showSamples, sort, showSort, showSearch, statusFilter]);
+  ), [activeFilterCount, averageScore, loading, onBack, onCommunityPress, onPractice, practiceLoading, practiceScenarios, property, samplePropertyName, search, sessionMetrics.averageScore, sessionViewLabel, showSamples, sort, showSearch, statusFilter]);
 
   const ListFooter = useMemo(() => {
     if (showSamples) return null;
@@ -2042,7 +2547,7 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
   }, [hasMore, loadingMore, sessions.length, showSamples]);
 
   const ListEmpty = useMemo(() => {
-    if (loading || (sessions.length === 0 && sampleSessionsQuery.isLoading)) return (
+    if (loading || (showSamples && sampleSessionsQuery.isLoading)) return (
       <View style={{ paddingTop: 20 }}>
         <LoadingShimmer rows={5} />
       </View>
@@ -2061,25 +2566,26 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
     if (showSamples) {
       return <EmptyState icon="albums-outline" title="Samples unavailable" subtitle="The curated examples could not be loaded." />;
     }
-    if (samplesAvailable && !search && statusFilter === "all") {
+    if (!search && statusFilter === "all") {
       return (
         <Reanimated.View entering={FadeInDown.duration(280).springify()} style={slst.sampleEmptyCard}>
           <View style={slst.sampleEmptyIcon}><Ionicons name="sparkles" size={25} color={C.purple} /></View>
           <Text style={slst.sampleEmptyTitle}>No sessions yet</Text>
           <Text style={slst.sampleEmptySub}>
-            Explore real, fully analyzed tours from 40Fifty Lofts while your team records its first session.
+            Record a new session to get started.
           </Text>
-          <View style={slst.sampleFeatureRow}>
-            {["Audio", "Transcript", "Scoring", "Coaching"].map((label) => (
-              <View key={label} style={slst.sampleFeaturePill}><Text style={slst.sampleFeatureText}>{label}</Text></View>
-            ))}
+          <View style={slst.emptyActions}>
+            <MotionPressable onPress={() => setShowSamples(true)} haptic="selection" style={slst.samplePrimaryButton}>
+              <Ionicons name="play-circle-outline" size={20} color="#fff" />
+              <Text style={slst.samplePrimaryText}>View sample sessions</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </MotionPressable>
+            <MotionPressable onPress={onCreate} haptic="medium" style={slst.emptySecondaryButton}>
+              <Ionicons name="mic-outline" size={20} color={C.brand} />
+              <Text style={slst.emptySecondaryText}>Record new session</Text>
+              <Ionicons name="arrow-forward" size={18} color={C.brand} />
+            </MotionPressable>
           </View>
-          <MotionPressable onPress={() => setShowSamples(true)} haptic="selection" style={slst.samplePrimaryButton}>
-            <Ionicons name="play-circle-outline" size={20} color="#fff" />
-            <Text style={slst.samplePrimaryText}>View sample sessions</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </MotionPressable>
-          <Text style={slst.sampleFootnote}>Read only · Samples never change this property’s data</Text>
         </Reanimated.View>
       );
     }
@@ -2090,38 +2596,204 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
         subtitle="Recent tours will appear here"
       />
     );
-  }, [loading, sampleSessionsQuery, samplesAvailable, search, sessions.length, showSamples, statusFilter]);
+  }, [loading, onCreate, sampleSessionsQuery, search, sessions.length, showSamples, statusFilter]);
 
   return (
-    <FlatList
-      scrollEnabled
-      nestedScrollEnabled
-      data={groupedRows}
-      renderItem={renderItem}
-      keyExtractor={keyExtractor}
-      ListHeaderComponent={
-        <View style={{ gap: 12 }}>
-          {ListHeader}
-          <LiveRecordingCard />
-        </View>
-      }
-      ListFooterComponent={ListFooter}
-      ListEmptyComponent={ListEmpty}
-      onEndReached={showSamples ? undefined : onEndReached}
-      onEndReachedThreshold={0.4}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}
-      contentContainerStyle={slst.list}
-      showsVerticalScrollIndicator={false}
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-    />
+    <>
+      <FlatList
+        scrollEnabled
+        nestedScrollEnabled
+        data={groupedRows}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={
+          <View style={{ gap: 12 }}>
+            {ListHeader}
+            <LiveRecordingCard />
+          </View>
+        }
+        ListFooterComponent={ListFooter}
+        ListEmptyComponent={ListEmpty}
+        onEndReached={showSamples ? undefined : onEndReached}
+        onEndReachedThreshold={0.4}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        updateCellsBatchingPeriod={32}
+        windowSize={7}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}
+        contentContainerStyle={slst.list}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+      />
+      <BottomSheetModal
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        sheetHeight={Math.min(620, Dimensions.get("window").height * 0.78)}
+        header={
+          <View style={slst.filterSheetHeader}>
+            <View>
+              <Text style={slst.filterSheetTitle}>Filter</Text>
+              <Text style={slst.filterSheetSubtitle}>Choose whose sessions to view</Text>
+            </View>
+            <Pressable accessibilityLabel="Close filters" onPress={() => setFiltersOpen(false)} style={slst.filterSheetClose}>
+              <Ionicons name="close" size={19} color={C.text} />
+            </Pressable>
+          </View>
+        }
+        contentStyle={slst.filterSheetBody}
+      >
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={slst.filterSheetContent}>
+          <View style={slst.filterSheetSection}>
+            <Text style={slst.filterSheetLabel}>Sessions</Text>
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ checked: !showSamples && selectedAgentId === null }}
+              onPress={() => selectSessionView(null)}
+              style={[slst.filterViewRow, !showSamples && selectedAgentId === null && slst.filterViewRowActive]}
+            >
+              <View style={[slst.filterViewIcon, !showSamples && selectedAgentId === null && slst.filterViewIconActive]}>
+                <Ionicons name="people" size={18} color={!showSamples && selectedAgentId === null ? C.brand : C.textSec} />
+              </View>
+              <View style={st.flex1}>
+                <Text style={slst.filterViewTitle}>Your Team</Text>
+                <Text style={slst.filterViewSubtitle}>Sessions from everyone at this property</Text>
+              </View>
+              {!showSamples && selectedAgentId === null ? <Ionicons name="checkmark-circle" size={20} color={C.brand} /> : null}
+            </Pressable>
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ checked: !showSamples && selectedAgentId === currentAgentId }}
+              onPress={() => selectSessionView(currentAgentId)}
+              style={[slst.filterViewRow, !showSamples && selectedAgentId === currentAgentId && slst.filterViewRowActive]}
+            >
+              <View style={[slst.filterViewIcon, !showSamples && selectedAgentId === currentAgentId && slst.filterViewIconActive]}>
+                <Ionicons name="person" size={18} color={!showSamples && selectedAgentId === currentAgentId ? C.brand : C.textSec} />
+              </View>
+              <View style={st.flex1}>
+                <Text style={slst.filterViewTitle}>You</Text>
+                <Text style={slst.filterViewSubtitle}>{currentTeamMember?.name || authSession.workspace.user.fullName || authSession.workspace.user.email}</Text>
+              </View>
+              {!showSamples && selectedAgentId === currentAgentId ? <Ionicons name="checkmark-circle" size={20} color={C.brand} /> : null}
+            </Pressable>
+          </View>
+
+          {teamMembers.some((member) => member.agentId !== currentAgentId) ? (
+            <View style={slst.filterSheetSection}>
+              <Text style={slst.filterSheetLabel}>Team members</Text>
+              {teamMembers.filter((member) => member.agentId !== currentAgentId).map((member) => {
+                const active = !showSamples && selectedAgentId === member.agentId;
+                const initials = member.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "?";
+                return (
+                  <Pressable
+                    key={member.agentId}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: active }}
+                    onPress={() => selectSessionView(member.agentId)}
+                    style={[slst.filterViewRow, active && slst.filterViewRowActive]}
+                  >
+                    <View style={[slst.filterMemberAvatar, active && slst.filterViewIconActive]}>
+                      <Text style={[slst.filterMemberInitials, active && slst.filterMemberInitialsActive]}>{initials}</Text>
+                    </View>
+                    <View style={st.flex1}>
+                      <Text style={slst.filterViewTitle}>{member.name}</Text>
+                      <Text style={slst.filterViewSubtitle}>{member.title || member.role || member.email}</Text>
+                    </View>
+                    {active ? <Ionicons name="checkmark-circle" size={20} color={C.brand} /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          <View style={slst.filterSheetSection}>
+            <Text style={slst.filterSheetLabel}>Examples</Text>
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ checked: showSamples }}
+              onPress={() => selectSessionView(null, true)}
+              style={[slst.filterViewRow, showSamples && slst.filterViewRowActive]}
+            >
+              <View style={[slst.filterViewIcon, slst.filterSampleIcon, showSamples && slst.filterViewIconActive]}>
+                <Ionicons name="sparkles" size={18} color={showSamples ? C.brand : C.purple} />
+              </View>
+              <View style={st.flex1}>
+                <Text style={slst.filterViewTitle}>Samples</Text>
+                <Text style={slst.filterViewSubtitle}>{samplesAvailable ? `${sampleSessions.length} analyzed sessions to explore` : "View curated example sessions"}</Text>
+              </View>
+              {showSamples ? <Ionicons name="checkmark-circle" size={20} color={C.brand} /> : <Ionicons name="chevron-forward" size={17} color={C.textMuted} />}
+            </Pressable>
+          </View>
+
+          <View style={slst.filterSheetSection}>
+            <Text style={slst.filterSheetLabel}>Status</Text>
+            <View style={slst.filterOptions}>
+              {FILTER_CHIPS.map((chip) => {
+                const active = statusFilter === chip.value;
+                return (
+                  <Pressable
+                    key={chip.value}
+                    onPress={() => { selectionHaptic(); setStatusFilter(chip.value); }}
+                    style={[slst.filterOption, active && slst.filterOptionActive]}
+                  >
+                    <Text style={[slst.filterOptionText, active && slst.filterOptionTextActive]}>{chip.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View style={slst.filterSheetSection}>
+            <Text style={slst.filterSheetLabel}>Sort by</Text>
+            <View style={slst.filterOptions}>
+              {SORT_OPTS.map((option) => {
+                const active = sort === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => { selectionHaptic(); setSort(option.value); }}
+                    style={[slst.filterOption, active && slst.filterOptionActive]}
+                  >
+                    <Ionicons name={option.icon} size={15} color={active ? C.brand : C.textMuted} />
+                    <Text style={[slst.filterOptionText, active && slst.filterOptionTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </ScrollView>
+      </BottomSheetModal>
+    </>
   );
 }
 
 const slst = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 120 },
   header: { gap: 12, marginBottom: 8 },
+  practiceSection: { gap: 10, paddingVertical: 3 },
+  practiceHeading: { flexDirection: "row", alignItems: "center", gap: 12 },
+  practiceTitle: { color: C.text, fontSize: 16, fontWeight: "900" },
+  practiceSubtitle: { marginTop: 2, color: C.textMuted, fontSize: 11, fontWeight: "600" },
+  practiceOpen: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
+  practiceOpenText: { color: C.brand, fontSize: 12, fontWeight: "900" },
+  practiceCards: { gap: 9, paddingRight: 2 },
+  practiceCard: { width: 142, minHeight: 126, justifyContent: "space-between", gap: 9, padding: 13, borderWidth: 1, borderRadius: 16, backgroundColor: C.card },
+  practiceIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12 },
+  practiceCardTitle: { color: C.text, fontSize: 13, lineHeight: 17, fontWeight: "900" },
+  practiceCardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  practiceDifficulty: { flex: 1, fontSize: 10, fontWeight: "900", textTransform: "capitalize" },
+  practiceLoadingRow: { flexDirection: "row", gap: 9 },
+  practiceSkeleton: { width: 142, height: 126, borderRadius: 16, backgroundColor: "#eef2f7" },
+  practiceEmpty: { minHeight: 70, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: C.border, borderRadius: 15, backgroundColor: C.card },
+  practiceEmptyIcon: { width: 39, height: 39, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.brand + "10" },
+  practiceEmptyTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  practiceEmptySubtitle: { marginTop: 3, color: C.textMuted, fontSize: 11, fontWeight: "600" },
   sampleHeadingSub: { marginTop: 3, color: C.textMuted, fontSize: 11, fontWeight: "700" },
+  metricSkeletonIcon: { width: 14, height: 14, borderRadius: 7, backgroundColor: "#e8eef7" },
+  metricSkeletonValue: { width: 22, height: 15, borderRadius: 5, backgroundColor: "#e8eef7" },
+  metricSkeletonLabel: { width: 18, height: 9, borderRadius: 4, backgroundColor: "#eef2f7" },
+  loadingGroupHeader: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
+  loadingGroupLabel: { width: 112, height: 11, borderRadius: 6, backgroundColor: "#e8eef7" },
+  loadingGroupCount: { width: 24, height: 20, borderRadius: 10, backgroundColor: "#eef2f7" },
   sampleModeBanner: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 14, backgroundColor: "#faf7ff" },
   sampleModeIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.purpleBg },
   sampleModeTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
@@ -2131,34 +2803,15 @@ const slst = StyleSheet.create({
   sampleEmptyIcon: { width: 54, height: 54, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: C.purpleBg },
   sampleEmptyTitle: { color: C.text, fontSize: 21, fontWeight: "900", letterSpacing: -0.25 },
   sampleEmptySub: { maxWidth: 330, color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600", textAlign: "center" },
-  sampleFeatureRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6 },
-  sampleFeaturePill: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: "#f4f7fb" },
-  sampleFeatureText: { color: C.textSec, fontSize: 10, fontWeight: "800" },
+  emptyActions: { alignSelf: "stretch", gap: 9, marginTop: 3 },
   samplePrimaryButton: { alignSelf: "stretch", minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, marginTop: 2, paddingHorizontal: 16, borderRadius: 14, backgroundColor: C.brand },
   samplePrimaryText: { flex: 1, color: "#fff", fontSize: 14, fontWeight: "900", textAlign: "center" },
-  sampleFootnote: { color: C.textMuted, fontSize: 10, fontWeight: "700", textAlign: "center" },
-  chipsRow: { gap: 6, paddingVertical: 2 },
-  filterRow: { gap: 7, paddingVertical: 2 },
-  chip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
-    backgroundColor: "#f1f5f9", borderWidth: 1, borderColor: "transparent",
-  },
-  chipActive: { backgroundColor: "#eef2ff", borderColor: "#c7d2fe" },
-  chipText: { fontSize: 12, fontWeight: "600", color: C.textSec },
-  chipTextActive: { color: C.brand },
-  chipSep: { width: 1, height: 20, backgroundColor: "#e2e8f0", alignSelf: "center", marginHorizontal: 2 },
-  sortChip: { flexDirection: "row", alignItems: "center", gap: 4 },
-  sortPanel: {
-    flexDirection: "row", flexWrap: "wrap", gap: 6,
-    backgroundColor: "#f8fafc", borderRadius: 12, padding: 10,
-  },
-  sortOpt: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
-    backgroundColor: "white", borderWidth: 1, borderColor: "#e2e8f0",
-  },
-  sortOptActive: { borderColor: "#c7d2fe", backgroundColor: "#eef2ff" },
-  sortOptText: { fontSize: 12, fontWeight: "600", color: C.textSec },
+  emptySecondaryButton: { alignSelf: "stretch", minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 16, borderWidth: 1, borderColor: "#bfdbfe", borderRadius: 14, backgroundColor: "#eff6ff" },
+  emptySecondaryText: { flex: 1, color: C.brand, fontSize: 14, fontWeight: "900", textAlign: "center" },
+  filterButton: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 13, backgroundColor: "#fff" },
+  filterButtonText: { color: C.text, fontSize: 13, fontWeight: "900" },
+  filterCount: { minWidth: 20, height: 20, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, borderRadius: 10, backgroundColor: C.brand },
+  filterCountText: { color: "#fff", fontSize: 10, fontWeight: "900" },
   sep: { height: 1, backgroundColor: "#f1f5f9" },
   endText: { textAlign: "center", paddingVertical: 20, fontSize: 12, fontWeight: "600", color: C.textMuted },
   skeleton: {
@@ -2166,9 +2819,29 @@ const slst = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: "#f1f5f9",
   },
   skelBar: { height: 12, borderRadius: 6, backgroundColor: "#f1f5f9" },
-  personChip: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#fff", borderColor: "#e5e7eb" },
-  teamChip: { backgroundColor: "#eef2ff" },
-  teamChipText: { color: "#4338ca", fontSize: 12, fontWeight: "800" },
+  filterSheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingBottom: 10 },
+  filterSheetTitle: { color: C.text, fontSize: 19, fontWeight: "900" },
+  filterSheetSubtitle: { marginTop: 2, color: C.textMuted, fontSize: 11, fontWeight: "600" },
+  filterSheetClose: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "#f2f4f7" },
+  filterSheetBody: { paddingTop: 4 },
+  filterSheetContent: { gap: 18, paddingBottom: 28 },
+  filterSheetSection: { gap: 8 },
+  filterSheetLabel: { color: C.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" },
+  filterViewRow: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 13, backgroundColor: "#fff" },
+  filterViewRowActive: { borderColor: "#93c5fd", backgroundColor: "#eff6ff" },
+  filterViewIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#f2f4f7" },
+  filterViewIconActive: { backgroundColor: "#dbeafe" },
+  filterSampleIcon: { backgroundColor: C.purpleBg },
+  filterViewTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  filterViewSubtitle: { marginTop: 2, color: C.textMuted, fontSize: 10, lineHeight: 14, fontWeight: "600" },
+  filterMemberAvatar: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19, backgroundColor: "#f2f4f7" },
+  filterMemberInitials: { color: C.textSec, fontSize: 12, fontWeight: "900" },
+  filterMemberInitialsActive: { color: C.brand },
+  filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  filterOption: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 10, backgroundColor: "#fff" },
+  filterOptionActive: { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
+  filterOptionText: { color: C.textSec, fontSize: 11, fontWeight: "800" },
+  filterOptionTextActive: { color: C.brand },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   avgPill: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 999, backgroundColor: "#fff" },
   avgPillValue: { color: C.text, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] },
@@ -2220,6 +2893,29 @@ const slst = StyleSheet.create({
 
 const calSt = StyleSheet.create({
   upcomingBlock: { gap: 12 },
+  upcomingHeaderCount: { minWidth: 30, height: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 9, borderRadius: 14, backgroundColor: C.brand + "12" },
+  upcomingHeaderCountText: { color: C.brand, fontSize: 11, fontWeight: "900" },
+  upcomingGroups: { gap: 16 },
+  upcomingGroup: { gap: 8 },
+  upcomingGroupHeader: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 2 },
+  upcomingGroupMarker: { width: 4, height: 30, borderRadius: 2, backgroundColor: C.brand },
+  upcomingGroupLabel: { color: C.text, fontSize: 13, fontWeight: "900" },
+  upcomingGroupDate: { color: C.textMuted, fontSize: 10, fontWeight: "700", marginTop: 2 },
+  upcomingGroupCount: { minWidth: 24, height: 24, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 12, backgroundColor: "#EEF4FF" },
+  upcomingGroupCountText: { color: C.brand, fontSize: 10, fontWeight: "900" },
+  selectedDayBlock: { gap: 10 },
+  selectedDayHeader: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 2 },
+  selectedDayEyebrow: { color: C.brand, fontSize: 9, fontWeight: "900", letterSpacing: 0.9, textTransform: "uppercase" },
+  selectedDayTitle: { color: C.text, fontSize: 19, fontWeight: "900", marginTop: 2 },
+  selectedDayCount: { minWidth: 30, height: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 9, borderRadius: 14, backgroundColor: "#F2F4F7" },
+  selectedDayCountText: { color: C.textSec, fontSize: 11, fontWeight: "900" },
+  connectionFooter: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: "#e6ebf2" },
+  connectionIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#ecfdf3" },
+  connectionTitle: { color: C.text, fontSize: 12, fontWeight: "900" },
+  connectionMeta: { color: C.textMuted, fontSize: 10, fontWeight: "700", marginTop: 2 },
+  liveStatus: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: "#ecfdf3" },
+  liveStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green },
+  liveStatusText: { color: C.green, fontSize: 9, fontWeight: "900" },
 });
 
 function CalendarScreen({
@@ -2240,6 +2936,7 @@ function CalendarScreen({
   property: string;
 }) {
   const today = new Date();
+  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
   const [monthOffset, setMonthOffset] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const viewDate = useMemo(() => new Date(today.getFullYear(), today.getMonth() + monthOffset, 1), [monthOffset]);
@@ -2278,6 +2975,60 @@ function CalendarScreen({
 
   const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
   const dayItems = selectedDay ? (itemsByDay[selectedDay] ?? []) : [];
+  const upcomingFiveDaySessions = useMemo(() => {
+    const windowStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const windowEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 5).getTime();
+    return upcomingSessions.filter((session) => {
+      if (session.status === "in_progress") return true;
+      if (!session.scheduledAt) return false;
+      const scheduledTime = new Date(session.scheduledAt).getTime();
+      return !Number.isNaN(scheduledTime) && scheduledTime >= windowStart && scheduledTime < windowEnd;
+    });
+  }, [todayKey, upcomingSessions]);
+  const upcomingGroups = useMemo(() => {
+    const groups = new Map<string, {
+      key: string;
+      label: string;
+      dateLabel: string;
+      sessions: SessionSummary[];
+    }>();
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const isSameDay = (left: Date, right: Date) =>
+      left.getFullYear() === right.getFullYear()
+      && left.getMonth() === right.getMonth()
+      && left.getDate() === right.getDate();
+
+    for (const session of upcomingFiveDaySessions) {
+      const scheduled = session.scheduledAt ? new Date(session.scheduledAt) : null;
+      const validScheduled = scheduled && !Number.isNaN(scheduled.getTime()) ? scheduled : null;
+      const key = session.status === "in_progress"
+        ? "in-progress"
+        : validScheduled
+          ? `${validScheduled.getFullYear()}-${validScheduled.getMonth() + 1}-${validScheduled.getDate()}`
+          : "unscheduled";
+      const label = session.status === "in_progress"
+        ? "Happening now"
+        : validScheduled && isSameDay(validScheduled, today)
+          ? "Today"
+          : validScheduled && isSameDay(validScheduled, tomorrow)
+            ? "Tomorrow"
+            : validScheduled
+              ? validScheduled.toLocaleDateString(undefined, { weekday: "long" })
+              : "Scheduled";
+      const dateLabel = session.status === "in_progress"
+        ? "Live now"
+        : validScheduled
+          ? validScheduled.toLocaleDateString(undefined, { month: "long", day: "numeric" })
+          : "Date to be confirmed";
+      const group = groups.get(key);
+      if (group) {
+        group.sessions.push(session);
+      } else {
+        groups.set(key, { key, label, dateLabel, sessions: [session] });
+      }
+    }
+    return [...groups.values()];
+  }, [todayKey, upcomingFiveDaySessions]);
 
   useEffect(() => {
     setSelectedDay(
@@ -2317,49 +3068,6 @@ function CalendarScreen({
         </View>
       </View>
 
-      <View style={st.integrationStrip}>
-        <View style={st.integrationIcon}><Ionicons name="calendar" size={17} color={C.green} /></View>
-        <View style={st.flex1}>
-          <Text style={st.integrationTitle}>Entrata connected</Text>
-          <Text style={st.integrationSub}>Tours and prospect details sync from Entrata.</Text>
-        </View>
-        <View style={st.connectedBadge}><View style={st.connectedBadgeDot} /><Text style={st.connectedBadgeText}>Live</Text></View>
-      </View>
-
-      <View style={calSt.upcomingBlock}>
-        <View style={homeSt.sectionHeader}>
-          <Text style={homeSt.sectionTitle}>Upcoming Tours</Text>
-          <Text style={homeSt.sectionAction}>See All</Text>
-        </View>
-        {upcomingSessions.length === 0 ? (
-          <EmptyState icon="calendar-outline" title="No upcoming tours" subtitle="Scheduled and active tours will appear here" />
-        ) : (
-          <View style={homeSt.focusStack}>
-            {upcomingSessions.slice(0, 4).map((session) => (
-              <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={homeSt.tourCard}>
-                <View style={st.flex1}>
-                  <Text style={homeSt.tourTitle} numberOfLines={1}>{session.title}</Text>
-                  <View style={homeSt.tourMetaRow}>
-                    <Text style={homeSt.timePill}>
-                      {session.status === "in_progress"
-                        ? "Now"
-                        : session.scheduledAt
-                          ? `${new Date(session.scheduledAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${fmtTime(session.scheduledAt)}`
-                          : "Scheduled"}
-                    </Text>
-                    <Text style={homeSt.tourMeta} numberOfLines={1}>{session.prospectName ?? "Prospect details pending"}</Text>
-                  </View>
-                  {formatSessionCardDescription(session) ? (
-                    <Text style={homeSt.tourMeta} numberOfLines={2}>{formatSessionCardDescription(session)}</Text>
-                  ) : null}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-              </MotionPressable>
-            ))}
-          </View>
-        )}
-      </View>
-
       <View style={st.card}>
         <View style={{ padding: 16 }}>
           <View style={st.calNav}>
@@ -2395,8 +3103,18 @@ function CalendarScreen({
       </View>
 
       {selectedDay !== null && (
-        <>
-          <Text style={st.sectionTitle}>{monthLabel.split(" ")[0]} {selectedDay}</Text>
+        <View style={calSt.selectedDayBlock}>
+          <View style={calSt.selectedDayHeader}>
+            <View style={st.flex1}>
+              <Text style={calSt.selectedDayEyebrow}>Selected date</Text>
+              <Text style={calSt.selectedDayTitle}>
+                {new Date(year, month, selectedDay).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+              </Text>
+            </View>
+            <View style={calSt.selectedDayCount}>
+              <Text style={calSt.selectedDayCountText}>{dayItems.length}</Text>
+            </View>
+          </View>
           {dayItems.length === 0 ? <EmptyState icon="calendar-outline" title="No calendar items" subtitle={`Nothing scheduled for ${monthLabel.split(" ")[0]} ${selectedDay}`} /> : (
             <View style={st.card}>
               {dayItems.map((item, index) => item.source === "session" ? (
@@ -2424,8 +3142,76 @@ function CalendarScreen({
               ))}
             </View>
           )}
-        </>
+        </View>
       )}
+
+      <View style={calSt.upcomingBlock}>
+        <View style={homeSt.sectionHeader}>
+          <Text style={homeSt.sectionTitle}>Tours in the Next 5 Days</Text>
+          <View style={calSt.upcomingHeaderCount}>
+            <Text style={calSt.upcomingHeaderCountText}>{upcomingFiveDaySessions.length}</Text>
+          </View>
+        </View>
+        {upcomingFiveDaySessions.length === 0 ? (
+          <EmptyState icon="calendar-outline" title="No scheduled tours in the next 5 days" subtitle="Newly scheduled tours will appear here" />
+        ) : (
+          <View style={calSt.upcomingGroups}>
+            {upcomingGroups.map((group) => (
+              <View key={group.key} style={calSt.upcomingGroup}>
+                <View style={calSt.upcomingGroupHeader}>
+                  <View style={calSt.upcomingGroupMarker} />
+                  <View style={st.flex1}>
+                    <Text style={calSt.upcomingGroupLabel}>{group.label}</Text>
+                    <Text style={calSt.upcomingGroupDate}>{group.dateLabel}</Text>
+                  </View>
+                  <View style={calSt.upcomingGroupCount}>
+                    <Text style={calSt.upcomingGroupCountText}>{group.sessions.length}</Text>
+                  </View>
+                </View>
+                <View style={homeSt.focusStack}>
+                  {group.sessions.map((session) => (
+                    <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={homeSt.tourCard}>
+                      <View style={st.flex1}>
+                        <Text style={homeSt.tourTitle} numberOfLines={1}>{session.title}</Text>
+                        <View style={homeSt.tourMetaRow}>
+                          <Text style={homeSt.timePill}>
+                            {session.status === "in_progress"
+                              ? "Now"
+                              : session.scheduledAt
+                                ? fmtTime(session.scheduledAt)
+                                : "Scheduled"}
+                          </Text>
+                          <Text style={homeSt.tourMeta} numberOfLines={1}>{session.prospectName ?? "Prospect details pending"}</Text>
+                        </View>
+                        {formatSessionCardDescription(session) ? (
+                          <Text style={homeSt.tourMeta} numberOfLines={2}>{formatSessionCardDescription(session)}</Text>
+                        ) : null}
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+                    </MotionPressable>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View style={calSt.connectionFooter}>
+        <View style={calSt.connectionIcon}>
+          <Ionicons name="checkmark" size={15} color={C.green} />
+        </View>
+        <View style={st.flex1}>
+          <Text style={calSt.connectionTitle}>Entrata connected</Text>
+          <Text style={calSt.connectionMeta}>
+            {entrataEvents.length} synced {entrataEvents.length === 1 ? "tour" : "tours"}
+          </Text>
+        </View>
+        <View style={calSt.liveStatus}>
+          <View style={calSt.liveStatusDot} />
+          <Text style={calSt.liveStatusText}>Live</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -2455,6 +3241,8 @@ const assetSt = StyleSheet.create({
   thumbImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
   thumbOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.08)" },
   playBadge: { position: "absolute", left: 10, bottom: 10, width: 30, height: 30, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", borderRadius: 15, backgroundColor: "rgba(15,23,42,0.86)" },
+  panoramaBadge: { position: "absolute", left: 10, bottom: 10, minHeight: 30, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 9, borderWidth: 1, borderColor: "rgba(255,255,255,0.82)", borderRadius: 15, backgroundColor: "rgba(5,150,105,0.9)" },
+  panoramaBadgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
   fallbackIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 16, backgroundColor: "#fff" },
   cardTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
   cardMeta: { color: C.textSec, fontSize: 11, fontWeight: "700" },
@@ -2466,37 +3254,171 @@ const assetSt = StyleSheet.create({
   modalMeta: { color: C.textSec, fontSize: 12, fontWeight: "700", marginTop: 2, textTransform: "capitalize" },
   modalPreview: { minHeight: 250, overflow: "hidden", borderRadius: 20, backgroundColor: "#eef4ff" },
   modalImage: { width: "100%", height: 250 },
+  modalPanorama: { width: "100%", height: 250 },
+  modalPanoramaStatus: { position: "absolute", left: 12, bottom: 12, minHeight: 28, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, borderRadius: 14, backgroundColor: "rgba(15,23,42,0.78)" },
+  modalPanoramaStatusText: { color: "#fff", fontSize: 10, fontWeight: "900" },
   modalFallback: { height: 250, alignItems: "center", justifyContent: "center" },
   modalActions: { flexDirection: "row", gap: 10 },
   modalPrimary: { flex: 1, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, backgroundColor: C.brand },
   modalPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   modalSecondary: { minWidth: 98, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 16, backgroundColor: "#fff" },
   modalSecondaryText: { color: C.text, fontSize: 13, fontWeight: "900" },
-  tourLibraryLink: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: "#bfdbfe", borderRadius: 18, backgroundColor: "#eff6ff" },
-  tourLibraryLinkIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.brand },
-  tourLibraryLinkTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  tourLibraryLinkMeta: { color: C.textSec, fontSize: 11, fontWeight: "700", marginTop: 2 },
+  websiteLink: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: "#dbe6f3", borderRadius: 18, backgroundColor: "#fff" },
+  websiteLinkIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "#eef6ff" },
+  websiteLinkTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  websiteLinkMeta: { color: C.textSec, fontSize: 11, fontWeight: "700", marginTop: 2 },
+  tourLibraryFooter: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: "#e6ebf2" },
+  tourLibraryFooterIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#eaf4ff" },
+  tourLibraryFooterTitle: { color: C.text, fontSize: 12, fontWeight: "900" },
+  tourLibraryFooterMeta: { color: C.textMuted, fontSize: 10, fontWeight: "700", marginTop: 2 },
+  assetMenuScrim: { flex: 1, backgroundColor: "rgba(15,23,42,0.28)" },
+  assetMenuCard: { position: "absolute", top: Platform.OS === "ios" ? 70 : 48, right: 16, width: 286, overflow: "hidden", padding: 8, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 20, backgroundColor: "#fff", shadowColor: "#0f172a", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 26, elevation: 12 },
+  assetMenuHeading: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 7, color: C.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
+  assetMenuItem: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 10, borderRadius: 14 },
+  assetMenuItemPressed: { backgroundColor: "#f1f5f9" },
+  assetMenuIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "#eff6ff" },
+  assetMenuIconCamera: { backgroundColor: "#fff7ed" },
+  assetMenuIconVideo: { backgroundColor: "#f3e8ff" },
+  assetMenuIcon360: { backgroundColor: "#ecfdf5" },
+  assetMenuItemTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
+  assetMenuItemMeta: { marginTop: 2, color: C.textSec, fontSize: 11, fontWeight: "700" },
 });
 
-function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, onCommunityPress, property }: { materials: Material[]; tourLibrary: TourLibraryLink | null; loading: boolean; onReload: () => Promise<void>; onBack: () => void; onCommunityPress: () => void; property: string }) {
+function AssetTypeMenu({
+  visible,
+  onClose,
+  onPhoto,
+  onCamera,
+  onVideo,
+  onPanorama,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onPhoto: () => void;
+  onCamera: () => void;
+  onVideo: () => void;
+  onPanorama: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable accessibilityLabel="Close add asset menu" onPress={onClose} style={assetSt.assetMenuScrim}>
+        <Pressable onPress={(event) => event.stopPropagation()} style={assetSt.assetMenuCard}>
+          <Text style={assetSt.assetMenuHeading}>ADD NEW ASSET</Text>
+          <AssetTypeMenuItem
+            icon="image-outline"
+            iconStyle={assetSt.assetMenuIcon}
+            iconColor={C.brand}
+            title="Photo library"
+            meta="Choose an existing photo"
+            onPress={onPhoto}
+          />
+          <AssetTypeMenuItem
+            icon="camera-outline"
+            iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconCamera]}
+            iconColor="#ea580c"
+            title="Camera"
+            meta="Take a new photo"
+            onPress={onCamera}
+          />
+          <AssetTypeMenuItem
+            icon="videocam-outline"
+            iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconVideo]}
+            iconColor={C.purple}
+            title="Video"
+            meta="Record a new video asset"
+            onPress={onVideo}
+          />
+          <AssetTypeMenuItem
+            icon="scan-outline"
+            iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIcon360]}
+            iconColor="#059669"
+            title="360° photo"
+            meta="Choose 1× detail or 0.5× fast capture"
+            onPress={onPanorama}
+          />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function AssetTypeMenuItem({
+  icon,
+  iconStyle,
+  iconColor,
+  title,
+  meta,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconStyle: StyleProp<ViewStyle>;
+  iconColor: string;
+  title: string;
+  meta: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [assetSt.assetMenuItem, pressed && assetSt.assetMenuItemPressed]}>
+      <View style={iconStyle}>
+        <Ionicons name={icon} size={21} color={iconColor} />
+      </View>
+      <View style={st.flex1}>
+        <Text style={assetSt.assetMenuItemTitle}>{title}</Text>
+        <Text style={assetSt.assetMenuItemMeta}>{meta}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
+    </Pressable>
+  );
+}
+
+function MaterialsScreen({ materials, tourLibrary, propertyWebsite, loading, onReload, onBack, onCommunityPress, property }: { materials: Material[]; tourLibrary: TourLibraryLink | null; propertyWebsite: string | null; loading: boolean; onReload: () => Promise<void>; onBack: () => void; onCommunityPress: () => void; property: string }) {
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<Material | null>(null);
+  const [assetMenuOpen, setAssetMenuOpen] = useState(false);
+  const [photoRecorderOpen, setPhotoRecorderOpen] = useState(false);
   const [videoRecorderOpen, setVideoRecorderOpen] = useState(false);
+  const [panoramaRecorderOpen, setPanoramaRecorderOpen] = useState(false);
+  const tourLibraryAssetCount = materials.filter((material) => material.id.startsWith("tour-api-")).length;
+  const propertyWebsiteUrl = propertyWebsite
+    ? (/^https?:\/\//i.test(propertyWebsite) ? propertyWebsite : `https://${propertyWebsite}`)
+    : null;
+  const propertyWebsiteDisplay = propertyWebsite
+    ?.replace(/^https?:\/\//i, "")
+    .replace(/\/$/, "");
 
-  async function addAsset() {
+  async function addLibraryPhoto() {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["video/*", "audio/*", "image/*", "application/pdf"],
-        copyToCacheDirectory: true,
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          "Photo access is off",
+          "Allow Tour to access your photo library in Settings, then try again.",
+          [
+            { text: "Not now", style: "cancel" },
+            { text: "Open Settings", onPress: () => void Linking.openSettings() },
+          ],
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.9,
+        selectionLimit: 1,
       });
-      const file = result.assets?.[0];
-      if (result.canceled || !file) return;
+      const photo = result.assets?.[0];
+      if (result.canceled || !photo) return;
+      const mimeType = photo.mimeType ?? "image/jpeg";
+      const mimeExtension = mimeType.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+      const fileName = photo.fileName ?? `tour-photo-${Date.now()}.${mimeExtension}`;
+
       setUploading(true);
-      await uploadMaterial(file.uri, file.mimeType ?? "application/octet-stream", file.name);
+      await uploadMaterial(photo.uri, mimeType, fileName);
       await onReload();
-      showToast("Asset added to this community", "success");
+      showToast("Photo added to this community", "success");
     } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Could not upload asset", "error");
+      showToast(caught instanceof Error ? caught.message : "Could not upload photo", "error");
     } finally {
       setUploading(false);
     }
@@ -2506,10 +3428,46 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
     await uploadMaterial(asset.uri, asset.mimeType, asset.fileName, {
       name: asset.name,
       description: asset.description,
-      type: "recording",
+      type: "other",
     });
     await onReload().catch(() => undefined);
     showToast("Video asset added to this community", "success");
+  }
+
+  async function uploadRecordedPhoto(asset: RecordedPhotoAsset) {
+    await uploadMaterial(asset.uri, asset.mimeType, asset.fileName, {
+      name: asset.name,
+      description: asset.description,
+      type: "other",
+    });
+    await onReload().catch(() => undefined);
+    showToast("Photo asset added to this community", "success");
+  }
+
+  async function uploadRecordedPanorama(asset: RecordedPanoramaAsset) {
+    await uploadPanoramaMaterial(asset);
+    await onReload().catch(() => undefined);
+    showToast("360° photo added to this community", "success");
+  }
+
+  function choosePhoto() {
+    setAssetMenuOpen(false);
+    setTimeout(() => void addLibraryPhoto(), 180);
+  }
+
+  function chooseCamera() {
+    setAssetMenuOpen(false);
+    setTimeout(() => setPhotoRecorderOpen(true), 180);
+  }
+
+  function chooseVideo() {
+    setAssetMenuOpen(false);
+    setTimeout(() => setVideoRecorderOpen(true), 180);
+  }
+
+  function choosePanorama() {
+    setAssetMenuOpen(false);
+    setTimeout(() => setPanoramaRecorderOpen(true), 180);
   }
 
   return (
@@ -2524,7 +3482,7 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
             </Pressable>
           }
           right={
-            <Pressable onPress={() => void addAsset()} disabled={uploading} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
+            <Pressable accessibilityLabel="Add new asset" onPress={() => setAssetMenuOpen(true)} disabled={uploading} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
               {uploading ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="add" size={21} color={C.text} />}
             </Pressable>
           }
@@ -2533,26 +3491,26 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
           <Text style={st.pageTitle}>Assets</Text>
           <Text style={st.pageHeadingSub}>{materials.length} community resources</Text>
         </View>
-        {tourLibrary ? (
+        {propertyWebsiteUrl ? (
           <Pressable
             accessibilityRole="link"
-            accessibilityLabel="Open the connected Tour Library"
-            onPress={() => void Linking.openURL(tourLibrary.url)}
-            style={({ pressed }) => [assetSt.tourLibraryLink, pressed && st.pressed]}
+            accessibilityLabel={`Open ${property} website`}
+            onPress={() => void Linking.openURL(propertyWebsiteUrl)}
+            style={({ pressed }) => [assetSt.websiteLink, pressed && st.pressed]}
           >
-            <View style={assetSt.tourLibraryLinkIcon}>
-              <Ionicons name="play" size={18} color="#fff" />
+            <View style={assetSt.websiteLinkIcon}>
+              <Ionicons name="globe-outline" size={20} color={C.brand} />
             </View>
             <View style={st.flex1}>
-              <Text style={assetSt.tourLibraryLinkTitle}>Open Tour Library</Text>
-              <Text style={assetSt.tourLibraryLinkMeta}>Connected to this property</Text>
+              <Text style={assetSt.websiteLinkTitle}>Property website</Text>
+              <Text style={assetSt.websiteLinkMeta} numberOfLines={1}>{propertyWebsiteDisplay}</Text>
             </View>
             <Ionicons name="open-outline" size={18} color={C.brand} />
           </Pressable>
         ) : null}
-        <Pressable onPress={() => setVideoRecorderOpen(true)} style={({ pressed }) => [assetSt.recordButton, pressed && st.pressed]}>
-          <Ionicons name="videocam-outline" size={17} color={C.purple} />
-          <Text style={assetSt.recordButtonText}>Record Projects</Text>
+        <Pressable accessibilityLabel="Add new asset" onPress={() => setAssetMenuOpen(true)} style={({ pressed }) => [assetSt.recordButton, pressed && st.pressed]}>
+          <Ionicons name="add-circle-outline" size={18} color={C.brand} />
+          <Text style={assetSt.recordButtonText}>Add new asset</Text>
         </Pressable>
       </View>
 
@@ -2560,7 +3518,10 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
         <View style={assetSt.grid}>
           {materials.map((material) => {
             const previewUrl = materialPreviewUrl(material);
-            const canPlay = Boolean(materialUrl(material));
+            const assetUrl = materialUrl(material);
+            const panorama = isPanoramaMaterial(material);
+            const canPlay = Boolean(!panorama && assetUrl && isVideoLikeUrl(assetUrl));
+            const canOpen = Boolean(assetUrl);
             return (
               <View key={material.id} style={assetSt.cardWrap}>
               <Pressable onPress={() => setSelected(material)} style={({ pressed }) => [assetSt.card, pressed && st.pressed]}>
@@ -2572,14 +3533,19 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
                     </>
                   ) : (
                     <View style={assetSt.fallbackIcon}>
-                      <Ionicons name={canPlay ? "play" : "document-outline"} size={22} color={C.brand} />
+                      <Ionicons name={canPlay ? "play" : canOpen ? "image-outline" : "document-outline"} size={22} color={C.brand} />
                     </View>
                   )}
-                  {canPlay && (
+                  {panorama ? (
+                    <View style={assetSt.panoramaBadge}>
+                      <Ionicons name="globe-outline" size={13} color="#fff" />
+                      <Text style={assetSt.panoramaBadgeText}>360°</Text>
+                    </View>
+                  ) : canPlay ? (
                     <View style={assetSt.playBadge}>
                       <Ionicons name="play" size={13} color="#fff" />
                     </View>
-                  )}
+                  ) : null}
                 </View>
                 <Text style={assetSt.cardTitle} numberOfLines={1}>{material.name}</Text>
                 <Text style={assetSt.cardMeta} numberOfLines={1}>{material.type} · {fmtDate(material.createdAt)}</Text>
@@ -2590,11 +3556,49 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
         </View>
       )}
 
+      {tourLibrary ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Open the connected Tour Library"
+          onPress={() => void Linking.openURL(tourLibrary.url)}
+          style={({ pressed }) => [assetSt.tourLibraryFooter, pressed && st.pressed]}
+        >
+          <View style={assetSt.tourLibraryFooterIcon}>
+            <Ionicons name="checkmark" size={15} color={C.brand} />
+          </View>
+          <View style={st.flex1}>
+            <Text style={assetSt.tourLibraryFooterTitle}>Connected Tour Library</Text>
+            <Text style={assetSt.tourLibraryFooterMeta}>
+              {tourLibraryAssetCount} synced {tourLibraryAssetCount === 1 ? "asset" : "assets"}
+            </Text>
+          </View>
+          <Ionicons name="open-outline" size={17} color={C.textMuted} />
+        </Pressable>
+      ) : null}
+
       <MaterialPreviewModal material={selected} onClose={() => setSelected(null)} />
+      <AssetTypeMenu
+        visible={assetMenuOpen}
+        onClose={() => setAssetMenuOpen(false)}
+        onPhoto={choosePhoto}
+        onCamera={chooseCamera}
+        onVideo={chooseVideo}
+        onPanorama={choosePanorama}
+      />
       <VideoAssetRecorder
         visible={videoRecorderOpen}
         onClose={() => setVideoRecorderOpen(false)}
         onUpload={uploadRecordedVideo}
+      />
+      <PhotoAssetRecorder
+        visible={photoRecorderOpen}
+        onClose={() => setPhotoRecorderOpen(false)}
+        onUpload={uploadRecordedPhoto}
+      />
+      <PanoramaAssetRecorder
+        visible={panoramaRecorderOpen}
+        onClose={() => setPanoramaRecorderOpen(false)}
+        onUpload={uploadRecordedPanorama}
       />
     </View>
   );
@@ -2603,7 +3607,13 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
 function MaterialPreviewModal({ material, onClose }: { material: Material | null; onClose: () => void }) {
   const url = material ? materialUrl(material) : null;
   const previewUrl = material ? materialPreviewUrl(material) : null;
-  const videoUrl = material?.media?.videoUrl ?? (url && isVideoLikeUrl(url) ? url : null);
+  const panoramaUrl = material && url && isPanoramaMaterial(material) ? url : null;
+  const videoUrl = !panoramaUrl && url && isVideoLikeUrl(url) ? url : null;
+  const [panoramaReady, setPanoramaReady] = useState(false);
+
+  useEffect(() => {
+    setPanoramaReady(false);
+  }, [material?.id]);
 
   async function shareSelected() {
     if (!material) return;
@@ -2639,7 +3649,21 @@ function MaterialPreviewModal({ material, onClose }: { material: Material | null
           </View>
 
           <View style={assetSt.modalPreview}>
-            {videoUrl ? (
+            {panoramaUrl ? (
+              <>
+                <PanoramaImageViewer
+                  uri={panoramaUrl}
+                  onReady={() => setPanoramaReady(true)}
+                  style={assetSt.modalPanorama}
+                />
+                <View pointerEvents="none" style={assetSt.modalPanoramaStatus}>
+                  {panoramaReady ? <Ionicons name="hand-left-outline" size={13} color="#fff" /> : <LoadingDots size="small" color="#fff" />}
+                  <Text style={assetSt.modalPanoramaStatusText}>
+                    {panoramaReady ? "Drag to view your panorama" : "Loading panorama…"}
+                  </Text>
+                </View>
+              </>
+            ) : videoUrl ? (
               <MaterialVideoPreview source={videoUrl} />
             ) : previewUrl ? (
               <Image source={{ uri: previewUrl }} style={assetSt.modalImage} resizeMode="cover" />
@@ -2729,14 +3753,31 @@ function MaterialVideoPreview({ source }: { source: string }) {
 // ═══════════════════════════════════════
 
 function AudioTestScreen({ onBack }: { onBack: () => void }) {
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [uri, setUri] = useState<string | null>(null);
+  const player = useAudioPlayer(uri, { updateInterval: 250 });
   const [fileSize, setFileSize] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [status, setStatus] = useState("Ready to test your microphone.");
   const [busy, setBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playerLoaded, setPlayerLoaded] = useState(false);
+
+  useEffect(() => {
+    setPlayerLoaded(false);
+    setIsPlaying(false);
+    try {
+      const subscription = player.addListener("playbackStatusUpdate", (nextStatus) => {
+        setPlayerLoaded(nextStatus.isLoaded);
+        setIsPlaying(nextStatus.playing);
+        if (nextStatus.didJustFinish) setStatus("Playback finished.");
+      });
+      return () => subscription.remove();
+    } catch {
+      return undefined;
+    }
+  }, [player]);
 
   useEffect(() => {
     if (!recording) return undefined;
@@ -2745,37 +3786,30 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
     return () => clearInterval(timer);
   }, [recording]);
 
-  useEffect(() => () => {
-    void recording?.stopAndUnloadAsync().catch(() => {});
-    void sound?.unloadAsync().catch(() => {});
-  }, [recording, sound]);
-
   async function startTestRecording() {
     if (busy || recording) return;
     setBusy(true);
     try {
-      await sound?.unloadAsync().catch(() => {});
-      setSound(null);
-      setIsPlaying(false);
+      player.pause();
       setUri(null);
       setFileSize(null);
       setElapsed(0);
 
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
         setStatus("Microphone permission was denied. Enable it for Tour in iOS Settings and try again.");
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
       });
 
-      const created = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecording(created.recording);
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecording(true);
       setStatus("Recording. Speak for a few seconds, then stop and play it back.");
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (caught) {
@@ -2788,11 +3822,11 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
   async function stopTestRecording() {
     if (!recording || busy) return;
     setBusy(true);
+    setRecording(false);
     try {
-      await recording.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const nextUri = recording.getURI();
-      setRecording(null);
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      const nextUri = recorder.uri;
       setUri(nextUri);
       setStatus(nextUri ? "Recording saved. Play it back below." : "Recording stopped, but no file URI was returned.");
 
@@ -2812,26 +3846,14 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
     if (!uri || busy) return;
     setBusy(true);
     try {
-      if (sound && isPlaying) {
-        await sound.pauseAsync();
-        setIsPlaying(false);
+      if (isPlaying) {
+        player.pause();
         setStatus("Playback paused.");
         return;
       }
 
-      const currentSound = sound ?? (await Audio.Sound.createAsync({ uri }, { shouldPlay: false })).sound;
-      if (!sound) {
-        currentSound.setOnPlaybackStatusUpdate((playbackStatus) => {
-          if (playbackStatus.isLoaded && playbackStatus.didJustFinish) {
-            setIsPlaying(false);
-            setStatus("Playback finished.");
-          }
-        });
-        setSound(currentSound);
-      }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      await currentSound.playAsync();
-      setIsPlaying(true);
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      player.play();
       setStatus("Playing recorded audio.");
     } catch (caught) {
       setStatus(caught instanceof Error ? caught.message : "Could not play this recording.");
@@ -2842,25 +3864,35 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
 
   async function resetTest() {
     if (busy) return;
-    await sound?.unloadAsync().catch(() => {});
-    if (recording) await recording.stopAndUnloadAsync().catch(() => {});
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
-    setSound(null);
-    setRecording(null);
+    player.pause();
+    if (recording) {
+      setRecording(false);
+      await recorder.stop().catch(() => {});
+    }
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
     setUri(null);
     setFileSize(null);
     setElapsed(0);
-    setIsPlaying(false);
     setStatus("Ready to test your microphone.");
   }
 
-  const canPlay = Boolean(uri) && !recording;
+  async function closeAudioTest() {
+    if (recording) {
+      setRecording(false);
+      await recorder.stop().catch(() => {});
+    }
+    if (isPlaying) player.pause();
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+    onBack();
+  }
+
+  const canPlay = Boolean(uri) && playerLoaded && !recording;
   const sizeLabel = fileSize === null ? "Not measured" : fileSize < 1024 ? `${fileSize} B` : `${(fileSize / 1024).toFixed(1)} KB`;
 
   return (
     <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
       <View style={st.page}>
-        <BackBtn label="Home" onPress={onBack} />
+        <BackBtn label="Home" onPress={() => void closeAudioTest()} />
         <Text style={st.pageTitle}>Audio Test</Text>
         <Text style={st.pageSub}>Check microphone capture and playback before using live transcription.</Text>
 
@@ -2940,7 +3972,7 @@ function CreateSessionScreen({
 }) {
   const rec = useRecording();
 
-  const [phase, setPhase] = useState<"choose" | "practice" | "uploading" | "details">(pendingUpload ? "uploading" : "choose");
+  const [phase, setPhase] = useState<"choose" | "uploading" | "details">(pendingUpload ? "uploading" : "choose");
   const [uploadStats, setUploadStats] = useState<UploadStats>(initialUploadStats());
   const [sessionId, setSessionId] = useState<string | null>(pendingUpload?.sessionId ?? null);
   const [fileName, setFileName] = useState(pendingUpload?.name ?? "");
@@ -3007,32 +4039,38 @@ function CreateSessionScreen({
     const nextRubricId = draftOverrides?.rubricId !== undefined ? draftOverrides.rubricId : rubricId;
     const nextUploaderIsAgent = draftOverrides?.uploaderIsAgent ?? uploaderIsAgent;
     let sid = existingSessionId ?? sessionId;
-    const durableUri = localId
-      ? ((await ensureDurableRecording(localId, uri)) ?? getRecordingUri(localId) ?? uri)
-      : uri;
-
-    if (localId) {
-      markReadyToSync(localId, {
-        durationSec: durationSec ?? 1,
-        sourceUri: durableUri,
-        remoteSessionId: sid,
-        draft: {
-          notes: nextNotes,
-          assets,
-          selectedAssetIds,
-          participants: [],
-          attachments: [],
-          prospect: nextProspect,
-          location: nextLocation,
-          rubricId: nextRubricId,
-          uploaderIsAgent: nextUploaderIsAgent,
-        },
-        fileName: name,
-        mimeType,
-      });
-    }
-
+    let durableUri = uri;
+    let directUploadLocalId: string | null = null;
+    let shouldDrainOutbox = false;
     try {
+      if (localId) {
+        const verifiedUri = await ensureDurableRecording(localId, uri);
+        if (!verifiedUri) {
+          throw new Error("Recording file could not be read after it was saved. Please keep this screen open and retry.");
+        }
+        durableUri = verifiedUri;
+        beginDirectLocalUpload(localId);
+        directUploadLocalId = localId;
+        markReadyToSync(localId, {
+          durationSec: durationSec ?? 1,
+          sourceUri: durableUri,
+          remoteSessionId: sid,
+          draft: {
+            notes: nextNotes,
+            assets,
+            selectedAssetIds,
+            participants: [],
+            attachments: [],
+            prospect: nextProspect,
+            location: nextLocation,
+            rubricId: nextRubricId,
+            uploaderIsAgent: nextUploaderIsAgent,
+          },
+          fileName: name,
+          mimeType,
+        });
+      }
+
       const automaticTitle = formatRecordingUploadTitle(new Date());
       const hasCustomTitle = Boolean(title.trim());
       if (!sid) {
@@ -3040,7 +4078,7 @@ function CreateSessionScreen({
           showToast("Saved on device — will upload when online", "info");
           recorderOpenedRef.current = false;
           setPhase("choose");
-          void drainSyncOutbox();
+          shouldDrainOutbox = true;
           return;
         }
         const sessionData = await createSession({
@@ -3066,8 +4104,8 @@ function CreateSessionScreen({
       if (draftOverrides?.uploaderIsAgent !== undefined) setUploaderIsAgent(draftOverrides.uploaderIsAgent);
 
       await uploadRecording(sid, durableUri, mimeType, name, durationSec, (next) => setUploadStats(uploadStatsFromProgress(next)));
-      await clearPendingRecordingUpload(sid, localId);
       promoteLocalRecordingToCache(sid, durableUri);
+      await clearPendingRecordingUpload(sid, localId);
       void trackAnalyticsEvent("session_upload_complete", { sessionId: sid });
       setUploadStats((current) => ({ ...current, phase: "finalizing", percent: 100, etaSeconds: 0 }));
       showToast("Recording uploaded", "success");
@@ -3110,7 +4148,10 @@ function CreateSessionScreen({
       );
       recorderOpenedRef.current = false;
       setPhase("choose");
-      void drainSyncOutbox();
+      shouldDrainOutbox = true;
+    } finally {
+      if (directUploadLocalId) endDirectLocalUpload(directUploadLocalId);
+      if (shouldDrainOutbox) void drainSyncOutbox();
     }
   }
 
@@ -3186,16 +4227,22 @@ function CreateSessionScreen({
         }
         let durableUri = result.uri;
         if (localId) {
-          durableUri = (await ensureDurableRecording(localId, result.uri)) ?? result.uri;
-          markReadyToSync(localId, {
+          const verifiedUri = await ensureDurableRecording(localId, result.uri);
+          if (!verifiedUri) {
+            snapshot.clearLiveSession();
+            showToast("Failed to save recording", "error");
+            return;
+          }
+          durableUri = verifiedUri;
+          updateLocalSession(localId, {
+            status: "recording",
+            minimized: true,
             durationSec: result.durationSec,
-            sourceUri: durableUri,
             remoteSessionId: meta.sessionId,
             draft,
             fileName: `tour-${Date.now()}.m4a`,
             mimeType: "audio/m4a",
           });
-          durableUri = getRecordingUri(localId) ?? durableUri;
         }
         snapshot.clearLiveSession();
         onRecordingFinished({
@@ -3219,17 +4266,51 @@ function CreateSessionScreen({
   }
   startRecordingRef.current = startRecording;
 
-  async function pickFile() {
+  async function pickFile(uploadDraft?: LiveRecordingDraft) {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ["video/*", "audio/*"], copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.[0]) return;
       const file = result.assets[0];
+      if (uploadDraft) {
+        setNotes(uploadDraft.notes);
+        setProspect(uploadDraft.prospect);
+        setLocation(uploadDraft.location);
+        setSelectedAssetIds(uploadDraft.selectedAssetIds);
+        setUploaderIsAgent(Boolean(uploadDraft.uploaderIsAgent));
+        if (uploadDraft.rubricId) setRubricId(uploadDraft.rubricId);
+      }
+      const activeLocalId = rec.localId;
+      if (rec.isRecording) await rec.stop();
+      if (activeLocalId) deleteLocalSession(activeLocalId);
       rec.clearLiveSession();
-      await uploadFile(file.uri, file.mimeType ?? "video/mp4", file.name ?? "recording.mp4", file.size);
+      await uploadFile(
+        file.uri,
+        file.mimeType ?? "video/mp4",
+        file.name ?? "recording.mp4",
+        file.size,
+        undefined,
+        undefined,
+        uploadDraft
+          ? {
+              notes: uploadDraft.notes,
+              prospect: uploadDraft.prospect,
+              location: uploadDraft.location,
+              rubricId: uploadDraft.rubricId,
+              uploaderIsAgent: uploadDraft.uploaderIsAgent,
+            }
+          : undefined,
+      );
     } catch {
       showToast("Could not select file", "error");
     }
   }
+
+  useEffect(() => {
+    if (!createOptionsReady || phase !== "choose" || recorderOpenedRef.current) return;
+    recorderOpenedRef.current = true;
+    const frame = requestAnimationFrame(() => startRecordingRef.current());
+    return () => cancelAnimationFrame(frame);
+  }, [createOptionsReady, phase]);
 
   async function submitAndProcess() {
     if (!sessionId) return;
@@ -3256,55 +4337,13 @@ function CreateSessionScreen({
     onCreated(sessionId);
   }
 
-  if (phase === "practice") {
-    return (
-      <PracticeSessionsScreen
-        onBack={() => setPhase("choose")}
-        onOpenNewSession={() => setPhase("choose")}
-      />
-    );
-  }
-
-  // ── Choose: Record or Upload ──
+  // ── Prepare and open the full recorder ──
   if (phase === "choose") {
     return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
-        <View style={st.page}>
-          <BackBtn label="Sessions" onPress={onBack} />
-          <Text style={st.pageTitle}>New Session</Text>
-          <CreateSessionModeTabs
-            active="session"
-            onSession={() => undefined}
-            onPractice={() => setPhase("practice")}
-          />
-          <View style={[st.card, { padding: 20, gap: 14 }]}>
-            <View style={{ alignItems: "center", gap: 8 }}>
-              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: C.brand + "10", alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="cloud-upload-outline" size={28} color={C.brand} />
-              </View>
-              <Text style={st.formTitle}>Add tour recordings</Text>
-              <Text style={[st.pageSub, { textAlign: "center" }]}>Record a live tour, upload one file, or select multiple recordings to process as separate sessions.</Text>
-            </View>
-            <AgentIdentityToggle
-              selected={uploaderIsAgent}
-              agentName={agentName}
-              onToggle={() => {
-                setUploaderIsAgent((value) => !value);
-                void Haptics.selectionAsync();
-              }}
-            />
-            <PrimaryBtn label="Record Audio" onPress={startRecording} icon="mic-outline" disabled={!createOptionsReady} />
-            <Pressable onPress={pickFile} disabled={!createOptionsReady} style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}>
-              <Ionicons name="document-attach-outline" size={18} color={C.textSec} />
-              <Text style={st.outlineBtnText}>Upload One File</Text>
-            </Pressable>
-            <Pressable onPress={onBulkUpload} disabled={!createOptionsReady} style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}>
-              <Ionicons name="copy-outline" size={18} color={C.textSec} />
-              <Text style={st.outlineBtnText}>Bulk Upload Files</Text>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
+      <View style={[st.flex1, st.center]}>
+        <ActivityIndicator color={C.brand} />
+        <Text style={{ marginTop: 10, color: C.textSec, fontSize: 13, fontWeight: "700" }}>Preparing recorder…</Text>
+      </View>
     );
   }
 
@@ -3392,47 +4431,6 @@ function CreateSessionScreen({
     </ScrollView>
   );
 }
-
-function CreateSessionModeTabs({
-  active,
-  onSession,
-  onPractice,
-}: {
-  active: "session" | "practice";
-  onSession: () => void;
-  onPractice: () => void;
-}) {
-  return (
-    <View style={createSessionTabsSt.wrap} accessibilityRole="tablist">
-      <Pressable
-        accessibilityRole="tab"
-        accessibilityState={{ selected: active === "session" }}
-        onPress={onSession}
-        style={[createSessionTabsSt.tab, active === "session" && createSessionTabsSt.tabActive]}
-      >
-        <Ionicons name="mic-outline" size={15} color={active === "session" ? C.brand : C.textMuted} />
-        <Text style={[createSessionTabsSt.label, active === "session" && createSessionTabsSt.labelActive]}>New session</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="tab"
-        accessibilityState={{ selected: active === "practice" }}
-        onPress={onPractice}
-        style={[createSessionTabsSt.tab, active === "practice" && createSessionTabsSt.tabActive]}
-      >
-        <Ionicons name="sparkles-outline" size={15} color={active === "practice" ? C.brand : C.textMuted} />
-        <Text style={[createSessionTabsSt.label, active === "practice" && createSessionTabsSt.labelActive]}>Practice</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-const createSessionTabsSt = StyleSheet.create({
-  wrap: { flexDirection: "row", gap: 4, padding: 4, borderWidth: 1, borderColor: C.border, borderRadius: 13, backgroundColor: C.card },
-  tab: { flex: 1, minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 9 },
-  tabActive: { backgroundColor: C.brand + "10" },
-  label: { color: C.textMuted, fontSize: 12, fontWeight: "800" },
-  labelActive: { color: C.brand },
-});
 
 function AgentIdentityToggle({
   selected,
@@ -3640,7 +4638,6 @@ function SampleSessionDetailScreen({ sessionId, onBack }: { sessionId: string; o
       phases={sample.phases}
       comments={[]}
       actions={sample.actions}
-      audioInsights={null}
       sessionId={sessionId}
       onBack={onBack}
       onReload={() => void sampleQuery.refetch()}
@@ -3710,7 +4707,7 @@ function SessionDetailScreen({
     initialInsights?: AudioInsights | null;
   }) => void;
 }) {
-  const [tab, setTab] = useState<DTab>("overview");
+  const [tab, setTab] = useState<DTab>("transcript");
   const [refreshing, setRefreshing] = useState(false);
   const sessionQuery = useSessionQuery(sessionId);
   const analysisQuery = useAnalysisQuery(sessionId);
@@ -3787,7 +4784,6 @@ function SessionDetailScreen({
         phases={phases}
         comments={comments}
         actions={actions}
-        audioInsights={audioInsights}
         sessionId={sessionId}
         onBack={onBack}
         onReload={load}
@@ -3818,7 +4814,7 @@ function SessionDetailScreen({
   }
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
+    <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={[st.scroll, st.sessionDetailScroll]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
       <View style={st.page}>
         {error && <ErrorBanner message={error instanceof Error ? error.message : "Failed to load session"} onRetry={load} />}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -3864,7 +4860,7 @@ function SessionDetailScreen({
         {hasAnalysis && (
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.tabsRow} contentContainerStyle={{ gap: 2 }}>
-              {([["overview", "Overview", "grid-outline"], ["rubric", "Rubric", "clipboard-outline"], ["transcript", "Transcript", "chatbubble-outline"], ["actions", "Actions", "rocket-outline"], ["comments", "Comments", "chatbubbles-outline"]] as const).map(([id, label, icon]) => (
+              {([["transcript", "Transcript", "chatbubble-outline"], ["overview", "Overview", "grid-outline"], ["rubric", "Rubric", "clipboard-outline"], ["actions", "Actions", "rocket-outline"], ["comments", "Comments", "chatbubbles-outline"]] as const).map(([id, label, icon]) => (
                 <Pressable key={id} onPress={() => setTab(id as DTab)} style={[st.tabPill, tab === id && st.tabPillActive]}>
                   <Ionicons name={icon as any} size={14} color={tab === id ? C.brand : C.textMuted} />
                   <Text style={[st.tabPillText, tab === id && st.tabPillTextActive]}>{label}</Text>
@@ -3897,7 +4893,6 @@ function SessionReviewExperience({
   phases,
   comments,
   actions,
-  audioInsights,
   sessionId,
   onBack,
   onReload,
@@ -3913,7 +4908,6 @@ function SessionReviewExperience({
   phases: ConversationPhaseSegmentation | null;
   comments: SessionComment[];
   actions: FollowUpAction[];
-  audioInsights: AudioInsights | null;
   sessionId: string;
   onBack: () => void;
   onReload: () => void;
@@ -3924,7 +4918,7 @@ function SessionReviewExperience({
   readOnly?: boolean;
 }) {
   const [localActions, setLocalActions] = useState(actions);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [sound, setSound] = useState<ExpoAudioPlayer | null>(null);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -3933,13 +4927,14 @@ function SessionReviewExperience({
   const [reviewMode, setReviewMode] = useState<SessionReviewMode>("transcript");
   const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([]);
   const [commentComposerOpen, setCommentComposerOpen] = useState(false);
+  const [selectionAnnotationKind, setSelectionAnnotationKind] = useState<"comment" | "key_moment">("comment");
   const [selectionComment, setSelectionComment] = useState("");
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [followPlayback, setFollowPlayback] = useState(true);
-  const [annotationSheet, setAnnotationSheet] = useState<{
-    items: TranscriptAnnotation[];
-    index: number;
+  const [expandedAnnotation, setExpandedAnnotation] = useState<{
+    segmentId: string;
+    kind: TranscriptAnnotation["kind"];
   } | null>(null);
   const postCommentMutation = usePostCommentMutation(sessionId);
   const scrollRef = useRef<ScrollView | null>(null);
@@ -3966,29 +4961,31 @@ function SessionReviewExperience({
 
   useEffect(() => {
     let mounted = true;
-    let loadedSound: Audio.Sound | undefined;
+    let loadedSound: ExpoAudioPlayer | undefined;
+    let removeStatusListener: (() => void) | undefined;
     void (async () => {
       try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        await setAudioModeAsync({ playsInSilentMode: true });
         const resolved = await resolveSessionPlaybackUri(sessionId);
-        const result = await Audio.Sound.createAsync({ uri: resolved.uri }, { shouldPlay: false, progressUpdateIntervalMillis: 250 });
+        const player = await createLoadedAudioPlayer(resolved.uri);
         if (!mounted) {
-          await result.sound.unloadAsync();
+          player.remove();
           return;
         }
-        loadedSound = result.sound;
-        setSound(result.sound);
-        result.sound.setOnPlaybackStatusUpdate((status) => {
-          if (!mounted || !status.isLoaded) return;
-          const nextPosition = status.positionMillis / 1000;
+        loadedSound = player;
+        setSound(player);
+        setDuration(player.duration || 0);
+        const subscription = player.addListener("playbackStatusUpdate", (status) => {
+          if (!mounted) return;
+          const nextPosition = status.currentTime;
           setPosition(nextPosition);
-          if (status.durationMillis) setDuration(status.durationMillis / 1000);
-          setPlaying(status.isPlaying);
+          if (status.duration) setDuration(status.duration);
+          setPlaying(status.playing);
           const segment = transcript.find((item) => nextPosition >= item.startTime && nextPosition < item.endTime);
           if (segment) {
             setActiveSegmentId(segment.id);
             if (
-              status.isPlaying &&
+              status.playing &&
               reviewModeRef.current === "transcript" &&
               followPlaybackRef.current &&
               !userDragging.current &&
@@ -4000,22 +4997,24 @@ function SessionReviewExperience({
           }
           if (status.didJustFinish) setPlaying(false);
         });
+        removeStatusListener = () => subscription.remove();
       } catch {
         showToast("Audio is unavailable for this session", "error");
       }
     })();
     return () => {
       mounted = false;
-      void loadedSound?.unloadAsync();
+      removeStatusListener?.();
+      loadedSound?.remove();
     };
   }, [sessionId, scrollToSegment, transcript]);
 
   const seekToSeconds = useCallback(async (seconds: number, shouldPlay = false) => {
     if (!sound) return;
     const next = Math.max(0, Math.min(duration || seconds, seconds));
-    await sound.setPositionAsync(next * 1000);
+    await sound.seekTo(next);
     setPosition(next);
-    if (shouldPlay) await sound.playAsync();
+    if (shouldPlay) sound.play();
     const segment = transcript.find((item) => next >= item.startTime && next < item.endTime) ?? transcript[0];
     if (reviewModeRef.current === "transcript" && followPlaybackRef.current) scrollToSegment(segment);
   }, [duration, scrollToSegment, sound, transcript]);
@@ -4033,17 +5032,17 @@ function SessionReviewExperience({
 
   async function togglePlayback() {
     if (!sound) return;
-    if (playing) await sound.pauseAsync();
+    if (playing) sound.pause();
     else {
       void trackAnalyticsEvent("session_playback_start", { sessionId });
-      await sound.playAsync();
+      sound.play();
     }
   }
 
   async function changeSpeed() {
     if (!sound) return;
     const next = speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1;
-    await sound.setRateAsync(next, true);
+    sound.setPlaybackRate(next);
     setSpeed(next);
   }
 
@@ -4094,43 +5093,6 @@ function SessionReviewExperience({
       segment.speaker?.toLowerCase().includes(query)
     );
   }, [searchQuery, transcript]);
-  const audioSignalsBySegment = useMemo(() => {
-    const signals = new Map<string, { emotion: string; energy: string; ambience: string | null }>();
-    const insightSegments = audioInsights?.segments ?? [];
-    const ambienceCues = audioInsights?.ambienceCues ?? [];
-    if (insightSegments.length === 0) return signals;
-
-    for (const segment of transcript) {
-      let closest: (typeof insightSegments)[number] | null = null;
-      let closestDistance = Number.POSITIVE_INFINITY;
-      let largestOverlap = 0;
-
-      for (const insight of insightSegments) {
-        const overlap = Math.max(0, Math.min(segment.endTime, insight.endTime) - Math.max(segment.startTime, insight.startTime));
-        const distance = overlap > 0
-          ? 0
-          : Math.max(insight.startTime - segment.endTime, segment.startTime - insight.endTime, 0);
-        if (overlap > largestOverlap || (overlap === largestOverlap && distance < closestDistance)) {
-          closest = insight;
-          largestOverlap = overlap;
-          closestDistance = distance;
-        }
-      }
-
-      if (!closest || (largestOverlap === 0 && closestDistance > 3)) continue;
-      const ambience = ambienceCues.find((cue) =>
-        cue.startTime <= segment.endTime && cue.endTime >= segment.startTime,
-      )?.label ?? null;
-      signals.set(segment.id, {
-        emotion: closest.emotion,
-        energy: closest.energy,
-        ambience,
-      });
-    }
-
-    return signals;
-  }, [audioInsights, transcript]);
-
   function beginSegmentSelection(segmentId: string) {
     impactHaptic();
     longPressedSegmentRef.current = segmentId;
@@ -4141,6 +5103,13 @@ function SessionReviewExperience({
     impactHaptic();
     longPressedSegmentRef.current = segmentId;
     setSelectedSegmentIds([segmentId]);
+    setSelectionAnnotationKind("comment");
+    setCommentComposerOpen(true);
+  }
+
+  function openSelectionComposer(kind: "comment" | "key_moment") {
+    impactHaptic();
+    setSelectionAnnotationKind(kind);
     setCommentComposerOpen(true);
   }
 
@@ -4182,23 +5151,31 @@ function SessionReviewExperience({
     requestAnimationFrame(() => scrollToSegment(segment));
   }
 
-  async function saveSelectionComment() {
-    if (!selectionRange || !selectionComment.trim()) return;
+  async function saveSelectionAnnotation() {
+    const note = selectionComment.trim();
+    if (!selectionRange || selectedSegments.length === 0 || (selectionAnnotationKind === "comment" && !note)) return;
+    const excerpt = selectedSegments.map((segment) => `${segment.speaker}: ${segment.text}`).join("\n");
     setSelectionBusy(true);
     try {
       await postCommentMutation.mutateAsync({
-        body: selectionComment.trim(),
-        kind: "comment",
+        body: selectionAnnotationKind === "key_moment" ? note || excerpt : note,
+        kind: selectionAnnotationKind,
         timestampSec: selectionRange.start,
         authorName: getCurrentSession()?.workspace.user.fullName ?? undefined,
       });
       setCommentComposerOpen(false);
       setSelectionComment("");
       setSelectedSegmentIds([]);
-      showToast("Comment added to transcript", "success");
+      showToast(
+        selectionAnnotationKind === "key_moment" ? "Key moment saved" : "Comment added to transcript",
+        "success"
+      );
       onReload();
     } catch {
-      showToast("Could not add comment", "error");
+      showToast(
+        selectionAnnotationKind === "key_moment" ? "Could not save key moment" : "Could not add comment",
+        "error"
+      );
     } finally {
       setSelectionBusy(false);
     }
@@ -4482,7 +5459,6 @@ function SessionReviewExperience({
                 moment.seconds < segment.endTime
               );
               const segmentComments = commentsBySegment.get(segment.id) ?? [];
-              const audioSignal = audioSignalsBySegment.get(segment.id);
               return (
                 <Reanimated.View
                   key={segment.id || index}
@@ -4523,15 +5499,6 @@ function SessionReviewExperience({
                         <Text style={reviewSt.segmentTime}>{fmtSec(segment.startTime)}</Text>
                       </View>
                       <Text style={reviewSt.turnText}>{segment.text}</Text>
-                      {audioSignal ? (
-                        <View style={reviewSt.audioSignalRow}>
-                          <AudioSignalPill kind="emotion" value={audioSignal.emotion} />
-                          <AudioSignalPill kind="energy" value={audioSignal.energy} />
-                          {audioSignal.ambience ? (
-                            <AudioSignalPill kind="ambience" value={audioSignal.ambience} />
-                          ) : null}
-                        </View>
-                      ) : null}
                     </View>
                   </Pressable>
                   {(() => {
@@ -4576,33 +5543,103 @@ function SessionReviewExperience({
                     ];
                     const groups = allGroups.filter((group) => group.items.length > 0);
                     if (groups.length === 0) return null;
+                    const currentExpandedAnnotation = expandedAnnotation;
+                    const expandedKind = currentExpandedAnnotation && currentExpandedAnnotation.segmentId === segment.id
+                      ? currentExpandedAnnotation.kind
+                      : null;
+                    const inlineGroup = expandedKind
+                      ? groups.find((group) => group.kind === expandedKind) ?? null
+                      : null;
                     return (
-                      <View style={[reviewSt.annotationRow, { marginLeft: 36 }]}>
-                        {groups.map((group) => {
-                          const color = transcriptAnnotationChipColor(group.kind);
-                          const label = transcriptAnnotationChipLabel(group.kind);
-                          const count = group.items.length;
+                      <>
+                        <View style={[reviewSt.annotationRow, { marginLeft: 36 }]}>
+                          {groups.map((group) => {
+                            const color = transcriptAnnotationChipColor(group.kind);
+                            const label = transcriptAnnotationChipLabel(group.kind);
+                            const count = group.items.length;
+                            const isExpanded = expandedKind === group.kind;
+                            return (
+                              <Pressable
+                                key={group.kind}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${count} ${label}`}
+                                accessibilityState={{ expanded: isExpanded }}
+                                onPress={() => setExpandedAnnotation((current) => (
+                                  current && current.segmentId === segment.id && current.kind === group.kind
+                                    ? null
+                                    : { segmentId: segment.id, kind: group.kind }
+                                ))}
+                                style={[
+                                  reviewSt.annotationChip,
+                                  isExpanded && reviewSt.annotationChipExpanded,
+                                  isExpanded && { borderColor: color + "44", backgroundColor: color + "0d" },
+                                ]}
+                              >
+                                <Ionicons
+                                  name={transcriptAnnotationChipIcon(group.kind)}
+                                  size={12}
+                                  color={color}
+                                />
+                                <Text style={[reviewSt.annotationText, { color }]}>{label}</Text>
+                                <View style={[reviewSt.annotationCountBadge, { backgroundColor: color }]}>
+                                  <Text style={reviewSt.annotationCountText}>{count > 99 ? "99+" : String(count)}</Text>
+                                </View>
+                                <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={12} color={color} />
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                        {inlineGroup ? (() => {
+                          const color = transcriptAnnotationChipColor(inlineGroup.kind);
+                          const isAi = inlineGroup.kind === "ai_note";
                           return (
-                            <Pressable
-                              key={group.kind}
-                              accessibilityRole="button"
-                              accessibilityLabel={`${count} ${label}`}
-                              onPress={() => setAnnotationSheet({ items: group.items, index: 0 })}
-                              style={reviewSt.annotationChip}
-                            >
-                              <Ionicons
-                                name={transcriptAnnotationChipIcon(group.kind)}
-                                size={12}
-                                color={color}
-                              />
-                              <Text style={[reviewSt.annotationText, { color }]}>{label}</Text>
-                              <View style={[reviewSt.annotationCountBadge, { backgroundColor: color }]}>
-                                <Text style={reviewSt.annotationCountText}>{count > 99 ? "99+" : String(count)}</Text>
-                              </View>
-                            </Pressable>
+                            <Reanimated.View entering={FadeInDown.duration(180)} style={reviewSt.inlineAnnotationStack}>
+                              {inlineGroup.items.map((item, itemIndex) => (
+                                <View
+                                  key={item.id}
+                                  style={[
+                                    reviewSt.inlineAnnotationCard,
+                                    {
+                                      borderColor: isAi ? "#e9d5ff" : "#bfdbfe",
+                                      backgroundColor: isAi ? "#faf5ff" : "#eff6ff",
+                                    },
+                                  ]}
+                                >
+                                  <View style={reviewSt.inlineAnnotationHeader}>
+                                    <View style={[reviewSt.inlineAnnotationIcon, { backgroundColor: color + "14" }]}>
+                                      <Ionicons name={transcriptAnnotationChipIcon(inlineGroup.kind)} size={14} color={color} />
+                                    </View>
+                                    <Text style={[reviewSt.inlineAnnotationTitle, { color }]}>
+                                      {isAi && inlineGroup.items.length > 1
+                                        ? `AI coaching note ${itemIndex + 1}`
+                                        : item.title}
+                                    </Text>
+                                    <Text style={[reviewSt.inlineAnnotationTime, { color }]}>
+                                      {item.timestampSec != null ? fmtSec(item.timestampSec) : ""}
+                                    </Text>
+                                  </View>
+                                  <Text style={reviewSt.inlineAnnotationBody}>{item.body}</Text>
+                                  {item.timestampSec != null ? (
+                                    <Pressable
+                                      accessibilityRole="button"
+                                      accessibilityLabel={`Play from this ${transcriptAnnotationChipLabel(item.kind).toLowerCase()}`}
+                                      onPress={() => void seekToSeconds(item.timestampSec!, true)}
+                                      style={({ pressed }) => [
+                                        reviewSt.inlineAnnotationPlay,
+                                        { backgroundColor: color + "14" },
+                                        pressed && st.pressed,
+                                      ]}
+                                    >
+                                      <Ionicons name="play" size={12} color={color} />
+                                      <Text style={[reviewSt.inlineAnnotationPlayText, { color }]}>Play from here</Text>
+                                    </Pressable>
+                                  ) : null}
+                                </View>
+                              ))}
+                            </Reanimated.View>
                           );
-                        })}
-                      </View>
+                        })() : null}
+                      </>
                     );
                   })()}
                 </Reanimated.View>
@@ -4628,7 +5665,7 @@ function SessionReviewExperience({
           </View>
           <Pressable
             disabled={selectionBusy}
-            onPress={() => setCommentComposerOpen(true)}
+            onPress={() => openSelectionComposer("comment")}
             style={reviewSt.selectionAction}
           >
             <Ionicons name="chatbubble-outline" size={17} color={C.brand} />
@@ -4661,110 +5698,25 @@ function SessionReviewExperience({
       />
 
       <Modal
-        visible={Boolean(annotationSheet)}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAnnotationSheet(null)}
-      >
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={reviewSt.commentModalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAnnotationSheet(null)} />
-          <View style={reviewSt.commentModalCard}>
-            {annotationSheet ? (() => {
-              const { items, index } = annotationSheet;
-              const current = items[index]!;
-              const canBrowse = items.length > 1;
-              return (
-                <>
-                  <View style={reviewSt.commentModalHeader}>
-                    <View style={[
-                      reviewSt.commentModalIcon,
-                      current.kind === "ai_note" && { backgroundColor: C.purple + "18" },
-                    ]}>
-                      <Ionicons
-                        name={
-                          current.kind === "ai_note"
-                            ? "sparkles"
-                            : current.kind === "key_moment"
-                              ? "film-outline"
-                              : "chatbubble-outline"
-                        }
-                        size={18}
-                        color={current.kind === "ai_note" ? C.purple : C.brand}
-                      />
-                    </View>
-                    <View style={st.flex1}>
-                      <Text style={reviewSt.commentModalTitle}>{current.title}</Text>
-                      <Text style={reviewSt.commentModalTime}>
-                        {current.timestampSec != null ? fmtSec(current.timestampSec) : "No timestamp"}
-                        {canBrowse ? ` · ${index + 1}/${items.length}` : ""}
-                      </Text>
-                    </View>
-                    <Pressable onPress={() => setAnnotationSheet(null)} hitSlop={10}>
-                      <Ionicons name="close" size={21} color={C.textMuted} />
-                    </Pressable>
-                  </View>
-                  <Text style={reviewSt.annotationSheetBody}>{current.body}</Text>
-                  <View style={reviewSt.annotationSheetActions}>
-                    {canBrowse ? (
-                      <View style={reviewSt.annotationSheetNav}>
-                        <Pressable
-                          accessibilityLabel="Previous note"
-                          onPress={() => setAnnotationSheet({
-                            items,
-                            index: (index - 1 + items.length) % items.length,
-                          })}
-                          style={reviewSt.annotationSheetNavBtn}
-                        >
-                          <Ionicons name="chevron-back" size={18} color={C.brand} />
-                        </Pressable>
-                        <Text style={reviewSt.annotationSheetNavCount}>{index + 1}/{items.length}</Text>
-                        <Pressable
-                          accessibilityLabel="Next note"
-                          onPress={() => setAnnotationSheet({
-                            items,
-                            index: (index + 1) % items.length,
-                          })}
-                          style={reviewSt.annotationSheetNavBtn}
-                        >
-                          <Ionicons name="chevron-forward" size={18} color={C.brand} />
-                        </Pressable>
-                      </View>
-                    ) : <View style={st.flex1} />}
-                    {current.timestampSec != null ? (
-                      <Pressable
-                        onPress={() => {
-                          void seekToSeconds(current.timestampSec!, true);
-                          setAnnotationSheet(null);
-                        }}
-                        style={reviewSt.annotationSheetPlay}
-                      >
-                        <Ionicons name="play" size={14} color="#fff" />
-                        <Text style={reviewSt.annotationSheetPlayText}>Play</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </>
-              );
-            })() : null}
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      <Modal
         visible={commentComposerOpen}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setCommentComposerOpen(false)}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={reviewSt.commentModalBackdrop}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={reviewSt.commentDrawerBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setCommentComposerOpen(false)} />
-          <View style={reviewSt.commentModalCard}>
+          <View style={reviewSt.commentDrawerCard}>
+            <View style={reviewSt.commentDrawerHandle} />
             <View style={reviewSt.commentModalHeader}>
               <View style={reviewSt.commentModalIcon}>
-                <Ionicons name="chatbubble-outline" size={18} color={C.brand} />
+                <Ionicons
+                  name={selectionAnnotationKind === "key_moment" ? "bookmark-outline" : "chatbubble-outline"}
+                  size={18}
+                  color={C.brand}
+                />
               </View>
               <View style={st.flex1}>
-                <Text style={reviewSt.commentModalTitle}>Comment on selection</Text>
+                <Text style={reviewSt.commentModalTitle}>Add to transcript</Text>
                 <Text style={reviewSt.commentModalTime}>
                   {selectionRange ? `${fmtSec(selectionRange.start)}–${fmtSec(selectionRange.end)}` : ""}
                 </Text>
@@ -4773,25 +5725,71 @@ function SessionReviewExperience({
                 <Ionicons name="close" size={21} color={C.textMuted} />
               </Pressable>
             </View>
+
+            <View style={reviewSt.commentKindSwitcher}>
+              {(["comment", "key_moment"] as const).map((kind) => {
+                const active = selectionAnnotationKind === kind;
+                return (
+                  <Pressable
+                    key={kind}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => setSelectionAnnotationKind(kind)}
+                    style={[reviewSt.commentKindOption, active && reviewSt.commentKindOptionActive]}
+                  >
+                    <Ionicons
+                      name={kind === "key_moment" ? "bookmark-outline" : "chatbubble-outline"}
+                      size={14}
+                      color={active ? C.brand : C.textMuted}
+                    />
+                    <Text style={[reviewSt.commentKindOptionText, active && reviewSt.commentKindOptionTextActive]}>
+                      {kind === "key_moment" ? "Key moment" : "Comment"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={reviewSt.commentSelectionPreview}>
+              <View style={reviewSt.commentSelectionPreviewHeader}>
+                <Text style={reviewSt.commentSelectionPreviewLabel}>Selected transcript</Text>
+                <Text style={reviewSt.commentSelectionPreviewCount}>{selectedSegments.length} selected</Text>
+              </View>
+              <ScrollView style={reviewSt.commentSelectionPreviewScroll} nestedScrollEnabled>
+                {selectedSegments.map((segment) => (
+                  <View key={segment.id} style={reviewSt.commentSelectionPreviewTurn}>
+                    <Text style={reviewSt.commentSelectionPreviewSpeaker}>{segment.speaker}</Text>
+                    <Text style={reviewSt.commentSelectionPreviewText}>{segment.text}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+
             <TextInput
-              autoFocus
+              autoFocus={selectionAnnotationKind === "comment"}
               multiline
               value={selectionComment}
               onChangeText={setSelectionComment}
-              placeholder="Add a comment..."
+              placeholder={selectionAnnotationKind === "key_moment" ? "Why is this moment important? (optional)" : "Add a comment..."}
               placeholderTextColor={C.textMuted}
               style={reviewSt.commentModalInput}
             />
             <Pressable
-              disabled={!selectionComment.trim() || selectionBusy}
-              onPress={() => void saveSelectionComment()}
+              disabled={(selectionAnnotationKind === "comment" && !selectionComment.trim()) || selectionBusy}
+              onPress={() => void saveSelectionAnnotation()}
               style={[
                 reviewSt.commentModalSubmit,
-                (!selectionComment.trim() || selectionBusy) && { opacity: 0.5 },
+                ((selectionAnnotationKind === "comment" && !selectionComment.trim()) || selectionBusy) && { opacity: 0.5 },
               ]}
             >
-              {selectionBusy ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="send" size={16} color="#fff" />}
-              <Text style={reviewSt.commentModalSubmitText}>Add comment</Text>
+              {selectionBusy ? (
+                <LoadingDots size="small" color="#fff" />
+              ) : (
+                <Ionicons name={selectionAnnotationKind === "key_moment" ? "bookmark" : "send"} size={16} color="#fff" />
+              )}
+              <Text style={reviewSt.commentModalSubmitText}>
+                {selectionAnnotationKind === "key_moment" ? "Save key moment" : "Add comment"}
+              </Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -5081,25 +6079,33 @@ function UploadProcessCard({
     setErrMsg(null);
     setErrorKind(null);
     setUploadStats(initialUploadStats(file.size));
-    const durableUri = localId
-      ? ((await ensureDurableRecording(localId, file.uri)) ?? getRecordingUri(localId) ?? file.uri)
-      : file.uri;
-    if (localId) {
-      markReadyToSync(localId, {
-        durationSec: file.durationSec ?? 1,
-        sourceUri: durableUri,
-        remoteSessionId: sessionId,
-        fileName: file.name,
-        mimeType: file.mimeType,
-      });
-    }
+    let durableUri = file.uri;
+    let directUploadLocalId: string | null = null;
+    let shouldDrainOutbox = false;
     try {
+      if (localId) {
+        const verifiedUri = await ensureDurableRecording(localId, file.uri);
+        if (!verifiedUri) {
+          throw new Error("Recording file could not be read after it was saved. Please keep this screen open and retry.");
+        }
+        durableUri = verifiedUri;
+        beginDirectLocalUpload(localId);
+        directUploadLocalId = localId;
+        markReadyToSync(localId, {
+          durationSec: file.durationSec ?? 1,
+          sourceUri: durableUri,
+          remoteSessionId: sessionId,
+          fileName: file.name,
+          mimeType: file.mimeType,
+        });
+      }
+
       if (!(await isOnline())) {
         setPhase("error");
         setErrorKind("upload");
         setErrMsg("Saved on device — will upload when online.");
         showToast("Saved on device — will upload when online", "info");
-        void drainSyncOutbox();
+        shouldDrainOutbox = true;
         return;
       }
       await uploadRecording(
@@ -5110,8 +6116,8 @@ function UploadProcessCard({
         file.durationSec,
         (next) => setUploadStats(uploadStatsFromProgress(next)),
       );
-      await clearPendingRecordingUpload(sessionId, localId);
       promoteLocalRecordingToCache(sessionId, durableUri);
+      await clearPendingRecordingUpload(sessionId, localId);
       void trackAnalyticsEvent("session_upload_complete", { sessionId });
       setUploadStats((current) => ({ ...current, phase: "finalizing", percent: 100, etaSeconds: 0 }));
       showToast("Recording uploaded", "success");
@@ -5131,7 +6137,10 @@ function UploadProcessCard({
       setErrorKind("upload");
       setErrMsg(caught instanceof Error ? caught.message : "Upload failed");
       showToast(caught instanceof Error ? caught.message : "Upload failed", "error");
-      void drainSyncOutbox();
+      shouldDrainOutbox = true;
+    } finally {
+      if (directUploadLocalId) endDirectLocalUpload(directUploadLocalId);
+      if (shouldDrainOutbox) void drainSyncOutbox();
     }
   }
 
@@ -5200,16 +6209,22 @@ function UploadProcessCard({
         }
         let durableUri = result.uri;
         if (localId) {
-          durableUri = (await ensureDurableRecording(localId, result.uri)) ?? result.uri;
-          markReadyToSync(localId, {
+          const verifiedUri = await ensureDurableRecording(localId, result.uri);
+          if (!verifiedUri) {
+            snapshot.clearLiveSession();
+            showToast("Failed to save recording", "error");
+            return;
+          }
+          durableUri = verifiedUri;
+          updateLocalSession(localId, {
+            status: "recording",
+            minimized: true,
             durationSec: result.durationSec,
-            sourceUri: durableUri,
             remoteSessionId: sessionId,
             draft: snapshot.draft,
             fileName: `tour-${Date.now()}.m4a`,
             mimeType: "audio/m4a",
           });
-          durableUri = getRecordingUri(localId) ?? durableUri;
         }
         snapshot.clearLiveSession();
         setDNotes(notes);
@@ -5564,7 +6579,7 @@ function OverviewTab({ analysis, transcript, sessionId, hasRecording }: { analys
 }
 
 function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript: any[] }) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [sound, setSound] = useState<ExpoAudioPlayer | null>(null);
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
@@ -5573,55 +6588,52 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
 
   useEffect(() => {
     let mounted = true;
-    let s: Audio.Sound | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let s: ExpoAudioPlayer | undefined;
+    let removeStatusListener: (() => void) | undefined;
 
     (async () => {
       try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        await setAudioModeAsync({ playsInSilentMode: true });
         const resolved = await resolveSessionPlaybackUri(sessionId);
-        const loadPromise = Audio.Sound.createAsync({ uri: resolved.uri }, { shouldPlay: false });
-        timer = setTimeout(() => { if (mounted) setLoadError(true); }, 15_000);
-
-        const { sound: loaded } = await loadPromise;
-        clearTimeout(timer);
-        if (!mounted) { loaded.unloadAsync(); return; }
+        const loaded = await createLoadedAudioPlayer(resolved.uri);
+        if (!mounted) { loaded.remove(); return; }
         s = loaded;
         setSound(loaded);
         setLoadError(false);
-        const status = await loaded.getStatusAsync();
-        if (status.isLoaded && status.durationMillis) setDur(status.durationMillis / 1000);
-        loaded.setOnPlaybackStatusUpdate((st) => {
+        setDur(loaded.duration || 0);
+        const subscription = loaded.addListener("playbackStatusUpdate", (st) => {
           if (!mounted) return;
-          if (st.isLoaded) {
-            setPos(st.positionMillis / 1000);
-            if (st.durationMillis) setDur(st.durationMillis / 1000);
-            if (st.didJustFinish) { setPlaying(false); setPos(0); }
-          }
+          setPos(st.currentTime);
+          if (st.duration) setDur(st.duration);
+          setPlaying(st.playing);
+          if (st.didJustFinish) { setPlaying(false); setPos(0); }
         });
+        removeStatusListener = () => subscription.remove();
       } catch {
-        clearTimeout(timer);
         if (mounted) setLoadError(true);
       }
     })();
-    return () => { mounted = false; clearTimeout(timer); s?.unloadAsync(); };
+    return () => {
+      mounted = false;
+      removeStatusListener?.();
+      s?.remove();
+    };
   }, [sessionId, retryToken]);
 
   async function togglePlay() {
     if (!sound) return;
     if (playing) {
-      await sound.pauseAsync();
+      sound.pause();
       setPlaying(false);
     } else {
-      await sound.playAsync();
+      sound.play();
       setPlaying(true);
     }
   }
 
   async function seekTo(frac: number) {
     if (!sound || dur === 0) return;
-    const ms = frac * dur * 1000;
-    await sound.setPositionAsync(ms);
+    await sound.seekTo(frac * dur);
     setPos(frac * dur);
   }
 
@@ -5701,46 +6713,6 @@ function BulletItem({ text, color }: { text: string; color: string }) {
       <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 21 }}>{text}</Text>
     </View>
   );
-}
-
-function AudioSignalPill({
-  kind,
-  value,
-}: {
-  kind: "emotion" | "energy" | "ambience";
-  value: string;
-}) {
-  const normalized = value.trim().toLowerCase();
-  const emotionTone: Record<string, { color: string; backgroundColor: string }> = {
-    happy: { color: "#15803d", backgroundColor: "#f0fdf4" },
-    excited: { color: "#7c3aed", backgroundColor: "#f5f3ff" },
-    concerned: { color: "#b45309", backgroundColor: "#fffbeb" },
-    sad: { color: "#2563eb", backgroundColor: "#eff6ff" },
-    angry: { color: "#dc2626", backgroundColor: "#fef2f2" },
-    neutral: { color: "#667085", backgroundColor: "#f2f4f7" },
-  };
-  const tone = kind === "emotion"
-    ? (emotionTone[normalized] ?? emotionTone.neutral!)
-    : kind === "energy"
-      ? { color: "#475467", backgroundColor: "#f2f4f7" }
-      : { color: "#0369a1", backgroundColor: "#f0f9ff" };
-  const icon = kind === "emotion" ? "sparkles-outline" : kind === "energy" ? "pulse-outline" : "volume-medium-outline";
-  const label = kind === "energy"
-    ? `${titleCase(value)} energy`
-    : kind === "ambience"
-      ? titleCase(value)
-      : titleCase(value);
-
-  return (
-    <View style={[reviewSt.audioSignalPill, { backgroundColor: tone.backgroundColor }]}>
-      <Ionicons name={icon} size={11} color={tone.color} />
-      <Text style={[reviewSt.audioSignalText, { color: tone.color }]}>{label}</Text>
-    </View>
-  );
-}
-
-function titleCase(value: string) {
-  return value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 // ═══════════════════════════════════════
@@ -6297,78 +7269,25 @@ function RubricsScreen({
 // Settings
 // ═══════════════════════════════════════
 
-function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSignOut }: {
+function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSignOut, aiTrainingDataFeedback, onAiTrainingDataFeedback }: {
   session: MobileAuthSession;
   onSessionChange: (session: MobileAuthSession) => void;
   onProfile: () => void;
   onRubrics: () => void;
   onSignOut: () => void;
+  aiTrainingDataFeedback: boolean;
+  onAiTrainingDataFeedback: (enabled: boolean) => Promise<void>;
 }) {
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [communityPickerOpen, setCommunityPickerOpen] = useState(false);
   const [communityQuery, setCommunityQuery] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
-  const defaultUserAlias = defaultMemberPublicAlias({
-    alias: session.workspace.teamMember?.alias,
-    name: session.workspace.teamMember?.name || session.workspace.user.fullName,
-    email: session.workspace.user.email,
-    id: session.workspace.teamMember?.id || session.workspace.user.id,
-  });
-  const defaultPropertyAlias = defaultPropertyPublicAlias({
-    alias: session.workspace.community.alias,
-    name: session.workspace.community.name,
-    propertyTygId: session.workspace.community.propertyTygId,
-  });
-  const [userAlias, setUserAlias] = useState(defaultUserAlias);
-  const [propertyAlias, setPropertyAlias] = useState(defaultPropertyAlias);
-  const [savingAliases, setSavingAliases] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
   const teamRole = session.workspace.teamMember?.role || "Property Team";
   const authorizedPropertyCount = authorizedCommunitiesForSession(session).length;
-  const publicPropertyKey = propertyAlias.trim() || defaultPropertyAlias;
-  const publicMemberKey = userAlias.trim() || defaultUserAlias;
-  const publicCheckInUrl = `${getSiteBaseUrl().replace(/\/$/, "")}/p/${encodeURIComponent(publicPropertyKey)}/${encodeURIComponent(publicMemberKey)}`;
   const accent = resolveCardAccent(session.workspace.user.cardAccent);
-
-  useEffect(() => {
-    setUserAlias(defaultMemberPublicAlias({
-      alias: session.workspace.teamMember?.alias,
-      name: session.workspace.teamMember?.name || session.workspace.user.fullName,
-      email: session.workspace.user.email,
-      id: session.workspace.teamMember?.id || session.workspace.user.id,
-    }));
-    setPropertyAlias(defaultPropertyPublicAlias({
-      alias: session.workspace.community.alias,
-      name: session.workspace.community.name,
-      propertyTygId: session.workspace.community.propertyTygId,
-    }));
-  }, [
-    session.workspace.community.id,
-    session.workspace.community.alias,
-    session.workspace.community.name,
-    session.workspace.community.propertyTygId,
-    session.workspace.teamMember?.alias,
-    session.workspace.teamMember?.name,
-    session.workspace.teamMember?.id,
-    session.workspace.user.fullName,
-    session.workspace.user.email,
-    session.workspace.user.id,
-  ]);
-
-  async function saveAliases() {
-    setSavingAliases(true);
-    try {
-      const nextSession = await updateWorkspaceAliases({
-        userAlias: userAlias.trim() || null,
-        propertyAlias: propertyAlias.trim() || null,
-      });
-      onSessionChange(nextSession);
-      showToast("Public check-in link saved", "success");
-    } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Could not save aliases", "error");
-    } finally {
-      setSavingAliases(false);
-    }
-  }
 
   async function chooseCommunity(communityId: string) {
     if (communityId === session.workspace.community.id) {
@@ -6385,6 +7304,37 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
       showToast(caught instanceof Error ? caught.message : "Could not switch property", "error");
     } finally {
       setSwitchingId(null);
+    }
+  }
+
+  async function sendFeedback() {
+    const message = feedbackText.trim();
+    if (!message) {
+      showToast("Tell us what we can improve first.", "info");
+      return;
+    }
+    try {
+      await Share.share({
+        title: "Tour mobile feedback",
+        message: `Tour mobile feedback\n\n${message}`,
+      });
+      setFeedbackText("");
+      setFeedbackOpen(false);
+    } catch {
+      showToast("Could not open the feedback share sheet.", "error");
+    }
+  }
+
+  async function toggleAiTrainingDataFeedback() {
+    if (savingPrivacy) return;
+    setSavingPrivacy(true);
+    try {
+      await onAiTrainingDataFeedback(!aiTrainingDataFeedback);
+      showToast(!aiTrainingDataFeedback ? "AI training data feedback enabled" : "AI training data feedback disabled", "success");
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : "Could not save privacy setting", "error");
+    } finally {
+      setSavingPrivacy(false);
     }
   }
 
@@ -6427,56 +7377,21 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
         </View>
       </View>
 
-      <Text style={st.settingsSectionLabel}>PUBLIC CHECK-IN LINK</Text>
-      <View style={st.aliasSettingsCard}>
-        <View style={st.aliasFieldGroup}>
-          <Text style={st.aliasFieldLabel}>Property alias</Text>
-          <View style={st.aliasInputRow}>
-            <Text style={st.aliasPrefix}>tour.you/p/</Text>
-            <TextInput
-              accessibilityLabel="Property alias"
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder={defaultPropertyAlias || "property-name"}
-              placeholderTextColor={C.textMuted}
-              value={propertyAlias}
-              onChangeText={setPropertyAlias}
-              style={st.aliasInput}
-            />
-          </View>
-        </View>
-        <View style={st.aliasFieldGroup}>
-          <Text style={st.aliasFieldLabel}>Your alias</Text>
-          <View style={st.aliasInputRow}>
-            <Text style={st.aliasPrefix}>/</Text>
-            <TextInput
-              accessibilityLabel="Your check-in alias"
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder={defaultUserAlias || "your-name"}
-              placeholderTextColor={C.textMuted}
-              value={userAlias}
-              onChangeText={setUserAlias}
-              style={st.aliasInput}
-            />
-          </View>
-        </View>
-        <Text style={st.aliasPreview} numberOfLines={2}>{publicCheckInUrl}</Text>
-        <Text style={st.aliasHelp}>
-          Defaults from your current property and profile. This page uses your name, role, phone, email, and the active property.
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          disabled={savingAliases}
-          onPress={() => void saveAliases()}
-          style={({ pressed }) => [st.aliasSaveButton, pressed && st.pressed, savingAliases && st.aliasSaveButtonDisabled]}
-        >
-          {savingAliases ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
-          <Text style={st.aliasSaveText}>{savingAliases ? "Saving…" : "Save aliases"}</Text>
-        </Pressable>
-      </View>
       <Text style={st.settingsSectionLabel}>EVALUATION</Text>
       <CardRow icon="clipboard-outline" title="Rubrics" sub="Templates, criteria, and session applications" onPress={onRubrics} />
+      <Text style={st.settingsSectionLabel}>SUPPORT</Text>
+      <CardRow icon="chatbubble-ellipses-outline" title="Share feedback" sub="Help us make the next Tour better" onPress={() => setFeedbackOpen(true)} />
+      <Text style={st.settingsSectionLabel}>PRIVACY</Text>
+      <Pressable accessibilityRole="switch" accessibilityState={{ checked: aiTrainingDataFeedback }} onPress={() => void toggleAiTrainingDataFeedback()} style={({ pressed }) => pressed && st.pressed}>
+        <Card style={cardRowSt.card}>
+          <CardContent style={cardRowSt.content}>
+            <View style={cardRowSt.iconWrap}><Ionicons name="sparkles-outline" size={22} color={C.brand} /></View>
+            <View style={st.flex1}><UiText style={cardRowSt.title}>AI Training Data feedback</UiText><UiText style={cardRowSt.sub}>{aiTrainingDataFeedback ? "On · helps improve AI features" : "Off · your eligible feedback is not used for training"}</UiText></View>
+            <View style={[privacyToggleSt.track, aiTrainingDataFeedback && privacyToggleSt.trackOn]}><View style={[privacyToggleSt.thumb, aiTrainingDataFeedback && privacyToggleSt.thumbOn]} /></View>
+          </CardContent>
+        </Card>
+      </Pressable>
+      <CardRow icon="hand-left-outline" title="Privacy Policy" sub="How Tour.you handles your data" onPress={() => void Linking.openURL(`${getSiteBaseUrl()}/privacy-policy`)} />
       <Text style={st.settingsSectionLabel}>ACCOUNT</Text>
       <CardRow icon="log-out-outline" title="Log out" sub="Remove this account from this device" onPress={() => setLogoutOpen(true)} destructive />
       <Text style={st.settingsVersion}>Tour mobile 0.1.0 · {session.workspace.organization.name}</Text>
@@ -6501,6 +7416,53 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
         }}
         onSelect={(communityId) => void chooseCommunity(communityId)}
       />
+      <BottomSheetModal
+        visible={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        sheetHeight={430}
+        keyboardAvoiding
+        dragHeader={
+          <View style={feedbackSheetSt.header}>
+            <View style={feedbackSheetSt.icon}>
+              <Ionicons name="chatbubble-ellipses-outline" size={21} color={C.brand} />
+            </View>
+            <View style={st.flex1}>
+              <Text style={feedbackSheetSt.title}>Share Feedback</Text>
+              <Text style={feedbackSheetSt.subtitle}>Tell us what would make the next Tour better.</Text>
+            </View>
+          </View>
+        }
+      >
+        <View style={feedbackSheetSt.body}>
+          <Text style={feedbackSheetSt.prompt}>What should we improve?</Text>
+          <TextInput
+            multiline
+            maxLength={4000}
+            value={feedbackText}
+            onChangeText={setFeedbackText}
+            placeholder="What do you love, need help with, found, or feel is missing?"
+            placeholderTextColor={C.textMuted}
+            style={feedbackSheetSt.input}
+            textAlignVertical="top"
+          />
+          <Text style={feedbackSheetSt.counter}>{feedbackText.length}/4000</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void sendFeedback()}
+            style={({ pressed }) => [feedbackSheetSt.sendButton, pressed && st.pressed]}
+          >
+            <Ionicons name="send-outline" size={17} color="#fff" />
+            <Text style={feedbackSheetSt.sendText}>Send feedback</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setFeedbackOpen(false)}
+            style={({ pressed }) => [feedbackSheetSt.cancelButton, pressed && st.pressed]}
+          >
+            <Text style={feedbackSheetSt.cancelText}>Not now</Text>
+          </Pressable>
+        </View>
+      </BottomSheetModal>
       <BottomSheetModal
         visible={logoutOpen}
         onClose={() => setLogoutOpen(false)}
@@ -6540,6 +7502,28 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
     </View>
   );
 }
+
+const feedbackSheetSt = StyleSheet.create({
+  header: { flexDirection: "row", alignItems: "center", gap: 12 },
+  icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: "#eaf4ff" },
+  title: { color: C.text, fontSize: 20, lineHeight: 25, fontWeight: "900" },
+  subtitle: { marginTop: 2, color: C.textSec, fontSize: 12, lineHeight: 17 },
+  body: { flex: 1, gap: 8, paddingTop: 16 },
+  prompt: { color: C.text, fontSize: 14, fontWeight: "900" },
+  input: { flex: 1, minHeight: 120, padding: 13, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 14, backgroundColor: "#f8fafc", color: C.text, fontSize: 14, lineHeight: 20 },
+  counter: { alignSelf: "flex-end", color: C.textMuted, fontSize: 11, fontWeight: "700" },
+  sendButton: { minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, backgroundColor: C.brand },
+  sendText: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  cancelButton: { minHeight: 44, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  cancelText: { color: C.textSec, fontSize: 14, fontWeight: "800" },
+});
+
+const privacyToggleSt = StyleSheet.create({
+  track: { width: 50, height: 30, justifyContent: "center", paddingHorizontal: 3, borderRadius: 15, backgroundColor: "#c7ced8" },
+  trackOn: { backgroundColor: C.brand },
+  thumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  thumbOn: { alignSelf: "flex-end" },
+});
 
 const logoutSheetSt = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12 },
@@ -6711,6 +7695,16 @@ const homeSt = StyleSheet.create({
   tourMetaRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
   timePill: { color: C.brand, fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4, backgroundColor: "rgba(0,108,229,0.07)" },
   tourMeta: { flex: 1, color: C.textSec, fontSize: 12 },
+  assetPreviewStack: { gap: 12 },
+  assetPreviewLoading: { minHeight: 132, alignItems: "center", justifyContent: "center", gap: 9, borderRadius: 14, backgroundColor: "#eef4ff" },
+  mediaRow: { gap: 10, paddingRight: 4 },
+  mediaTile: { minHeight: 132, justifyContent: "space-between", gap: 8, padding: 8, borderRadius: 12, backgroundColor: "#eef4ff" },
+  mediaThumb: { flex: 1, minHeight: 82, alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", borderRadius: 10, backgroundColor: "rgba(255,255,255,0.55)" },
+  mediaPreviewImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  mediaFallbackIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19, backgroundColor: "#fff" },
+  mediaPlayBadge: { position: "absolute", right: 7, bottom: 7, width: 24, height: 24, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.86)", borderRadius: 12, backgroundColor: "rgba(15,23,42,0.88)" },
+  mediaLabel: { color: C.text, fontSize: 11, fontWeight: "700" },
+  emptyInline: { color: C.textSec, fontSize: 12 },
   assetLinkCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: 13, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 18, backgroundColor: "#fff" },
   assetLinkIcon: { width: 46, height: 46, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#eef4ff" },
   assetLinkIconConnected: { backgroundColor: C.brand },
@@ -6918,33 +7912,9 @@ const reviewSt = StyleSheet.create({
   turnSpeaker: { fontSize: 12, fontWeight: "900" },
   segmentTime: { color: "#98a2b3", fontSize: 11, fontWeight: "800", marginLeft: "auto" },
   turnText: { color: "#344054", fontSize: 14, lineHeight: 20, fontWeight: "600" },
-  audioSignalRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 7 },
-  audioSignalPill: { minHeight: 22, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, borderRadius: 999 },
-  audioSignalText: { fontSize: 10, fontWeight: "800" },
   annotationRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
-  annotationSheetBody: { fontSize: 15, fontWeight: "600", color: C.textSec, lineHeight: 22 },
-  annotationSheetActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 4 },
-  annotationSheetNav: { flexDirection: "row", alignItems: "center", gap: 8 },
-  annotationSheetNavBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#eff6ff",
-  },
-  annotationSheetNavCount: { fontSize: 13, fontWeight: "900", color: C.brand, fontVariant: ["tabular-nums"] },
-  annotationSheetPlay: {
-    minHeight: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: C.brand,
-  },
-  annotationSheetPlayText: { color: "#fff", fontSize: 13, fontWeight: "900" },
   annotationChip: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 8, paddingRight: 4, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: "#dbeafe", backgroundColor: "#fff" },
+  annotationChipExpanded: { borderColor: "#ddd6fe", backgroundColor: "#faf5ff" },
   annotationText: { color: C.brand, fontSize: 10, fontWeight: "900" },
   annotationCountBadge: {
     minWidth: 20,
@@ -6955,6 +7925,15 @@ const reviewSt = StyleSheet.create({
     justifyContent: "center",
   },
   annotationCountText: { color: "#fff", fontSize: 10, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  inlineAnnotationStack: { gap: 7, marginLeft: 36, marginTop: 7, marginRight: 8 },
+  inlineAnnotationCard: { gap: 8, padding: 11, borderWidth: 1, borderRadius: 12 },
+  inlineAnnotationHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
+  inlineAnnotationIcon: { width: 25, height: 25, alignItems: "center", justifyContent: "center", borderRadius: 8 },
+  inlineAnnotationTitle: { flex: 1, fontSize: 11, fontWeight: "900" },
+  inlineAnnotationTime: { fontSize: 10, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  inlineAnnotationBody: { color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600" },
+  inlineAnnotationPlay: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, minHeight: 28, paddingHorizontal: 9, borderRadius: 999 },
+  inlineAnnotationPlayText: { fontSize: 10, fontWeight: "900" },
   commentHint: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -7009,13 +7988,41 @@ const reviewSt = StyleSheet.create({
   selectionTime: { color: C.textMuted, fontSize: 10, fontWeight: "800", marginTop: 1 },
   selectionAction: { minHeight: 38, alignItems: "center", justifyContent: "center", gap: 2, paddingHorizontal: 7, borderRadius: 10, backgroundColor: "#eff6ff" },
   selectionActionText: { color: C.brand, fontSize: 9, fontWeight: "900" },
-  commentModalBackdrop: { flex: 1, justifyContent: "center", padding: 22, backgroundColor: "rgba(15,23,42,0.45)" },
-  commentModalCard: { gap: 14, padding: 16, borderRadius: 20, backgroundColor: "#fff", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 24, elevation: 16 },
+  commentDrawerBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.18)" },
+  commentDrawerCard: {
+    gap: 13,
+    maxHeight: "78%",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 28 : 16,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    backgroundColor: "#fff",
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 18,
+  },
+  commentDrawerHandle: { alignSelf: "center", width: 38, height: 4, marginBottom: 2, borderRadius: 999, backgroundColor: "#d0d5dd" },
   commentModalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   commentModalIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#eff6ff" },
   commentModalTitle: { color: C.text, fontSize: 16, fontWeight: "900" },
   commentModalTime: { color: C.textMuted, fontSize: 11, fontWeight: "800", marginTop: 2 },
-  commentModalInput: { minHeight: 110, padding: 12, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 14, color: C.text, fontSize: 15, fontWeight: "600", textAlignVertical: "top", backgroundColor: "#f8fafc" },
+  commentKindSwitcher: { flexDirection: "row", gap: 4, padding: 4, borderRadius: 14, backgroundColor: "#f2f4f7" },
+  commentKindOption: { flex: 1, minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 11 },
+  commentKindOptionActive: { backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 },
+  commentKindOptionText: { color: C.textMuted, fontSize: 12, fontWeight: "800" },
+  commentKindOptionTextActive: { color: C.brand },
+  commentSelectionPreview: { gap: 8, padding: 11, borderWidth: 1, borderColor: "#dbeafe", borderRadius: 14, backgroundColor: "#f8fbff" },
+  commentSelectionPreviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  commentSelectionPreviewLabel: { color: C.brand, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 },
+  commentSelectionPreviewCount: { color: C.textMuted, fontSize: 10, fontWeight: "800" },
+  commentSelectionPreviewScroll: { maxHeight: 112 },
+  commentSelectionPreviewTurn: { gap: 2, marginBottom: 8 },
+  commentSelectionPreviewSpeaker: { color: C.text, fontSize: 11, fontWeight: "900" },
+  commentSelectionPreviewText: { color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600" },
+  commentModalInput: { minHeight: 92, maxHeight: 132, padding: 12, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 14, color: C.text, fontSize: 15, fontWeight: "600", textAlignVertical: "top", backgroundColor: "#f8fafc" },
   commentModalSubmit: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13, backgroundColor: C.brand },
   commentModalSubmitText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   processingTimeline: { alignSelf: "stretch", flexDirection: "row", justifyContent: "space-between", gap: 8, marginTop: 2, paddingTop: 8 },
@@ -7063,16 +8070,23 @@ const st = StyleSheet.create({
   center: { alignItems: "center", justifyContent: "center" },
   screenTransition: { flex: 1 },
   scroll: { gap: 14, paddingHorizontal: 18, paddingTop: 56, paddingBottom: 32 },
+  sessionDetailScroll: { paddingTop: 14 },
   mainScroll: { gap: 14, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 120 },
   pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
   page: { gap: 14 },
   pulseDot: { width: 10, height: 10, borderRadius: 5 },
-  shimmerCard: { minHeight: 76, justifyContent: "center", gap: 9, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  shimmerCard: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
   shimmerBar: { height: 12, borderRadius: 999, backgroundColor: "#e8eef7" },
+  sessionSkeletonAvatar: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#e8eef7" },
+  sessionSkeletonBody: { flex: 1, gap: 9 },
+  sessionSkeletonChevron: { width: 8, height: 8, borderTopWidth: 2, borderRightWidth: 2, borderColor: "#dbe3ef", transform: [{ rotate: "45deg" }] },
 
   // Toast
-  toast: { position: "absolute", bottom: 100, left: 20, right: 20, flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 8, zIndex: 999 },
-  toastText: { color: "#fff", fontSize: 14, fontWeight: "700", flex: 1 },
+  toast: { position: "absolute", left: 14, right: 14, zIndex: 999, borderRadius: 20, shadowColor: "#0f172a", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 22, elevation: 14 },
+  toastGlass: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 10, overflow: "hidden", padding: 11, borderWidth: 1, borderColor: "rgba(255,255,255,0.82)", borderRadius: 20 },
+  toastIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
+  toastText: { flex: 1, color: C.text, fontSize: 13, lineHeight: 18, fontWeight: "800" },
+  toastClose: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "rgba(255,255,255,0.56)" },
 
   // Tab Bar
   tabBar: { position: "relative", flexDirection: "row", backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.border, paddingBottom: Platform.OS === "web" ? 12 : 28, paddingTop: 9, overflow: "hidden" },
@@ -7313,17 +8327,6 @@ const st = StyleSheet.create({
   communityRowBody: { flex: 1, minWidth: 0, gap: 2 },
   communitySettingName: { color: C.text, fontSize: 13, fontWeight: "800" },
   settingsChangeText: { color: C.brand, fontSize: 12, fontWeight: "900" },
-  aliasSettingsCard: { gap: 13, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 14, backgroundColor: C.card },
-  aliasFieldGroup: { gap: 6 },
-  aliasFieldLabel: { color: C.textSec, fontSize: 11, fontWeight: "900" },
-  aliasInputRow: { minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 12, backgroundColor: "#f8fafc" },
-  aliasPrefix: { color: C.textMuted, fontSize: 13, fontWeight: "700" },
-  aliasInput: { flex: 1, minWidth: 0, paddingVertical: 10, color: C.text, fontSize: 14, fontWeight: "800" },
-  aliasPreview: { color: C.brand, fontSize: 12, lineHeight: 17, fontWeight: "800" },
-  aliasHelp: { color: C.textSec, fontSize: 11, lineHeight: 16 },
-  aliasSaveButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, backgroundColor: C.brand },
-  aliasSaveButtonDisabled: { opacity: 0.6 },
-  aliasSaveText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   settingsVersion: { color: C.textMuted, fontSize: 11, textAlign: "center", marginTop: 4 },
 
   // Buttons

@@ -48,6 +48,7 @@
     "recharts": "^2.15.2",
     "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1",
+    "sharp": "^0.34.5",
     "sonner": "^2.0.3",
     "temporal-polyfill": "^0.3.0",
     "twilio": "^5.10.3",

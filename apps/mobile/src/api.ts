@@ -11,6 +11,7 @@ export type FetchSessionsParams = {
   limit?: number;
   status?: string;
   search?: string;
+  agentId?: string;
   sort?: "newest" | "oldest" | "score_desc" | "score_asc" | "scheduled_asc";
   upcoming?: boolean;
 };
@@ -52,6 +53,7 @@ export async function fetchSessions(params?: FetchSessionsParams): Promise<Pagin
   if (params?.limit) sp.set("limit", String(params.limit));
   if (params?.status) sp.set("status", params.status);
   if (params?.search) sp.set("search", params.search);
+  if (params?.agentId) sp.set("agentId", params.agentId);
   if (params?.sort) sp.set("sort", params.sort);
   if (params?.upcoming) sp.set("upcoming", "true");
   const qs = sp.toString();
@@ -170,10 +172,11 @@ export async function createCheckInLink(payload: {
 }
 
 export type ProfileUpdatePayload = {
-  name: string;
+  name?: string;
   title?: string | null;
   phone?: string | null;
   cardAccent?: string | null;
+  aiTrainingDataFeedback?: boolean;
 };
 
 export type ProfileResponse = {
@@ -185,6 +188,7 @@ export type ProfileResponse = {
   title: string | null;
   phone: string | null;
   cardAccent: string | null;
+  aiTrainingDataFeedback: boolean;
 };
 
 export async function fetchProfile() {
@@ -497,6 +501,7 @@ export type Material = {
   type: "rubric" | "training" | "recording" | "other";
   description: string;
   fileUrl?: string | null;
+  parsedText?: string | null;
   sessionId?: string | null;
   propertyId?: string | null;
   createdAt: string;
@@ -519,7 +524,14 @@ export type TourLibraryLink = {
 };
 
 export function materialUrl(material: Material) {
-  return material.media?.videoUrl ?? material.media?.iframeUrl ?? material.fileUrl ?? null;
+  const value = material.media?.videoUrl
+    ?? material.media?.iframeUrl
+    ?? material.media?.imageUrl
+    ?? material.media?.gifUrl
+    ?? material.fileUrl
+    ?? null;
+  if (!value) return null;
+  return value.startsWith("/") ? `${getApiBaseUrl()}${value}` : value;
 }
 
 export function assetNoteSnippet(asset: Material) {
@@ -844,7 +856,11 @@ export async function fetchMaterials() {
     const body = await res.json().catch(() => null) as { error?: string } | null;
     throw new Error(body?.error ?? "Failed to fetch property assets.");
   }
-  return (await res.json()) as { materials: Material[]; tourLibrary: TourLibraryLink | null };
+  return (await res.json()) as {
+    materials: Material[];
+    tourLibrary: TourLibraryLink | null;
+    propertyWebsite: string | null;
+  };
 }
 
 export async function uploadMaterial(
@@ -871,6 +887,80 @@ export async function uploadMaterial(
     }),
   });
   if (!body?.material) throw new Error("Asset upload failed.");
+  return body.material;
+}
+
+export type PanoramaUploadShot = {
+  uri: string;
+  fileName: string;
+  mimeType: "image/jpeg";
+  index: number;
+  headingDegrees: number;
+  targetHeadingDegrees: number;
+  rollDegrees: number;
+  pitchDegrees: number;
+};
+
+export type PanoramaUploadAsset = {
+  name: string;
+  description: string;
+  shots: PanoramaUploadShot[];
+};
+
+export async function uploadPanoramaMaterial(asset: PanoramaUploadAsset) {
+  const orderedShots = [...asset.shots].sort((left, right) => left.index - right.index);
+  if (
+    (orderedShots.length !== 6 && orderedShots.length !== 8)
+    || orderedShots.some((shot, index) => shot.index !== index)
+  ) {
+    throw new Error("A 360° panorama requires six or eight ordered photos.");
+  }
+
+  const uploadedShots: Array<{
+    objectKey: string;
+    index: number;
+    headingDegrees: number;
+    targetHeadingDegrees: number;
+    rollDegrees: number;
+    pitchDegrees: number;
+  }> = [];
+
+  for (const shot of orderedShots) {
+    const uploaded = await uploadLocalFileWithPresign<{ objectKey?: string }>({
+      authenticatedFetch,
+      presignPath: "/api/materials/upload/presign",
+      completePath: "/api/materials/panorama/shot",
+      fileUri: shot.uri,
+      mimeType: shot.mimeType,
+      fileName: shot.fileName,
+      completeBody: () => ({ shotIndex: shot.index }),
+    });
+    if (!uploaded.objectKey) {
+      throw new Error(`Panorama photo ${shot.index + 1} did not finish uploading.`);
+    }
+    uploadedShots.push({
+      objectKey: uploaded.objectKey,
+      index: shot.index,
+      headingDegrees: shot.headingDegrees,
+      targetHeadingDegrees: shot.targetHeadingDegrees,
+      rollDegrees: shot.rollDegrees,
+      pitchDegrees: shot.pitchDegrees,
+    });
+  }
+
+  const response = await authenticatedFetch("/api/materials/panorama/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: asset.name,
+      description: asset.description,
+      shots: uploadedShots,
+    }),
+  });
+  const body = await response.json().catch(() => null) as { material?: Material; error?: string } | null;
+  if (!response.ok || !body?.material) {
+    throw new Error(body?.error ?? "The panorama could not be stitched.");
+  }
   return body.material;
 }
 

@@ -60,6 +60,7 @@ export type AdminWorkspace = {
     title: string | null;
     phone: string | null;
     cardAccent: string | null;
+    aiTrainingDataFeedback?: boolean;
   };
   teamMember: PropertyTeamMember;
   organization: {
@@ -368,6 +369,7 @@ function buildWorkspaceForAccess(
       title: selected.teamMember.title,
       phone: selected.teamMember.phone,
       cardAccent: selected.teamMember.cardAccent,
+      aiTrainingDataFeedback: user.user_metadata?.ai_training_data_feedback === true,
     },
     teamMember: slimTeamMember(selected.teamMember, true),
     organization: {

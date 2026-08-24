@@ -166,8 +166,14 @@ export async function listVisibleMaterials(propertyId?: string): Promise<Materia
 export async function listVisibleMaterialsWithLink(propertyId?: string): Promise<{
   materials: Material[];
   tourLibrary: TourLibraryLink | null;
+  propertyWebsite: string | null;
 }> {
-  const tourLibrary = propertyId ? await resolveTourLibraryLink(propertyId) : null;
+  const [tourLibrary, propertyWebsite] = propertyId
+    ? await Promise.all([
+        resolveTourLibraryLink(propertyId),
+        resolvePropertyWebsite(propertyId),
+      ])
+    : [null, null];
   const tourMaterialsPromise = tourLibrary && propertyId
     ? listTourMaterials(tourLibrary, propertyId)
     : Promise.resolve([] as Material[]);
@@ -182,7 +188,19 @@ export async function listVisibleMaterialsWithLink(propertyId?: string): Promise
       ...materials.filter((material) => material.type !== "recording")
     ],
     tourLibrary,
+    propertyWebsite,
   };
+}
+
+async function resolvePropertyWebsite(propertyId: string): Promise<string | null> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("propertiesTYG")
+    .select("website")
+    .eq("id", propertyId)
+    .maybeSingle<{ website: string | null }>();
+  if (error) throw new Error(error.message);
+  return cleanString(data?.website) || null;
 }
 
 export async function getPropertyHeroMedia(propertyId: string): Promise<PropertyHeroMedia | null> {
