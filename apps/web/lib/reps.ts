@@ -74,7 +74,7 @@ export const DEFAULT_QUESTIONS: CheckInQuestion[] = [
     id: "floor_plan",
     label: "Which floor plan interests you most?",
     type: "select",
-    options: ["Studio", "1 bedroom", "2 bedroom", "3 bedroom", "Not sure yet"],
+    options: ["1 bedroom", "2 bedroom", "3 bedroom", "4 bedroom", "Not sure yet"],
     placeholder: "Select a floor plan"
   }
 ];

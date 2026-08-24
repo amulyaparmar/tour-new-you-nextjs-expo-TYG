@@ -100,20 +100,25 @@ export async function POST(request: Request) {
             .map((value) => cleanString(value).toLowerCase().replace(/^@/, ""))
             .includes(memberKey);
         });
-        if (!isRecord(member)) {
-          return NextResponse.json({ error: "Team member not found for this property." }, { status: 404 });
+        if (isRecord(member)) {
+          const alias = cleanString(member.alias);
+          const authUserId = cleanString(member.user_id ?? member.userId);
+          const memberId = cleanString(member.id);
+          const emailLocal = cleanString(member.email).split("@")[0] ?? "";
+
+          // Prefer auth id for ownership filters; alias is public URL key + fallback.
+          agentId = authUserId
+            ? `user:${authUserId}`
+            : alias || memberId || emailLocal || agentId;
+          agentName = cleanString(member.name) || agentName;
+        } else {
+          // A property-level check-in is valid even when the public link carries
+          // a stale or missing team-member alias. Keep the property association
+          // and create the lead without optional agent attribution.
+          agentId = null;
+          agentName = null;
+          lead.repSlug = null;
         }
-
-        const alias = cleanString(member.alias);
-        const authUserId = cleanString(member.user_id ?? member.userId);
-        const memberId = cleanString(member.id);
-        const emailLocal = cleanString(member.email).split("@")[0] ?? "";
-
-        // Prefer auth id for ownership filters; alias is public URL key + fallback.
-        agentId = authUserId
-          ? `user:${authUserId}`
-          : alias || memberId || emailLocal || agentId;
-        agentName = cleanString(member.name) || agentName;
       }
     }
 

@@ -67,11 +67,10 @@ const CHECK_IN_QUESTIONS: MobileCheckInQuestion[] = [
     id: "floor_plan",
     label: "Which floor plan interests you most?",
     type: "select",
-    options: ["Studio", "1 bedroom", "2 bedroom", "3 bedroom", "Not sure yet"],
+    options: ["1 bedroom", "2 bedroom", "3 bedroom", "4 bedroom", "Not sure yet"],
     placeholder: "Select a floor plan",
   },
 ];
-const INTEREST_OPTIONS = ["Availability", "Pricing", "Floor plans", "Amenities", "Schedule a tour", "Other"];
 
 function formatCheckInPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 10);
@@ -148,7 +147,6 @@ export function CheckInSheet({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [reason, setReason] = useState(`Tour ${property}`);
-  const [interest, setInterest] = useState("");
   const [wantsSummary, setWantsSummary] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -183,7 +181,6 @@ export function CheckInSheet({
     setEmail("");
     setPhone("");
     setReason(`Tour ${property}`);
-    setInterest("");
     setWantsSummary(false);
     setAnswers({});
     setSubmitting(false);
@@ -202,7 +199,7 @@ export function CheckInSheet({
         phone: phone.replace(/\D/g, "") || null,
         wantsSummary,
         reason: reason.trim() || `Tour ${property}`,
-        questionAnswers: interest ? { ...answers, interest } : answers,
+        questionAnswers: answers,
         repSlug: resolvedRepSlug,
         repName: agentName?.trim() || null,
         propertyName: property,
@@ -251,7 +248,6 @@ export function CheckInSheet({
     setLastName("");
     setEmail("");
     setPhone("");
-    setInterest("");
     setWantsSummary(false);
     setAnswers(sharedHowHeard ? { hear_about: sharedHowHeard } : {});
     setError(null);
@@ -386,9 +382,6 @@ export function CheckInSheet({
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.checkInForm}
             >
-              <Pressable onPress={onClose} style={styles.skipButton}>
-                <Text style={styles.skipText}>Skip</Text>
-              </Pressable>
               <Text style={styles.questionTitle}>
                 {firstName ? `${firstName}, ` : ""}one last thing before your tour
               </Text>
@@ -443,9 +436,6 @@ export function CheckInSheet({
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.checkInForm}
             >
-              <Pressable onPress={onClose} style={styles.skipButton}>
-                <Text style={styles.skipText}>Skip</Text>
-              </Pressable>
               <View style={styles.checkInHead}>
                 <View style={styles.formHeadAvatar}>
                   <Ionicons name="person-outline" size={18} color="#fff" />
@@ -494,16 +484,6 @@ export function CheckInSheet({
                 </View>
               </View>
               <CheckInField label="Reason for visit" value={reason} onChangeText={setReason} />
-              <CheckInQuestionField
-                question={{
-                  id: "interest",
-                  label: "What are you interested in?",
-                  type: "select",
-                  options: INTEREST_OPTIONS,
-                }}
-                value={interest}
-                onChange={setInterest}
-              />
               {error ? <Text style={styles.fieldError}>{error}</Text> : null}
               <Pressable
                 onPress={nextFromContact}
@@ -715,8 +695,6 @@ const styles = StyleSheet.create({
   sheetTabText: { color: C.textMuted, fontSize: 12, fontWeight: "800" },
   sheetTabTextActive: { color: C.brand },
   checkInForm: { gap: 10, paddingBottom: 6 },
-  skipButton: { alignSelf: "flex-end", paddingHorizontal: 4, paddingVertical: 2 },
-  skipText: { color: "#0b0b0c", fontSize: 15, fontWeight: "800" },
   checkInHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   formHeadAvatar: {
     width: 40,

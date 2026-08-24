@@ -49,7 +49,6 @@ type FloatingInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className
 };
 
 const EMAIL_DOMAINS = ["gmail.com", "icloud.com", "yahoo.com", "outlook.com", "hotmail.com"];
-const INTEREST_OPTIONS = ["Availability", "Pricing", "Floor plans", "Amenities", "Schedule a tour", "Other"];
 
 function formatPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 10);
@@ -134,6 +133,7 @@ export function CheckInCard({
 }: CheckInCardProps) {
   const { rep, property, questions } = card;
   const [sheet, setSheet] = useState<Sheet>(initialSheet === "contact" ? "contact" : "none");
+  const [checkedIn, setCheckedIn] = useState(false);
   const [sharedCheckInAnswers, setSharedCheckInAnswers] = useState<Record<string, string>>({});
   const [notification, setNotification] = useState<Notification | null>(null);
   const [isSaveDockFloating, setIsSaveDockFloating] = useState(false);
@@ -275,11 +275,17 @@ export function CheckInCard({
                 <button
                   ref={saveButtonRef}
                   type="button"
-                  className={`${styles.primaryBtn} ${styles.saveBtn}`}
+                  className={`${styles.primaryBtn} ${styles.saveBtn} ${checkedIn ? styles.checkedStateBtn : ""}`}
+                  disabled={checkedIn}
                   onClick={() => setSheet("contact")}
                 >
-                  Check In
+                  {checkedIn ? <><Check size={18} strokeWidth={3} /> Checked in</> : "Check In"}
                 </button>
+                {checkedIn ? (
+                  <button type="button" className={styles.backgroundAddAnotherBtn} onClick={() => setSheet("contact")}>
+                    <UserRound size={17} /> Add another person / check in
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -320,6 +326,7 @@ export function CheckInCard({
             sessionId={sessionId}
             onClose={() => setSheet("none")}
             onDone={(answers) => {
+              setCheckedIn(true);
               const sharedQuestionIds = new Set(
                 questions
                   .filter((question) => /hear.*about|how.*find|referral/i.test(question.label))
@@ -403,7 +410,6 @@ function ContactSheet({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [reason, setReason] = useState(`Tour ${property.name}`);
-  const [interest, setInterest] = useState("");
   const [wantsSummary, setWantsSummary] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers);
   const [step, setStep] = useState<"contact" | "questions">("contact");
@@ -432,7 +438,7 @@ function ContactSheet({
           phone: phone.replace(/\D/g, ""),
           wantsSummary,
           reason,
-          questionAnswers: interest ? { ...answers, interest } : answers,
+          questionAnswers: answers,
           repSlug: rep.slug || null,
           repName: rep.slug ? rep.name : null,
           propertyName: property.name,
@@ -453,7 +459,7 @@ function ContactSheet({
         }).catch(() => {});
       }
 
-      onDone(interest ? { ...answers, interest } : answers);
+      onDone(answers);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -493,9 +499,6 @@ function ContactSheet({
     return (
       <div className={styles.scrim} onClick={onClose}>
         <div className={styles.sheet} onClick={(e) => e.stopPropagation()}>
-          <button type="button" className={styles.skip} onClick={onClose}>
-            Skip
-          </button>
           <p className={styles.sheetTitle}>
             {firstName ? `${firstName}, ` : ""}one last thing before your tour
           </p>
@@ -568,9 +571,6 @@ function ContactSheet({
   return (
     <div className={styles.scrim} onClick={onClose}>
       <div className={styles.sheet} onClick={(e) => e.stopPropagation()}>
-        <button type="button" className={styles.skip} onClick={onClose}>
-          Skip
-        </button>
         <div className={styles.formHeadRow}>
           <div className={styles.formHeadAvatar}>
             {rep.avatarUrl ? (
@@ -646,14 +646,6 @@ function ContactSheet({
             onChange={(e) => setReason(e.target.value)}
           />
 
-          <label className={styles.selectField}>
-            <span className={styles.selectLabel}>What are you interested in?</span>
-            <select className={styles.selectInput} value={interest} onChange={(e) => setInterest(e.target.value)}>
-              <option value="">Select one</option>
-              {INTEREST_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-          </label>
-
           {questions.length === 0 ? (
             <label className={styles.toggleRow}>
               <span>Send me follow-up notes after the tour</span>
@@ -687,6 +679,11 @@ function DoneSheet({ card, onClose, onAddAnother }: { card: RepCard; onClose: ()
   return (
     <div className={styles.scrim} onClick={onClose}>
       <div className={styles.sheet} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.confetti} aria-hidden="true">
+          {Array.from({ length: 20 }, (_, index) => (
+            <span key={index} style={{ left: `${5 + index * 4.7}%`, animationDelay: `${index * 45}ms` }} />
+          ))}
+        </div>
         <button className={styles.sheetClose} onClick={onClose} aria-label="Close">
           <X size={18} />
         </button>
@@ -696,12 +693,12 @@ function DoneSheet({ card, onClose, onAddAnother }: { card: RepCard; onClose: ()
           Thanks for visiting {property.name}. {rep.name.split(" ")[0]} has your
           contact details and will be with you shortly.
         </p>
-        <div className={styles.buttonRow}>
-          <button type="button" className={styles.backBtn} onClick={onAddAnother}>
-            <UserRound size={16} /> Add another person
+        <div className={styles.doneActions}>
+          <button type="button" className={`${styles.primaryBtn} ${styles.checkedButton}`} onClick={onClose}>
+            <Check size={18} strokeWidth={3} /> Checked in
           </button>
-          <button type="button" className={styles.primaryBtn} onClick={onClose}>
-            Done
+          <button type="button" className={styles.addAnotherButton} onClick={onAddAnother}>
+            <UserRound size={17} /> Add another person / check in
           </button>
         </div>
       </div>
