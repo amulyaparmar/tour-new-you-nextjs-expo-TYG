@@ -7,6 +7,7 @@ import {
   createAdminOtpCode,
   getActiveAdminOtpChallenge,
   invalidateAdminOtpChallenge,
+  appReviewOtpConfig,
 } from "@/lib/admin-otp";
 import { sendTransactionalEmail } from "@/lib/transactional-email";
 
@@ -30,13 +31,24 @@ export async function POST(request: Request) {
 
   let issuedChallengeId = "";
   try {
-    const challengeCode = createAdminOtpCode();
+    const reviewConfig = appReviewOtpConfig();
+    const isAppReviewUser = reviewConfig?.email === email;
+    const challengeCode = isAppReviewUser ? reviewConfig.code : createAdminOtpCode();
     const challenge = await createAdminOtpChallenge(
       email,
       challengeCode,
       adminOtpRequestFingerprint(request)
     );
     issuedChallengeId = challenge.challengeId;
+    if (isAppReviewUser) {
+      return NextResponse.json({
+        sent: true,
+        email,
+        challengeId: challenge.challengeId,
+        expiresAt: challenge.expiresAt,
+        delivery: "app-review",
+      });
+    }
     const displayName = email
       .split("@")[0]
       ?.split(/[._-]+/)

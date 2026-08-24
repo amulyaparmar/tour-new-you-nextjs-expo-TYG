@@ -12,6 +12,12 @@ import { getSupabaseServiceClient } from "@/lib/supabase";
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_TABLE = "admin_otp_challenges";
 
+export function appReviewOtpConfig() {
+  const email = process.env.TOUR_APP_REVIEW_EMAIL?.trim().toLowerCase() ?? "";
+  const code = process.env.TOUR_APP_REVIEW_OTP?.trim() ?? "";
+  return email && /^\d{6}$/.test(code) ? { email, code } : null;
+}
+
 type StoredOtpChallenge = {
   id: string;
   email: string;
