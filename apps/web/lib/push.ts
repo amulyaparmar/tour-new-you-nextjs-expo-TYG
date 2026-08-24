@@ -87,6 +87,31 @@ export async function sendPushToUser(input: {
   return { sent };
 }
 
+/** Notify the configured support owner about a public support request. */
+export async function notifySupportRequest(input: {
+  name: string;
+  category: string;
+  message: string;
+}): Promise<void> {
+  try {
+    const email = (process.env.TOUR_SUPPORT_NOTIFICATION_EMAIL ?? "parmar.amulya@gmail.com").trim().toLowerCase();
+    if (!email) return;
+    const supabase = getSupabaseServiceClient();
+    const users = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (users.error) throw new Error(users.error.message);
+    const user = users.data.users.find((candidate) => candidate.email?.trim().toLowerCase() === email);
+    if (!user) return;
+    await sendPushToUser({
+      userId: user.id,
+      title: "New support request",
+      body: `${input.name} · ${input.category}: ${input.message.trim().slice(0, 100)}`,
+      data: { type: "support-request" },
+    });
+  } catch {
+    // Support email delivery remains the source of truth if push is unavailable.
+  }
+}
+
 /** Notify about a new session (best-effort). Prefer the checked-in agent when known. */
 export async function notifyNewSession(input: {
   propertyId: string;
