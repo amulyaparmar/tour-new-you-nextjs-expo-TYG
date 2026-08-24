@@ -209,6 +209,21 @@ export async function updateProfile(payload: ProfileUpdatePayload) {
   return body.profile;
 }
 
+export async function submitSupportRequest(payload: {
+  name: string;
+  email: string;
+  message: string;
+  category?: string;
+}) {
+  const res = await fetch(`${getApiBaseUrl()}/api/support`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, category: payload.category ?? "Mobile app feedback" }),
+  });
+  const body = await res.json().catch(() => null) as { error?: string } | null;
+  if (!res.ok) throw new Error(body?.error ?? "Could not send support request.");
+}
+
 export async function addSessionParticipant(sessionId: string, payload: Omit<CheckInLeadPayload, "propertyName" | "propertyId" | "repName" | "repSlug">) {
   const res = await authenticatedFetch(`/api/sessions/${sessionId}/participants`, {
     method: "POST",

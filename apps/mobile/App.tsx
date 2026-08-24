@@ -122,6 +122,7 @@ import {
   uploadPanoramaMaterial,
   uploadRubric,
   updateProfile,
+  submitSupportRequest,
 } from "./src/api";
 import { getApiBaseUrl, getSiteBaseUrl } from "./src/config";
 import { createLoadedAudioPlayer } from "./src/audio-player";
@@ -7314,14 +7315,16 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
       return;
     }
     try {
-      await Share.share({
-        title: "Tour mobile feedback",
-        message: `Tour mobile feedback\n\n${message}`,
+      await submitSupportRequest({
+        name: session.workspace.user.fullName ?? "Tour mobile user",
+        email: session.workspace.user.email,
+        message,
       });
       setFeedbackText("");
       setFeedbackOpen(false);
+      showToast("Feedback sent to the Tour support team.", "success");
     } catch {
-      showToast("Could not open the feedback share sheet.", "error");
+      showToast("Could not send feedback. Please try again.", "error");
     }
   }
 
