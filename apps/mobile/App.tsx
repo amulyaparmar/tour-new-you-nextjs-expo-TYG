@@ -7394,7 +7394,7 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
       <CardRow icon="hand-left-outline" title="Privacy Policy" sub="How Tour.you handles your data" onPress={() => void Linking.openURL(`${getSiteBaseUrl()}/privacy-policy`)} />
       <Text style={st.settingsSectionLabel}>ACCOUNT</Text>
       <CardRow icon="log-out-outline" title="Log out" sub="Remove this account from this device" onPress={() => setLogoutOpen(true)} destructive />
-      <Text style={st.settingsVersion}>Tour mobile 0.1.0 · {session.workspace.organization.name}</Text>
+      <Text style={st.settingsVersion}>Tour mobile 0.1.0 · Host Your Voice</Text>
 
       <CommunityPickerModal
         visible={communityPickerOpen}
