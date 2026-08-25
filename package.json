@@ -27,7 +27,9 @@
     "mobile:testflight": "npm --workspace @tour/mobile run testflight",
     "mobile:update:preview": "npm --workspace @tour/mobile run update:preview",
     "mobile:update:production": "npm --workspace @tour/mobile run update:production",
-    "postinstall": "node scripts/apply-patches.cjs"
+    "postinstall": "node scripts/apply-patches.cjs",
+    "mobile:build:android": "npm --workspace @tour/mobile run build:android",
+    "mobile:submit:android": "npm --workspace @tour/mobile run submit:android"
   },
   "devDependencies": {
     "next": "^16.0.0",

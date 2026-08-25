@@ -19,7 +19,9 @@
     "testflight": "npx testflight",
     "lint": "echo \"No mobile lint configured\"",
     "typecheck": "node scripts/check-style-health.js && tsc --noEmit",
-    "clean": "rm -rf .expo dist"
+    "clean": "rm -rf .expo dist",
+    "build:android": "npx eas-cli@latest build --platform android --profile production",
+    "submit:android": "npx eas-cli@latest submit --platform android --profile production"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.16",

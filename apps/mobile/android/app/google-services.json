@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "847424193158",
+    "project_id": "tour-mobile-app-tyg",
+    "storage_bucket": "tour-mobile-app-tyg.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:847424193158:android:f953f049f45502b0ba0707",
+        "android_client_info": {
+          "package_name": "com.leasemagnets.tournewtouryou.tyg"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFjNwD-Ypl1zaTye1y6ck55GQWThunbtM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
