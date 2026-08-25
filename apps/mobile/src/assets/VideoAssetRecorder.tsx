@@ -434,17 +434,19 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
     setSaving(true);
     setError(null);
     try {
-      const permission = await MediaLibrary.requestPermissionsAsync(true, ["video"]);
-      if (!permission.granted) {
-        Alert.alert(
-          "Photos access is off",
-          "Allow Tour to add videos in Settings, then try again.",
-          [
-            { text: "Not now", style: "cancel" },
-            { text: "Open Settings", onPress: () => void Linking.openSettings() },
-          ],
-        );
-        return;
+      if (Platform.OS === "ios") {
+        const permission = await MediaLibrary.requestPermissionsAsync(true);
+        if (!permission.granted) {
+          Alert.alert(
+            "Photos access is off",
+            "Allow Tour to add videos in Settings, then try again.",
+            [
+              { text: "Not now", style: "cancel" },
+              { text: "Open Settings", onPress: () => void Linking.openSettings() },
+            ],
+          );
+          return;
+        }
       }
       await MediaLibrary.saveToLibraryAsync(recordedUri);
       setSaved(true);

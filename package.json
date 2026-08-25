@@ -21,6 +21,8 @@
     "build:admin": "turbo build --filter=@tour/admin",
     "typecheck:admin": "turbo typecheck --filter=@tour/admin",
     "mobile": "turbo dev --filter=@tour/mobile",
+    "mobile:build:android": "npm --workspace @tour/mobile run build:android",
+    "mobile:submit:android": "npm --workspace @tour/mobile run submit:android",
     "mobile:build:ios": "npm --workspace @tour/mobile run build:ios",
     "mobile:submit:ios": "npm --workspace @tour/mobile run submit:ios",
     "mobile:testflight": "npm --workspace @tour/mobile run testflight",
@@ -29,6 +31,7 @@
     "postinstall": "node scripts/apply-patches.cjs"
   },
   "devDependencies": {
+    "expo-build-properties": "1.0.10",
     "next": "^16.0.0",
     "patch-package": "^8.0.1",
     "react-native-worklets": "0.5.1",
@@ -36,6 +39,7 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
+    "expo-build-properties": "1.0.10",
     "react-native-worklets": "0.5.1",
     "react-native-reanimated": {
       "react-native-worklets": "0.5.1"

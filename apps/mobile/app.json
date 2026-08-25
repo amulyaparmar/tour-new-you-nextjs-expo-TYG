@@ -39,9 +39,22 @@
     },
     "android": {
       "package": "com.leasemagnets.tournewtouryou.tyg",
+      "versionCode": 1,
+      "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.ACCESS_ADSERVICES_AD_ID",
+        "android.permission.ACCESS_ADSERVICES_ATTRIBUTION"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -77,24 +90,11 @@
       "@config-plugins/react-native-webrtc",
       "@daily-co/config-plugin-rn-daily-js",
       [
-        "expo-build-properties",
-        {
-          "android": {
-            "minSdkVersion": 24
-          },
-          "ios": {
-            "deploymentTarget": "16.4"
-          }
-        }
-      ],
-      [
         "expo-media-library",
         {
           "photosPermission": "Allow Tour to access videos you choose from your photo library.",
           "savePhotosPermission": "Allow Tour to save recorded video assets to your photo library.",
-          "granularPermissions": [
-            "video"
-          ]
+          "granularPermissions": []
         }
       ],
       "expo-secure-store"
