@@ -26,6 +26,18 @@ export async function requireTourWorkspace() {
   }
 }
 
+/** Read the signed-in workspace without redirecting when a public page is requested. */
+export async function getTourWorkspace() {
+  const requestHeaders = await headers();
+  const request = new Request("http://tour.local", { headers: requestHeaders });
+  try {
+    return await requireAdminContext(request);
+  } catch (caught) {
+    if (caught instanceof AdminAuthError && caught.status === 401) return null;
+    throw caught;
+  }
+}
+
 function currentPath(requestHeaders: Headers) {
   const forwardedPath =
     requestHeaders.get("x-tour-pathname") ??

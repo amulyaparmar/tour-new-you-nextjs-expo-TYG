@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+import { getTourWorkspace } from "@/lib/tour-auth";
 import { requireTourWorkspace } from "@/lib/tour-auth";
 import { BottomNav } from "../BottomNav";
 import { QueryProvider } from "../QueryProvider";
@@ -9,7 +11,13 @@ export default async function AppLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const workspace = await requireTourWorkspace();
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get("x-tour-pathname") ?? requestHeaders.get("x-next-url") ?? requestHeaders.get("x-matched-path") ?? "";
+  const isPublicSessionDetail = /^\/sessions\/[^/]+$/.test(pathname) || pathname === "/sessions/[id]";
+  const workspace = isPublicSessionDetail
+    ? await getTourWorkspace()
+    : await requireTourWorkspace();
+  if (!workspace) return <>{children}</>;
   const currentCommunity = {
     id: workspace.community.id,
     name: workspace.community.name,

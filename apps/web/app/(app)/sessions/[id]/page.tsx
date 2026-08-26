@@ -18,7 +18,8 @@ import { SessionDetailExperience } from "./SessionDetailExperience";
 import { SessionScoreSummary } from "./SessionScoreSummary";
 import styles from "./session-detail.module.css";
 import { UploadAndProcess, type NoteAsset, type SessionDetailDefaults } from "./UploadAndProcess";
-import { requireTourWorkspace } from "@/lib/tour-auth";
+import { getTourWorkspace } from "@/lib/tour-auth";
+import FollowUpPage from "@/app/follow-up/[id]/page";
 import { findPropertyForSessionKey, isGlobalPropertyAdminEmail, propertySessionKeys } from "@/lib/admin-auth";
 import { SessionPropertyMismatch } from "./SessionPropertyMismatch";
 
@@ -28,8 +29,9 @@ type Props = {
 };
 
 export default async function SessionDetailPage({ params, searchParams }: Props) {
-  const workspace = await requireTourWorkspace();
   const { id } = await params;
+  const workspace = await getTourWorkspace();
+  if (!workspace) return <FollowUpPage params={Promise.resolve({ id })} />;
   const { version: versionParam, sample: sampleParam } = await searchParams;
   const rawSession = await getSessionById(id);
   const isOwnSession = Boolean(rawSession && propertySessionKeys(workspace.community).includes(rawSession.propertyId ?? ""));
