@@ -168,6 +168,14 @@ export default async function SessionDetailPage({ params, searchParams }: Props)
             />
           )}
           <span className={`badge badge-${session.status}`}>{SESSION_STATUS_LABELS[session.status]}</span>
+          <a
+            href={`/follow-up/${encodeURIComponent(id)}`}
+            className="btn btn-outline btn-sm"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Public follow-up
+          </a>
           {hasAnalysis && !isSampleSession && (
             <ExportSessionButton
               href={`/api/sessions/${encodeURIComponent(id)}/export${analysisRun && !analysisRun.isCurrent ? `?version=${analysisRun.version}` : ""}`}
