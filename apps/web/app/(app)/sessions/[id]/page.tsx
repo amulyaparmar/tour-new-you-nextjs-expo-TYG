@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 
 import { buildSessionTourTitle, SESSION_STATUS_LABELS } from "@tour/shared";
 
@@ -27,11 +29,58 @@ type Props = {
   searchParams: Promise<{ version?: string; sample?: string }>;
 };
 
+const getSessionForPage = cache(async (id: string) => getSessionById(id));
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const session = await getSessionForPage(id);
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://tour.you").replace(/\/$/, "");
+  const canonicalPath = `/sessions/${encodeURIComponent(id)}`;
+
+  if (!session) {
+    return {
+      metadataBase: new URL(siteUrl),
+      title: "Session not found | Tour",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const sessionTitle = buildSessionTourTitle({
+    title: session.title,
+    agentName: session.agentName,
+    prospectName: session.prospectName || session.leads?.[0]?.name,
+  });
+  const title = `${sessionTitle} | Tour`;
+  const description = `Review the recording, transcript, scores, and coaching feedback for ${sessionTitle}.`;
+
+  return {
+    metadataBase: new URL(siteUrl),
+    title,
+    description,
+    alternates: { canonical: canonicalPath },
+    openGraph: {
+      type: "website",
+      siteName: "Tour",
+      url: canonicalPath,
+      title,
+      description,
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+    },
+    // Session links are shareable, but recordings and coaching data should not
+    // be discoverable through public search indexes.
+    robots: { index: false, follow: false },
+  };
+}
+
 export default async function SessionDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
   const workspace = await getTourWorkspace();
   const { version: versionParam, sample: sampleParam } = await searchParams;
-  const rawSession = await getSessionById(id);
+  const rawSession = await getSessionForPage(id);
   const isOwnSession = Boolean(
     workspace
     && rawSession
