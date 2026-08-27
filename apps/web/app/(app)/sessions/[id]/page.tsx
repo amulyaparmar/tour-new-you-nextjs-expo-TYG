@@ -8,7 +8,7 @@ import { getRubricForSession } from "@/lib/rubrics";
 import { isSampleSourceProperty, SAMPLE_SESSION_SET } from "@/lib/sample-sessions";
 import { enrichSessionWithAgentName, sessionParticipants } from "@/lib/session-participants";
 import { getAnalysisRun, getAudioInsights, getConversationPhases, getSessionById, listAnalysisRuns, listSessionsPaginated } from "@/lib/sessions";
-import { getRecordingUrl, isLegacyLocalUrl } from "@/lib/storage";
+import { getRecordingSignedUrl, getRecordingUrl, isLegacyLocalUrl } from "@/lib/storage";
 import { AnalysisVersionSelector } from "./AnalysisVersionSelector";
 import { DeleteSessionButton } from "./DeleteSessionButton";
 import { EditSessionForm } from "./EditSessionForm";
@@ -19,7 +19,6 @@ import { SessionScoreSummary } from "./SessionScoreSummary";
 import styles from "./session-detail.module.css";
 import { UploadAndProcess, type NoteAsset, type SessionDetailDefaults } from "./UploadAndProcess";
 import { getTourWorkspace } from "@/lib/tour-auth";
-import FollowUpPage from "@/app/follow-up/[id]/page";
 import { findPropertyForSessionKey, isGlobalPropertyAdminEmail, propertySessionKeys } from "@/lib/admin-auth";
 import { SessionPropertyMismatch } from "./SessionPropertyMismatch";
 
@@ -31,17 +30,21 @@ type Props = {
 export default async function SessionDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
   const workspace = await getTourWorkspace();
-  if (!workspace) return <FollowUpPage params={Promise.resolve({ id })} />;
   const { version: versionParam, sample: sampleParam } = await searchParams;
   const rawSession = await getSessionById(id);
-  const isOwnSession = Boolean(rawSession && propertySessionKeys(workspace.community).includes(rawSession.propertyId ?? ""));
+  const isOwnSession = Boolean(
+    workspace
+    && rawSession
+    && propertySessionKeys(workspace.community).includes(rawSession.propertyId ?? "")
+  );
   const isSampleCandidate = Boolean(
+    workspace &&
     sampleParam === "1" &&
     rawSession &&
     SAMPLE_SESSION_SET.has(id) &&
     isSampleSourceProperty(rawSession.propertyId)
   );
-  const isSampleSession = isSampleCandidate
+  const isSampleSession = workspace && isSampleCandidate
     ? await activePropertyHasNoRecordedSessions(workspace.community)
     : false;
 
@@ -55,7 +58,7 @@ export default async function SessionDetailPage({ params, searchParams }: Props)
   }
 
   const isPropertyMismatch = !isOwnSession && !isSampleSession;
-  const accessibleProperty = isPropertyMismatch
+  const accessibleProperty = isPropertyMismatch && workspace
     ? workspace.communities.find((community) =>
         propertySessionKeys(community).includes(rawSession.propertyId ?? "")
       ) ?? null
@@ -65,11 +68,11 @@ export default async function SessionDetailPage({ params, searchParams }: Props)
       ? { id: accessibleProperty.propertyTygId, name: accessibleProperty.name }
       : await findPropertyForSessionKey(rawSession.propertyId)
     : null;
-  const isGlobalAdmin = isGlobalPropertyAdminEmail(workspace.user.email);
+  const isGlobalAdmin = isGlobalPropertyAdminEmail(workspace?.user.email);
   const canModifySession = isOwnSession || isGlobalAdmin;
   const isReadOnlyExternal = isPropertyMismatch && !canModifySession;
 
-  const session = isSampleSession || isPropertyMismatch
+  const session = !workspace || isSampleSession || isPropertyMismatch
     ? rawSession
     : await enrichSessionWithAgentName(rawSession, workspace);
   const sessionTitle = buildSessionTourTitle({
@@ -101,7 +104,7 @@ export default async function SessionDetailPage({ params, searchParams }: Props)
   ]> = hasAnalysis
     ? Promise.all([
       getTranscriptForSession(id),
-      resolveRecordingUrl(id, session.videoUrl, session.audioUrl),
+      resolveRecordingUrl(id, session.videoUrl, session.audioUrl, !workspace),
       getRubricForSession(analysisRun?.rubricId ?? session.rubricId, session.propertyId),
       getConversationPhases(id),
       getAudioInsights(id),
@@ -109,7 +112,7 @@ export default async function SessionDetailPage({ params, searchParams }: Props)
     : isReadOnlyExternal
       ? Promise.all([
           Promise.resolve([]),
-          resolveRecordingUrl(id, session.videoUrl, session.audioUrl),
+          resolveRecordingUrl(id, session.videoUrl, session.audioUrl, !workspace),
           Promise.resolve(null),
           Promise.resolve(null),
           Promise.resolve(null),
@@ -127,11 +130,12 @@ export default async function SessionDetailPage({ params, searchParams }: Props)
 
       {isPropertyMismatch && (
         <SessionPropertyMismatch
-          currentPropertyName={workspace.community.name}
+          currentPropertyName={workspace?.community.name ?? null}
           targetPropertyId={resolvedProperty?.id ?? null}
           targetPropertyName={resolvedProperty?.name ?? "another property"}
           canSwitch={Boolean(accessibleProperty) || isGlobalAdmin}
           sessionId={id}
+          isAuthenticated={Boolean(workspace)}
         />
       )}
 
@@ -170,14 +174,6 @@ export default async function SessionDetailPage({ params, searchParams }: Props)
             />
           )}
           <span className={`badge badge-${session.status}`}>{SESSION_STATUS_LABELS[session.status]}</span>
-          <a
-            href={`/follow-up/${encodeURIComponent(id)}`}
-            className="btn btn-outline btn-sm"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Public follow-up
-          </a>
           {hasAnalysis && !isSampleSession && (
             <ExportSessionButton
               href={`/api/sessions/${encodeURIComponent(id)}/export${analysisRun && !analysisRun.isCurrent ? `?version=${analysisRun.version}` : ""}`}
@@ -362,10 +358,13 @@ function parseTimestampToSeconds(ts: string): number {
 async function resolveRecordingUrl(
   sessionId: string,
   videoUrl: string | null,
-  audioUrl: string | null
+  audioUrl: string | null,
+  publicAccess = false,
 ): Promise<string | null> {
   const stored = videoUrl || audioUrl;
-  const proxied = await getRecordingUrl(sessionId);
+  const proxied = publicAccess
+    ? await getRecordingSignedUrl(sessionId)
+    : await getRecordingUrl(sessionId);
   if (proxied) return proxied;
 
   if (stored && !isLegacyLocalUrl(stored)) {

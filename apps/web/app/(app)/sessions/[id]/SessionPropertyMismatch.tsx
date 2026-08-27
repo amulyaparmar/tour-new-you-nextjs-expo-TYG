@@ -11,12 +11,14 @@ export function SessionPropertyMismatch({
   targetPropertyName,
   canSwitch,
   sessionId,
+  isAuthenticated = true,
 }: {
-  currentPropertyName: string;
+  currentPropertyName: string | null;
   targetPropertyId: string | null;
   targetPropertyName: string;
   canSwitch: boolean;
   sessionId: string;
+  isAuthenticated?: boolean;
 }) {
   const [open, setOpen] = useState(true);
   const [switching, setSwitching] = useState(false);
@@ -80,7 +82,12 @@ export function SessionPropertyMismatch({
     }
   }
 
-  const primaryAction = canSwitch && targetPropertyId ? (
+  const primaryAction = !isAuthenticated ? (
+    <a className="btn btn-primary" href={`/login?next=${encodeURIComponent(`/sessions/${sessionId}`)}`}>
+      Sign in for full access
+      <ArrowRight size={16} aria-hidden="true" />
+    </a>
+  ) : canSwitch && targetPropertyId ? (
     <button type="button" className="btn btn-primary" disabled={switching} onClick={() => void switchProperty()}>
       {switching ? "Switching…" : `Switch to ${targetPropertyName}`}
       {!switching && <ArrowRight size={16} aria-hidden="true" />}
@@ -97,7 +104,9 @@ export function SessionPropertyMismatch({
       <aside className={styles.readOnlySessionBanner} aria-label="Session access status">
         <LockKeyhole size={15} aria-hidden="true" />
         <span>
-          {canSwitch
+          {!isAuthenticated
+            ? "Public session · Sign in to comment or make changes."
+            : canSwitch
             ? `This session belongs to ${targetPropertyName}. Switch properties for its team context.`
             : `External session · Join ${targetPropertyName} to change its property-owned settings.`}
         </span>
@@ -114,19 +123,21 @@ export function SessionPropertyMismatch({
             </button>
             <span className={styles.propertyMismatchIcon}><Building2 size={22} /></span>
             <div>
-              <p className={styles.propertyMismatchEyebrow}>{canSwitch ? "Different property" : "External session"}</p>
-              <h1 id="property-access-title">This session belongs to {targetPropertyName}</h1>
+              <p className={styles.propertyMismatchEyebrow}>{!isAuthenticated ? "Public session" : canSwitch ? "Different property" : "External session"}</p>
+              <h1 id="property-access-title">{!isAuthenticated ? "You’re viewing this session as a guest" : `This session belongs to ${targetPropertyName}`}</h1>
               <p>
-                You’re currently working in {currentPropertyName}. {canSwitch
+                {!isAuthenticated
+                  ? "You can review the recording, transcript, scores, and feedback. Sign in to leave comments or make changes."
+                  : <>You’re currently working in {currentPropertyName}. {canSwitch
                   ? "Switch properties to load the matching team, rubric, and assets. You may also close this notice and keep reviewing."
-                  : "You can close this notice and use the recording, transcript, analysis, exports, and comments. Request team access only for property-owned session changes."}
+                  : "You can close this notice and review the session. Request team access for property-owned changes."}</>}
               </p>
             </div>
             <div className={styles.propertyMismatchActions}>
               {primaryAction}
               <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>Continue to session</button>
             </div>
-            {!canSwitch && <p className={styles.propertyMismatchAccess}>All existing property-team members will be notified.</p>}
+            {isAuthenticated && !canSwitch && <p className={styles.propertyMismatchAccess}>All existing property-team members will be notified.</p>}
             {requestNotice && <p className={styles.propertyMismatchSuccess}>{requestNotice}</p>}
             {error && <p className={styles.propertyMismatchError}>{error}</p>}
           </section>
