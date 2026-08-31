@@ -48,8 +48,8 @@ npx eas-cli@latest submit --platform android --profile production
 
 1. Create the app as an app, not a game; select free and the appropriate business category.
 2. Enable Play App Signing and upload the EAS production `.aab` to Internal testing first.
-3. Use `store-assets/store-ready-v4/google/feature-graphic.png` as the feature graphic.
-4. Upload the seven images in `store-assets/store-ready-v4/google/phone-screenshots/` in filename order.
+3. Generate the Play-ready graphics with `node apps/mobile/store-assets/generate-play-console-pack.mjs`.
+4. Use `store-assets/play-console/feature-graphic.png` as the feature graphic, `store-assets/play-console/app-icon.png` as the store icon, and upload the seven JPEG files in `store-assets/play-console/phone-screenshots/` in filename order.
 5. Set the privacy policy URL to `https://tour.you/privacy-policy`.
 6. Set Ads to `No`. The Android build removes Advertising ID permissions.
 7. Complete App access with a stable reviewer account and exact OTP sign-in instructions. The reviewer must be able to reach sessions, recording, analysis, practice, and AI chat.
