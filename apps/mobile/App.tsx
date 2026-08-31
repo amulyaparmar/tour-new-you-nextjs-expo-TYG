@@ -8,6 +8,7 @@ import {
   useAudioPlayer,
   useAudioRecorder,
   type AudioPlayer as ExpoAudioPlayer,
+  type AudioStatus as ExpoAudioStatus,
 } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
@@ -920,7 +921,7 @@ function ProfileNavigation({
           {() => children}
         </ProfileStack.Screen>
         <ProfileStack.Screen name="Profile">
-          {({ navigation }) => (
+          {({ navigation }: { navigation: { goBack: () => void } }) => (
             <ProfileEditorScreen
               session={session}
               onBack={() => {
@@ -1003,7 +1004,7 @@ function SessionNavigation({
           {() => children}
         </SessionStack.Screen>
         <SessionStack.Screen name="Detail">
-          {({ navigation }) => {
+          {({ navigation }: { navigation: { goBack: () => void } }) => {
             if (!sessionId) return null;
             const back = () => {
               navigation.goBack();
@@ -4976,7 +4977,7 @@ function SessionReviewExperience({
         loadedSound = player;
         setSound(player);
         setDuration(player.duration || 0);
-        const subscription = player.addListener("playbackStatusUpdate", (status) => {
+        const subscription = player.addListener("playbackStatusUpdate", (status: ExpoAudioStatus) => {
           if (!mounted) return;
           const nextPosition = status.currentTime;
           setPosition(nextPosition);
@@ -6602,7 +6603,7 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
         setSound(loaded);
         setLoadError(false);
         setDur(loaded.duration || 0);
-        const subscription = loaded.addListener("playbackStatusUpdate", (st) => {
+        const subscription = loaded.addListener("playbackStatusUpdate", (st: ExpoAudioStatus) => {
           if (!mounted) return;
           setPos(st.currentTime);
           if (st.duration) setDur(st.duration);

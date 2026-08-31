@@ -54,26 +54,28 @@ export function useSessionPlayback(sessionId: string): SessionPlaybackState {
         let resolved = await resolveSessionPlaybackUri(sessionId);
         let loadedFromCache = resolved.fromCache;
 
+        let player: AudioPlayer;
         try {
-          loadedSound = await createLoadedAudioPlayer(resolved.uri);
+          player = await createLoadedAudioPlayer(resolved.uri);
         } catch {
           if (resolved.fromCache) throw new Error("Cached audio could not be loaded.");
           const refreshed = await getRecordingSignedPlaybackUrl(sessionId);
           resolved = { uri: refreshed.signedUrl, fromCache: false };
           void cacheRecordingFromUrl(sessionId, refreshed.signedUrl).catch(() => {});
-          loadedSound = await createLoadedAudioPlayer(resolved.uri);
+          player = await createLoadedAudioPlayer(resolved.uri);
           loadedFromCache = false;
         }
 
         if (!mounted) {
-          loadedSound.remove();
+          player.remove();
           return;
         }
 
-        setSound(loadedSound);
+        loadedSound = player;
+        setSound(player);
         setFromCache(loadedFromCache);
-        setDuration(loadedSound.duration || 0);
-        const subscription = loadedSound.addListener("playbackStatusUpdate", (status) => {
+        setDuration(player.duration || 0);
+        const subscription = player.addListener("playbackStatusUpdate", (status) => {
           if (!mounted) return;
           setPosition(status.currentTime);
           if (status.duration) setDuration(status.duration);
