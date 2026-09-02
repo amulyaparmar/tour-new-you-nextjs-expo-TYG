@@ -134,53 +134,51 @@ function parseMarkdown(content: string): Block[] {
   return blocks;
 }
 
+function InlineParts({ parts, onSeek }: { parts: InlinePart[]; onSeek?: (seconds: number) => void }) {
+  return parts.map((part, index) => {
+    if (part.type === "bold") {
+      return (
+        <Text key={index} style={styles.bold}>
+          <InlineParts parts={parseInline(part.value)} onSeek={onSeek} />
+        </Text>
+      );
+    }
+    if (part.type === "italic") {
+      return (
+        <Text key={index} style={styles.italic}>
+          <InlineParts parts={parseInline(part.value)} onSeek={onSeek} />
+        </Text>
+      );
+    }
+    if (part.type === "code") {
+      return <Text key={index} style={styles.codeInline}>{part.value}</Text>;
+    }
+    if (part.type === "link") {
+      const seekSeconds = parseSeekHref(part.href);
+      return (
+        <Text
+          key={index}
+          accessibilityRole={seekSeconds != null ? "link" : undefined}
+          accessibilityLabel={seekSeconds != null ? `Play recording from ${part.label}` : part.label}
+          style={[styles.link, seekSeconds != null && styles.seekLink]}
+          onPress={() => {
+            if (seekSeconds != null) {
+              onSeek?.(seekSeconds);
+              return;
+            }
+            void Linking.openURL(part.href).catch(() => {});
+          }}
+        >
+          {part.label}
+        </Text>
+      );
+    }
+    return <Text key={index}>{part.value}</Text>;
+  });
+}
+
 function InlineText({ parts, onSeek }: { parts: InlinePart[]; onSeek?: (seconds: number) => void }) {
-  return (
-    <Text style={styles.body}>
-      {parts.map((part, index) => {
-        if (part.type === "bold") {
-          return (
-            <Text key={index} style={styles.bold}>
-              {part.value}
-            </Text>
-          );
-        }
-        if (part.type === "italic") {
-          return (
-            <Text key={index} style={styles.italic}>
-              {part.value}
-            </Text>
-          );
-        }
-        if (part.type === "code") {
-          return (
-            <Text key={index} style={styles.codeInline}>
-              {part.value}
-            </Text>
-          );
-        }
-        if (part.type === "link") {
-          const seekSeconds = parseSeekHref(part.href);
-          return (
-            <Text
-              key={index}
-              style={styles.link}
-              onPress={() => {
-                if (seekSeconds != null) {
-                  onSeek?.(seekSeconds);
-                  return;
-                }
-                void Linking.openURL(part.href).catch(() => {});
-              }}
-            >
-              {part.label}
-            </Text>
-          );
-        }
-        return <Text key={index}>{part.value}</Text>;
-      })}
-    </Text>
-  );
+  return <Text style={styles.body}><InlineParts parts={parts} onSeek={onSeek} /></Text>;
 }
 
 type LiveChatMarkdownProps = {
@@ -307,7 +305,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
-  link: { color: C.brand, fontWeight: "800" },
+  link: { color: C.brand, fontWeight: "800", textDecorationLine: "underline" },
+  seekLink: {
+    color: "#075fbe",
+    fontVariant: ["tabular-nums"],
+    textDecorationLine: "none",
+    backgroundColor: "#eaf3ff",
+    borderRadius: 5,
+    overflow: "hidden",
+  },
   h1: { fontSize: 18, fontWeight: "900", marginBottom: 2 },
   h2: { fontSize: 16, fontWeight: "900", marginBottom: 2 },
   h3: { fontSize: 15, fontWeight: "900", marginBottom: 2 },

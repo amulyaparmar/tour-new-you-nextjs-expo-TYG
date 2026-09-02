@@ -59,6 +59,7 @@ import {
   useSessionParticipantRealtime,
   type SessionParticipantRealtimeStatus,
 } from "../session-participants-realtime";
+import { AnimatedTabContent } from "../components/ui/motion";
 
 const C = {
   bg: "#F7F8FB",
@@ -77,6 +78,7 @@ const C = {
 } as const;
 
 const TABS = ["Summary", "Transcript", "AI Chat"] as const;
+type TabDirection = "forward" | "back";
 const DEFAULT_PROMPTS = [
   "Ask about move-in date",
   "Confirm must-haves",
@@ -407,6 +409,7 @@ export function RecordingExperience({
   const rec = useRecording();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>("Summary");
+  const [tabDirection, setTabDirection] = useState<TabDirection>("forward");
   const [hasStarted, setHasStarted] = useState(rec.isRecording);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
@@ -1076,6 +1079,10 @@ export function RecordingExperience({
   }
 
   function selectTab(tab: Tab) {
+    const currentIndex = TABS.indexOf(activeTab);
+    const nextIndex = TABS.indexOf(tab);
+    if (currentIndex === nextIndex) return;
+    setTabDirection(nextIndex > currentIndex ? "forward" : "back");
     setActiveTab(tab);
   }
 
@@ -1185,6 +1192,7 @@ export function RecordingExperience({
 
         <View style={s.content}>
           {activeTab === "Summary" && (
+            <AnimatedTabContent tabKey="live-summary" direction={tabDirection} style={s.tabContent}>
             <ScrollView
               contentContainerStyle={s.summaryContent}
               showsVerticalScrollIndicator={false}
@@ -1293,9 +1301,11 @@ export function RecordingExperience({
               </View>
               {summaryMessage ? <Text style={s.summaryMessage}>{summaryMessage}</Text> : null}
             </ScrollView>
+            </AnimatedTabContent>
           )}
 
           {activeTab === "Transcript" && (
+            <AnimatedTabContent tabKey="live-transcript" direction={tabDirection} style={s.tabContent}>
             <FlatList
               ref={listRef}
               data={liveTranscript}
@@ -1331,9 +1341,11 @@ export function RecordingExperience({
                 </View>
               }
             />
+            </AnimatedTabContent>
           )}
 
           {activeTab === "AI Chat" && (
+            <AnimatedTabContent tabKey="live-ai-chat" direction={tabDirection} style={s.tabContent}>
             <View style={s.chatPane}>
               <ScrollView
                 ref={chatListRef}
@@ -1463,6 +1475,7 @@ export function RecordingExperience({
                 </View>
               </View>
             </View>
+            </AnimatedTabContent>
           )}
         </View>
       </View>
@@ -1543,7 +1556,7 @@ export function RecordingExperience({
               {onUploadFile && countdown === null ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Upload a recording" onPress={() => void onUploadFile()} style={s.uploadRecordingButton}>
                   <Ionicons name="cloud-upload-outline" size={20} color={C.brand} />
-                  <Text style={s.uploadRecordingText}>Upload</Text>
+                  <Text style={s.uploadRecordingText}>Upload file</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -1636,7 +1649,11 @@ export function RecordingExperience({
               </Pressable>
             </View>
 
-            <Reanimated.View key={personEntryMode} entering={FadeIn.duration(170)} style={s.personModeBody}>
+            <AnimatedTabContent
+              tabKey={personEntryMode}
+              direction={personEntryMode === "manual" ? "forward" : "back"}
+              style={s.personModeBody}
+            >
               {personEntryMode === "qr" ? (
                 <View style={s.personQrPanel}>
                   <View style={s.personRealtimeStatus}>
@@ -1713,7 +1730,7 @@ export function RecordingExperience({
                   </Pressable>
                 </ScrollView>
               )}
-            </Reanimated.View>
+            </AnimatedTabContent>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -1848,6 +1865,7 @@ const s = StyleSheet.create({
   tabTextActive: { color: C.brand },
   tabLine: { position: "absolute", left: 8, right: 8, bottom: 0, height: 3, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: C.brand },
   content: { flex: 1, minHeight: 0 },
+  tabContent: { flex: 1, minHeight: 0 },
   summaryContent: { padding: 18, gap: 18, paddingBottom: 28 },
   summarySection: { gap: 10 },
   summarySectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -2053,13 +2071,13 @@ const s = StyleSheet.create({
   roundControl: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: "#E4EAF2" },
   stopControl: { width: 66, height: 66, borderRadius: 33, alignItems: "center", justifyContent: "center", backgroundColor: C.brandSoft, borderWidth: 1, borderColor: "rgba(0,108,229,0.18)" },
   stopSquare: { width: 19, height: 19, borderRadius: 5, backgroundColor: C.brand },
-  readyActions: { minHeight: 62, alignItems: "center", justifyContent: "center" },
-  startRecordingButton: { alignSelf: "center", minWidth: 220, minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 22, borderRadius: 29, backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
+  readyActions: { minHeight: 62, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  startRecordingButton: { flex: 1, minWidth: 0, minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 18, borderRadius: 29, backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
   startRecordingButtonDisabled: { backgroundColor: "#5AA8F7" },
   startRecordingText: { color: "#fff", fontSize: 16, fontWeight: "900" },
   countdownText: { color: "#fff", fontSize: 28, lineHeight: 32, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  uploadRecordingButton: { position: "absolute", right: 0, bottom: 2, minWidth: 58, minHeight: 52, alignItems: "center", justifyContent: "center", gap: 2, paddingHorizontal: 6, borderRadius: 16, borderWidth: 1, borderColor: "rgba(0,108,229,0.18)", backgroundColor: C.brandSoft },
-  uploadRecordingText: { color: C.brand, fontSize: 10, fontWeight: "900" },
+  uploadRecordingButton: { width: 100, minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 10, borderRadius: 18, borderWidth: 1, borderColor: "rgba(0,108,229,0.18)", backgroundColor: C.brandSoft },
+  uploadRecordingText: { color: C.brand, fontSize: 11, fontWeight: "900" },
   sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.58)" },
   assetSheet: { maxHeight: "78%", minHeight: "52%", borderTopLeftRadius: 18, borderTopRightRadius: 18, backgroundColor: C.bg, paddingHorizontal: 18, paddingBottom: Platform.OS === "ios" ? 32 : 18 },
   personSheet: { maxHeight: "88%", minHeight: "58%", borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: C.bg, paddingHorizontal: 18, paddingBottom: Platform.OS === "ios" ? 32 : 18 },
