@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Asset } from "expo-asset";
 import * as Haptics from "expo-haptics";
-import * as MediaLibrary from "expo-media-library";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -36,18 +35,20 @@ const MAX_RECORDING_BYTES = 500 * 1024 * 1024;
 const MOCK_CAMERA_VIDEO = require("../../assets/videos/login-bg.mp4");
 const USE_SIMULATOR_CAMERA = __DEV__ && isSimulator();
 
-type RecordedVideoAsset = {
+export type RecordedVideoAsset = {
   uri: string;
   fileName: string;
   mimeType: "video/mp4";
   name: string;
   description: string;
   durationSec: number;
+  localAssetId?: string;
 };
 
 type VideoAssetRecorderProps = {
   visible: boolean;
   onClose: () => void;
+  onSaveLocal: (asset: RecordedVideoAsset) => Promise<{ id: string; uri: string }>;
   onUpload: (asset: RecordedVideoAsset) => Promise<void>;
 };
 
@@ -155,7 +156,7 @@ function RecordedVideoReview({
   uri: string;
   durationSec: number;
   onRetake: () => void;
-  onSave: () => void;
+  onSave: (name: string, description: string) => void;
   onUpload: (name: string, description: string) => void;
   onClose: () => void;
   saving: boolean;
@@ -226,15 +227,15 @@ function RecordedVideoReview({
         <Pressable
           accessibilityRole="button"
           disabled={saving || uploading}
-          onPress={onSave}
+          onPress={() => onSave(name.trim(), description.trim())}
           style={({ pressed }) => [styles.saveButton, pressed && styles.pressed, (saving || uploading) && styles.disabled]}
         >
           {saving ? (
             <LoadingDots size="small" color={C.brand} />
           ) : (
-            <Ionicons name={saved ? "checkmark-circle" : "images-outline"} size={19} color={C.brand} />
+            <Ionicons name={saved ? "checkmark-circle" : "folder-outline"} size={19} color={C.brand} />
           )}
-          <Text style={styles.saveButtonText}>{saved ? "Saved to Photos" : "Save to Photos"}</Text>
+          <Text style={styles.saveButtonText}>{saved ? "Saved in Tour" : "Save to library"}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -250,7 +251,7 @@ function RecordedVideoReview({
   );
 }
 
-export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRecorderProps) {
+export function VideoAssetRecorder({ visible, onClose, onSaveLocal, onUpload }: VideoAssetRecorderProps) {
   const insets = useSafeAreaInsets();
   const cameraPermission = useCameraPermission();
   const microphonePermission = useMicrophonePermission();
@@ -264,6 +265,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
   const [recordedDurationSec, setRecordedDurationSec] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savedAsset, setSavedAsset] = useState<{ id: string; uri: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<Recorder | null>(null);
@@ -290,6 +292,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
     setRecordedUri(null);
     setRecordedDurationSec(0);
     setSaved(false);
+    setSavedAsset(null);
     setError(null);
   }, [clearTimer]);
 
@@ -429,34 +432,28 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
     ]);
   }, [clearTimer, isRecording, onClose, recordedUri, resetCapture, saved]);
 
-  const saveToPhotos = useCallback(async () => {
+  const saveLocally = useCallback(async (name: string, description: string) => {
     if (!recordedUri || saving || saved) return;
     setSaving(true);
     setError(null);
     try {
-      if (Platform.OS === "ios") {
-        const permission = await MediaLibrary.requestPermissionsAsync(true);
-        if (!permission.granted) {
-          Alert.alert(
-            "Photos access is off",
-            "Allow Tour to add videos in Settings, then try again.",
-            [
-              { text: "Not now", style: "cancel" },
-              { text: "Open Settings", onPress: () => void Linking.openSettings() },
-            ],
-          );
-          return;
-        }
-      }
-      await MediaLibrary.saveToLibraryAsync(recordedUri);
+      const preserved = await onSaveLocal({
+        uri: recordedUri,
+        fileName: `tour-video-${Date.now()}.mp4`,
+        mimeType: "video/mp4",
+        name,
+        description,
+        durationSec: recordedDurationSec,
+      });
+      setSavedAsset(preserved);
       setSaved(true);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save this video to Photos.");
+      setError(caught instanceof Error ? caught.message : "Could not save this video in Tour.");
     } finally {
       setSaving(false);
     }
-  }, [recordedUri, saved, saving]);
+  }, [onSaveLocal, recordedDurationSec, recordedUri, saved, saving]);
 
   const uploadAsset = useCallback(async (name: string, description: string) => {
     if (!recordedUri || uploading) return;
@@ -464,12 +461,13 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
     setError(null);
     try {
       await onUpload({
-        uri: recordedUri,
+        uri: savedAsset?.uri ?? recordedUri,
         fileName: `tour-video-${Date.now()}.mp4`,
         mimeType: "video/mp4",
         name,
         description,
         durationSec: recordedDurationSec,
+        localAssetId: savedAsset?.id,
       });
       resetCapture();
       onClose();
@@ -478,7 +476,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
     } finally {
       setUploading(false);
     }
-  }, [onClose, onUpload, recordedDurationSec, recordedUri, resetCapture, uploading]);
+  }, [onClose, onUpload, recordedDurationSec, recordedUri, resetCapture, savedAsset, uploading]);
 
   const hasPermissions = USE_SIMULATOR_CAMERA
     || (cameraPermission.hasPermission && microphonePermission.hasPermission);
@@ -496,7 +494,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
           uri={recordedUri}
           durationSec={recordedDurationSec}
           onRetake={resetCapture}
-          onSave={() => void saveToPhotos()}
+          onSave={(name, description) => void saveLocally(name, description)}
           onUpload={(name, description) => void uploadAsset(name, description)}
           onClose={requestClose}
           saving={saving}
@@ -604,7 +602,6 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
   );
 }
 
-export type { RecordedVideoAsset };
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.78 },
