@@ -27,6 +27,7 @@ import {
   type PropertyOnboardingCandidate,
 } from "../auth";
 import { tourColors } from "@/theme/tour-brand";
+import { queryCacheTime, queryKeys } from "@/queries";
 
 const SHEET_HEIGHT_RATIO = 0.72;
 const SHEET_MAX_HEIGHT = 650;
@@ -85,10 +86,10 @@ export function CommunityPickerModal({
   const [joiningPlaceId, setJoiningPlaceId] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const enrichmentQuery = useQuery({
-    queryKey: ["community-enrichment", session.workspace.user.email],
+    queryKey: [...queryKeys.all(), "community-enrichment", session.workspace.user.id],
     queryFn: listCommunityEnrichment,
     enabled: visible,
-    staleTime: 60_000,
+    staleTime: queryCacheTime.reference,
     retry: 1,
   });
   const enrichmentByCommunity = useMemo(
@@ -98,10 +99,11 @@ export function CommunityPickerModal({
     [enrichmentQuery.data]
   );
   const propertySearchQuery = useQuery({
-    queryKey: ["property-onboarding-search", debouncedAddSearch],
+    queryKey: [...queryKeys.all(), "property-onboarding-search", debouncedAddSearch],
     queryFn: () => searchPropertiesForOnboarding(debouncedAddSearch),
     enabled: visible && mode === "add" && debouncedAddSearch.length >= 2,
-    staleTime: 60_000,
+    staleTime: queryCacheTime.reference,
+    placeholderData: (previous) => previous,
     retry: 1,
   });
   const sheetHeight = Math.round(Math.min(windowHeight * SHEET_HEIGHT_RATIO, SHEET_MAX_HEIGHT));
@@ -121,14 +123,16 @@ export function CommunityPickerModal({
     [authorizedCommunities]
   );
   const assignedSearchQuery = useQuery({
-    queryKey: ["assigned-property-search", session.workspace.user.email, debouncedAssignedSearch],
+    queryKey: [...queryKeys.all(), "assigned-property-search", session.workspace.user.id, debouncedAssignedSearch],
     queryFn: () => listBusinesses(debouncedAssignedSearch, {
       email: session.workspace.user.email,
       limit: 50,
     }),
     enabled: visible && mode === "assigned",
     initialData: debouncedAssignedSearch ? undefined : initialAssignedProperties,
-    staleTime: 30_000,
+    initialDataUpdatedAt: 0,
+    staleTime: queryCacheTime.reference,
+    placeholderData: (previous) => previous,
     retry: 1,
   });
   const activeCommunityId = session.workspace.community.id;

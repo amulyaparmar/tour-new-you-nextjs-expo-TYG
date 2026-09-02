@@ -18,7 +18,7 @@ import Reanimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { LoadingDots } from "@/components/loading-dots";
-import { fetchRubrics } from "../api";
+import { useRubricsQuery } from "../queries";
 import { tourColors as C, scoreColor } from "../theme/tour-brand";
 import {
   appendBulkBatchAssets,
@@ -132,10 +132,12 @@ export function BulkUploadFlow({
   const [recentBatches, setRecentBatches] = useState<BulkBatch[]>([]);
   const [step, setStep] = useState<FlowStep>("select");
   const [draft, setDraft] = useState<BatchDraft | null>(null);
-  const [rubrics, setRubrics] = useState<Rubric[]>([]);
+  const rubricsQuery = useRubricsQuery();
+  const rubrics = rubricsQuery.data?.rubrics ?? [];
   const [rubricOpen, setRubricOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [localLoading, setLocalLoading] = useState(true);
+  const loading = localLoading || rubricsQuery.isPending;
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -156,12 +158,7 @@ export function BulkUploadFlow({
   }, [batchId, communityId]);
 
   useEffect(() => {
-    void Promise.all([
-      reload(),
-      fetchRubrics()
-        .then((result) => setRubrics(result.rubrics))
-        .catch(() => undefined),
-    ]).finally(() => setLoading(false));
+    void reload().finally(() => setLocalLoading(false));
   }, [reload]);
 
   useEffect(() => {

@@ -1,32 +1,15 @@
-import { authenticatedFetch, getCurrentSession } from "@/auth";
+import type { PracticeAttempt, PracticeScenario } from "@/api";
+import { getCurrentSession } from "@/auth";
 import { TourEmptyState as EmptyState } from "@/components/tour";
 import { selectionHaptic } from "@/lib/haptics";
+import { usePracticeDashboardQuery } from "@/queries";
 import { tourColors as C } from "@/theme/tour-brand";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativePracticeSession } from "./NativePracticeSession";
 import { PracticeListSkeleton } from "./practice-loading";
-
-type Scenario = {
-  id: string;
-  name: string;
-  description?: string;
-  difficulty?: "easy" | "medium" | "hard";
-  firstMessage?: string;
-  passThreshold?: number;
-};
-
-type Attempt = {
-  id: string;
-  scenario_name?: string | null;
-  scenario_difficulty?: string | null;
-  score?: number | null;
-  grade_status?: "passed" | "not-passed" | "needs-review" | null;
-  duration_seconds?: number | null;
-  created_at?: string;
-};
 
 export function PracticeSessionsScreen({
   onBack,
@@ -36,43 +19,19 @@ export function PracticeSessionsScreen({
   onOpenNewSession?: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const practiceQuery = usePracticeDashboardQuery();
+  const scenarios = practiceQuery.data?.scenarios ?? [];
+  const attempts = practiceQuery.data?.attempts ?? [];
+  const loading = practiceQuery.isPending;
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [livePractice, setLivePractice] = useState(false);
-  const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const selectedScenario = scenarios.find((scenario) => scenario.id === selectedScenarioId)
+    ?? scenarios[0]
+    ?? null;
+  const error = practiceQuery.error instanceof Error ? practiceQuery.error.message : null;
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const [scenarioRes, attemptsRes] = await Promise.all([
-        authenticatedFetch("/api/roleplay/scenarios"),
-        authenticatedFetch("/api/roleplay/attempts?scope=mine"),
-      ]);
-      const scenarioBody = await scenarioRes.json().catch(() => null) as { success?: boolean; scenarios?: Scenario[]; message?: string } | null;
-      const attemptsBody = await attemptsRes.json().catch(() => null) as { success?: boolean; attempts?: Attempt[]; message?: string } | null;
-      if (!scenarioRes.ok || !scenarioBody?.success) throw new Error(scenarioBody?.message ?? "Could not load practice scenarios.");
-      if (!attemptsRes.ok || !attemptsBody?.success) throw new Error(attemptsBody?.message ?? "Could not load practice history.");
-      const nextScenarios = scenarioBody.scenarios ?? [];
-      setScenarios(nextScenarios);
-      setSelectedScenario((current) =>
-        current && nextScenarios.some((scenario) => scenario.id === current.id)
-          ? current
-          : nextScenarios[0] ?? null,
-      );
-      setAttempts(attemptsBody.attempts ?? []);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load practice sessions.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  function openPractice(scenario?: Scenario) {
+  function openPractice(scenario?: PracticeScenario) {
     if (!getCurrentSession()) {
       Alert.alert("Sign in required", "Sign in again, then start your practice session.");
       return;
@@ -82,14 +41,17 @@ export function PracticeSessionsScreen({
       Alert.alert("No practice scenarios", "Create a scenario on the web first, then return here to start a live practice call.");
       return;
     }
-    setSelectedScenario(selected);
+    setSelectedScenarioId(selected.id);
     setLivePractice(true);
   }
 
   const refresh = async () => {
     setRefreshing(true);
-    await load();
-    setRefreshing(false);
+    try {
+      await practiceQuery.refetch();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   if (livePractice) {
@@ -98,7 +60,7 @@ export function PracticeSessionsScreen({
         scenario={selectedScenario}
         onBack={() => {
           setLivePractice(false);
-          void load();
+          void practiceQuery.refetch();
         }}
       />
     );
@@ -131,7 +93,7 @@ export function PracticeSessionsScreen({
             <View style={styles.error}>
               <Ionicons name="alert-circle-outline" size={18} color={C.red} />
               <View style={styles.flex}><Text style={styles.errorText}>{error}</Text></View>
-              <Pressable onPress={() => void load()}><Text style={styles.retry}>Retry</Text></Pressable>
+              <Pressable onPress={() => void practiceQuery.refetch()}><Text style={styles.retry}>Retry</Text></Pressable>
             </View>
           ) : null}
 
@@ -149,7 +111,7 @@ export function PracticeSessionsScreen({
                       accessibilityLabel={`${scenario.name} practice scenario`}
                       onPress={() => {
                         selectionHaptic();
-                        setSelectedScenario(scenario);
+                        setSelectedScenarioId(scenario.id);
                       }}
                       style={({ pressed }) => [styles.scenario, selected && styles.scenarioSelected, pressed && styles.pressed]}
                     >
@@ -230,12 +192,12 @@ function PracticeModeTabs({ onSession }: { onSession: () => void }) {
   );
 }
 
-function DifficultyBadge({ difficulty }: { difficulty: NonNullable<Scenario["difficulty"]> }) {
+function DifficultyBadge({ difficulty }: { difficulty: NonNullable<PracticeScenario["difficulty"]> }) {
   const color = difficulty === "hard" ? C.red : difficulty === "easy" ? C.green : C.amber;
   return <View style={[styles.difficulty, { backgroundColor: `${color}18` }]}><Text style={[styles.difficultyText, { color }]}>{difficulty}</Text></View>;
 }
 
-function AttemptRow({ attempt, last }: { attempt: Attempt; last: boolean }) {
+function AttemptRow({ attempt, last }: { attempt: PracticeAttempt; last: boolean }) {
   const passed = attempt.grade_status === "passed";
   const scoreColor = passed ? C.green : attempt.grade_status === "not-passed" ? C.red : C.amber;
   return (

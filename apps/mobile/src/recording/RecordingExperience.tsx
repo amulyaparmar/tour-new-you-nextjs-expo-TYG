@@ -42,7 +42,6 @@ import {
   addSessionParticipant,
   createCheckInLink,
   createSession,
-  fetchLiveSessionSuggestions,
   materialUrl,
   streamLiveSessionChat,
   updateSessionNotes,
@@ -60,6 +59,7 @@ import {
   type SessionParticipantRealtimeStatus,
 } from "../session-participants-realtime";
 import { AnimatedTabContent } from "../components/ui/motion";
+import { useLiveSessionSuggestionsQuery } from "../queries";
 
 const C = {
   bg: "#F7F8FB",
@@ -94,7 +94,6 @@ const EMPTY_CHAT_PROMPTS = [
 const WAVE_MIN_HEIGHT = 4;
 const WAVE_MAX_HEIGHT = 28;
 const PERMISSION_TIP_KEY = "tour.recording.permissionTip.dismissed";
-const SUGGESTION_REFRESH_MS = 18_000;
 
 const IS_SIMULATOR = isSimulator();
 
@@ -437,7 +436,6 @@ export function RecordingExperience({
   const [chatBusy, setChatBusy] = useState(false);
   const [chatStreaming, setChatStreaming] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([...DEFAULT_PROMPTS]);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
   const [transcriptionRequested, setTranscriptionRequested] = useState(false);
   const [finalTranscriptLines, setFinalTranscriptLines] = useState<LiveTranscriptLine[]>([]);
@@ -761,33 +759,14 @@ export function RecordingExperience({
   }, [agentName, notes, propertyName, prospectName, selectedAssets]);
 
   const transcriptSnapshot = useMemo(() => transcriptText(liveTranscript), [liveTranscript]);
-
-  useEffect(() => {
-    if (!chatFocused || !resolvedSessionId) return;
-
-    let cancelled = false;
-
-    async function refreshSuggestions() {
-      try {
-        const { suggestions } = await fetchLiveSessionSuggestions(resolvedSessionId!, {
-          liveTranscript: transcriptSnapshot,
-          propertyContext,
-        });
-        if (!cancelled && suggestions.length) {
-          setSuggestedPrompts(suggestions.slice(0, 4));
-        }
-      } catch {
-        // Keep the last good suggestions if refresh fails.
-      }
-    }
-
-    void refreshSuggestions();
-    const timer = setInterval(() => void refreshSuggestions(), SUGGESTION_REFRESH_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [chatFocused, propertyContext, resolvedSessionId, transcriptSnapshot]);
+  const suggestionsQuery = useLiveSessionSuggestionsQuery(
+    resolvedSessionId ?? "",
+    { liveTranscript: transcriptSnapshot, propertyContext },
+    chatFocused,
+  );
+  const suggestedPrompts = suggestionsQuery.data?.suggestions.length
+    ? suggestionsQuery.data.suggestions.slice(0, 4)
+    : DEFAULT_PROMPTS;
 
   const waveformBars = useMemo(() => {
     const levels = rec.waveformLevels;

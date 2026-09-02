@@ -8,7 +8,7 @@ import {
   calculateTranscriptConversationStats,
 } from "@tour/shared";
 import { Activity, RefreshCw } from "lucide-react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import {
   Pressable,
   ScrollView,
@@ -16,11 +16,15 @@ import {
   View,
 } from "react-native";
 
-import { fetchAudioInsights, fetchTranscript, startAudioInsights } from "@/api";
 import { Icon } from "@/components/ui/icon";
 import { LoadingDots } from "@/components/loading-dots";
 import { Text } from "@/components/ui/text";
 import { useSessionPlayback } from "@/hooks/use-session-playback";
+import {
+  useAudioInsightsQuery,
+  useStartAudioInsightsMutation,
+  useTranscriptQuery,
+} from "@/queries";
 
 import {
   ConversationStatsSection,
@@ -29,7 +33,7 @@ import {
 import { SessionPlayer } from "./session-player";
 import { TourScreenHeader } from "./tour-screen-header";
 
-const POLLING = new Set<AudioInsightsStatus>(["pending", "processing"]);
+const POLLING = new Set<AudioInsightsStatus>(["processing"]);
 
 export function SessionAudioInsightsScreen({
   sessionId,
@@ -46,49 +50,20 @@ export function SessionAudioInsightsScreen({
   onBack: () => void;
   onOpenAudioChat?: () => void;
 }) {
-  const [status, setStatus] = useState(initialStatus);
-  const [insights, setInsights] = useState(initialInsights);
-  const [transcriptConversationStats, setTranscriptConversationStats] =
-    useState<TranscriptConversationStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
+  const audioInsightsQuery = useAudioInsightsQuery(sessionId);
+  const transcriptQuery = useTranscriptQuery(sessionId);
+  const startMutation = useStartAudioInsightsMutation(sessionId);
   const playback = useSessionPlayback(sessionId);
-
-  const refresh = useCallback(async () => {
-    try {
-      const body = await fetchAudioInsights(sessionId);
-      setStatus(body.status);
-      setInsights(body.insights);
-      setError(body.error ?? null);
-    } catch {
-      // Ignore transient errors while polling.
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    void refresh();
-    if (!POLLING.has(status)) return;
-    const interval = setInterval(() => void refresh(), 3000);
-    return () => clearInterval(interval);
-  }, [refresh, status]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchTranscript(sessionId)
-      .then(({ transcript }) => {
-        if (!cancelled) {
-          setTranscriptConversationStats(
-            calculateTranscriptConversationStats(transcript),
-          );
-        }
-      })
-      .catch(() => {
-        // The Gemini status and retry controls remain usable without a transcript.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionId]);
+  const status = audioInsightsQuery.data?.status ?? initialStatus;
+  const insights = audioInsightsQuery.data?.insights ?? initialInsights;
+  const error = audioInsightsQuery.data?.error
+    ?? (audioInsightsQuery.error instanceof Error ? audioInsightsQuery.error.message : null)
+    ?? (startMutation.error instanceof Error ? startMutation.error.message : null);
+  const starting = startMutation.isPending;
+  const transcriptConversationStats = useMemo<TranscriptConversationStats | null>(() => {
+    const transcript = transcriptQuery.data?.transcript;
+    return transcript?.length ? calculateTranscriptConversationStats(transcript) : null;
+  }, [transcriptQuery.data?.transcript]);
 
   const conversationStats =
     insights?.conversationStats ?? transcriptConversationStats;
@@ -99,17 +74,10 @@ export function SessionAudioInsightsScreen({
       : null;
 
   async function handleStart() {
-    setStarting(true);
-    setError(null);
     try {
-      const body = await startAudioInsights(sessionId);
-      setInsights(null);
-      setStatus(body.status ?? "processing");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start audio insights.");
-      setStatus("failed");
-    } finally {
-      setStarting(false);
+      await startMutation.mutateAsync();
+    } catch {
+      // The mutation error is rendered from the shared query state.
     }
   }
 

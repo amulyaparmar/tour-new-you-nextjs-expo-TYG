@@ -14,8 +14,8 @@ import Reanimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { LoadingDots } from "@/components/loading-dots";
 import { SessionReportSkeleton } from "@/components/ui/screen-skeletons";
-import { fetchAnalysis, fetchAnalysisRuns, fetchSession } from "../api";
 import { TourLogo } from "../components/TourLogo";
+import { useSessionReportQuery } from "../queries";
 import { tourColors as C, scoreColor, scoreLabel } from "../theme/tour-brand";
 import { prepareSessionReport, type CachedSessionReport } from "./report-cache";
 
@@ -28,40 +28,20 @@ export function SessionReportScreen({
   onBack: () => void;
   onNotify?: (message: string, kind?: "success" | "error" | "info") => void;
 }) {
-  const [session, setSession] = useState<SessionDetail | null>(null);
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [runs, setRuns] = useState<AnalysisRunSummary[]>([]);
+  const reportQuery = useSessionReportQuery(sessionId);
+  const session = reportQuery.data?.session ?? null;
+  const analysis = reportQuery.data?.analysis ?? null;
+  const runs = reportQuery.data?.runs ?? [];
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [report, setReport] = useState<CachedSessionReport | null>(null);
-  const [loading, setLoading] = useState(true);
   const [preparing, setPreparing] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [sessionResult, analysisResult, runsResult] = await Promise.all([
-        fetchSession(sessionId),
-        fetchAnalysis(sessionId),
-        fetchAnalysisRuns(sessionId).catch(() => ({ runs: [] })),
-      ]);
-      setSession(sessionResult.session);
-      setAnalysis(analysisResult.analysis ?? sessionResult.analysis ?? null);
-      setRuns(runsResult.runs);
-      const current = runsResult.runs.find((run) => run.isCurrent) ?? runsResult.runs[0];
-      setSelectedVersion(current?.version ?? null);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load this report.");
-    } finally {
-      setLoading(false);
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const loading = reportQuery.isPending;
+  const currentVersion = (runs.find((run) => run.isCurrent) ?? runs[0])?.version ?? null;
+  const effectiveVersion = selectedVersion ?? currentVersion;
+  const visibleError = error
+    ?? (reportQuery.error instanceof Error ? reportQuery.error.message : null);
 
   const prepare = useCallback(async (refresh = false) => {
     if (!session) return null;
@@ -71,7 +51,7 @@ export function SessionReportScreen({
       const next = await prepareSessionReport({
         sessionId,
         sessionTitle: session.title,
-        version: selectedVersion,
+        version: effectiveVersion,
         refresh,
       });
       setReport(next);
@@ -82,17 +62,17 @@ export function SessionReportScreen({
     } finally {
       setPreparing(false);
     }
-  }, [selectedVersion, session, sessionId]);
+  }, [effectiveVersion, session, sessionId]);
 
   useEffect(() => {
     if (!session || loading) return;
     setReport(null);
     void prepare(false);
-  }, [loading, prepare, selectedVersion, session]);
+  }, [effectiveVersion, loading, prepare, session]);
 
   const selectedRun = useMemo(
-    () => runs.find((run) => run.version === selectedVersion) ?? runs.find((run) => run.isCurrent) ?? null,
-    [runs, selectedVersion],
+    () => runs.find((run) => run.version === effectiveVersion) ?? runs.find((run) => run.isCurrent) ?? null,
+    [effectiveVersion, runs],
   );
   const score = selectedRun?.overallScore ?? analysis?.overallScore ?? session?.overallScore ?? null;
 
@@ -144,7 +124,7 @@ export function SessionReportScreen({
       <View style={styles.loading}>
         <Ionicons name="document-text-outline" size={46} color={C.textMuted} />
         <Text style={styles.loadingTitle}>Report unavailable</Text>
-        <Text style={styles.loadingCopy}>{error ?? "This session does not have a completed analysis yet."}</Text>
+        <Text style={styles.loadingCopy}>{visibleError ?? "This session does not have a completed analysis yet."}</Text>
         <Pressable onPress={onBack} style={styles.compactButton}><Text style={styles.compactButtonText}>Go back</Text></Pressable>
       </View>
     );
@@ -186,11 +166,11 @@ export function SessionReportScreen({
                   }}
                   style={({ pressed }) => [
                     styles.versionPill,
-                    selectedVersion === run.version && styles.versionPillActive,
+                    effectiveVersion === run.version && styles.versionPillActive,
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Text style={[styles.versionText, selectedVersion === run.version && styles.versionTextActive]}>
+                  <Text style={[styles.versionText, effectiveVersion === run.version && styles.versionTextActive]}>
                     Version {run.version}{run.isCurrent ? " · Current" : ""}
                   </Text>
                 </Pressable>
@@ -198,10 +178,10 @@ export function SessionReportScreen({
           </ScrollView>
         ) : null}
 
-        {error ? (
+        {visibleError ? (
           <Reanimated.View entering={FadeIn.duration(180)} style={styles.errorBanner}>
             <Ionicons name="alert-circle" size={18} color={C.red} />
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>{visibleError}</Text>
           </Reanimated.View>
         ) : null}
 

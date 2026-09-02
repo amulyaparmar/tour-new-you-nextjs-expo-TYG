@@ -13,7 +13,6 @@ import { AppProviders } from "./src/components/app-providers";
 import { LoadingDots } from "./src/components/loading-dots";
 import {
   Alert,
-  AppState,
   Dimensions,
   FlatList,
   Image,
@@ -92,23 +91,9 @@ import {
   createSession,
   type CalendarEvent,
   type SessionComment,
-  deleteComment,
-  deleteSession,
-  fetchActions,
-  fetchAnalysis,
-  fetchAudioInsights,
-  fetchComments,
-  fetchCalendarEvents,
-  fetchMaterials,
-  fetchRubrics,
-  fetchSession,
-  fetchSessions,
-  fetchTranscript,
-  postComment,
-  processSession,
+  startSessionProcessing,
   syncCalendar,
   materialUrl,
-  updateActionStatus,
   uploadRecording,
   uploadMaterial,
   uploadRubric,
@@ -200,6 +185,8 @@ import {
 } from "./src/assets/local-asset-library";
 import {
   queryKeys,
+  sessionQueryOptions,
+  sessionReviewQueryOptions,
   useCalendarEventsQuery,
   useDeleteCommentMutation,
   useDeleteSessionMutation,
@@ -207,16 +194,14 @@ import {
   useMaterialsQuery,
   usePostCommentMutation,
   useProfileQuery,
-  useActionsQuery,
-  useAnalysisQuery,
   useAudioInsightsQuery,
   useCommentsQuery,
   useRubricsQuery,
   useSampleSessionQuery,
   useSampleSessionsQuery,
+  useSessionReviewQuery,
   useSessionQuery,
   useSessionsQuery,
-  useTranscriptQuery,
   useUpdateActionStatusMutation,
 } from "./src/queries";
 import { useAppStore } from "./src/stores/app-store";
@@ -827,31 +812,34 @@ export default function App() {
     setTransitionDirection(screenRank(next) >= screenRank(screen) ? "forward" : "back");
     setScreen(next);
   }, [screen]);
+  const openSessionDetail = useCallback((sessionId: string, autoStartRecording = false) => {
+    void appQueryClient.prefetchQuery(sessionReviewQueryOptions(sessionId));
+    nav({ type: "session-detail", sessionId, autoStartRecording });
+  }, [nav]);
 
   useEffect(() => {
-    const refreshSessions = () => {
-      void appQueryClient.invalidateQueries({ queryKey: queryKeys.all() });
+    const refreshSessions = (sessionId?: string) => {
+      void Promise.all([
+        appQueryClient.invalidateQueries({ queryKey: queryKeys.sessionsRoot() }),
+        appQueryClient.invalidateQueries({ queryKey: queryKeys.sessionPagesRoot() }),
+        appQueryClient.invalidateQueries({ queryKey: queryKeys.calendar() }),
+        sessionId
+          ? appQueryClient.invalidateQueries({ queryKey: queryKeys.sessionReview(sessionId) })
+          : Promise.resolve(),
+      ]);
     };
-    const removeReceived = addNotificationReceivedListener(() => {
-      refreshSessions();
+    const removeReceived = addNotificationReceivedListener((payload) => {
+      refreshSessions(payload.sessionId);
     });
     const removeResponse = addNotificationResponseListener((payload) => {
-      refreshSessions();
-      nav({
-        type: "session-detail",
-        sessionId: payload.sessionId,
-        autoStartRecording: Boolean(payload.autoStartRecording),
-      });
-    });
-    const appStateSub = AppState.addEventListener("change", (next) => {
-      if (next === "active") refreshSessions();
+      refreshSessions(payload.sessionId);
+      openSessionDetail(payload.sessionId, Boolean(payload.autoStartRecording));
     });
     return () => {
       removeReceived();
       removeResponse();
-      appStateSub.remove();
     };
-  }, [nav]);
+  }, [openSessionDetail]);
 
   if (authLoading) {
     return (
@@ -885,7 +873,7 @@ export default function App() {
       <StatusBar style="dark" />
       <RecordingProvider onNotify={showToast}>
         <ToastProvider>
-          <OfflineSyncHost onOpenRemoteSession={(sessionId) => nav({ type: "session-detail", sessionId })} />
+          <OfflineSyncHost onOpenRemoteSession={openSessionDetail} />
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={st.flex1}>
             <ScreenTransition transitionKey={routeKey} direction={transitionDirection}>
               {screen.type === "main" && (
@@ -893,11 +881,7 @@ export default function App() {
                   key={authSession.workspace.community.id}
                   tab={screen.tab}
                   onTab={(t) => nav({ type: "main", tab: t })}
-                  onSession={(id, opts) => nav({
-                    type: "session-detail",
-                    sessionId: id,
-                    autoStartRecording: opts?.autoStartRecording,
-                  })}
+                  onSession={(id, opts) => openSessionDetail(id, Boolean(opts?.autoStartRecording))}
                   onSampleSession={(id) => nav({ type: "session-detail", sessionId: id, sample: true })}
                   onCreate={() => nav({ type: "create-session" })}
                   onAudioTest={() => nav({ type: "audio-test" })}
@@ -991,14 +975,14 @@ export default function App() {
                   agentName={agentName}
                   initialBatchId={screen.batchId}
                   onBack={() => nav({ type: "main", tab: "sessions" })}
-                  onOpenSession={(sessionId) => nav({ type: "session-detail", sessionId })}
+                  onOpenSession={openSessionDetail}
                   onNotify={showToast}
                 />
               )}
               {screen.type === "create-session" && (
                 <CreateSessionScreen
                   onBack={() => nav({ type: "main", tab: "sessions" })}
-                  onCreated={(id) => nav({ type: "session-detail", sessionId: id })}
+                  onCreated={openSessionDetail}
                   onLiveRecordingOpened={() => nav({ type: "main", tab: "home" })}
                   pendingUpload={pendingCreateUpload}
                   onPendingUploadHandled={() => setPendingCreateUpload(null)}
@@ -1011,7 +995,7 @@ export default function App() {
                 />
               )}
               {screen.type === "audio-test" && <AudioTestScreen onBack={() => nav({ type: "main", tab: "home" })} />}
-              {screen.type === "rubrics" && <RubricsScreen session={authSession} onBack={() => nav({ type: "main", tab: "settings" })} onSession={(id) => nav({ type: "session-detail", sessionId: id })} />}
+              {screen.type === "rubrics" && <RubricsScreen session={authSession} onBack={() => nav({ type: "main", tab: "settings" })} onSession={openSessionDetail} />}
               {screen.type === "profile" && (
                 <ProfileEditorScreen
                   session={authSession}
@@ -1112,7 +1096,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
   const sessionsQuery = useSessionsQuery({ limit: 100 });
   const upcomingSessionsQuery = useSessionsQuery({ limit: 10, upcoming: true, sort: "scheduled_asc" });
   const materialsQuery = useMaterialsQuery();
-  const calendarQuery = useCalendarEventsQuery();
+  const calendarQuery = useCalendarEventsQuery(tab === "calendar");
   const profileQuery = useProfileQuery();
   const sessions = sessionsQuery.data?.sessions ?? [];
   const upcomingSessions = upcomingSessionsQuery.data?.sessions ?? [];
@@ -1120,10 +1104,22 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
   const tourLibrary = materialsQuery.data?.tourLibrary ?? null;
   const calendarEvents = calendarQuery.data?.events ?? [];
   const profile = profileQuery.data;
-  const loading = sessionsQuery.isLoading || upcomingSessionsQuery.isLoading || calendarQuery.isLoading;
+  const homeLoading = sessionsQuery.isPending
+    || upcomingSessionsQuery.isPending
+    || materialsQuery.isPending
+    || profileQuery.isPending;
+  const calendarLoading = sessionsQuery.isPending
+    || upcomingSessionsQuery.isPending
+    || calendarQuery.isPending;
   const materialsLoading = materialsQuery.isLoading;
   const [refreshing, setRefreshing] = useState(false);
-  const error = sessionsQuery.error ?? upcomingSessionsQuery.error ?? calendarQuery.error ?? materialsQuery.error ?? null;
+  const error = tab === "calendar"
+    ? sessionsQuery.error ?? upcomingSessionsQuery.error ?? calendarQuery.error ?? null
+    : tab === "materials"
+      ? materialsQuery.error ?? null
+      : tab === "settings"
+        ? profileQuery.error ?? null
+        : sessionsQuery.error ?? upcomingSessionsQuery.error ?? materialsQuery.error ?? profileQuery.error ?? null;
   const communityPickerOpen = useAppStore((state) => state.communityPickerOpen);
   const communityQuery = useAppStore((state) => state.communityQuery);
   const setCommunityPickerOpen = useAppStore((state) => state.setCommunityPickerOpen);
@@ -1181,15 +1177,29 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([
-      sessionsQuery.refetch(),
-      upcomingSessionsQuery.refetch(),
-      calendarQuery.refetch(),
-      materialsQuery.refetch(),
-      profileQuery.refetch(),
-    ]);
-    setRefreshing(false);
-  }, [calendarQuery, materialsQuery, profileQuery, sessionsQuery, upcomingSessionsQuery]);
+    try {
+      if (tab === "calendar") {
+        await Promise.all([
+          sessionsQuery.refetch(),
+          upcomingSessionsQuery.refetch(),
+          calendarQuery.refetch(),
+        ]);
+      } else if (tab === "materials") {
+        await materialsQuery.refetch();
+      } else if (tab === "settings") {
+        await profileQuery.refetch();
+      } else {
+        await Promise.all([
+          sessionsQuery.refetch(),
+          upcomingSessionsQuery.refetch(),
+          materialsQuery.refetch(),
+          profileQuery.refetch(),
+        ]);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [calendarQuery, materialsQuery, profileQuery, sessionsQuery, tab, upcomingSessionsQuery]);
 
   const chooseCommunity = useCallback(async (communityId: string) => {
     if (communityId === authSession.workspace.community.id) {
@@ -1218,6 +1228,11 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
     onTab(nextTab);
   }, [onTab, tab]);
 
+  const openSession = useCallback((sessionId: string, opts?: { autoStartRecording?: boolean }) => {
+    void queryClient.prefetchQuery(sessionReviewQueryOptions(sessionId));
+    onSession(sessionId, opts);
+  }, [onSession, queryClient]);
+
   const openSessionCheckIn = useCallback(async () => {
     if (checkInStartingRef.current) return;
 
@@ -1242,11 +1257,16 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
     handledCheckInIdsRef.current.add(sessionId);
 
     impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
-    void queryClient.invalidateQueries({ queryKey: queryKeys.all() });
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessionsRoot() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessionPagesRoot() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendar() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessionReview(sessionId) }),
+    ]);
     // Show the confirmation immediately. The follow-up request replaces the
     // neutral label with the guest's name without making the agent wait.
     setCheckInPrompt({ sessionId, prospectName: "A guest" });
-    void fetchSession(sessionId)
+    void queryClient.fetchQuery(sessionQueryOptions(sessionId))
       .then(({ session }) => {
         const prospectName = session.prospectName?.trim()
           || session.leads?.[0]?.name?.trim()
@@ -1311,8 +1331,8 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
                 upcomingSessions={upcomingSessions}
                 materialCount={materials.length}
                 tourLibrary={tourLibrary}
-                loading={loading}
-                onSession={onSession}
+                loading={homeLoading}
+                onSession={openSession}
                 onProfile={onProfile}
                 onCheckIn={() => void openSessionCheckIn()}
                 onCreate={onCreate}
@@ -1327,7 +1347,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
                 property={property}
               />
             )}
-            {tab === "calendar" && <CalendarScreen sessions={sessions} upcomingSessions={upcomingSessions} entrataEvents={calendarEvents} loading={loading} onSession={onSession} onReload={async () => { await calendarQuery.refetch(); }} onCommunityPress={() => setCommunityPickerOpen(true)} property={property} />}
+            {tab === "calendar" && <CalendarScreen sessions={sessions} upcomingSessions={upcomingSessions} entrataEvents={calendarEvents} loading={calendarLoading} onSession={openSession} onReload={async () => { await calendarQuery.refetch(); }} onCommunityPress={() => setCommunityPickerOpen(true)} property={property} />}
             {tab === "settings" && (
               <SettingsScreen
                 session={authSession}
@@ -1343,7 +1363,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
 
       {tab === "sessions" && (
         <ScreenTransition transitionKey="tab:sessions" direction={tabTransitionDirection}>
-          <SessionsListScreen onBack={() => handleTabPress("home")} onCommunityPress={() => setCommunityPickerOpen(true)} onSession={onSession} onSampleSession={onSampleSession} property={property} />
+          <SessionsListScreen onBack={() => handleTabPress("home")} onCommunityPress={() => setCommunityPickerOpen(true)} onSession={openSession} onSampleSession={onSampleSession} property={property} />
         </ScreenTransition>
       )}
 
@@ -1391,7 +1411,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
           onAuthSession(nextSession);
           resetCommunityPicker();
           showToast(`Added ${nextSession.workspace.community.name}`, "success");
-          void queryClient.invalidateQueries();
+          void queryClient.invalidateQueries({ queryKey: queryKeys.all() });
         }}
         onQueryChange={setCommunityQuery}
         onClose={() => {
@@ -1422,7 +1442,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
             setCheckInOpen(false);
             setCheckInBinding(null);
             setCheckInPrompt(null);
-            onSession(sessionId, { autoStartRecording: true });
+            openSession(sessionId, { autoStartRecording: true });
           }}
         />
       ) : null}
@@ -1433,7 +1453,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
           if (!checkInPrompt) return;
           const { sessionId } = checkInPrompt;
           setCheckInPrompt(null);
-          onSession(sessionId, { autoStartRecording: true });
+          openSession(sessionId, { autoStartRecording: true });
         }}
       />
     </View>
@@ -2024,6 +2044,7 @@ function SampleSessionListRow({ session, onOpen }: { session: SessionSummary; on
 }
 
 function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSession, property }: { onBack: () => void; onCommunityPress: () => void; onSession: (id: string) => void; onSampleSession: (id: string) => void; property: string }) {
+  const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showSamples, setShowSamples] = useState(false);
@@ -2073,12 +2094,15 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await drainSyncOutbox();
-    await Promise.all([
-      sessionsQuery.refetch(),
-      sampleSessionsQuery.refetch(),
-    ]);
-    setRefreshing(false);
+    try {
+      await drainSyncOutbox();
+      await Promise.all([
+        sessionsQuery.refetch(),
+        sampleSessionsQuery.refetch(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   }, [sampleSessionsQuery, sessionsQuery]);
 
   const onEndReached = useCallback(() => {
@@ -2133,8 +2157,9 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
   }, [closeOpenSwipeable, performDeleteSession]);
 
   const openSession = useCallback((session: SessionSummary) => {
+    void queryClient.prefetchQuery(sessionReviewQueryOptions(session.id));
     onSession(session.id);
-  }, [onSession]);
+  }, [onSession, queryClient]);
 
   type SessionListItem =
     | { kind: "header"; id: string; label: string; count: number }
@@ -3895,7 +3920,6 @@ function CreateSessionScreen({
   const [fileName, setFileName] = useState(pendingUpload?.name ?? "");
   const [fileSizeMB, setFileSizeMB] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [createOptionsReady, setCreateOptionsReady] = useState(false);
   const recorderOpenedRef = useRef(false);
   const startRecordingRef = useRef<() => void>(() => {});
   const pendingUploadStartedRef = useRef<string | null>(null);
@@ -3905,29 +3929,24 @@ function CreateSessionScreen({
   const [customerInterests, setCustomerInterests] = useState<SessionCustomerInterest[]>([]);
   const [location, setLocation] = useState(pendingUpload?.draft.location ?? "");
   const [notes, setNotes] = useState(pendingUpload?.draft.notes ?? "");
-  const [rubrics, setRubrics] = useState<Rubric[]>([]);
+  const rubricsQuery = useRubricsQuery();
+  const materialsQuery = useMaterialsQuery();
+  const rubrics = rubricsQuery.data?.rubrics ?? [];
+  const assets = useMemo(
+    () => (materialsQuery.data?.materials ?? []).filter((material) => materialUrl(material)),
+    [materialsQuery.data?.materials],
+  );
+  const createOptionsReady = !rubricsQuery.isPending && !materialsQuery.isPending;
   const [rubricId, setRubricId] = useState<string | null>(pendingUpload?.draft.rubricId ?? null);
   const [rubricOpen, setRubricOpen] = useState(false);
-  const [assets, setAssets] = useState<Material[]>([]);
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(pendingUpload?.draft.selectedAssetIds ?? []);
   const [uploaderIsAgent, setUploaderIsAgent] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetchRubrics(),
-      fetchMaterials().catch(() => ({ materials: [] as Material[] })),
-    ])
-      .then(([{ rubrics: list }, materialData]) => {
-        setRubrics(list);
-        setAssets(materialData.materials.filter((material) => materialUrl(material)));
-        if (list.length > 0) {
-          const defaultRubric = list.find((r) => r.isDefault) ?? list[0];
-          if (defaultRubric) setRubricId(defaultRubric.id);
-        }
-      })
-      .catch(() => { /* rubric picker optional */ })
-      .finally(() => setCreateOptionsReady(true));
-  }, []);
+    if (rubricId || rubrics.length === 0) return;
+    const defaultRubric = rubrics.find((rubric) => rubric.isDefault) ?? rubrics[0];
+    if (defaultRubric) setRubricId(defaultRubric.id);
+  }, [rubricId, rubrics]);
 
   async function uploadFile(
     uri: string,
@@ -4685,7 +4704,6 @@ function SampleSessionDetailScreen({ sessionId, onBack }: { sessionId: string; o
       audioInsightsStatus="unavailable"
       sessionId={sessionId}
       onBack={onBack}
-      onReload={() => void sampleQuery.refetch()}
       onOpenComments={() => undefined}
       onOpenAiChat={() => undefined}
       onOpenAudioInsights={() => undefined}
@@ -4750,29 +4768,19 @@ function SessionDetailScreen({
 }) {
   const [tab, setTab] = useState<DTab>("overview");
   const [refreshing, setRefreshing] = useState(false);
-  const sessionQuery = useSessionQuery(sessionId);
-  const analysisQuery = useAnalysisQuery(sessionId);
-  const actionsQuery = useActionsQuery(sessionId);
-  const transcriptQuery = useTranscriptQuery(sessionId);
-  const commentsQuery = useCommentsQuery(sessionId);
-  const session = sessionQuery.data?.session ?? null;
-  const analysis = analysisQuery.data?.analysis ?? null;
-  const actions = actionsQuery.data?.actions ?? [];
-  const transcript = transcriptQuery.data?.transcript ?? [];
-  const phases = sessionQuery.data?.phases ?? null;
-  const comments = commentsQuery.data?.comments ?? [];
+  const reviewQuery = useSessionReviewQuery(sessionId);
+  const session = reviewQuery.data?.session ?? null;
+  const analysis = reviewQuery.data?.analysis ?? null;
+  const actions = reviewQuery.data?.actions ?? [];
+  const transcript = reviewQuery.data?.transcript ?? [];
+  const phases = reviewQuery.data?.phases ?? null;
+  const comments = reviewQuery.data?.comments ?? [];
   const shouldFetchAudioInsights = session?.audioInsightsStatus === "ready" || session?.audioInsightsStatus === "processing";
   const audioInsightsQuery = useAudioInsightsQuery(sessionId, shouldFetchAudioInsights);
   const audioInsightsStatus = audioInsightsQuery.data?.status ?? session?.audioInsightsStatus ?? "pending";
   const audioInsights = audioInsightsQuery.data?.insights ?? null;
-  const loading = sessionQuery.isLoading;
-  const error =
-    sessionQuery.error ??
-    analysisQuery.error ??
-    actionsQuery.error ??
-    transcriptQuery.error ??
-    commentsQuery.error ??
-    null;
+  const loading = reviewQuery.isPending;
+  const error = reviewQuery.error ?? audioInsightsQuery.error ?? null;
 
   useEffect(() => {
     void trackAnalyticsEvent("session_view_detail", { sessionId });
@@ -4780,26 +4788,18 @@ function SessionDetailScreen({
 
   const load = useCallback(async () => {
     await Promise.all([
-      sessionQuery.refetch(),
-      analysisQuery.refetch(),
-      actionsQuery.refetch(),
-      transcriptQuery.refetch(),
-      commentsQuery.refetch(),
+      reviewQuery.refetch(),
       shouldFetchAudioInsights ? audioInsightsQuery.refetch() : Promise.resolve(),
     ]);
-  }, [actionsQuery, analysisQuery, audioInsightsQuery, commentsQuery, sessionQuery, shouldFetchAudioInsights, transcriptQuery]);
-
-  useEffect(() => {
-    if (!session || analysis || !PROCESSING_STATUSES.has(session.status)) return;
-    const poll = setInterval(() => {
-      if (AppState.currentState === "active") {
-        void sessionQuery.refetch();
-        void analysisQuery.refetch();
-      }
-    }, 4000);
-    return () => clearInterval(poll);
-  }, [analysis, analysisQuery, session, sessionQuery]);
-  const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
+  }, [audioInsightsQuery, reviewQuery, shouldFetchAudioInsights]);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
 
   if (loading && !session) return <SessionLiveSkeleton onBack={onBack} />;
 
@@ -4813,7 +4813,7 @@ function SessionDetailScreen({
 
   const hasAnalysis = !!analysis;
   const reviewIsLoading = !analysis
-    && analysisQuery.isLoading
+    && reviewQuery.isFetching
     && (session.status === "analysis_ready" || session.status === "reviewed");
   const sc = STATUS_COLORS[session.status] ?? { bg: "#eaf4ff", text: C.brand };
   const sl = STATUS_LABELS[session.status] ?? session.status;
@@ -4833,7 +4833,6 @@ function SessionDetailScreen({
         audioInsightsStatus={audioInsightsStatus}
         sessionId={sessionId}
         onBack={onBack}
-        onReload={load}
           onOpenComments={() =>
             onOpenComments({
               sessionId,
@@ -4932,8 +4931,8 @@ function SessionDetailScreen({
             {tab === "overview" && <OverviewTab analysis={analysis} transcript={transcript} sessionId={sessionId} hasRecording={session.status !== "scheduled"} />}
             {tab === "rubric" && <RubricTab analysis={analysis} />}
             {tab === "transcript" && <TranscriptTab transcript={transcript} />}
-            {tab === "actions" && <ActionsTab actions={actions} sessionId={sessionId} onUpdate={load} />}
-            {tab === "comments" && <CommentsTab comments={comments} sessionId={sessionId} onUpdate={load} />}
+            {tab === "actions" && <ActionsTab actions={actions} sessionId={sessionId} />}
+            {tab === "comments" && <CommentsTab comments={comments} sessionId={sessionId} />}
           </>
         )}
       </View>
@@ -4992,7 +4991,6 @@ function SessionReviewExperience({
   audioInsightsStatus,
   sessionId,
   onBack,
-  onReload,
   onOpenComments,
   onOpenAiChat,
   onOpenAudioInsights,
@@ -5009,14 +5007,12 @@ function SessionReviewExperience({
   audioInsightsStatus: AudioInsightsStatus;
   sessionId: string;
   onBack: () => void;
-  onReload: () => void;
   onOpenComments: () => void;
   onOpenAiChat: () => void;
   onOpenAudioInsights: () => void;
   onOpenReport: () => void;
   readOnly?: boolean;
 }) {
-  const [localActions, setLocalActions] = useState(actions);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
@@ -5055,7 +5051,6 @@ function SessionReviewExperience({
     ?? formatPersonName(audioInsights?.participants?.prospectName)
     ?? formatPersonName(analysis.participantNames?.prospectName);
 
-  useEffect(() => { setLocalActions(actions); }, [actions]);
   useEffect(() => { reviewModeRef.current = reviewMode; }, [reviewMode]);
 
   const changeReviewMode = useCallback((nextMode: SessionReviewMode) => {
@@ -5289,7 +5284,6 @@ function SessionReviewExperience({
       setSelectionComment("");
       setSelectedSegmentIds([]);
       showToast("Comment added to transcript", "success");
-      onReload();
     } catch {
       showToast("Could not add comment", "error");
     } finally {
@@ -5316,7 +5310,6 @@ function SessionReviewExperience({
       });
       setSelectedSegmentIds([]);
       showToast("Clip created and saved", "success");
-      onReload();
     } catch {
       showToast("Could not create clip", "error");
     } finally {
@@ -5547,17 +5540,15 @@ function SessionReviewExperience({
         {reviewMode === "coaching" && (
           <AnimatedTabContent tabKey="coaching" direction={reviewTabDirection}>
             <ActionsTab
-              actions={localActions}
+              actions={actions}
               sessionId={sessionId}
-              onUpdate={onReload}
-              onActionsChange={setLocalActions}
               readOnly={readOnly}
             />
           </AnimatedTabContent>
         )}
         {reviewMode === "comments" && (
           <AnimatedTabContent tabKey="comments" direction={reviewTabDirection}>
-            <CommentsTab comments={comments} sessionId={sessionId} onUpdate={onReload} />
+            <CommentsTab comments={comments} sessionId={sessionId} />
           </AnimatedTabContent>
         )}
         {reviewMode === "transcript" ? (
@@ -6391,36 +6382,30 @@ function UploadProcessCard({
   const [pendingUploadChecked, setPendingUploadChecked] = useState(false);
 
   const [dNotes, setDNotes] = useState(initialNotes ?? "");
-  const [assets, setAssets] = useState<Material[]>([]);
+  const rubricsQuery = useRubricsQuery();
+  const materialsQuery = useMaterialsQuery();
+  const rubrics = rubricsQuery.data?.rubrics ?? [];
+  const assets = useMemo(
+    () => (materialsQuery.data?.materials ?? []).filter((material) => materialUrl(material)),
+    [materialsQuery.data?.materials],
+  );
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(
     initialAttachments.map((attachment) => attachment.materialId).filter((id): id is string => Boolean(id)),
   );
-  const [rubrics, setRubrics] = useState<Rubric[]>([]);
-  const [rubricsLoaded, setRubricsLoaded] = useState(false);
+  const rubricsLoaded = !rubricsQuery.isPending;
   const [rubricId, setRubricId] = useState<string | null>(initialRubricId);
   const [rubricOpen, setRubricOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const autoStartedRef = useRef(false);
 
   useEffect(() => {
-    Promise.all([
-      fetchRubrics(),
-      fetchMaterials().catch(() => ({ materials: [] as Material[] })),
-    ])
-      .then(([{ rubrics: list }, materialData]) => {
-        setRubrics(list);
-        setAssets(materialData.materials.filter((material) => materialUrl(material)));
-        if (!initialRubricId) {
-          const fallbackRubricId = list.find((rubric) => rubric.isDefault)?.id ?? list[0]?.id ?? null;
-          setRubricId(fallbackRubricId);
-          if (fallbackRubricId) {
-            void applyRubricToSession(sessionId, fallbackRubricId).catch(() => {});
-          }
-        }
-      })
-      .catch(() => {})
-      .finally(() => setRubricsLoaded(true));
-  }, [initialRubricId, sessionId]);
+    if (initialRubricId || rubricId || !rubricsLoaded) return;
+    const fallbackRubricId = rubrics.find((rubric) => rubric.isDefault)?.id ?? rubrics[0]?.id ?? null;
+    setRubricId(fallbackRubricId);
+    if (fallbackRubricId) {
+      void applyRubricToSession(sessionId, fallbackRubricId).catch(() => {});
+    }
+  }, [initialRubricId, rubricId, rubrics, rubricsLoaded, sessionId]);
 
   useEffect(() => {
     if (PROCESSING_STATUSES.has(status)) setPhase("processing");
@@ -6704,9 +6689,9 @@ function UploadProcessCard({
     setErrMsg(null);
     setErrorKind(null);
     try {
-      await processSession(sessionId);
+      await startSessionProcessing(sessionId);
       setPhase("done");
-      showToast("Analysis complete!", "success");
+      showToast("Analysis started", "success");
       setTimeout(onDone, 600);
     } catch (err) {
       setPhase("error");
@@ -7130,14 +7115,10 @@ function TranscriptTab({ transcript }: { transcript: any[] }) {
 function ActionsTab({
   actions,
   sessionId,
-  onUpdate,
-  onActionsChange,
   readOnly = false,
 }: {
   actions: FollowUpAction[];
   sessionId: string;
-  onUpdate: () => void;
-  onActionsChange?: (next: FollowUpAction[] | ((prev: FollowUpAction[]) => FollowUpAction[])) => void;
   readOnly?: boolean;
 }) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -7151,15 +7132,11 @@ function ActionsTab({
   const selectedAction = actions.find((action) => action.id === selectedActionId) ?? null;
 
   async function handleStatus(id: string, status: "completed" | "dismissed") {
-    const previous = actions;
-    onActionsChange?.((prev) => prev.map((action) => (action.id === id ? { ...action, status } : action)));
     setUpdatingId(id);
     try {
       await updateActionMutation.mutateAsync({ actionId: id, status });
       showToast(status === "completed" ? "Marked as done" : "Dismissed", "success");
-      onUpdate();
     } catch {
-      onActionsChange?.(previous);
       showToast("Failed to update", "error");
     } finally {
       setUpdatingId(null);
@@ -7331,8 +7308,11 @@ function SessionCommentsScreen({
 
   async function refresh() {
     setRefreshing(true);
-    await load();
-    setRefreshing(false);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   return (
@@ -7352,7 +7332,7 @@ function SessionCommentsScreen({
         {loading ? (
           <CommentsSkeleton />
         ) : (
-          <CommentsTab comments={comments} sessionId={sessionId} onUpdate={load} />
+          <CommentsTab comments={comments} sessionId={sessionId} />
         )}
       </ScrollView>
     </View>
@@ -7362,11 +7342,9 @@ function SessionCommentsScreen({
 function CommentsTab({
   comments,
   sessionId,
-  onUpdate,
 }: {
   comments: SessionComment[];
   sessionId: string;
-  onUpdate: () => void;
 }) {
   const [body, setBody] = useState("");
   const [replyToId, setReplyToId] = useState<string | null>(null);
@@ -7381,7 +7359,6 @@ function CommentsTab({
       setBody("");
       setReplyToId(null);
       showToast("Comment posted", "success");
-      onUpdate();
     } catch {
       showToast("Failed to post comment", "error");
     }
@@ -7391,7 +7368,6 @@ function CommentsTab({
     try {
       await deleteCommentMutation.mutateAsync(commentId);
       showToast("Comment deleted", "success");
-      onUpdate();
     } catch {
       showToast("Failed to delete", "error");
     }
@@ -7538,8 +7514,11 @@ function RubricsScreen({
 
   async function refresh() {
     setRefreshing(true);
-    await load();
-    setRefreshing(false);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function openRubricSettings() {
