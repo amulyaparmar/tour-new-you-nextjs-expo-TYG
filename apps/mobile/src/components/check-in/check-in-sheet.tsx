@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import QRCodeStyled from "react-native-qrcode-styled";
 import Reanimated, {
   FadeIn,
+  FadeInDown,
   LinearTransition,
   useAnimatedStyle,
   useSharedValue,
@@ -24,6 +25,7 @@ import {
 
 import { submitCheckInLead } from "../../api";
 import { LoadingDots } from "@/components/loading-dots";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TourMark } from "../TourLogo";
 
 // Keep the check-in form compact on tall devices. The form itself scrolls when
@@ -103,9 +105,12 @@ export function CheckInSheet({
   property,
   propertyId,
   agentName,
+  agentTitle,
   repSlug,
   sessionId,
   checkInUrl: checkInUrlProp,
+  checkedInGuest,
+  onContinueWithQr,
   onCheckedIn,
 }: {
   visible: boolean;
@@ -113,11 +118,16 @@ export function CheckInSheet({
   property: string;
   propertyId?: string | null;
   agentName?: string | null;
+  agentTitle?: string | null;
   repSlug?: string | null;
   /** Exact remote session that both QR and native check-in add to. */
   sessionId?: string | null;
   /** Personalized public check-in URL from property/member aliases. */
   checkInUrl?: string | null;
+  /** A guest checked in from the public QR link while this sheet is open. */
+  checkedInGuest?: { sessionId: string; prospectName: string } | null;
+  /** Returns from the live arrival state to the QR. */
+  onContinueWithQr?: () => void;
   /** After check-in, open the session and start recording. */
   onCheckedIn: (sessionId: string) => void;
 }) {
@@ -152,6 +162,7 @@ export function CheckInSheet({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultSessionId, setResultSessionId] = useState<string | null>(null);
+  const showGuestArrival = mode === "qr" && Boolean(checkedInGuest);
 
   const tabIndicatorStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: tabPosition.value * (tabSegmentWidth + 6) }],
@@ -233,7 +244,12 @@ export function CheckInSheet({
   }
 
   async function shareCheckInLink() {
-    await Share.share({ title: "Tour check-in", message: checkInUrl, url: checkInUrl });
+    const host = agentName?.trim() || "the leasing team";
+    await Share.share({
+      title: `Check in with ${host}`,
+      message: `Check in for your tour with ${host} at ${property}:\n${checkInUrl}`,
+      url: checkInUrl,
+    });
   }
 
   function finishAndRecord() {
@@ -306,39 +322,71 @@ export function CheckInSheet({
           {tabSwitching ? (
             <CheckInPanelSkeleton mode={mode} />
           ) : mode === "qr" ? (
-            <View style={styles.qrPanel}>
-              <View style={styles.qrCard}>
-                <QRCodeStyled
-                  data={checkInUrl}
-                  size={220}
-                  padding={10}
-                  color={C.text}
-                  pieceScale={0.82}
-                  pieceCornerType="rounded"
-                  pieceBorderRadius={4}
-                  outerEyesOptions={{ borderRadius: 12, color: C.text }}
-                  innerEyesOptions={{ borderRadius: 10, color: C.brand }}
-                  errorCorrectionLevel="Q"
-                  style={styles.qrCode}
-                />
+            <View style={styles.qrStage}>
+              <View pointerEvents={showGuestArrival ? "none" : "auto"} style={[styles.qrPanel, showGuestArrival && styles.qrPanelDimmed]}>
+                <View style={styles.qrIntro}>
+                  <Text style={styles.qrTitle}>Scan to check in</Text>
+                  <Text style={styles.qrSub} numberOfLines={1}>
+                    {property} · with {repFirst}
+                  </Text>
+                </View>
+                <View style={styles.qrCard}>
+                  <QRCodeStyled
+                    data={checkInUrl}
+                    size={180}
+                    padding={8}
+                    color={C.text}
+                    pieceScale={0.82}
+                    pieceCornerType="rounded"
+                    pieceBorderRadius={4}
+                    outerEyesOptions={{ borderRadius: 12, color: C.text }}
+                    innerEyesOptions={{ borderRadius: 10, color: C.brand }}
+                    errorCorrectionLevel="Q"
+                    style={styles.qrCode}
+                  />
+                </View>
+                <View style={styles.hostCard}>
+                  <View style={styles.hostAvatar}>
+                    <Text style={styles.hostInitial}>{(agentName ?? repFirst).trim().slice(0, 1).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.hostCopy}>
+                    <Text style={styles.hostName} numberOfLines={1}>{agentName?.trim() || repFirst}</Text>
+                    <Text style={styles.hostRole} numberOfLines={1}>{agentTitle?.trim() || "Leasing Consultant"}</Text>
+                    <Text style={styles.hostMessage} numberOfLines={2}>
+                      Welcome to {property}. Check in here and I'll be ready for your tour.
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.qrActions}>
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel="Open check-in page"
+                    accessibilityHint={checkInUrl}
+                    onPress={() => void Linking.openURL(checkInUrl)}
+                    style={({ pressed }) => [styles.qrAction, pressed && styles.pressed]}
+                  >
+                    <Ionicons name="open-outline" size={15} color={C.brand} />
+                    <Text style={styles.qrActionText}>Open link</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Share check-in link"
+                    onPress={() => void shareCheckInLink()}
+                    style={({ pressed }) => [styles.qrAction, pressed && styles.pressed]}
+                  >
+                    <Ionicons name="share-social-outline" size={15} color={C.brand} />
+                    <Text style={styles.qrActionText}>Share</Text>
+                  </Pressable>
+                </View>
               </View>
-              <Text style={styles.qrTitle}>Scan to check in</Text>
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel="Open check-in page"
-                onPress={() => void Linking.openURL(checkInUrl)}
-                style={({ pressed }) => [styles.qrLink, pressed && styles.pressed]}
-              >
-                <Text style={styles.qrLinkText} numberOfLines={2}>{checkInUrl}</Text>
-                <Ionicons name="open-outline" size={13} color={C.brand} />
-              </Pressable>
-              <Pressable
-                onPress={() => void shareCheckInLink()}
-                style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
-              >
-                <Ionicons name="share-social-outline" size={16} color="#fff" />
-                <Text style={styles.sheetPrimaryText}>Share check-in link</Text>
-              </Pressable>
+              {showGuestArrival && checkedInGuest ? (
+                <GuestArrivalOverlay
+                  guest={checkedInGuest}
+                  property={property}
+                  onStart={() => onCheckedIn(checkedInGuest.sessionId)}
+                  onContinue={() => onContinueWithQr?.()}
+                />
+              ) : null}
             </View>
           ) : step === "done" ? (
             <View style={styles.donePanel}>
@@ -503,6 +551,78 @@ export function CheckInSheet({
   );
 }
 
+function GuestArrivalOverlay({
+  guest,
+  property,
+  onStart,
+  onContinue,
+}: {
+  guest: { sessionId: string; prospectName: string };
+  property: string;
+  onStart: () => void;
+  onContinue: () => void;
+}) {
+  const firstName = firstNameOf(guest.prospectName);
+  const guestInitial = guest.prospectName.trim().slice(0, 1).toUpperCase() || "G";
+  const namedGuest = guest.prospectName.trim().toLowerCase() !== "a guest";
+
+  return (
+    <Reanimated.View entering={FadeInDown.duration(220)} style={styles.arrivalOverlay}>
+      <View style={styles.arrivalToast}>
+        <View style={styles.arrivalToastIcon}>
+          <Ionicons name="checkmark" size={12} color="#fff" />
+        </View>
+        <Text style={styles.arrivalToastText}>Check-in successful</Text>
+      </View>
+      <View style={styles.arrivalCard}>
+        <View style={styles.arrivalHeading}>
+          <View style={styles.arrivalIcon}>
+            <Ionicons name="person-add-outline" size={20} color={C.green} />
+          </View>
+          <View style={styles.arrivalHeadingCopy}>
+            <Text style={styles.arrivalTitle}>{namedGuest ? `${firstName} is ready` : "Your guest is ready"}</Text>
+            <Text style={styles.arrivalCopy}>
+              {namedGuest ? `${guest.prospectName} checked in for ${property}.` : `A guest checked in for ${property}.`}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.arrivalGuestRow}>
+          <View style={styles.arrivalGuestAvatar}>
+            <Text style={styles.arrivalGuestInitial}>{guestInitial}</Text>
+          </View>
+          <View style={styles.arrivalGuestCopy}>
+            <Text style={styles.arrivalGuestName}>{namedGuest ? guest.prospectName : "Guest checked in"}</Text>
+            <Text style={styles.arrivalGuestStatus}>Ready for tour · Just now</Text>
+          </View>
+          <View style={styles.arrivalGuestState}>
+            <Ionicons name="checkmark" size={13} color={C.green} />
+          </View>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Start tour"
+          onPress={onStart}
+          style={({ pressed }) => [styles.arrivalPrimary, pressed && styles.pressed]}
+        >
+          <Ionicons name="play" size={17} color="#fff" />
+          <Text style={styles.arrivalPrimaryText}>Start Tour</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Admit another guest with this QR code"
+          onPress={onContinue}
+          style={({ pressed }) => [styles.arrivalSecondary, pressed && styles.pressed]}
+        >
+          <Ionicons name="person-add-outline" size={16} color={C.brand} />
+          <Text style={styles.arrivalSecondaryText}>Admit another guest</Text>
+        </Pressable>
+      </View>
+    </Reanimated.View>
+  );
+}
+
 function CheckInField({
   label,
   value,
@@ -590,10 +710,24 @@ function BrandedQrIcon({ size = 32 }: { size?: number }) {
 function CheckInPanelSkeleton({ mode }: { mode: "checkin" | "qr" }) {
   return (
     <View style={styles.panelSkeleton} accessibilityLabel={`Loading ${mode === "qr" ? "QR code" : "check-in form"}`}>
-      <View style={mode === "qr" ? styles.skeletonQr : styles.skeletonFormHead} />
-      <View style={styles.skeletonLineWide} />
-      <View style={styles.skeletonLineShort} />
-      <View style={styles.skeletonButton} />
+      {mode === "qr" ? (
+        <>
+          <Skeleton style={styles.skeletonQr} />
+          <Skeleton style={styles.skeletonLineWide} />
+          <Skeleton style={styles.skeletonLineShort} />
+        </>
+      ) : (
+        <>
+          <Skeleton style={styles.skeletonFormHead} />
+          <View style={styles.skeletonFieldRow}>
+            <Skeleton style={styles.skeletonField} />
+            <Skeleton style={styles.skeletonField} />
+          </View>
+          <Skeleton style={styles.skeletonFieldWide} />
+          <Skeleton style={styles.skeletonFieldWide} />
+        </>
+      )}
+      <Skeleton style={styles.skeletonButton} />
     </View>
   );
 }
@@ -633,6 +767,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#eef1f5",
   },
+  skeletonFieldRow: { alignSelf: "stretch", flexDirection: "row", gap: 10 },
+  skeletonField: { flex: 1, height: 52, borderRadius: 12 },
+  skeletonFieldWide: { alignSelf: "stretch", height: 52, borderRadius: 12 },
   skeletonLineWide: {
     width: "72%",
     height: 14,
@@ -836,16 +973,110 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 8,
     paddingTop: 4,
     paddingBottom: 6,
   },
-  qrCard: {
-    width: 248,
-    height: 248,
+  qrStage: { flex: 1, position: "relative" },
+  qrPanelDimmed: { opacity: 0.2 },
+  arrivalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingHorizontal: 4,
+    paddingBottom: 10,
+  },
+  arrivalToast: {
+    minHeight: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: C.green,
+  },
+  arrivalToastIcon: { width: 16, height: 16, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "rgba(255,255,255,0.24)" },
+  arrivalToastText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  arrivalCard: {
+    alignSelf: "stretch",
+    gap: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#dfe7ef",
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.13,
+    shadowRadius: 26,
+    elevation: 8,
+  },
+  arrivalHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
+  arrivalIcon: {
+    width: 38,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 28,
+    borderRadius: 12,
+    backgroundColor: "#e7f8ee",
+  },
+  arrivalHeadingCopy: { flex: 1, gap: 3 },
+  arrivalTitle: { color: C.text, fontSize: 17, fontWeight: "900" },
+  arrivalCopy: {
+    color: C.textSec,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
+  },
+  arrivalGuestRow: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#f7faf8",
+  },
+  arrivalGuestAvatar: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
+    backgroundColor: "#e3f3ff",
+  },
+  arrivalGuestInitial: { color: C.brand, fontSize: 14, fontWeight: "900" },
+  arrivalGuestCopy: { flex: 1 },
+  arrivalGuestName: { color: C.text, fontSize: 14, fontWeight: "800" },
+  arrivalGuestStatus: { marginTop: 2, color: C.green, fontSize: 12, fontWeight: "700" },
+  arrivalGuestState: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#e1f7e9",
+  },
+  arrivalPrimary: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 10,
+    backgroundColor: C.brand,
+  },
+  arrivalPrimaryText: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  arrivalSecondary: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: "#d9e1ec", borderRadius: 13, backgroundColor: "#fff" },
+  arrivalSecondaryText: { color: C.brand, fontSize: 13, fontWeight: "900" },
+  qrCard: {
+    width: 204,
+    height: 204,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 24,
     backgroundColor: "#fff",
     shadowColor: "#101828",
     shadowOffset: { width: 0, height: 10 },
@@ -853,7 +1084,8 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 5,
   },
-  qrCode: { backgroundColor: "#fff", borderRadius: 22 },
+  qrCode: { backgroundColor: "#fff", borderRadius: 18 },
+  qrIntro: { alignItems: "center", gap: 2, paddingHorizontal: 18 },
   qrTitle: { color: C.text, fontSize: 16, fontWeight: "800" },
   qrSub: {
     maxWidth: 280,
@@ -863,23 +1095,46 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  qrLink: {
-    maxWidth: 300,
+  hostCard: {
+    alignSelf: "stretch",
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#e4e7ec",
+    borderRadius: 14,
+    backgroundColor: "#fff",
+  },
+  hostAvatar: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19, backgroundColor: "#eaf3ff" },
+  hostInitial: { color: C.brand, fontSize: 15, fontWeight: "900" },
+  hostCopy: { flex: 1, minWidth: 0 },
+  hostName: { color: C.text, fontSize: 13, fontWeight: "900" },
+  hostRole: { marginTop: 1, color: C.textSec, fontSize: 10, fontWeight: "700" },
+  hostMessage: { marginTop: 5, color: C.textSec, fontSize: 11, lineHeight: 15, fontWeight: "600" },
+  qrActions: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    gap: 8,
+  },
+  qrAction: {
+    flex: 1,
+    minHeight: 38,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "#dbe6f4",
+    borderRadius: 10,
+    backgroundColor: "#f8fbff",
   },
-  qrLinkText: {
-    flexShrink: 1,
+  qrActionText: {
     color: C.brand,
     fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-    textAlign: "center",
-    textDecorationLine: "underline",
+    fontWeight: "800",
   },
   qrBrandCenter: {
     position: "absolute",

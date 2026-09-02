@@ -128,9 +128,10 @@ export async function POST(request: Request) {
         validateExplicitSession(existing, propertyId);
         const replaceProspectName = isPlaceholderProspectName(existing.prospectName);
         const prospectName = replaceProspectName ? lead.name : existing.prospectName;
+        const resolvedAgentName = existing.agentName ?? agentName;
         const title = withRecordingParticipants(
           existing.title,
-          existing.agentName,
+          resolvedAgentName,
           prospectName,
         );
 
@@ -142,13 +143,23 @@ export async function POST(request: Request) {
         if (title !== existing.title) {
           updates.title = title;
         }
+        if (!existing.agentId && agentId) {
+          updates.agentId = agentId;
+        }
+        if (!existing.agentName && agentName) {
+          updates.agentName = agentName;
+        }
         if (Object.keys(updates).length) {
           await updateSession(existing.id, updates);
         }
         if (existing.status === "scheduled") {
           await setSessionStatus(existing.id, "in_progress");
         }
-        notifySessionCheckIn(existing, lead.name);
+        await notifySessionCheckIn({
+          ...existing,
+          agentId: updates.agentId ?? existing.agentId,
+          agentName: updates.agentName ?? existing.agentName,
+        }, lead.name);
         return NextResponse.json(
           {
             sessionId: existing.id,
@@ -185,6 +196,8 @@ export async function POST(request: Request) {
       rubricId: rubric.id,
       propertyId,
     });
+
+    await notifySessionCheckIn(session, lead.name);
 
     return NextResponse.json({ sessionId: session.id, grouped: false, startRecording: true }, { status: 201 });
   } catch (error) {
@@ -244,14 +257,25 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-function notifySessionCheckIn(
+async function notifySessionCheckIn(
   session: {
     id: string;
     propertyId?: string | null;
     agentId?: string | null;
+    agentName?: string | null;
   },
   leadName: string,
 ) {
+  try {
+    const { error } = await getSupabaseServiceClient().rpc(
+      "notify_agent_session_checkin" as never,
+      { p_session_id: session.id } as never,
+    );
+    if (error) throw new Error(error.message);
+  } catch {
+    // Realtime delivery must not prevent a prospect from checking in.
+  }
+
   const propertyId = session.propertyId;
   if (!propertyId) return;
   void import("@/lib/push")
