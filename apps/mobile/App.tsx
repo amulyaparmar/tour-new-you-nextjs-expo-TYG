@@ -1210,7 +1210,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
     }
   }, [authSession.workspace.community.id, onAuthSession, queryClient, resetCommunityPicker]);
 
-  const showScrollView = tab !== "sessions";
+  const showScrollView = tab !== "sessions" && tab !== "materials";
   const handleTabPress = useCallback((nextTab: MainTab) => {
     const currentIndex = TAB_ITEMS.findIndex((item) => item.id === tab);
     const nextIndex = TAB_ITEMS.findIndex((item) => item.id === nextTab);
@@ -1328,18 +1328,6 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
               />
             )}
             {tab === "calendar" && <CalendarScreen sessions={sessions} upcomingSessions={upcomingSessions} entrataEvents={calendarEvents} loading={loading} onSession={onSession} onReload={async () => { await calendarQuery.refetch(); }} onCommunityPress={() => setCommunityPickerOpen(true)} property={property} />}
-            {tab === "materials" && (
-              <MaterialsScreen
-                materials={materials}
-                tourLibrary={tourLibrary}
-                communityId={authSession.workspace.community.id}
-                loading={materialsLoading}
-                onReload={async () => { await materialsQuery.refetch(); }}
-                onBack={() => handleTabPress("home")}
-                onCommunityPress={() => setCommunityPickerOpen(true)}
-                property={property}
-              />
-            )}
             {tab === "settings" && (
               <SettingsScreen
                 session={authSession}
@@ -1356,6 +1344,21 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
       {tab === "sessions" && (
         <ScreenTransition transitionKey="tab:sessions" direction={tabTransitionDirection}>
           <SessionsListScreen onBack={() => handleTabPress("home")} onCommunityPress={() => setCommunityPickerOpen(true)} onSession={onSession} onSampleSession={onSampleSession} property={property} />
+        </ScreenTransition>
+      )}
+
+      {tab === "materials" && (
+        <ScreenTransition transitionKey="tab:materials" direction={tabTransitionDirection}>
+          <MaterialsScreen
+            materials={materials}
+            tourLibrary={tourLibrary}
+            communityId={authSession.workspace.community.id}
+            loading={materialsLoading}
+            onReload={async () => { await materialsQuery.refetch(); }}
+            onBack={() => handleTabPress("home")}
+            onCommunityPress={() => setCommunityPickerOpen(true)}
+            property={property}
+          />
         </ScreenTransition>
       )}
 
@@ -2711,45 +2714,85 @@ function formatEntrataClock(value: string | null) {
 // ═══════════════════════════════════════
 
 const assetSt = StyleSheet.create({
-  header: { gap: 14 },
+  screen: { flex: 1, backgroundColor: C.bg },
+  scrollContent: { gap: 16, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28 },
+  scrollContentSelecting: { paddingBottom: 116 },
+  header: { gap: 16 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   titleText: { flex: 1, minWidth: 0 },
-  libraryControls: { flexDirection: "row", alignItems: "center", gap: 8 },
-  recordButton: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, backgroundColor: C.brand },
+  headingAction: { minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  headingActionText: { color: C.brand, fontSize: 13, fontWeight: "800" },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  searchField: { flex: 1, minHeight: 46, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 13, borderWidth: 1, borderColor: "#dce3ec", borderRadius: 13, backgroundColor: "#fff" },
+  searchInput: { flex: 1, minWidth: 0, paddingVertical: 0, color: C.text, fontSize: 13, fontWeight: "700" },
+  clearSearch: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  filterButton: { width: 46, height: 46, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#dce3ec", borderRadius: 13, backgroundColor: "#fff" },
+  filterButtonActive: { borderColor: "#b7d7ff", backgroundColor: "#eef6ff" },
+  filterBadge: { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4, borderWidth: 2, borderColor: C.bg, borderRadius: 9, backgroundColor: C.brand },
+  filterBadgeText: { color: "#fff", fontSize: 9, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  libraryControls: { flexDirection: "row", alignItems: "center", gap: 10 },
+  recordButton: { flex: 1, minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 13, backgroundColor: C.brand },
   recordButtonText: { color: "#fff", fontSize: 13, fontWeight: "900" },
-  libraryControl: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 12, backgroundColor: "#fff" },
-  libraryControlText: { color: C.textSec, fontSize: 11, fontWeight: "900" },
-  selectionHeader: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 },
-  selectionCount: { flex: 1, color: C.text, fontSize: 14, fontWeight: "900" },
-  selectionLink: { minHeight: 36, alignItems: "center", justifyContent: "center", paddingHorizontal: 9 },
-  selectionLinkText: { color: C.brand, fontSize: 11, fontWeight: "900" },
-  bulkActions: { flexDirection: "row", gap: 8, padding: 6, borderWidth: 1, borderColor: "#dfe5ed", borderRadius: 14, backgroundColor: "#fff" },
-  bulkAction: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 10 },
+  addFileButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 15, borderWidth: 1, borderColor: "#dce3ec", borderRadius: 13, backgroundColor: "#fff" },
+  addFileButtonText: { color: C.text, fontSize: 12, fontWeight: "800" },
+  resultSummary: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 24 },
+  resultSummaryText: { color: C.textSec, fontSize: 11, fontWeight: "700" },
+  clearFiltersText: { color: C.brand, fontSize: 11, fontWeight: "800" },
+  selectionTitle: { color: C.text, fontSize: 28, fontWeight: "900", letterSpacing: 0 },
+  selectAll: { minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  selectAllText: { color: C.brand, fontSize: 12, fontWeight: "800" },
+  selectionDock: { position: "absolute", left: 12, right: 12, bottom: 10, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 9, borderWidth: 1, borderColor: "#dce3ec", borderRadius: 18, backgroundColor: "rgba(255,255,255,0.98)", shadowColor: "#0f172a", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.14, shadowRadius: 18, elevation: 12 },
+  bulkActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  bulkAction: { flex: 1, minHeight: 54, alignItems: "center", justifyContent: "center", gap: 4, borderRadius: 12 },
   bulkActionDisabled: { opacity: 0.35 },
-  bulkActionText: { color: C.textSec, fontSize: 9, fontWeight: "900" },
+  bulkActionText: { color: C.textSec, fontSize: 10, fontWeight: "800" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  cardWrap: { width: (Dimensions.get("window").width - 52) / 2 },
+  cardWrap: { width: (Dimensions.get("window").width - 44) / 2 },
   card: { gap: 8 },
-  cardSelected: { opacity: 0.92 },
-  thumb: { aspectRatio: 4 / 3, alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 14, backgroundColor: "#eaf2fc" },
-  thumbSelected: { borderWidth: 2, borderColor: C.brand },
+  cardSelected: { opacity: 0.94 },
+  thumb: { aspectRatio: 4 / 3, alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 12, backgroundColor: "#eaf2fc" },
+  thumbSelected: { borderWidth: 2.5, borderColor: C.brand },
   thumbImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  thumbOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.12)" },
+  thumbOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.08)" },
   playBadge: { position: "absolute", left: 9, bottom: 9, width: 28, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.9)", borderRadius: 14, backgroundColor: "rgba(15,23,42,0.78)" },
   fallbackIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 16, backgroundColor: "#fff" },
-  selectCircle: { position: "absolute", top: 9, left: 9, width: 24, height: 24, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.95)", borderRadius: 12, backgroundColor: "rgba(15,23,42,0.42)" },
+  selectCircle: { position: "absolute", top: 9, right: 9, width: 24, height: 24, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.98)", borderRadius: 12, backgroundColor: "rgba(15,23,42,0.34)" },
   selectCircleActive: { borderColor: C.brand, backgroundColor: C.brand },
-  cardTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  cardTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
   cardMetaRow: { minHeight: 16, flexDirection: "row", alignItems: "center", gap: 5 },
-  cardMeta: { flexShrink: 1, color: C.textSec, fontSize: 10, fontWeight: "700" },
-  syncMeta: { flexDirection: "row", alignItems: "center", gap: 3 },
-  syncMetaText: { fontSize: 9, fontWeight: "800" },
-  localAction: { position: "absolute", right: 9, bottom: 9, width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "rgba(0,108,229,0.94)" },
-  sortSheet: { gap: 8, paddingHorizontal: 6 },
-  sortTitle: { marginBottom: 7, color: C.text, fontSize: 20, fontWeight: "900" },
-  sortOption: { minHeight: 50, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 12 },
-  sortOptionActive: { backgroundColor: "#eef6ff" },
-  sortOptionText: { flex: 1, color: C.text, fontSize: 13, fontWeight: "800" },
+  cardMeta: { flexShrink: 1, color: C.textSec, fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
+  syncBadge: { position: "absolute", top: 9, left: 9, width: 25, height: 25, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "rgba(15,23,42,0.7)" },
+  syncBadgeFailed: { backgroundColor: "rgba(180,35,24,0.9)" },
+  syncBadgeSynced: { backgroundColor: "rgba(5,122,85,0.84)" },
+  localAction: { position: "absolute", right: 9, bottom: 9, width: 30, height: 30, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.82)", borderRadius: 15, backgroundColor: "rgba(15,23,42,0.78)" },
+  noResults: { alignItems: "center", justifyContent: "center", gap: 10, minHeight: 260, paddingHorizontal: 32 },
+  noResultsIcon: { width: 52, height: 52, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: "#eaf3ff" },
+  noResultsTitle: { color: C.text, fontSize: 17, fontWeight: "900", textAlign: "center" },
+  noResultsBody: { color: C.textSec, fontSize: 12, fontWeight: "600", lineHeight: 18, textAlign: "center" },
+  noResultsAction: { minHeight: 40, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
+  noResultsActionText: { color: C.brand, fontSize: 12, fontWeight: "800" },
+  filterSheet: { gap: 12, paddingHorizontal: 6 },
+  filterSheetScroll: { flex: 1, minHeight: 0 },
+  filterSheetScrollContent: { gap: 18, paddingBottom: 4 },
+  filterSheetHeader: { gap: 3 },
+  filterSheetTitle: { color: C.text, fontSize: 21, fontWeight: "900" },
+  filterSheetMeta: { color: C.textSec, fontSize: 12, fontWeight: "600" },
+  filterSection: { gap: 10 },
+  filterSectionTitle: { color: C.textSec, fontSize: 10, fontWeight: "900", letterSpacing: 0, textTransform: "uppercase" },
+  filterChoices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  filterChip: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 12, borderWidth: 1, borderColor: "#dce3ec", borderRadius: 11, backgroundColor: "#fff" },
+  filterChipActive: { borderColor: "#a9ceff", backgroundColor: "#eaf3ff" },
+  filterChipText: { color: C.textSec, fontSize: 11, fontWeight: "800" },
+  filterChipTextActive: { color: C.brand },
+  sortOptions: { overflow: "hidden", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 14, backgroundColor: "#fff" },
+  sortOption: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 13 },
+  sortOptionBorder: { borderTopWidth: 1, borderTopColor: "#edf0f4" },
+  sortOptionText: { flex: 1, color: C.text, fontSize: 13, fontWeight: "700" },
+  filterFooter: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 2 },
+  filterReset: { minWidth: 92, minHeight: 50, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, borderWidth: 1, borderColor: "#dce3ec", borderRadius: 13, backgroundColor: "#fff" },
+  filterResetText: { color: C.text, fontSize: 13, fontWeight: "800" },
+  filterApply: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, borderRadius: 13, backgroundColor: C.brand },
+  filterApplyText: { color: "#fff", fontSize: 13, fontWeight: "900" },
   modalScrim: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.42)" },
   modalSheet: { maxHeight: "88%", gap: 14, padding: 18, paddingBottom: Platform.OS === "ios" ? 34 : 20, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: "#fff" },
   modalHandle: { alignSelf: "center", width: 42, height: 5, borderRadius: 3, backgroundColor: "#d1d5db" },
@@ -2764,13 +2807,15 @@ const assetSt = StyleSheet.create({
   modalPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   modalSecondary: { minWidth: 98, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 16, backgroundColor: "#fff" },
   modalSecondaryText: { color: C.text, fontSize: 13, fontWeight: "900" },
-  tourLibraryLink: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: "#bfdbfe", borderRadius: 18, backgroundColor: "#eff6ff" },
-  tourLibraryLinkIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.brand },
+  tourLibraryLink: { minHeight: 54, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: "#dce3ec", borderRadius: 13, backgroundColor: "#fff" },
+  tourLibraryLinkIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#eaf3ff" },
   tourLibraryLinkTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
   tourLibraryLinkMeta: { color: C.textSec, fontSize: 11, fontWeight: "700", marginTop: 2 },
 });
 
 type AssetSort = "newest" | "oldest" | "name";
+type AssetKindFilter = "all" | "video" | "image" | "file";
+type AssetStatusFilter = "all" | "synced" | "not_synced" | "attention";
 type DisplayAsset = { material: Material; local: LocalAsset | null };
 
 const ASSET_SORT_LABELS: Record<AssetSort, string> = {
@@ -2778,7 +2823,26 @@ const ASSET_SORT_LABELS: Record<AssetSort, string> = {
   oldest: "Oldest",
   name: "Name",
 };
+const ASSET_KIND_OPTIONS: Array<{ value: AssetKindFilter; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { value: "all", label: "All types", icon: "apps-outline" },
+  { value: "video", label: "Videos", icon: "videocam-outline" },
+  { value: "image", label: "Images", icon: "image-outline" },
+  { value: "file", label: "Files", icon: "document-outline" },
+];
+const ASSET_STATUS_OPTIONS: Array<{ value: AssetStatusFilter; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { value: "all", label: "Any status", icon: "layers-outline" },
+  { value: "synced", label: "Synced", icon: "cloud-done-outline" },
+  { value: "not_synced", label: "Not synced", icon: "cloud-offline-outline" },
+  { value: "attention", label: "Needs attention", icon: "alert-circle-outline" },
+];
 const assetThumbnailCache = new Map<string, string>();
+
+function displayAssetKind({ material, local }: DisplayAsset): Exclude<AssetKindFilter, "all"> {
+  const url = materialUrl(material);
+  if (local?.kind === "video" || material.type === "recording" || material.media?.videoUrl || material.media?.iframeUrl || (url && isVideoLikeUrl(url))) return "video";
+  if (local?.kind === "image" || material.media?.imageUrl || material.media?.gifUrl || (url && /\.(?:jpe?g|png|gif|webp|heic)(?:[?#].*)?$/i.test(url))) return "image";
+  return "file";
+}
 
 function AssetThumbnail({ material, local }: DisplayAsset) {
   const providedPreview = materialPreviewUrl(material);
@@ -2823,19 +2887,18 @@ function AssetThumbnail({ material, local }: DisplayAsset) {
   );
 }
 
-function AssetSyncMeta({ local }: { local: LocalAsset | null }) {
+function AssetSyncBadge({ local }: { local: LocalAsset | null }) {
   if (!local) return null;
   const state = local.status === "synced"
-    ? { icon: "cloud-done-outline" as const, label: "Synced", color: C.green }
+    ? { icon: "cloud-done-outline" as const, label: "Synced", tone: assetSt.syncBadgeSynced }
     : local.status === "uploading"
-      ? { icon: "sync-outline" as const, label: "Syncing", color: C.brand }
+      ? { icon: "sync-outline" as const, label: "Syncing", tone: undefined }
       : local.status === "failed"
-        ? { icon: "alert-circle-outline" as const, label: "Needs attention", color: C.red }
-        : { icon: "cloud-offline-outline" as const, label: "Not synced", color: C.textMuted };
+        ? { icon: "alert-circle-outline" as const, label: "Needs attention", tone: assetSt.syncBadgeFailed }
+        : { icon: "cloud-offline-outline" as const, label: "Not synced", tone: undefined };
   return (
-    <View accessibilityLabel={state.label} style={assetSt.syncMeta}>
-      <Ionicons name={state.icon} size={11} color={state.color} />
-      <Text style={[assetSt.syncMetaText, { color: state.color }]}>{state.label}</Text>
+    <View accessibilityLabel={state.label} style={[assetSt.syncBadge, state.tone]}>
+      <Ionicons name={state.icon} size={14} color="#fff" />
     </View>
   );
 }
@@ -2877,8 +2940,14 @@ function MaterialsScreen({ materials, tourLibrary, communityId, loading, onReloa
   const [syncingLocalAssetId, setSyncingLocalAssetId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [assetQuery, setAssetQuery] = useState("");
+  const [assetKindFilter, setAssetKindFilter] = useState<AssetKindFilter>("all");
+  const [assetStatusFilter, setAssetStatusFilter] = useState<AssetStatusFilter>("all");
   const [assetSort, setAssetSort] = useState<AssetSort>("newest");
-  const [sortOpen, setSortOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draftKindFilter, setDraftKindFilter] = useState<AssetKindFilter>("all");
+  const [draftStatusFilter, setDraftStatusFilter] = useState<AssetStatusFilter>("all");
+  const [draftSort, setDraftSort] = useState<AssetSort>("newest");
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const loadLocalAssets = useCallback(async () => {
@@ -2998,18 +3067,42 @@ function MaterialsScreen({ materials, tourLibrary, communityId, loading, onReloa
     ];
   }, [localAssets, materials]);
 
-  const sortedAssets = useMemo(() => [...displayAssets].sort((left, right) => {
-    if (assetSort === "name") return left.material.name.localeCompare(right.material.name);
-    const direction = assetSort === "newest" ? -1 : 1;
-    return left.material.createdAt.localeCompare(right.material.createdAt) * direction;
-  }), [assetSort, displayAssets]);
+  const visibleAssets = useMemo(() => {
+    const normalizedQuery = assetQuery.trim().toLocaleLowerCase();
+    return displayAssets
+      .filter((asset) => {
+        if (normalizedQuery) {
+          const searchable = `${asset.material.name} ${asset.material.description ?? ""}`.toLocaleLowerCase();
+          if (!searchable.includes(normalizedQuery)) return false;
+        }
+        if (assetKindFilter !== "all" && displayAssetKind(asset) !== assetKindFilter) return false;
+        if (assetStatusFilter === "synced" && asset.local?.status !== "synced" && asset.local !== null) return false;
+        if (assetStatusFilter === "not_synced" && (!asset.local || asset.local.status === "synced")) return false;
+        if (assetStatusFilter === "attention" && asset.local?.status !== "failed") return false;
+        return true;
+      })
+      .sort((left, right) => {
+        if (assetSort === "name") return left.material.name.localeCompare(right.material.name);
+        const direction = assetSort === "newest" ? -1 : 1;
+        return left.material.createdAt.localeCompare(right.material.createdAt) * direction;
+      });
+  }, [assetKindFilter, assetQuery, assetSort, assetStatusFilter, displayAssets]);
 
   const selectedAssets = useMemo(
-    () => sortedAssets.filter(({ material }) => selectedAssetIds.includes(material.id)),
-    [selectedAssetIds, sortedAssets],
+    () => displayAssets.filter(({ material }) => selectedAssetIds.includes(material.id)),
+    [displayAssets, selectedAssetIds],
   );
   const syncableSelected = selectedAssets.filter(({ local }) => local && local.status !== "synced");
   const removableSelected = selectedAssets.filter(({ local }) => Boolean(local));
+  const activeFilterCount = Number(assetKindFilter !== "all") + Number(assetStatusFilter !== "all");
+  const hasAssetRefinement = Boolean(assetQuery.trim()) || activeFilterCount > 0;
+  const draftVisibleCount = useMemo(() => displayAssets.filter((asset) => {
+    if (draftKindFilter !== "all" && displayAssetKind(asset) !== draftKindFilter) return false;
+    if (draftStatusFilter === "synced" && asset.local?.status !== "synced" && asset.local !== null) return false;
+    if (draftStatusFilter === "not_synced" && (!asset.local || asset.local.status === "synced")) return false;
+    if (draftStatusFilter === "attention" && asset.local?.status !== "failed") return false;
+    return true;
+  }).length, [displayAssets, draftKindFilter, draftStatusFilter]);
 
   useEffect(() => {
     setSelectedAssetIds((current) => current.filter((id) => displayAssets.some(({ material }) => material.id === id)));
@@ -3023,6 +3116,20 @@ function MaterialsScreen({ materials, tourLibrary, communityId, loading, onReloa
   function closeSelectionMode() {
     setSelectionMode(false);
     setSelectedAssetIds([]);
+  }
+
+  function openAssetFilters() {
+    setDraftKindFilter(assetKindFilter);
+    setDraftStatusFilter(assetStatusFilter);
+    setDraftSort(assetSort);
+    setFilterOpen(true);
+  }
+
+  function resetAssetRefinements() {
+    setAssetQuery("");
+    setAssetKindFilter("all");
+    setAssetStatusFilter("all");
+    setAssetSort("newest");
   }
 
   async function shareSelectedAssets() {
@@ -3075,137 +3182,226 @@ function MaterialsScreen({ materials, tourLibrary, communityId, loading, onReloa
     );
   }
 
+  const allVisibleSelected = visibleAssets.length > 0 && visibleAssets.every(({ material }) => selectedAssetIds.includes(material.id));
+
   return (
-    <View style={st.page}>
-      <View style={assetSt.header}>
-        <CommunityTopBar
-          property={property}
-          onCommunityPress={onCommunityPress}
-          left={
-            <Pressable accessibilityLabel="Back to home" onPress={onBack} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-              <Ionicons name="arrow-back" size={22} color={C.text} />
-            </Pressable>
-          }
-          right={
-            selectionMode ? null : (
-              <Pressable accessibilityLabel="Add an asset" onPress={() => void addAsset()} disabled={uploading} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-                {uploading ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="add" size={21} color={C.text} />}
+    <View style={assetSt.screen}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[assetSt.scrollContent, selectionMode && assetSt.scrollContentSelecting]}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void onReload()} tintColor={C.brand} />}
+      >
+        <View style={assetSt.header}>
+          <CommunityTopBar
+            property={property}
+            onCommunityPress={onCommunityPress}
+            left={
+              <Pressable accessibilityLabel="Back to home" onPress={selectionMode ? closeSelectionMode : onBack} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
+                <Ionicons name={selectionMode ? "close" : "arrow-back"} size={22} color={C.text} />
               </Pressable>
-            )
-          }
-        />
-        <View>
-          <Text style={st.pageTitle}>Assets</Text>
-          <Text style={st.pageHeadingSub}>{displayAssets.length} saved {displayAssets.length === 1 ? "asset" : "assets"}</Text>
-        </View>
-        {tourLibrary ? (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel="Open the connected Tour Library"
-            onPress={() => void Linking.openURL(tourLibrary.url)}
-            style={({ pressed }) => [assetSt.tourLibraryLink, pressed && st.pressed]}
-          >
-            <View style={assetSt.tourLibraryLinkIcon}>
-              <Ionicons name="play" size={18} color="#fff" />
+            }
+            right={undefined}
+          />
+
+          <View style={assetSt.titleRow}>
+            <View style={assetSt.titleText}>
+              <Text style={selectionMode ? assetSt.selectionTitle : st.pageTitle}>
+                {selectionMode ? `${selectedAssetIds.length} selected` : "Assets"}
+              </Text>
+              {!selectionMode ? (
+                <Text style={st.pageHeadingSub}>{displayAssets.length} saved {displayAssets.length === 1 ? "asset" : "assets"}</Text>
+              ) : null}
             </View>
-            <View style={st.flex1}>
-              <Text style={assetSt.tourLibraryLinkTitle}>Open Tour Library</Text>
-              <Text style={assetSt.tourLibraryLinkMeta}>Connected to this property</Text>
-            </View>
-            <Ionicons name="open-outline" size={18} color={C.brand} />
-          </Pressable>
-        ) : null}
-        {selectionMode ? (
-          <>
-            <View style={assetSt.selectionHeader}>
-              <Text style={assetSt.selectionCount}>{selectedAssetIds.length} selected</Text>
+            {selectionMode ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={selectedAssetIds.length === sortedAssets.length ? "Clear selection" : "Select all assets"}
-                onPress={() => setSelectedAssetIds(selectedAssetIds.length === sortedAssets.length ? [] : sortedAssets.map(({ material }) => material.id))}
-                style={assetSt.selectionLink}
+                accessibilityLabel={allVisibleSelected ? "Clear visible selection" : "Select all visible assets"}
+                disabled={!visibleAssets.length}
+                onPress={() => setSelectedAssetIds((current) => {
+                  const visibleIds = visibleAssets.map(({ material }) => material.id);
+                  if (allVisibleSelected) return current.filter((id) => !visibleIds.includes(id));
+                  return Array.from(new Set([...current, ...visibleIds]));
+                })}
+                style={assetSt.selectAll}
               >
-                <Text style={assetSt.selectionLinkText}>{selectedAssetIds.length === sortedAssets.length ? "Clear all" : "Select all"}</Text>
+                <Text style={assetSt.selectAllText}>{allVisibleSelected ? "Clear all" : "Select all"}</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Finish selecting" onPress={closeSelectionMode} style={assetSt.selectionLink}>
-                <Text style={assetSt.selectionLinkText}>Done</Text>
-              </Pressable>
-            </View>
-            <View style={assetSt.bulkActions}>
-              <AssetBulkAction icon="share-outline" label="Share" disabled={!selectedAssets.length || bulkBusy} onPress={() => void shareSelectedAssets()} />
-              <AssetBulkAction icon="cloud-upload-outline" label="Sync" disabled={!syncableSelected.length || bulkBusy} onPress={() => void syncSelectedAssets()} />
-              <AssetBulkAction icon="trash-outline" label="Remove" destructive disabled={!removableSelected.length || bulkBusy} onPress={removeSelectedAssets} />
-            </View>
-          </>
-        ) : (
-          <View style={assetSt.libraryControls}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Record a video asset" onPress={() => setVideoRecorderOpen(true)} style={({ pressed }) => [assetSt.recordButton, pressed && st.pressed]}>
-              <Ionicons name="videocam-outline" size={16} color="#fff" />
-              <Text style={assetSt.recordButtonText}>Record video</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Sort assets, ${ASSET_SORT_LABELS[assetSort]}`} onPress={() => setSortOpen(true)} style={({ pressed }) => [assetSt.libraryControl, pressed && st.pressed]}>
-              <Ionicons name="swap-vertical-outline" size={16} color={C.textSec} />
-              <Text style={assetSt.libraryControlText}>{ASSET_SORT_LABELS[assetSort]}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Select assets" disabled={!displayAssets.length} onPress={() => setSelectionMode(true)} style={({ pressed }) => [assetSt.libraryControl, !displayAssets.length && assetSt.bulkActionDisabled, pressed && st.pressed]}>
-              <Ionicons name="checkmark-circle-outline" size={16} color={C.textSec} />
-              <Text style={assetSt.libraryControlText}>Select</Text>
-            </Pressable>
-          </View>
-        )}
-      </View>
-
-      {(loading || localAssetsLoading) ? <MaterialsGridSkeleton /> : displayAssets.length === 0 ? <EmptyState icon="folder-open-outline" title="No assets yet" subtitle="Record a property video or add media from this device" /> : (
-        <View style={assetSt.grid}>
-          {sortedAssets.map(({ material, local }) => {
-            const assetSelected = selectedAssetIds.includes(material.id);
-            return (
-              <View key={material.id} style={assetSt.cardWrap}>
+            ) : (
               <Pressable
-                accessibilityRole={selectionMode ? "checkbox" : "button"}
-                accessibilityState={selectionMode ? { checked: assetSelected } : undefined}
-                accessibilityLabel={selectionMode ? `${assetSelected ? "Deselect" : "Select"} ${material.name}` : `Open ${material.name}`}
-                onPress={() => selectionMode ? toggleAssetSelection(material.id) : setSelected({ material, local })}
-                onLongPress={() => {
-                  if (selectionMode) return;
-                  selectionHaptic();
-                  setSelectionMode(true);
-                  setSelectedAssetIds([material.id]);
-                }}
-                style={({ pressed }) => [assetSt.card, assetSelected && assetSt.cardSelected, pressed && st.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Select assets"
+                disabled={!displayAssets.length}
+                onPress={() => setSelectionMode(true)}
+                style={({ pressed }) => [assetSt.headingAction, !displayAssets.length && assetSt.bulkActionDisabled, pressed && st.pressed]}
               >
-                <View style={[assetSt.thumb, assetSelected && assetSt.thumbSelected]}>
-                  <AssetThumbnail material={material} local={local} />
-                  {selectionMode ? (
-                    <View style={[assetSt.selectCircle, assetSelected && assetSt.selectCircleActive]}>
-                      {assetSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
-                    </View>
-                  ) : null}
-                  {local && local.status !== "synced" && !selectionMode ? (
-                    <Pressable
-                      accessibilityLabel={`Upload ${local.name}`}
-                      disabled={syncingLocalAssetId === local.id}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        void syncLocalAsset(local).catch((caught) => showToast(caught instanceof Error ? caught.message : "Could not sync asset", "error"));
-                      }}
-                      style={assetSt.localAction}
-                    >
-                      {syncingLocalAssetId === local.id ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="cloud-upload-outline" size={16} color="#fff" />}
+                <Text style={assetSt.headingActionText}>Select</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {!selectionMode ? (
+            <>
+              <View style={assetSt.searchRow}>
+                <View style={assetSt.searchField}>
+                  <Ionicons name="search-outline" size={18} color={C.textMuted} />
+                  <TextInput
+                    value={assetQuery}
+                    onChangeText={setAssetQuery}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="Search assets"
+                    placeholderTextColor={C.textMuted}
+                    returnKeyType="search"
+                    style={assetSt.searchInput}
+                  />
+                  {assetQuery ? (
+                    <Pressable accessibilityLabel="Clear asset search" onPress={() => setAssetQuery("")} style={assetSt.clearSearch}>
+                      <Ionicons name="close-circle" size={17} color={C.textMuted} />
                     </Pressable>
                   ) : null}
                 </View>
-                <Text style={assetSt.cardTitle} numberOfLines={1}>{material.name}</Text>
-                <View style={assetSt.cardMetaRow}>
-                  <Text style={assetSt.cardMeta} numberOfLines={1}>{local ? (local.kind === "video" ? "Video" : "Image") : material.type} · {fmtDate(material.createdAt)}</Text>
-                  <AssetSyncMeta local={local} />
-                </View>
-              </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Filter and sort assets. ${activeFilterCount} active filters. Sorted by ${ASSET_SORT_LABELS[assetSort]}`}
+                  onPress={openAssetFilters}
+                  style={({ pressed }) => [assetSt.filterButton, activeFilterCount > 0 && assetSt.filterButtonActive, pressed && st.pressed]}
+                >
+                  <Ionicons name="options-outline" size={20} color={activeFilterCount > 0 ? C.brand : C.text} />
+                  {activeFilterCount > 0 ? (
+                    <View style={assetSt.filterBadge}>
+                      <Text style={assetSt.filterBadgeText}>{activeFilterCount}</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
               </View>
-            );
-          })}
+
+              <View style={assetSt.libraryControls}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Record a video asset" onPress={() => setVideoRecorderOpen(true)} style={({ pressed }) => [assetSt.recordButton, pressed && st.pressed]}>
+                  <Ionicons name="videocam-outline" size={17} color="#fff" />
+                  <Text style={assetSt.recordButtonText}>Record video</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Add an existing file" onPress={() => void addAsset()} disabled={uploading} style={({ pressed }) => [assetSt.addFileButton, uploading && assetSt.bulkActionDisabled, pressed && st.pressed]}>
+                  {uploading ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="add" size={18} color={C.text} />}
+                  <Text style={assetSt.addFileButtonText}>Add file</Text>
+                </Pressable>
+              </View>
+
+              {tourLibrary ? (
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Open the connected Tour Library"
+                  onPress={() => void Linking.openURL(tourLibrary.url)}
+                  style={({ pressed }) => [assetSt.tourLibraryLink, pressed && st.pressed]}
+                >
+                  <View style={assetSt.tourLibraryLinkIcon}>
+                    <Ionicons name="play" size={16} color={C.brand} />
+                  </View>
+                  <View style={st.flex1}>
+                    <Text style={assetSt.tourLibraryLinkTitle}>Tour Library</Text>
+                    <Text style={assetSt.tourLibraryLinkMeta}>Open the connected property library</Text>
+                  </View>
+                  <Ionicons name="open-outline" size={17} color={C.textMuted} />
+                </Pressable>
+              ) : null}
+
+              {displayAssets.length > 0 ? (
+                <View style={assetSt.resultSummary}>
+                  <Text style={assetSt.resultSummaryText}>
+                    {visibleAssets.length === displayAssets.length && !assetQuery.trim()
+                      ? `${ASSET_SORT_LABELS[assetSort]} first`
+                      : `${visibleAssets.length} of ${displayAssets.length} shown`}
+                  </Text>
+                  {hasAssetRefinement ? (
+                    <Pressable accessibilityRole="button" onPress={resetAssetRefinements}>
+                      <Text style={assetSt.clearFiltersText}>Clear filters</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </>
+          ) : null}
         </View>
-      )}
+
+        {(loading || localAssetsLoading) ? (
+          <MaterialsGridSkeleton />
+        ) : displayAssets.length === 0 ? (
+          <EmptyState icon="folder-open-outline" title="No assets yet" subtitle="Record a property video or add media from this device" />
+        ) : visibleAssets.length === 0 ? (
+          <View style={assetSt.noResults}>
+            <View style={assetSt.noResultsIcon}>
+              <Ionicons name="search-outline" size={24} color={C.brand} />
+            </View>
+            <Text style={assetSt.noResultsTitle}>No matching assets</Text>
+            <Text style={assetSt.noResultsBody}>Try a different search or clear the current filters.</Text>
+            <Pressable accessibilityRole="button" onPress={resetAssetRefinements} style={assetSt.noResultsAction}>
+              <Text style={assetSt.noResultsActionText}>Show all assets</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={assetSt.grid}>
+            {visibleAssets.map(({ material, local }) => {
+              const assetSelected = selectedAssetIds.includes(material.id);
+              return (
+                <View key={material.id} style={assetSt.cardWrap}>
+                  <Pressable
+                    accessibilityRole={selectionMode ? "checkbox" : "button"}
+                    accessibilityState={selectionMode ? { checked: assetSelected } : undefined}
+                    accessibilityLabel={selectionMode ? `${assetSelected ? "Deselect" : "Select"} ${material.name}` : `Open ${material.name}`}
+                    onPress={() => selectionMode ? toggleAssetSelection(material.id) : setSelected({ material, local })}
+                    onLongPress={() => {
+                      if (selectionMode) return;
+                      selectionHaptic();
+                      setSelectionMode(true);
+                      setSelectedAssetIds([material.id]);
+                    }}
+                    style={({ pressed }) => [assetSt.card, assetSelected && assetSt.cardSelected, pressed && st.pressed]}
+                  >
+                    <View style={[assetSt.thumb, assetSelected && assetSt.thumbSelected]}>
+                      <AssetThumbnail material={material} local={local} />
+                      {selectionMode ? (
+                        <View style={[assetSt.selectCircle, assetSelected && assetSt.selectCircleActive]}>
+                          {assetSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                        </View>
+                      ) : (
+                        <AssetSyncBadge local={local} />
+                      )}
+                      {local && local.status !== "synced" && !selectionMode ? (
+                        <Pressable
+                          accessibilityLabel={`Upload ${local.name}`}
+                          disabled={syncingLocalAssetId === local.id}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            void syncLocalAsset(local).catch((caught) => showToast(caught instanceof Error ? caught.message : "Could not sync asset", "error"));
+                          }}
+                          style={assetSt.localAction}
+                        >
+                          {syncingLocalAssetId === local.id ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="cloud-upload-outline" size={15} color="#fff" />}
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    <Text style={assetSt.cardTitle} numberOfLines={1}>{material.name}</Text>
+                    <View style={assetSt.cardMetaRow}>
+                      <Text style={assetSt.cardMeta} numberOfLines={1}>{displayAssetKind({ material, local })} · {fmtDate(material.createdAt)}</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+
+      {selectionMode ? (
+        <View style={assetSt.selectionDock}>
+          <View style={assetSt.bulkActions}>
+            <AssetBulkAction icon="share-outline" label="Share" disabled={!selectedAssets.length || bulkBusy} onPress={() => void shareSelectedAssets()} />
+            <AssetBulkAction icon="cloud-upload-outline" label="Upload" disabled={!syncableSelected.length || bulkBusy} onPress={() => void syncSelectedAssets()} />
+            <AssetBulkAction icon="trash-outline" label="Delete" destructive disabled={!removableSelected.length || bulkBusy} onPress={removeSelectedAssets} />
+          </View>
+        </View>
+      ) : null}
 
       <MaterialPreviewModal
         material={selected?.material ?? null}
@@ -3231,28 +3427,117 @@ function MaterialsScreen({ materials, tourLibrary, communityId, loading, onReloa
         onSaveLocal={saveRecordedVideo}
         onUpload={uploadRecordedVideo}
       />
-      <BottomSheetModal visible={sortOpen} onClose={() => setSortOpen(false)} sheetHeight={286} contentStyle={assetSt.sortSheet}>
-        <Text style={assetSt.sortTitle}>Sort assets</Text>
-        {(["newest", "oldest", "name"] as AssetSort[]).map((option) => {
-          const active = option === assetSort;
-          return (
-            <Pressable
-              key={option}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
-              onPress={() => {
-                selectionHaptic();
-                setAssetSort(option);
-                setSortOpen(false);
-              }}
-              style={({ pressed }) => [assetSt.sortOption, active && assetSt.sortOptionActive, pressed && st.pressed]}
-            >
-              <Ionicons name={option === "name" ? "text-outline" : option === "newest" ? "arrow-down-outline" : "arrow-up-outline"} size={17} color={active ? C.brand : C.textMuted} />
-              <Text style={assetSt.sortOptionText}>{option === "name" ? "Name" : option === "newest" ? "Newest first" : "Oldest first"}</Text>
-              {active ? <Ionicons name="checkmark" size={18} color={C.brand} /> : null}
-            </Pressable>
-          );
-        })}
+      <BottomSheetModal
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        sheetHeight={Math.min(620, Dimensions.get("window").height * 0.78)}
+        contentStyle={assetSt.filterSheet}
+      >
+        <ScrollView style={assetSt.filterSheetScroll} showsVerticalScrollIndicator={false} contentContainerStyle={assetSt.filterSheetScrollContent}>
+          <View style={assetSt.filterSheetHeader}>
+            <Text style={assetSt.filterSheetTitle}>Filter and sort</Text>
+            <Text style={assetSt.filterSheetMeta}>{draftVisibleCount} of {displayAssets.length} assets match</Text>
+          </View>
+
+          <View style={assetSt.filterSection}>
+            <Text style={assetSt.filterSectionTitle}>Type</Text>
+            <View style={assetSt.filterChoices}>
+              {ASSET_KIND_OPTIONS.map((option) => {
+                const active = option.value === draftKindFilter;
+                return (
+                  <Pressable
+                    key={option.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => {
+                      selectionHaptic();
+                      setDraftKindFilter(option.value);
+                    }}
+                    style={({ pressed }) => [assetSt.filterChip, active && assetSt.filterChipActive, pressed && st.pressed]}
+                  >
+                    <Ionicons name={option.icon} size={15} color={active ? C.brand : C.textMuted} />
+                    <Text style={[assetSt.filterChipText, active && assetSt.filterChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={assetSt.filterSection}>
+            <Text style={assetSt.filterSectionTitle}>Status</Text>
+            <View style={assetSt.filterChoices}>
+              {ASSET_STATUS_OPTIONS.map((option) => {
+                const active = option.value === draftStatusFilter;
+                return (
+                  <Pressable
+                    key={option.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => {
+                      selectionHaptic();
+                      setDraftStatusFilter(option.value);
+                    }}
+                    style={({ pressed }) => [assetSt.filterChip, active && assetSt.filterChipActive, pressed && st.pressed]}
+                  >
+                    <Ionicons name={option.icon} size={15} color={active ? C.brand : C.textMuted} />
+                    <Text style={[assetSt.filterChipText, active && assetSt.filterChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={assetSt.filterSection}>
+            <Text style={assetSt.filterSectionTitle}>Sort by</Text>
+            <View style={assetSt.sortOptions}>
+              {(["newest", "oldest", "name"] as AssetSort[]).map((option, index) => {
+                const active = option === draftSort;
+                return (
+                  <Pressable
+                    key={option}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => {
+                      selectionHaptic();
+                      setDraftSort(option);
+                    }}
+                    style={({ pressed }) => [assetSt.sortOption, index > 0 && assetSt.sortOptionBorder, pressed && st.pressed]}
+                  >
+                    <Ionicons name={option === "name" ? "text-outline" : option === "newest" ? "arrow-down-outline" : "arrow-up-outline"} size={17} color={active ? C.brand : C.textMuted} />
+                    <Text style={assetSt.sortOptionText}>{option === "name" ? "Name" : option === "newest" ? "Newest first" : "Oldest first"}</Text>
+                    {active ? <Ionicons name="checkmark-circle" size={19} color={C.brand} /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </ScrollView>
+
+        <View style={assetSt.filterFooter}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setDraftKindFilter("all");
+              setDraftStatusFilter("all");
+              setDraftSort("newest");
+            }}
+            style={({ pressed }) => [assetSt.filterReset, pressed && st.pressed]}
+          >
+            <Text style={assetSt.filterResetText}>Reset</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setAssetKindFilter(draftKindFilter);
+              setAssetStatusFilter(draftStatusFilter);
+              setAssetSort(draftSort);
+              setFilterOpen(false);
+            }}
+            style={({ pressed }) => [assetSt.filterApply, pressed && st.pressed]}
+          >
+            <Text style={assetSt.filterApplyText}>Show {draftVisibleCount} {draftVisibleCount === 1 ? "asset" : "assets"}</Text>
+          </Pressable>
+        </View>
       </BottomSheetModal>
     </View>
   );
