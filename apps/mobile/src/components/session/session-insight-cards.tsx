@@ -1,6 +1,6 @@
 import type { AnalysisResult, AudioInsights, AudioInsightsStatus } from "@tour/shared";
 import { AUDIO_INSIGHTS_STATUS_LABELS } from "@tour/shared";
-import { Activity, ChevronRight, Sparkles } from "lucide-react-native";
+import { Activity, ChevronRight, MessageSquare } from "lucide-react-native";
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import Reanimated, { FadeInDown } from "react-native-reanimated";
@@ -54,10 +54,10 @@ export function SessionInsightCards({
         subtitle="Ask about this tour"
         preview={aiPreview}
         badge="Coaching chat"
-        icon={Sparkles}
-        iconColor="#7c3aed"
-        iconBg="#f5f3ff"
-        borderColor="#ddd6fe"
+        icon={MessageSquare}
+        iconColor="#006ce5"
+        iconBg="#eff6ff"
+        borderColor="#bfdbfe"
         onPress={onOpenAiChat}
       />
       <InsightCard
@@ -92,7 +92,7 @@ function InsightCard({
   subtitle: string;
   preview: string;
   badge: string;
-  icon: typeof Sparkles;
+  icon: typeof MessageSquare;
   iconColor: string;
   iconBg: string;
   borderColor: string;

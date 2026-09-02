@@ -1,4 +1,4 @@
-import { ClipboardList, GraduationCap, HeartHandshake, MessageCircle, MessageSquare, Search, Sparkles } from "lucide-react-native";
+import { ClipboardList, GraduationCap, HeartHandshake, MessageCircle, MessageSquare, Sparkles } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -9,7 +9,7 @@ import { selectionHaptic } from "@/lib/haptics";
 
 import { SESSION_PAGE_PADDING } from "./session-layout";
 
-export type SessionReviewMode = "rubric" | "prospect" | "transcript" | "search" | "coaching" | "comments" | "ai";
+export type SessionReviewMode = "rubric" | "prospect" | "transcript" | "coaching" | "comments" | "ai";
 
 const MODES: Array<{
   id: SessionReviewMode;
@@ -19,7 +19,6 @@ const MODES: Array<{
   { id: "rubric", label: "Rubric", icon: ClipboardList },
   { id: "prospect", label: "Prospect", icon: HeartHandshake },
   { id: "transcript", label: "Transcript", icon: MessageSquare },
-  { id: "search", label: "Search", icon: Search },
   { id: "coaching", label: "Coaching", icon: GraduationCap },
   { id: "comments", label: "Comments", icon: MessageCircle },
   { id: "ai", label: "AI Chat", icon: Sparkles },
@@ -37,44 +36,56 @@ export function SessionModeTabs({
   /** Indicator count for the Comments tab (not every mode). */
   commentCount?: number;
 }) {
-  const visibleModes = modes ? MODES.filter((mode) => modes.includes(mode.id)) : MODES;
+  const visibleModes = modes
+    ? modes.flatMap((id) => {
+        const mode = MODES.find((candidate) => candidate.id === id);
+        return mode ? [mode] : [];
+      })
+    : MODES;
+  const usesFullWidthTabs = visibleModes.length <= 3;
+  const tabItems = visibleModes.map((mode) => {
+    const active = value === mode.id;
+    const showCommentBadge = mode.id === "comments" && commentCount > 0;
+    return (
+      <Pressable
+        key={mode.id}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: active }}
+        onPress={() => {
+          selectionHaptic();
+          onChange(mode.id);
+        }}
+        style={[styles.tab, usesFullWidthTabs && styles.tabFullWidth, active && styles.tabActive]}
+      >
+        <Icon as={mode.icon} size={16} color={active ? "#006ce5" : "#667085"} />
+        <Text numberOfLines={1} style={[styles.label, active && styles.labelActive]}>
+          {mode.label}
+        </Text>
+        {showCommentBadge ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{commentCount > 99 ? "99+" : String(commentCount)}</Text>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  });
+
   return (
     <View style={styles.wrap}>
-      <ScrollView
-        horizontal
-        nestedScrollEnabled
-        directionalLockEnabled
-        keyboardShouldPersistTaps="handled"
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.bar}
-      >
-        {visibleModes.map((mode) => {
-          const active = value === mode.id;
-          const showCommentBadge = mode.id === "comments" && commentCount > 0;
-          return (
-            <Pressable
-              key={mode.id}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              onPress={() => {
-                selectionHaptic();
-                onChange(mode.id);
-              }}
-              style={[styles.tab, active && styles.tabActive]}
-            >
-              <Icon as={mode.icon} size={16} color={active ? "#006ce5" : "#667085"} />
-              <Text numberOfLines={1} style={[styles.label, active && styles.labelActive]}>
-                {mode.label}
-              </Text>
-              {showCommentBadge ? (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{commentCount > 99 ? "99+" : String(commentCount)}</Text>
-                </View>
-              ) : null}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {usesFullWidthTabs ? (
+        <View style={[styles.bar, styles.barFullWidth]}>{tabItems}</View>
+      ) : (
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          directionalLockEnabled
+          keyboardShouldPersistTaps="handled"
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.bar}
+        >
+          {tabItems}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -92,24 +103,26 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
+  barFullWidth: { paddingRight: 0 },
   tab: {
-    minWidth: 112,
-    minHeight: 48,
+    minWidth: 92,
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 10,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
     marginBottom: -1,
   },
+  tabFullWidth: { flex: 1, minWidth: 0, gap: 5, paddingHorizontal: 4 },
   tabActive: {
     borderBottomColor: "#006ce5",
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
     color: "#667085",
   },

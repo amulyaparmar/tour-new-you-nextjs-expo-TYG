@@ -12,12 +12,12 @@ export type { ConversationPhaseSegmentation, PhaseTrackSegment };
 
 /** @deprecated Use tourSegmentColor(track.colorIndex) for dynamic segments. */
 export const PHASE_COLORS = {
-  greeting: "#6366f1",
+  greeting: "#006ce5",
   discovery: "#0ea5e9",
   tour: "#10b981",
   objections: "#f59e0b",
   closing: "#ef4444",
-  follow_up: "#8b5cf6",
+  follow_up: "#087d84",
 } as const;
 
 export function segmentTrackColor(track: PhaseTrackSegment): string {

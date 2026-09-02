@@ -1,7 +1,7 @@
 import { View } from "react-native";
 
 import { SessionAiChat } from "@/components/SessionAiChat";
-import { LoadingDots } from "@/components/loading-dots";
+import { SessionAiChatSkeleton } from "@/components/ui/screen-skeletons";
 import { useSessionPlayback } from "@/hooks/use-session-playback";
 import { useAnalysisQuery } from "@/queries";
 
@@ -26,7 +26,11 @@ export function SessionAiChatScreen({
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f4f7fb", paddingTop: 50 }}>
-      <TourScreenHeader onBack={onBack} title={sessionTitle ?? "Tour AI"} subtitle={prospectName ?? "Coaching assistant"} />
+      <TourScreenHeader
+        onBack={onBack}
+        title="AI chat"
+        subtitle={prospectName ? `About ${prospectName}` : undefined}
+      />
       {playback.ready ? (
         <SessionMiniPlayer
           position={playback.position}
@@ -39,9 +43,7 @@ export function SessionAiChatScreen({
         />
       ) : null}
       {loading ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <LoadingDots color="#006ce5" />
-        </View>
+        <SessionAiChatSkeleton />
       ) : analysis ? (
         <View style={{ flex: 1, paddingHorizontal: 12 }}>
           <SessionAiChat

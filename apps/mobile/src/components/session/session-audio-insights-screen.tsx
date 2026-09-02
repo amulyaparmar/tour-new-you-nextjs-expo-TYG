@@ -37,12 +37,14 @@ export function SessionAudioInsightsScreen({
   initialStatus = "pending",
   initialInsights = null,
   onBack,
+  onOpenAudioChat,
 }: {
   sessionId: string;
   sessionTitle?: string;
   initialStatus?: AudioInsightsStatus;
   initialInsights?: AudioInsights | null;
   onBack: () => void;
+  onOpenAudioChat?: () => void;
 }) {
   const [status, setStatus] = useState(initialStatus);
   const [insights, setInsights] = useState(initialInsights);
@@ -113,7 +115,7 @@ export function SessionAudioInsightsScreen({
 
   return (
     <View style={styles.root}>
-      <TourScreenHeader onBack={onBack} title={sessionTitle ?? "Audio insights"} subtitle="Sentiment & speaker dynamics" />
+      <TourScreenHeader onBack={onBack} title={sessionTitle ?? "Audio details"} subtitle="Engagement, tone, and speaker dynamics" />
 
       {status === "ready" && insights ? (
         <>
@@ -122,6 +124,7 @@ export function SessionAudioInsightsScreen({
             fallbackConversationStats={transcriptConversationStats}
             fallbackConversationStatsSource={transcriptConversationStats ? "transcript" : null}
             onSeek={(seconds) => void playback.seekToSeconds(seconds, true)}
+            onAskAudio={onOpenAudioChat}
           />
           <SessionPlayer
             position={playback.position}

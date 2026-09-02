@@ -25,8 +25,8 @@ const C = {
   textMuted: "#94A3B8",
   border: "rgba(16, 24, 40, 0.08)",
   card: "#FFFFFF",
-  purple: "#7C3AED",
-  purpleBg: "#F3E8FF",
+  ai: "#006CE5",
+  aiBg: "#EAF3FF",
 };
 
 type Props = {
@@ -205,13 +205,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     alignSelf: "flex-start",
-    backgroundColor: C.purpleBg,
+    backgroundColor: C.aiBg,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
   },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.purple },
-  heroBadgeText: { fontSize: 11, fontWeight: "900", color: C.purple },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.ai },
+  heroBadgeText: { fontSize: 11, fontWeight: "900", color: C.ai },
   heroTitle: { fontSize: 18, fontWeight: "900", color: C.text },
   heroSub: { fontSize: 13, fontWeight: "600", color: C.textSec, lineHeight: 20 },
   linkPreview: {

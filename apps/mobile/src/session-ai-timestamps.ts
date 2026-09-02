@@ -15,6 +15,7 @@ export function isValidTimestamp(ts: string) {
 
 const TIMESTAMP_PATTERN = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]|\b(\d{1,2}:\d{2}(?::\d{2})?)\b/g;
 const MARKDOWN_TIMESTAMP_LINK = /\[([^\]]*)\]\((#seek-\d+|\d{1,2}:\d{2}(?::\d{2})?)\)/g;
+const PROTECTED_MARKDOWN_SEGMENT = /(```[\s\S]*?```|`[^`\n]+`|\[[^\]]+\]\([^)]+\))/g;
 
 function seekHref(seconds: number) {
   return `#seek-${seconds}`;
@@ -37,10 +38,16 @@ function linkifySegment(segment: string) {
 }
 
 export function linkifyTimestampsInMarkdown(content: string) {
-  const codePattern = /(```[\s\S]*?```|`[^`\n]+`)/g;
   return content
-    .split(codePattern)
-    .map((segment, index) => (index % 2 === 1 ? segment : linkifySegment(segment)))
+    // Keep existing Markdown links intact. Re-linking a timestamp which is
+    // already inside a link creates nested Markdown and makes it untappable
+    // in the native renderer.
+    .split(PROTECTED_MARKDOWN_SEGMENT)
+    .map((segment) => (
+      segment.startsWith("`") || /^\[[^\]]+\]\([^)]+\)$/.test(segment)
+        ? segment
+        : linkifySegment(segment)
+    ))
     .join("");
 }
 

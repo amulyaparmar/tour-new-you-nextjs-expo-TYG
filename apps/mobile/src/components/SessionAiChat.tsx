@@ -1,5 +1,5 @@
 import { appendDictationText, type AnalysisResult } from "@tour/shared";
-import { ArrowUp, Sparkles } from "lucide-react-native";
+import { ArrowUp, MessageSquare } from "lucide-react-native";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { fetch as expoFetch } from "expo/fetch";
@@ -181,11 +181,9 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
       >
         {messages.length === 0 ? (
           <View style={styles.starter}>
-            <Icon as={Sparkles} size={26} color={C.brand} />
-            <Text style={styles.emptyTitle}>Ask Tour AI about this tour</Text>
-            <Text style={styles.emptyBody}>
-              It uses the session, scorecard, transcript, coaching moments, and community context.
-            </Text>
+            <View style={styles.emptyIcon}><Icon as={MessageSquare} size={23} color={C.brand} /></View>
+            <Text style={styles.emptyTitle}>What would you like to work through?</Text>
+            <Text style={styles.emptyBody}>Ask about a moment, follow-up, or next step.</Text>
             <View style={styles.emptyPromptGrid}>
               {SESSION_AI_DEFAULT_PROMPTS.map((prompt) => (
                 <Pressable
@@ -309,6 +307,7 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { gap: 10, paddingBottom: 8 },
   starter: { alignItems: "center", gap: 8, paddingHorizontal: 22, paddingTop: 24 },
+  emptyIcon: { width: 46, height: 46, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: "#EFF6FF" },
   emptyTitle: { color: C.text, fontSize: 19, fontWeight: "900", textAlign: "center" },
   emptyBody: { color: C.textSec, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" },
   emptyPromptGrid: { alignSelf: "stretch", gap: 10, marginTop: 14 },

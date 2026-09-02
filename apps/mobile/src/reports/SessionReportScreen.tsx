@@ -13,6 +13,7 @@ import {
 import Reanimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { LoadingDots } from "@/components/loading-dots";
+import { SessionReportSkeleton } from "@/components/ui/screen-skeletons";
 import { fetchAnalysis, fetchAnalysisRuns, fetchSession } from "../api";
 import { TourLogo } from "../components/TourLogo";
 import { tourColors as C, scoreColor, scoreLabel } from "../theme/tour-brand";
@@ -119,10 +120,21 @@ export function SessionReportScreen({
 
   if (loading) {
     return (
-      <View style={styles.loading}>
-        <LoadingDots size="large" color={C.brand} />
-        <Text style={styles.loadingTitle}>Building your report workspace</Text>
-        <Text style={styles.loadingCopy}>Loading the latest analysis and available versions…</Text>
+      <View style={styles.root}>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.nav}>
+            <Pressable accessibilityLabel="Back to session" onPress={onBack} style={styles.iconButton}>
+              <Ionicons name="chevron-back" size={22} color={C.text} />
+            </Pressable>
+            <View style={styles.navBrand}><TourLogo width={62} /></View>
+            <View style={styles.navSpacer} />
+          </View>
+          <SessionReportSkeleton />
+        </ScrollView>
       </View>
     );
   }
@@ -327,6 +339,7 @@ const styles = StyleSheet.create({
   compactButtonText: { color: "#fff", fontSize: 13, fontWeight: "900" },
   nav: { minHeight: 44, flexDirection: "row", alignItems: "center" },
   navBrand: { flex: 1, alignItems: "center", justifyContent: "center" },
+  navSpacer: { width: 40, height: 40 },
   iconButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
   eyebrow: { color: C.brand, fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.1 },
   pageTitle: { marginTop: 5, color: C.text, fontSize: 27, lineHeight: 33, fontWeight: "900", letterSpacing: -0.6 },

@@ -15,10 +15,14 @@ export const tourColors = {
   amberBg: "#fffbeb",
   red: "#b91c1c",
   redBg: "#fef2f2",
-  purple: "#7c3aed",
-  purpleBg: "#f3e8ff",
+  // AI belongs to the Tour product, so it uses the primary blue rather than a
+  // competing accent color.
+  ai: "#006ce5",
+  aiText: "#006ce5",
+  aiBg: "#eaf3ff",
+  aiBorder: "#bfdbfe",
   agent: "#006ce5",
-  prospect: "#4D8AE5",
+  prospect: "#667085",
 } as const;
 
 export const tourRadius = {

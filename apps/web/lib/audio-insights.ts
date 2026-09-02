@@ -530,7 +530,7 @@ export async function chatWithAudioRecording(params: {
   const contextLines = [
     "You are a leasing tour coach with direct access to the session recording.",
     "Answer using what you hear in the audio — tone, pacing, pauses, and non-speech cues matter.",
-    "Reference timestamps as MM:SS when helpful.",
+    "When a moment matters, include a standalone timestamp formatted exactly as [MM:SS]. Do not put timestamps inside Markdown links or bold text; the app turns those tokens into playable recording links.",
   ];
   if (params.summary?.trim()) {
     contextLines.push("", `Prior analysis summary: ${params.summary.trim()}`);

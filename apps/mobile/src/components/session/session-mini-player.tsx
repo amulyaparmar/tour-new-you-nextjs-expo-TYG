@@ -5,6 +5,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { LoadingDots } from "@/components/loading-dots";
 import { Icon } from "@/components/ui/icon";
 
+const WAVEFORM_LEVELS = [0.26, 0.48, 0.34, 0.72, 0.42, 0.58, 0.3, 0.82, 0.5, 0.36, 0.68, 0.42, 0.58, 0.3, 0.76, 0.46, 0.34, 0.62, 0.38, 0.7, 0.48, 0.28, 0.56, 0.42, 0.66, 0.36, 0.52, 0.3, 0.62, 0.46, 0.74, 0.4] as const;
+
 export function SessionMiniPlayer({
   position,
   duration,
@@ -42,6 +44,10 @@ export function SessionMiniPlayer({
       </Pressable>
 
       <View style={styles.details}>
+        <View style={styles.metaRow}>
+          <Text style={styles.recordingLabel}>Recording</Text>
+          <Text style={styles.time}>{fmt(position)} / {fmt(duration)}</Text>
+        </View>
         <View
           accessibilityRole="adjustable"
           accessibilityLabel="Recording playhead"
@@ -58,10 +64,22 @@ export function SessionMiniPlayer({
               trackWidth.current = event.nativeEvent.layout.width;
             }}
           >
-            <View style={[styles.fill, { width: `${progressPercent}%` }]} />
+            {WAVEFORM_LEVELS.map((level, index) => {
+              const completed = ((index + 1) / WAVEFORM_LEVELS.length) * 100 <= progressPercent;
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.waveBar,
+                    { height: `${Math.max(25, Math.round(level * 100))}%` },
+                    completed && styles.waveBarCompleted,
+                  ]}
+                />
+              );
+            })}
+            <View pointerEvents="none" style={[styles.playhead, { left: `${progressPercent}%` }]} />
           </View>
         </View>
-        <Text style={styles.time}>{fmt(position)} / {fmt(duration)}</Text>
       </View>
     </View>
   );
@@ -77,7 +95,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    minHeight: 52,
+    minHeight: 62,
     marginHorizontal: 12,
     marginTop: 6,
     paddingHorizontal: 10,
@@ -96,9 +114,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#006ce5",
   },
   playButtonDisabled: { opacity: 0.55 },
-  details: { flex: 1, minWidth: 0, gap: 2 },
+  details: { flex: 1, minWidth: 0, gap: 3 },
+  metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  recordingLabel: { color: "#344054", fontSize: 10, fontWeight: "900" },
   trackHit: { minHeight: 22, justifyContent: "center" },
-  track: { height: 4, borderRadius: 999, overflow: "hidden", backgroundColor: "#dfe9f7" },
-  fill: { height: "100%", borderRadius: 999, backgroundColor: "#006ce5" },
+  track: { position: "relative", height: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 1, overflow: "visible" },
+  waveBar: { width: 2, borderRadius: 999, backgroundColor: "#bed5ee" },
+  waveBarCompleted: { backgroundColor: "#006ce5" },
+  playhead: { position: "absolute", top: -2, bottom: -2, width: 2, marginLeft: -1, borderRadius: 999, backgroundColor: "#006ce5" },
   time: { color: "#667085", fontSize: 10, fontWeight: "800", fontVariant: ["tabular-nums"] },
 });

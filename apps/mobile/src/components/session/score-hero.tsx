@@ -70,6 +70,25 @@ function AnimatedBar({ percent, color }: { percent: number; color: string }) {
   );
 }
 
+function formatPoints(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+}
+
+function sectionPoints(section: AnalysisResult["sectionScores"][number]) {
+  if (section.pointsPossible > 0) {
+    return { earned: section.pointsEarned, possible: section.pointsPossible };
+  }
+
+  const questions = section.questions ?? [];
+  const possible = questions.reduce((total, question) => total + question.maxPoints, 0);
+  if (possible <= 0) return null;
+
+  return {
+    earned: questions.reduce((total, question) => total + question.earnedPoints, 0),
+    possible,
+  };
+}
+
 export function ScoreHero({ analysis }: { analysis: AnalysisResult }) {
   const color = scoreColor(analysis.overallScore);
   const pts =
@@ -93,16 +112,18 @@ export function ScoreHero({ analysis }: { analysis: AnalysisResult }) {
 
           <View style={st.sections}>
             {analysis.sectionScores.map((sec, index) => {
-              const c = scoreColor(sec.score);
+              const points = sectionPoints(sec);
+              const progress = points ? (points.earned / points.possible) * 100 : sec.score;
+              const c = scoreColor(progress);
               return (
                 <Reanimated.View key={sec.section} entering={tourEnter.stagger(index, 55)} style={st.sectionRow}>
                   <View style={st.sectionHeader}>
                     <Text selectable style={st.sectionName} numberOfLines={1}>{sec.section}</Text>
                     <Text selectable style={[st.sectionPts, { color: c }]}>
-                      {sec.pointsPossible > 0 ? `${sec.pointsEarned}/${sec.pointsPossible}` : `${sec.score}%`}
+                      {points ? `${formatPoints(points.earned)}/${formatPoints(points.possible)} pts` : "--"}
                     </Text>
                   </View>
-                  <AnimatedBar percent={sec.score} color={c} />
+                  <AnimatedBar percent={progress} color={c} />
                 </Reanimated.View>
               );
             })}

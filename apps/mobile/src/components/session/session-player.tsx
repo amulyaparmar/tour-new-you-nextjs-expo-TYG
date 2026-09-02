@@ -1,4 +1,4 @@
-import { LocateFixed, Pause, Play } from "lucide-react-native";
+import { LocateFixed, Pause, Play, RotateCcw, RotateCw } from "lucide-react-native";
 import React, { useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -40,6 +40,11 @@ export function SessionPlayer({
     const width = trackWidth.current;
     if (width <= 0) return;
     onSeek(Math.max(0, Math.min(1, x / width)));
+  }
+
+  function skipBy(seconds: number) {
+    if (duration <= 0) return;
+    onSeek(Math.max(0, Math.min(1, (position + seconds) / duration)));
   }
 
   return (
@@ -84,27 +89,49 @@ export function SessionPlayer({
         </View>
       </View>
 
-      <View style={styles.row}>
-        <Pressable onPress={onSpeed} hitSlop={10} style={styles.speedBtn}>
-          <Text style={styles.speedText}>{speed}x</Text>
+      <View style={styles.timeRow}>
+        <Text style={styles.time}>{fmt(position)}</Text>
+        <Text style={styles.time}>{duration > 0 ? `-${fmt(Math.max(0, duration - position))}` : "--:--"}</Text>
+      </View>
+
+      <View style={styles.controls}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Playback speed ${speed}x`} onPress={onSpeed} hitSlop={10} style={styles.speedBtn}>
+          <Text numberOfLines={1} style={styles.speedText}>{speed}x</Text>
         </Pressable>
-
-        <Text style={styles.time}>
-          {fmt(position)} / {fmt(duration)}
-        </Text>
-
-        <MotionPressable
-          disabled={!ready}
-          onPress={onToggle}
-          haptic="medium"
-          style={[styles.playBtn, !ready && styles.playBtnDisabled]}
-        >
-          {!ready ? (
-            <LoadingDots color="#fff" size="small" />
-          ) : (
-            <Icon as={playing ? Pause : Play} size={22} color="#fff" />
-          )}
-        </MotionPressable>
+        <View style={styles.transportControls}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back 15 seconds"
+            disabled={!ready}
+            onPress={() => skipBy(-15)}
+            style={[styles.skipBtn, !ready && styles.controlDisabled]}
+          >
+            <Icon as={RotateCcw} size={21} color="#344054" />
+            <Text style={styles.skipLabel}>15</Text>
+          </Pressable>
+          <MotionPressable
+            disabled={!ready}
+            onPress={onToggle}
+            haptic="medium"
+            style={[styles.playBtn, !ready && styles.playBtnDisabled]}
+          >
+            {!ready ? (
+              <LoadingDots color="#fff" size="small" />
+            ) : (
+              <Icon as={playing ? Pause : Play} size={23} color="#fff" />
+            )}
+          </MotionPressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Forward 15 seconds"
+            disabled={!ready}
+            onPress={() => skipBy(15)}
+            style={[styles.skipBtn, !ready && styles.controlDisabled]}
+          >
+            <Icon as={RotateCw} size={21} color="#344054" />
+            <Text style={styles.skipLabel}>15</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -122,14 +149,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    gap: 12,
+    gap: 3,
     paddingHorizontal: SESSION_PAGE_PADDING,
-    paddingTop: 14,
-    paddingBottom: 28,
+    paddingTop: 8,
+    paddingBottom: 20,
     borderTopWidth: 1,
     borderTopColor: "#e5e7eb",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
     backgroundColor: "#fff",
     shadowColor: "#101828",
     shadowOffset: { width: 0, height: -4 },
@@ -138,7 +165,7 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   trackHit: {
-    minHeight: 34,
+    minHeight: 20,
     justifyContent: "center",
   },
   returnButton: {
@@ -160,7 +187,7 @@ const styles = StyleSheet.create({
     color: "#006ce5",
   },
   track: {
-    height: 6,
+    height: 4,
     borderRadius: 999,
     backgroundColor: "#e8edf5",
     overflow: "visible",
@@ -172,12 +199,12 @@ const styles = StyleSheet.create({
   },
   thumb: {
     position: "absolute",
-    top: -7,
-    width: 20,
-    height: 20,
-    marginLeft: -10,
-    borderRadius: 10,
-    borderWidth: 3,
+    top: -5,
+    width: 14,
+    height: 14,
+    marginLeft: -7,
+    borderRadius: 7,
+    borderWidth: 2,
     borderColor: "#fff",
     backgroundColor: "#006ce5",
     shadowColor: "#101828",
@@ -186,39 +213,70 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  row: {
+  timeRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    marginTop: -1,
+  },
+  controls: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  transportControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 22,
   },
   speedBtn: {
-    minWidth: 36,
-    paddingVertical: 4,
+    position: "absolute",
+    left: 0,
+    width: 48,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
   },
   speedText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
     color: "#101828",
     fontVariant: ["tabular-nums"],
   },
   time: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "800",
     color: "#667085",
     fontVariant: ["tabular-nums"],
   },
+  skipBtn: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  skipLabel: {
+    position: "absolute",
+    top: 14,
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#344054",
+    fontVariant: ["tabular-nums"],
+  },
   playBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#006ce5",
   },
   playBtnDisabled: {
     opacity: 0.55,
+  },
+  controlDisabled: {
+    opacity: 0.4,
   },
 });

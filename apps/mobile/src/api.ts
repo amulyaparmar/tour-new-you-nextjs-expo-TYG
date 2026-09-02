@@ -1,4 +1,4 @@
-import type { AnalysisResult, AnalysisRunSummary, AudioInsights, AudioInsightsStatus, ConversationPhaseSegmentation, FollowUpAction, Rubric, SessionAttachment, SessionDetail, SessionLead, SessionSummary } from "@tour/shared";
+import type { AnalysisResult, AnalysisRunSummary, AudioInsights, AudioInsightsStatus, ConversationPhaseSegmentation, FollowUpAction, GeminiAudioFileRef, Rubric, SessionAttachment, SessionDetail, SessionLead, SessionSummary } from "@tour/shared";
 import { fetch as expoFetch } from "expo/fetch";
 import { File, Paths } from "expo-file-system";
 
@@ -484,7 +484,10 @@ async function waitForSessionProcessing(sessionId: string, timeoutMs = 15 * 60 *
       return { ok: true, overallScore: session.overallScore ?? undefined };
     }
     if (session.status === "failed") {
-      throw new Error("Session processing failed.");
+      throw new Error(
+        session.analysisWorkflowError?.trim()
+          || "Tour could not prepare this review. Retry the analysis or upload a different recording.",
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 3000));
   }
@@ -618,6 +621,42 @@ export async function startAudioInsights(sessionId: string) {
     throw new Error(body?.error ?? "Failed to start audio insights.");
   }
   return body ?? { status: "processing" as const };
+}
+
+export type AudioInsightsChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+/** Ask Gemini about the original recording, not just the transcript. */
+export async function sendAudioInsightsChat(
+  sessionId: string,
+  payload: {
+    messages: AudioInsightsChatMessage[];
+    audioFile?: GeminiAudioFileRef;
+  },
+) {
+  const res = await authenticatedFetch(`/api/sessions/${sessionId}/audio-insights/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = (await res.json().catch(() => null)) as {
+    reply?: string;
+    error?: string;
+    audioFile?: GeminiAudioFileRef;
+    audioFileRefreshed?: boolean;
+  } | null;
+
+  if (!res.ok || !body?.reply?.trim()) {
+    throw new Error(body?.error ?? "Gemini could not answer about this recording.");
+  }
+
+  return {
+    reply: body.reply.trim(),
+    audioFile: body.audioFile,
+    audioFileRefreshed: Boolean(body.audioFileRefreshed),
+  };
 }
 
 export type LiveSessionChatMessage = {

@@ -13,6 +13,25 @@ import { Text } from "@/components/ui/text";
 import { tourEnter } from "@/theme/animations";
 import { scoreColor, tourRadius } from "@/theme/tour-brand";
 
+function formatPoints(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+}
+
+function sectionPoints(section: AnalysisResult["sectionScores"][number]) {
+  if (section.pointsPossible > 0) {
+    return { earned: section.pointsEarned, possible: section.pointsPossible };
+  }
+
+  const questions = section.questions ?? [];
+  const possible = questions.reduce((total, question) => total + question.maxPoints, 0);
+  if (possible <= 0) return null;
+
+  return {
+    earned: questions.reduce((total, question) => total + question.earnedPoints, 0),
+    possible,
+  };
+}
+
 function SectionBar({ percent, color }: { percent: number; color: string }) {
   const [trackWidth, setTrackWidth] = useState(0);
   const width = useSharedValue(0);
@@ -44,7 +63,9 @@ export function SectionScoreOverview({ analysis }: { analysis: AnalysisResult })
         <Text style={styles.cardTitle}>Section scores</Text>
         <View style={styles.sections}>
           {analysis.sectionScores.map((sec, index) => {
-            const c = scoreColor(sec.score);
+            const points = sectionPoints(sec);
+            const progress = points ? (points.earned / points.possible) * 100 : sec.score;
+            const c = scoreColor(progress);
             return (
               <Reanimated.View key={sec.section} entering={tourEnter.stagger(index, 45)} style={styles.sectionRow}>
                 <View style={styles.sectionHead}>
@@ -52,12 +73,10 @@ export function SectionScoreOverview({ analysis }: { analysis: AnalysisResult })
                     {sec.section}
                   </Text>
                   <Text selectable style={[styles.sectionVal, { color: c }]}>
-                    {sec.pointsPossible > 0
-                      ? `${sec.pointsEarned}/${sec.pointsPossible}`
-                      : `${sec.score}%`}
+                    {points ? `${formatPoints(points.earned)}/${formatPoints(points.possible)} pts` : "--"}
                   </Text>
                 </View>
-                <SectionBar percent={sec.score} color={c} />
+                <SectionBar percent={progress} color={c} />
               </Reanimated.View>
             );
           })}

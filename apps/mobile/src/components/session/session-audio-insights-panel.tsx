@@ -4,12 +4,13 @@ import type {
   TranscriptConversationStats,
 } from "@tour/shared";
 import { formatSpeakerAnnotation } from "@tour/shared";
-import { Activity, BarChart3, Mic2, Sparkles } from "lucide-react-native";
+import { Activity, BarChart3, Frown, Meh, Mic2, Smile, Sparkles } from "lucide-react-native";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
+import { tourColors } from "@/theme/tour-brand";
 
 import { SESSION_PAGE_PADDING } from "./session-layout";
 
@@ -27,6 +28,13 @@ const SENTIMENT_COLORS = {
   mixed: "#d97706",
 } as const;
 
+const SENTIMENT_ICONS = {
+  positive: Smile,
+  neutral: Meh,
+  negative: Frown,
+  mixed: Activity,
+} as const;
+
 function fmtSec(seconds: number) {
   const s = Math.max(0, Math.floor(seconds));
   const m = Math.floor(s / 60);
@@ -38,11 +46,13 @@ export function SessionAudioInsightsPanel({
   fallbackConversationStats = null,
   fallbackConversationStatsSource = null,
   onSeek,
+  onAskAudio,
 }: {
   insights: AudioInsights;
   fallbackConversationStats?: TranscriptConversationStats | null;
   fallbackConversationStatsSource?: "transcript" | null;
   onSeek: (seconds: number) => void;
+  onAskAudio?: () => void;
 }) {
   const participants = insights.participants;
   const conversationStats =
@@ -52,6 +62,8 @@ export function SessionAudioInsightsPanel({
     : fallbackConversationStatsSource;
   const labelFor = (speaker: string) =>
     participants ? formatSpeakerAnnotation(speaker, participants) : speaker;
+  const toneIcon = SENTIMENT_ICONS[insights.overallSentiment];
+  const toneColor = SENTIMENT_COLORS[insights.overallSentiment];
 
   return (
     <ScrollView
@@ -63,16 +75,35 @@ export function SessionAudioInsightsPanel({
         <View
           style={[
             styles.sentimentBadge,
-            { backgroundColor: `${SENTIMENT_COLORS[insights.overallSentiment]}18` },
+            { backgroundColor: `${toneColor}18` },
           ]}
         >
-          <Text style={[styles.sentimentText, { color: SENTIMENT_COLORS[insights.overallSentiment] }]}>
+          <Icon as={toneIcon} size={13} color={toneColor} />
+          <Text style={[styles.sentimentText, { color: toneColor }]}>
             {SENTIMENT_LABELS[insights.overallSentiment]}
           </Text>
         </View>
       </View>
 
       <Text style={styles.summary}>{insights.summary}</Text>
+
+      {onAskAudio ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ask Gemini about this recording"
+          onPress={onAskAudio}
+          style={({ pressed }) => [styles.audioChatAction, pressed && styles.audioChatActionPressed]}
+        >
+          <View style={styles.audioChatIcon}>
+            <Icon as={Sparkles} size={15} color={tourColors.ai} />
+          </View>
+          <View style={styles.audioChatCopy}>
+            <Text style={styles.audioChatTitle}>Ask about the recording</Text>
+            <Text style={styles.audioChatBody}>Tone, timing, energy, and key moments</Text>
+          </View>
+          <Text style={styles.audioChatCta}>Ask</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.metaRow}>
         <MetaPill icon={Sparkles} label={insights.model.replace("gemini-", "Gemini ")} />
@@ -267,6 +298,9 @@ const styles = StyleSheet.create({
     color: "#101828",
   },
   sentimentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -281,6 +315,30 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#344054",
   },
+  audioChatAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 58,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: tourColors.aiBorder,
+    borderRadius: 12,
+    backgroundColor: "#fbfefe",
+  },
+  audioChatActionPressed: { opacity: 0.78 },
+  audioChatIcon: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 9,
+    backgroundColor: tourColors.aiBg,
+  },
+  audioChatCopy: { flex: 1, minWidth: 0, gap: 1 },
+  audioChatTitle: { color: tourColors.aiText, fontSize: 12, fontWeight: "900" },
+  audioChatBody: { color: "#475467", fontSize: 11, fontWeight: "600" },
+  audioChatCta: { color: tourColors.aiText, fontSize: 12, fontWeight: "900" },
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
