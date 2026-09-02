@@ -3,7 +3,8 @@ import type { SessionLead } from "@tour/shared";
 import { useEffect, useRef } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 
-import { fetchSession } from "./api";
+import { queryClient } from "./query-client";
+import { sessionQueryOptions } from "./queries";
 import { getCurrentSession } from "./auth";
 import { getSupabasePublicClient } from "./supabase";
 
@@ -57,7 +58,10 @@ export function useSessionParticipantRealtime(input: {
       }
       refreshInFlight = true;
       try {
-        const { session } = await fetchSession(sessionId);
+        const { session } = await queryClient.fetchQuery({
+          ...sessionQueryOptions(sessionId),
+          staleTime: 0,
+        });
         if (!cancelled) onParticipantsRef.current(session.leads ?? [], source);
       } catch {
         if (source === "realtime") setStatus("fallback");

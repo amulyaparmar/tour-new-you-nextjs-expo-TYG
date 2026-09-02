@@ -1,5 +1,6 @@
-import type { AudioInsights, FollowUpAction, SessionSummary } from "@tour/shared";
+import type { AudioInsights, AudioInsightsStatus, FollowUpAction, SessionSummary } from "@tour/shared";
 import {
+  queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -12,18 +13,23 @@ import {
   deleteSession,
   fetchActions,
   fetchAnalysis,
+  fetchAnalysisRuns,
   fetchAudioInsights,
   fetchCalendarEvents,
   fetchComments,
+  fetchLiveSessionSuggestions,
   fetchMaterials,
   fetchProfile,
+  fetchPracticeDashboard,
   fetchRubrics,
   fetchSampleSession,
   fetchSampleSessions,
   fetchSession,
+  fetchSessionReview,
   fetchSessions,
   fetchTranscript,
   postComment,
+  startAudioInsights,
   updateActionStatus,
   updateProfile,
   type FetchSessionsParams,
@@ -31,18 +37,38 @@ import {
   type ProfileResponse,
   type ProfileUpdatePayload,
   type SessionComment,
+  type SessionReviewBundle,
 } from "./api";
 import { getCurrentSession, replaceStoredSession } from "./auth";
 
 const communityKey = () => getCurrentSession()?.workspace.community.id ?? "anonymous";
 const userKey = () => getCurrentSession()?.workspace.user.id ?? "anonymous";
 
+export const queryCacheTime = {
+  live: 15_000,
+  list: 60_000,
+  detail: 2 * 60_000,
+  reference: 10 * 60_000,
+  durable: 30 * 60_000,
+} as const;
+
+const PROCESSING_SESSION_STATUSES = new Set([
+  "uploaded",
+  "transcribing",
+  "segmenting",
+  "analyzing",
+]);
+
 export const queryKeys = {
   all: () => ["mobile", communityKey()] as const,
-  profile: () => ["mobile", "profile", userKey()] as const,
-  sessions: (params?: FetchSessionsParams) => [...queryKeys.all(), "sessions", params ?? {}] as const,
-  sessionPages: (params?: FetchSessionsParams) => [...queryKeys.all(), "sessionPages", params ?? {}] as const,
+  profile: () => [...queryKeys.all(), "profile", userKey()] as const,
+  sessionsRoot: () => [...queryKeys.all(), "sessions"] as const,
+  sessions: (params?: FetchSessionsParams) => [...queryKeys.sessionsRoot(), params ?? {}] as const,
+  sessionPagesRoot: () => [...queryKeys.all(), "sessionPages"] as const,
+  sessionPages: (params?: FetchSessionsParams) => [...queryKeys.sessionPagesRoot(), params ?? {}] as const,
   session: (sessionId: string) => [...queryKeys.all(), "session", sessionId] as const,
+  sessionReview: (sessionId: string) => [...queryKeys.session(sessionId), "review"] as const,
+  sessionReport: (sessionId: string) => [...queryKeys.session(sessionId), "report"] as const,
   sampleSessions: () => [...queryKeys.all(), "sampleSessions"] as const,
   sampleSession: (sessionId: string) => [...queryKeys.all(), "sampleSession", sessionId] as const,
   analysis: (sessionId: string) => [...queryKeys.session(sessionId), "analysis"] as const,
@@ -53,12 +79,39 @@ export const queryKeys = {
   rubrics: () => [...queryKeys.all(), "rubrics"] as const,
   materials: () => [...queryKeys.all(), "materials"] as const,
   calendar: () => [...queryKeys.all(), "calendar"] as const,
+  practice: () => [...queryKeys.all(), "practice"] as const,
+  liveSuggestions: (sessionId: string) => [...queryKeys.session(sessionId), "liveSuggestions"] as const,
 };
+
+export function sessionQueryOptions(sessionId: string) {
+  return queryOptions({
+    queryKey: queryKeys.session(sessionId),
+    queryFn: () => fetchSession(sessionId),
+    staleTime: queryCacheTime.detail,
+  });
+}
+
+export function sessionReviewQueryOptions(sessionId: string) {
+  return queryOptions({
+    queryKey: queryKeys.sessionReview(sessionId),
+    queryFn: () => fetchSessionReview(sessionId),
+    staleTime: queryCacheTime.detail,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data
+        && !data.analysis
+        && PROCESSING_SESSION_STATUSES.has(data.session.status)
+        ? 4_000
+        : false;
+    },
+  });
+}
 
 export function useSessionsQuery(params?: FetchSessionsParams) {
   return useQuery({
     queryKey: queryKeys.sessions(params),
     queryFn: () => fetchSessions(params),
+    staleTime: queryCacheTime.list,
   });
 }
 
@@ -68,14 +121,17 @@ export function useInfiniteSessionsQuery(params?: FetchSessionsParams) {
     initialPageParam: 1,
     queryFn: ({ pageParam }) => fetchSessions({ ...params, page: pageParam }),
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+    staleTime: queryCacheTime.list,
+    placeholderData: (previous) => previous,
   });
 }
 
 export function useSessionQuery(sessionId: string) {
-  return useQuery({
-    queryKey: queryKeys.session(sessionId),
-    queryFn: () => fetchSession(sessionId),
-  });
+  return useQuery(sessionQueryOptions(sessionId));
+}
+
+export function useSessionReviewQuery(sessionId: string) {
+  return useQuery(sessionReviewQueryOptions(sessionId));
 }
 
 export function useSampleSessionsQuery(enabled = true) {
@@ -83,7 +139,7 @@ export function useSampleSessionsQuery(enabled = true) {
     queryKey: queryKeys.sampleSessions(),
     queryFn: fetchSampleSessions,
     enabled,
-    staleTime: 5 * 60_000,
+    staleTime: queryCacheTime.reference,
   });
 }
 
@@ -92,7 +148,7 @@ export function useSampleSessionQuery(sessionId: string, enabled = true) {
     queryKey: queryKeys.sampleSession(sessionId),
     queryFn: () => fetchSampleSession(sessionId),
     enabled,
-    staleTime: 5 * 60_000,
+    staleTime: queryCacheTime.reference,
   });
 }
 
@@ -101,6 +157,7 @@ export function useAnalysisQuery(sessionId: string, enabled = true) {
     queryKey: queryKeys.analysis(sessionId),
     queryFn: () => fetchAnalysis(sessionId),
     enabled,
+    staleTime: queryCacheTime.detail,
   });
 }
 
@@ -109,6 +166,7 @@ export function useActionsQuery(sessionId: string, enabled = true) {
     queryKey: queryKeys.actions(sessionId),
     queryFn: () => fetchActions(sessionId),
     enabled,
+    staleTime: queryCacheTime.detail,
   });
 }
 
@@ -117,6 +175,7 @@ export function useCommentsQuery(sessionId: string, enabled = true) {
     queryKey: queryKeys.comments(sessionId),
     queryFn: () => fetchComments(sessionId),
     enabled,
+    staleTime: queryCacheTime.list,
   });
 }
 
@@ -125,6 +184,7 @@ export function useTranscriptQuery(sessionId: string, enabled = true) {
     queryKey: queryKeys.transcript(sessionId),
     queryFn: () => fetchTranscript(sessionId),
     enabled,
+    staleTime: queryCacheTime.reference,
   });
 }
 
@@ -133,6 +193,7 @@ export function useAudioInsightsQuery(sessionId: string, enabled = true) {
     queryKey: queryKeys.audioInsights(sessionId),
     queryFn: () => fetchAudioInsights(sessionId),
     enabled,
+    staleTime: queryCacheTime.reference,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === "processing" ? 3000 : false;
@@ -144,7 +205,7 @@ export function useRubricsQuery() {
   return useQuery({
     queryKey: queryKeys.rubrics(),
     queryFn: fetchRubrics,
-    staleTime: 5 * 60_000,
+    staleTime: queryCacheTime.durable,
   });
 }
 
@@ -152,15 +213,58 @@ export function useMaterialsQuery() {
   return useQuery({
     queryKey: queryKeys.materials(),
     queryFn: fetchMaterials,
-    staleTime: 2 * 60_000,
+    staleTime: queryCacheTime.reference,
   });
 }
 
-export function useCalendarEventsQuery() {
+export function useCalendarEventsQuery(enabled = true) {
   return useQuery({
     queryKey: queryKeys.calendar(),
     queryFn: () => fetchCalendarEvents(),
-    staleTime: 60_000,
+    enabled,
+    staleTime: queryCacheTime.detail,
+  });
+}
+
+export function usePracticeDashboardQuery(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.practice(),
+    queryFn: fetchPracticeDashboard,
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useLiveSessionSuggestionsQuery(
+  sessionId: string,
+  context: { liveTranscript?: string; propertyContext?: string },
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.liveSuggestions(sessionId),
+    queryFn: () => fetchLiveSessionSuggestions(sessionId, context),
+    enabled: enabled && Boolean(sessionId),
+    staleTime: queryCacheTime.live,
+    refetchInterval: enabled ? 18_000 : false,
+  });
+}
+
+export function useSessionReportQuery(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: queryKeys.sessionReport(sessionId),
+    queryFn: async () => {
+      const [review, runsResult] = await Promise.all([
+        queryClient.ensureQueryData(sessionReviewQueryOptions(sessionId)),
+        fetchAnalysisRuns(sessionId).catch(() => ({ runs: [] })),
+      ]);
+      return {
+        session: review.session,
+        analysis: review.analysis,
+        runs: runsResult.runs,
+      };
+    },
+    staleTime: queryCacheTime.detail,
   });
 }
 
@@ -191,7 +295,7 @@ export function useProfileQuery(enabled = true) {
       return profile;
     },
     enabled: enabled && Boolean(getCurrentSession()),
-    staleTime: 5 * 60_000,
+    staleTime: queryCacheTime.reference,
     placeholderData: () => {
       const session = getCurrentSession();
       if (!session) return undefined;
@@ -267,10 +371,14 @@ export function useDeleteSessionMutation() {
   return useMutation({
     mutationFn: deleteSession,
     onMutate: async (sessionId) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.all() });
-      const previous = queryClient.getQueriesData({ queryKey: queryKeys.all() });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.sessionsRoot() }),
+        queryClient.cancelQueries({ queryKey: queryKeys.sessionPagesRoot() }),
+      ]);
+      const previousSessions = queryClient.getQueriesData({ queryKey: queryKeys.sessionsRoot() });
+      const previousPages = queryClient.getQueriesData({ queryKey: queryKeys.sessionPagesRoot() });
       queryClient.setQueriesData<PaginatedSessions>(
-        { queryKey: [...queryKeys.all(), "sessions"] },
+        { queryKey: queryKeys.sessionsRoot() },
         (data) => data ? {
           ...data,
           sessions: data.sessions.filter((session) => session.id !== sessionId),
@@ -278,16 +386,22 @@ export function useDeleteSessionMutation() {
         } : data,
       );
       queryClient.setQueriesData<InfiniteData<PaginatedSessions>>(
-        { queryKey: [...queryKeys.all(), "sessionPages"] },
+        { queryKey: queryKeys.sessionPagesRoot() },
         (data) => updateSessionInPages(data, (session) => session.id === sessionId ? null : session),
       );
-      return { previous };
+      return { previousSessions, previousPages };
     },
     onError: (_error, _sessionId, context) => {
-      context?.previous.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      context?.previousSessions.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      context?.previousPages.forEach(([key, data]) => queryClient.setQueryData(key, data));
     },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.all() });
+    onSettled: (_data, _error, sessionId) => {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.sessionsRoot() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.sessionPagesRoot() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.calendar() }),
+      ]);
+      queryClient.removeQueries({ queryKey: queryKeys.session(sessionId) });
     },
   });
 }
@@ -298,21 +412,32 @@ export function useUpdateActionStatusMutation(sessionId: string) {
     mutationFn: ({ actionId, status }: { actionId: string; status: "completed" | "dismissed" }) =>
       updateActionStatus(sessionId, actionId, status),
     onMutate: async ({ actionId, status }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.actions(sessionId) });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.actions(sessionId) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.sessionReview(sessionId) }),
+      ]);
       const previous = queryClient.getQueryData<{ actions: FollowUpAction[] }>(queryKeys.actions(sessionId));
+      const previousReview = queryClient.getQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId));
       queryClient.setQueryData<{ actions: FollowUpAction[] }>(queryKeys.actions(sessionId), (data) =>
         data ? {
           actions: data.actions.map((action) => action.id === actionId ? { ...action, status } : action),
         } : data,
       );
-      return { previous };
+      queryClient.setQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId), (data) =>
+        data ? {
+          ...data,
+          actions: data.actions.map((action) => action.id === actionId ? { ...action, status } : action),
+        } : data,
+      );
+      return { previous, previousReview };
     },
     onError: (_error, _vars, context) => {
       queryClient.setQueryData(queryKeys.actions(sessionId), context?.previous);
+      queryClient.setQueryData(queryKeys.sessionReview(sessionId), context?.previousReview);
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.actions(sessionId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.actions(sessionId), exact: true });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionReview(sessionId), exact: true });
     },
   });
 }
@@ -322,8 +447,12 @@ export function usePostCommentMutation(sessionId: string) {
   return useMutation({
     mutationFn: (payload: Parameters<typeof postComment>[1]) => postComment(sessionId, payload),
     onMutate: async (payload) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.comments(sessionId) });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.comments(sessionId) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.sessionReview(sessionId) }),
+      ]);
       const previous = queryClient.getQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId));
+      const previousReview = queryClient.getQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId));
       const session = getCurrentSession();
       const optimistic: SessionComment = {
         id: `optimistic-${Date.now()}`,
@@ -339,10 +468,14 @@ export function usePostCommentMutation(sessionId: string) {
       queryClient.setQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId), (data) => ({
         comments: [...(data?.comments ?? []), optimistic],
       }));
-      return { previous };
+      queryClient.setQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId), (data) =>
+        data ? { ...data, comments: [...data.comments, optimistic] } : data,
+      );
+      return { previous, previousReview };
     },
     onError: (_error, _payload, context) => {
       queryClient.setQueryData(queryKeys.comments(sessionId), context?.previous);
+      queryClient.setQueryData(queryKeys.sessionReview(sessionId), context?.previousReview);
     },
     onSuccess: (result) => {
       queryClient.setQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId), (data) => ({
@@ -351,9 +484,19 @@ export function usePostCommentMutation(sessionId: string) {
           result.comment,
         ],
       }));
+      queryClient.setQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId), (data) =>
+        data ? {
+          ...data,
+          comments: [
+            ...data.comments.filter((comment) => !comment.id.startsWith("optimistic-")),
+            result.comment,
+          ],
+        } : data,
+      );
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(sessionId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(sessionId), exact: true });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionReview(sessionId), exact: true });
     },
   });
 }
@@ -363,18 +506,61 @@ export function useDeleteCommentMutation(sessionId: string) {
   return useMutation({
     mutationFn: (commentId: string) => deleteComment(sessionId, commentId),
     onMutate: async (commentId) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.comments(sessionId) });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.comments(sessionId) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.sessionReview(sessionId) }),
+      ]);
       const previous = queryClient.getQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId));
+      const previousReview = queryClient.getQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId));
       queryClient.setQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId), (data) => ({
         comments: (data?.comments ?? []).filter((comment) => comment.id !== commentId && comment.parentId !== commentId),
       }));
-      return { previous };
+      queryClient.setQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId), (data) =>
+        data ? {
+          ...data,
+          comments: data.comments.filter((comment) => comment.id !== commentId && comment.parentId !== commentId),
+        } : data,
+      );
+      return { previous, previousReview };
     },
     onError: (_error, _commentId, context) => {
       queryClient.setQueryData(queryKeys.comments(sessionId), context?.previous);
+      queryClient.setQueryData(queryKeys.sessionReview(sessionId), context?.previousReview);
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(sessionId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(sessionId), exact: true });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionReview(sessionId), exact: true });
+    },
+  });
+}
+
+export function useStartAudioInsightsMutation(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => startAudioInsights(sessionId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.audioInsights(sessionId) });
+      const previous = queryClient.getQueryData<{
+        status: AudioInsightsStatus;
+        insights: AudioInsights | null;
+        error?: string | null;
+      }>(queryKeys.audioInsights(sessionId));
+      queryClient.setQueryData(queryKeys.audioInsights(sessionId), {
+        status: "processing",
+        insights: null,
+        error: null,
+      });
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(queryKeys.audioInsights(sessionId), context?.previous);
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKeys.audioInsights(sessionId), {
+        status: result.status ?? "processing",
+        insights: null,
+        error: result.error ?? null,
+      });
     },
   });
 }

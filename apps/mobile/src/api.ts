@@ -46,6 +46,48 @@ export type SampleSessionBundle = {
   actions: FollowUpAction[];
 };
 
+export type SessionTranscriptSegment = {
+  id: string;
+  sessionId: string;
+  speaker: string;
+  startTime: number;
+  endTime: number;
+  text: string;
+};
+
+export type SessionReviewBundle = {
+  session: SessionDetail;
+  analysis: AnalysisResult | null;
+  phases: ConversationPhaseSegmentation | null;
+  transcript: SessionTranscriptSegment[];
+  actions: FollowUpAction[];
+  comments: SessionComment[];
+};
+
+export type PracticeScenario = {
+  id: string;
+  name: string;
+  description?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  firstMessage?: string;
+  passThreshold?: number;
+};
+
+export type PracticeAttempt = {
+  id: string;
+  scenario_name?: string | null;
+  scenario_difficulty?: string | null;
+  score?: number | null;
+  grade_status?: "passed" | "not-passed" | "needs-review" | null;
+  duration_seconds?: number | null;
+  created_at?: string;
+};
+
+export type PracticeDashboard = {
+  scenarios: PracticeScenario[];
+  attempts: PracticeAttempt[];
+};
+
 export async function fetchSessions(params?: FetchSessionsParams): Promise<PaginatedSessions> {
   const sp = new URLSearchParams();
   if (params?.page) sp.set("page", String(params.page));
@@ -259,6 +301,15 @@ export async function fetchSession(sessionId: string) {
   };
 }
 
+export async function fetchSessionReview(sessionId: string): Promise<SessionReviewBundle> {
+  const res = await authenticatedFetch(`/api/sessions/${sessionId}/review`);
+  const body = await res.json().catch(() => null) as (SessionReviewBundle & { error?: string }) | null;
+  if (!res.ok || !body?.session) {
+    throw new Error(body?.error ?? "Failed to load session review.");
+  }
+  return body;
+}
+
 export async function getRecordingSignedPlaybackUrl(sessionId: string) {
   const res = await authenticatedFetch(`/api/sessions/${sessionId}/recording/url`);
   if (!res.ok) {
@@ -275,6 +326,35 @@ export async function fetchAnalysisRuns(sessionId: string) {
     throw new Error(body?.error ?? "Failed to load report versions.");
   }
   return { runs: body.runs };
+}
+
+export async function fetchPracticeDashboard(): Promise<PracticeDashboard> {
+  const [scenarioRes, attemptsRes] = await Promise.all([
+    authenticatedFetch("/api/roleplay/scenarios"),
+    authenticatedFetch("/api/roleplay/attempts?scope=mine"),
+  ]);
+  const scenarioBody = await scenarioRes.json().catch(() => null) as {
+    success?: boolean;
+    scenarios?: PracticeScenario[];
+    message?: string;
+  } | null;
+  const attemptsBody = await attemptsRes.json().catch(() => null) as {
+    success?: boolean;
+    attempts?: PracticeAttempt[];
+    message?: string;
+  } | null;
+
+  if (!scenarioRes.ok || !scenarioBody?.success) {
+    throw new Error(scenarioBody?.message ?? "Could not load practice scenarios.");
+  }
+  if (!attemptsRes.ok || !attemptsBody?.success) {
+    throw new Error(attemptsBody?.message ?? "Could not load practice history.");
+  }
+
+  return {
+    scenarios: scenarioBody.scenarios ?? [],
+    attempts: attemptsBody.attempts ?? [],
+  };
 }
 
 export async function downloadSessionReportPdf(sessionId: string, sessionTitle: string, version?: number | null) {
@@ -427,14 +507,7 @@ export async function fetchTranscript(sessionId: string) {
     throw new Error("Failed to fetch transcript.");
   }
   return (await res.json()) as {
-    transcript: Array<{
-      id: string;
-      sessionId: string;
-      speaker: string;
-      startTime: number;
-      endTime: number;
-      text: string;
-    }>;
+    transcript: SessionTranscriptSegment[];
   };
 }
 
@@ -461,6 +534,12 @@ export async function uploadRecording(
 }
 
 export async function processSession(sessionId: string) {
+  const started = await startSessionProcessing(sessionId);
+  if (started.async) return waitForSessionProcessing(sessionId);
+  return started;
+}
+
+export async function startSessionProcessing(sessionId: string) {
   const res = await authenticatedFetch(`/api/sessions/${sessionId}/process`, {
     method: "POST",
   });
@@ -470,10 +549,7 @@ export async function processSession(sessionId: string) {
   }
 
   const started = (await res.json()) as { ok: boolean; async?: boolean; overallScore?: number };
-  if (res.status === 202 || started.async) {
-    return waitForSessionProcessing(sessionId);
-  }
-  return started;
+  return { ...started, async: res.status === 202 || Boolean(started.async) };
 }
 
 async function waitForSessionProcessing(sessionId: string, timeoutMs = 15 * 60 * 1000) {
