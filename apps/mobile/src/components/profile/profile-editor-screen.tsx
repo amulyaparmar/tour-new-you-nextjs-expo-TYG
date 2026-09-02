@@ -13,6 +13,7 @@ import type { MobileAuthSession } from "../../auth";
 import { getCurrentSession } from "../../auth";
 import { useProfileQuery, useUpdateProfileMutation } from "../../queries";
 import { LoadingDots } from "@/components/loading-dots";
+import { ProfileEditorSkeleton } from "@/components/ui/screen-skeletons";
 
 const C = {
   bg: "#F7F8FB",
@@ -29,7 +30,7 @@ export const CARD_ACCENTS = [
   "#0F766E",
   "#B45309",
   "#BE123C",
-  "#7C3AED",
+  "#0369A1",
   "#1D4ED8",
   "#334155",
   "#047857",
@@ -48,6 +49,17 @@ function initialsFrom(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase() || "?";
+}
+
+function formatProfilePhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  const hasUsCountryCode = digits.length > 10 && digits.startsWith("1");
+  const local = (hasUsCountryCode ? digits.slice(1) : digits).slice(0, 10);
+  const prefix = hasUsCountryCode ? "+1 " : "";
+
+  if (local.length <= 3) return `${prefix}${local}`;
+  if (local.length <= 6) return `${prefix}(${local.slice(0, 3)}) ${local.slice(3)}`;
+  return `${prefix}(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`;
 }
 
 function ContactCardPreview({
@@ -109,7 +121,7 @@ export function ProfileEditorScreen({
 
   const [name, setName] = useState(user.fullName ?? "");
   const [title, setTitle] = useState(user.title ?? "Leasing Consultant");
-  const [phone, setPhone] = useState(user.phone ?? "");
+  const [phone, setPhone] = useState(formatProfilePhone(user.phone ?? ""));
   const [accent, setAccent] = useState(resolveCardAccent(user.cardAccent));
   const [error, setError] = useState<string | null>(null);
 
@@ -117,7 +129,7 @@ export function ProfileEditorScreen({
     if (!profile) return;
     setName(profile.name);
     setTitle(profile.title ?? "Leasing Consultant");
-    setPhone(profile.phone ?? "");
+    setPhone(formatProfilePhone(profile.phone ?? ""));
     setAccent(resolveCardAccent(profile.cardAccent));
     const next = getCurrentSession();
     if (next) onSaved(next);
@@ -127,7 +139,7 @@ export function ProfileEditorScreen({
 
   const baselineName = profile?.name ?? user.fullName ?? "";
   const baselineTitle = profile?.title ?? user.title ?? "Leasing Consultant";
-  const baselinePhone = profile?.phone ?? user.phone ?? "";
+  const baselinePhone = formatProfilePhone(profile?.phone ?? user.phone ?? "");
   const baselineAccent = resolveCardAccent(profile?.cardAccent ?? user.cardAccent);
 
   const dirty = useMemo(() => {
@@ -182,9 +194,7 @@ export function ProfileEditorScreen({
         <Text style={styles.pageSub}>Update how you appear on your contact card and check-in experience.</Text>
 
         {loadingProfile ? (
-          <View style={styles.loadingBox}>
-            <LoadingDots color={C.brand} />
-          </View>
+          <ProfileEditorSkeleton showForm={false} />
         ) : (
           <ContactCardPreview
             name={name.trim() || "Your name"}
@@ -200,7 +210,13 @@ export function ProfileEditorScreen({
           <Text style={styles.sectionTitle}>Profile details</Text>
           <Field label="Full name" value={name} onChangeText={setName} autoCapitalize="words" />
           <Field label="Title" value={title} onChangeText={setTitle} placeholder="Leasing Consultant" />
-          <Field label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="(555) 123-4567" />
+          <Field
+            label="Phone"
+            value={phone}
+            onChangeText={(value) => setPhone(formatProfilePhone(value))}
+            keyboardType="phone-pad"
+            placeholder="(555) 123-4567"
+          />
           <View style={styles.readOnly}>
             <Text style={styles.label}>Email</Text>
             <Text style={styles.readOnlyValue}>{user.email}</Text>

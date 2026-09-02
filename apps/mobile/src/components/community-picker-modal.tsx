@@ -14,6 +14,7 @@ import {
 
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { LoadingDots } from "@/components/loading-dots";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   authorizedCommunitiesForSession,
   listBusinesses,
@@ -65,8 +66,8 @@ export function CommunityPickerModal({
   session,
   query,
   switchingId,
-  title = "Choose a property",
-  subtitle = "Your dashboard, sessions, assets, and integrations will update.",
+  title = "Properties",
+  subtitle = "Choose where you’re working in Tour.",
   closeButtonVisible = true,
   dismissDisabled = false,
   onPropertyAdded,
@@ -189,7 +190,7 @@ export function CommunityPickerModal({
       const active = item.id === activeCommunityId;
       const loading = switchingId === item.id;
       const enrichment = enrichmentByCommunity.get(item.id);
-      const metadataLabels = [item.alias, item.companyName]
+      const metadataLabels = [item.companyName]
         .filter((label): label is string => Boolean(label?.trim()) && !isEntrataSyncLabel(label))
         .filter((label, index, labels) => labels.indexOf(label) === index);
       return (
@@ -200,12 +201,12 @@ export function CommunityPickerModal({
           disabled={switchLocked}
           onPress={() => onSelect(item.id)}
         >
-          <View style={styles.row}>
+          <View style={[styles.row, active && styles.rowActive]}>
             <View style={[styles.rowIcon, active && styles.rowIconActive]}>
               <Ionicons
                 name="business-outline"
                 size={18}
-                color={active ? tourColors.green : tourColors.brand}
+                color={tourColors.brand}
               />
             </View>
             <View style={styles.rowBody}>
@@ -224,9 +225,11 @@ export function CommunityPickerModal({
             {loading ? (
               <LoadingDots size="small" color={tourColors.brand} />
             ) : active ? (
-              <Ionicons name="checkmark-circle" size={20} color={tourColors.green} />
+              <View style={styles.activeCheck}>
+                <Ionicons name="checkmark" size={13} color="#fff" />
+              </View>
             ) : (
-              <Ionicons name="chevron-forward" size={17} color={tourColors.textMuted} />
+              <View style={styles.rowAction} />
             )}
           </View>
         </TouchableOpacity>
@@ -405,10 +408,7 @@ export function CommunityPickerModal({
                 </Text>
               </View>
             ) : propertySearchQuery.isLoading ? (
-              <View style={styles.loadingSearch}>
-                <LoadingDots color={tourColors.brand} />
-                <Text style={styles.loadingSearchText}>Checking Tour property intelligence…</Text>
-              </View>
+              <PropertyRowsSkeleton candidate />
             ) : propertySearchQuery.error ? (
               <View style={styles.empty}>
                 <Ionicons name="cloud-offline-outline" size={28} color={tourColors.textMuted} />
@@ -441,23 +441,8 @@ export function CommunityPickerModal({
               <Text style={styles.securityNoteText}>Your exact email is added to PropertiesTYG.property_team.</Text>
             </View>
           </>
-        ) : !listReady ? (
-          <View style={styles.list}>
-            {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
-              <View key={index} style={styles.skeletonRow}>
-                <View style={styles.skeletonIcon} />
-                <View style={styles.skeletonBody}>
-                  <View style={styles.skeletonLine} />
-                  <View style={styles.skeletonLineShort} />
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : assignedSearchQuery.isLoading ? (
-          <View style={styles.loadingSearch}>
-            <LoadingDots color={tourColors.brand} />
-            <Text style={styles.loadingSearchText}>Searching your assigned properties…</Text>
-          </View>
+        ) : !listReady || assignedSearchQuery.isLoading ? (
+          <PropertyRowsSkeleton />
         ) : assignedSearchQuery.error ? (
           <View style={styles.empty}>
             <Ionicons name="cloud-offline-outline" size={28} color={tourColors.textMuted} />
@@ -509,6 +494,24 @@ export function CommunityPickerModal({
         ) : null}
       </>
     </BottomSheetModal>
+  );
+}
+
+function PropertyRowsSkeleton({ candidate = false }: { candidate?: boolean }) {
+  return (
+    <View accessibilityLabel={`Loading ${candidate ? "properties" : "assigned properties"}`} style={styles.list}>
+      {Array.from({ length: candidate ? 5 : SKELETON_ROWS }).map((_, index) => (
+        <View key={index} style={styles.skeletonRow}>
+          <Skeleton style={styles.skeletonIcon} />
+          <View style={styles.skeletonBody}>
+            <Skeleton style={styles.skeletonLine} />
+            <Skeleton style={styles.skeletonLineShort} />
+            {candidate ? <Skeleton style={styles.skeletonBadge} /> : null}
+          </View>
+          <Skeleton style={styles.skeletonChevron} />
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -574,24 +577,20 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   closeBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: tourColors.border,
-    backgroundColor: tourColors.card,
+    backgroundColor: "#f2f4f7",
   },
   backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: tourColors.border,
-    backgroundColor: tourColors.card,
+    backgroundColor: "#f2f4f7",
   },
   searchBar: {
     flexDirection: "row",
@@ -600,10 +599,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
     marginBottom: 8,
     paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    backgroundColor: tourColors.card,
+    borderRadius: 12,
+    backgroundColor: "#f2f4f7",
   },
   searchInput: {
     flex: 1,
@@ -622,10 +619,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     height: ROW_HEIGHT,
-    paddingHorizontal: 4,
+    paddingHorizontal: 10,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderRadius: 11,
+  },
+  rowActive: {
+    backgroundColor: "#eef5ff",
   },
   candidateRow: {
     minHeight: 86,
@@ -676,7 +675,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#eef2ff",
   },
   rowIconActive: {
-    backgroundColor: tourColors.greenBg,
+    backgroundColor: "#dbeafe",
   },
   rowBody: {
     flex: 1,
@@ -700,6 +699,8 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: 2,
   },
+  rowAction: { width: 24, height: 24 },
+  activeCheck: { width: 24, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: tourColors.brand },
   enrichmentBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -899,16 +900,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   addPropertyButton: {
-    minHeight: 62,
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     gap: 11,
     marginTop: 8,
     paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#cfe0ff",
-    borderRadius: 12,
-    backgroundColor: "#f5f8ff",
+    borderTopWidth: 1,
+    borderTopColor: "#e9edf3",
+    backgroundColor: tourColors.card,
   },
   addPropertyPressed: { opacity: 0.72 },
   addPropertyIcon: {
@@ -951,5 +951,16 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: "#f3f5f8",
+  },
+  skeletonBadge: {
+    width: 52,
+    height: 16,
+    borderRadius: 8,
+  },
+  skeletonChevron: {
+    width: 16,
+    height: 16,
+    marginLeft: 10,
+    borderRadius: 8,
   },
 });
