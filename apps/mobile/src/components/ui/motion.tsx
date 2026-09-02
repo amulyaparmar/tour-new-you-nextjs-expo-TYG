@@ -2,12 +2,14 @@ import * as Haptics from "expo-haptics";
 import React from "react";
 import { Pressable, type StyleProp, type ViewStyle } from "react-native";
 import Reanimated, {
+  Easing,
   FadeIn,
   FadeInDown,
-  FadeOut,
+  ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 import { impactHaptic, selectionHaptic } from "../../lib/haptics";
@@ -81,15 +83,32 @@ export function MotionBlock({
 
 export function AnimatedTabContent({
   tabKey,
+  direction = "forward",
   children,
   style,
 }: {
   tabKey: string;
+  direction?: "forward" | "back";
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
+  const translateX = useSharedValue(direction === "forward" ? 24 : -24);
+
+  React.useEffect(() => {
+    translateX.value = direction === "forward" ? 24 : -24;
+    translateX.value = withTiming(0, {
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [direction, tabKey, translateX]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
   return (
-    <Reanimated.View key={tabKey} entering={FadeInDown.duration(280).springify()} exiting={FadeOut.duration(180)} style={style}>
+    <Reanimated.View key={tabKey} style={[style, animatedStyle]}>
       {children}
     </Reanimated.View>
   );
