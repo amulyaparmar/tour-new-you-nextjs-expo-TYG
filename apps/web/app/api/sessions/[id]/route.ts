@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { normalizeSessionCustomerInterests, type SessionStatus } from "@tour/shared";
-import { deleteSession, getAnalysisBySessionId, getConversationPhases, getSessionById, setSessionStatus, updateSession } from "@/lib/sessions";
-import { getRecordingPlaybackPath, getRecordingUrl, isLegacyLocalUrl } from "@/lib/storage";
+import { deleteSession, getAnalysisBySessionId, getConversationPhases, setSessionStatus, updateSession } from "@/lib/sessions";
 import { AdminAuthError } from "@/lib/admin-auth";
 import { requireSessionReadAccess, requireSessionWriteAccess } from "@/lib/session-access";
+import { attachSessionPlaybackUrls } from "@/lib/session-detail-response";
 
 const VALID_STATUSES: SessionStatus[] = [
   "scheduled", "in_progress", "uploaded", "transcribing", "segmenting",
@@ -17,40 +17,19 @@ type Context = {
   }>;
 };
 
-async function attachPlaybackUrls(session: NonNullable<Awaited<ReturnType<typeof getSessionById>>>) {
-  const playbackPath = await getRecordingUrl(session.id);
-  if (!playbackPath) return session;
-
-  const isVideo = Boolean(session.videoUrl && !session.audioUrl);
-  const needsUpdate =
-    isLegacyLocalUrl(session.audioUrl) ||
-    isLegacyLocalUrl(session.videoUrl) ||
-    !session.audioUrl && !session.videoUrl;
-
-  if (needsUpdate || session.audioUrl?.includes("supabase") || session.videoUrl?.includes("supabase")) {
-    const path = getRecordingPlaybackPath(session.id);
-    if (isVideo) {
-      session.videoUrl = path;
-    } else {
-      session.audioUrl = path;
-    }
-  }
-
-  return session;
-}
-
 export async function GET(request: Request, context: Context) {
   const { id } = await context.params;
 
   try {
     const { session } = await requireSessionReadAccess(request, id);
 
-    await attachPlaybackUrls(session);
+    const [sessionWithPlayback, analysis, phases] = await Promise.all([
+      attachSessionPlaybackUrls(session),
+      getAnalysisBySessionId(id),
+      getConversationPhases(id),
+    ]);
 
-    const analysis = await getAnalysisBySessionId(id);
-    const phases = await getConversationPhases(id);
-
-    return NextResponse.json({ session, analysis, phases });
+    return NextResponse.json({ session: sessionWithPlayback, analysis, phases });
   } catch (error) {
     const status = error instanceof AdminAuthError ? error.status : 500;
     return NextResponse.json(
