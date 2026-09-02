@@ -7,6 +7,7 @@ import * as Haptics from "expo-haptics";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
+import * as VideoThumbnails from "expo-video-thumbnails";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppProviders } from "./src/components/app-providers";
 import { LoadingDots } from "./src/components/loading-dots";
@@ -26,6 +27,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   useWindowDimensions,
@@ -50,6 +52,7 @@ import Reanimated, {
   withTiming,
 } from "react-native-reanimated";
 import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   type AnalysisResult,
   type ConversationPhaseSegmentation,
@@ -61,6 +64,7 @@ import {
   type SessionSummary,
   type AudioInsights,
   type AudioInsightsStatus,
+  AUDIO_INSIGHTS_STATUS_LABELS,
   buildSessionTourTitle,
   formatPersonName,
   formatSessionCardDescription,
@@ -68,13 +72,14 @@ import {
   defaultMemberPublicAlias,
   defaultPropertyPublicAlias,
   formatRecordingUploadTitle,
+  isAgentSpeakerLabel,
+  isProspectSpeakerLabel,
   rubricItemCount,
   rubricTotalPoints,
   type ProspectInterestCategory,
 } from "@tour/shared";
 import {
   findPhaseForTimestamp,
-  processingStatusMessage,
   shortPhaseLabel,
   tourSegmentColor,
 } from "./src/conversationPhases";
@@ -145,13 +150,23 @@ import { drainSyncOutbox, isOnline, startSyncOutbox } from "./src/offline/sync-o
 import { promoteLocalRecordingToCache, resolveSessionPlaybackUri } from "./src/session-audio-cache";
 import { MotionBlock, MotionPressable, AnimatedTabContent } from "./src/components/ui/motion";
 import {
+  CalendarScreenSkeleton,
+  CommentsSkeleton,
+  DashboardDataSkeleton,
+  MaterialsGridSkeleton,
+  RubricsSkeleton,
+  SessionsListSkeleton,
+} from "./src/components/ui/screen-skeletons";
+import {
   CollapsibleSection,
   RubricTab,
   ScoreHero,
   SessionAiChatScreen,
-  SessionAiFab,
+  SessionAudioChatScreen,
   SessionAudioInsightsScreen,
+  SessionLiveSkeleton,
   ProspectInsightsCard,
+  SessionAiFab,
   SessionModeTabs,
   SessionPlayer,
   SessionReviewSkeleton,
@@ -165,7 +180,6 @@ import {
   TourBackButton as BackBtn,
   TourEmptyState as EmptyState,
   TourInput as Input,
-  TourLoadingBox as LoadingBox,
   TourPrimaryButton as PrimaryBtn,
   TourSegPicker as SegPicker,
   TourStatusBadge,
@@ -173,8 +187,17 @@ import {
 import { CommunityPickerModal } from "@/components/community-picker-modal";
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { CheckInSheet } from "./src/components/check-in/check-in-sheet";
+import { useAgentCheckInRealtime } from "./src/session-checkin-realtime";
 import { ProfileEditorScreen, resolveCardAccent } from "./src/components/profile/profile-editor-screen";
 import { VideoAssetRecorder, type RecordedVideoAsset } from "./src/assets/VideoAssetRecorder";
+import {
+  type LocalAsset,
+  listLocalAssets,
+  preserveLocalAsset,
+  removeLocalAsset,
+  subscribeLocalAssets,
+  updateLocalAsset,
+} from "./src/assets/local-asset-library";
 import {
   queryKeys,
   useCalendarEventsQuery,
@@ -200,11 +223,19 @@ import { useAppStore } from "./src/stores/app-store";
 import { queryClient as appQueryClient } from "./src/query-client";
 import type { SortOption, StatusFilter } from "./src/types/ui";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Text as UiText } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { BulkUploadDock, BulkUploadFlow } from "./src/bulk-upload/BulkUploadFlow";
 import { SessionReportScreen } from "./src/reports/SessionReportScreen";
 import { PracticeSessionsScreen } from "./src/practice/PracticeSessionsScreen";
+import {
+  emotionAccessibilityLabel,
+  emotionColor,
+  emotionIcon,
+  matchAudioInsightsToTranscript,
+  SessionSentimentTimeline,
+} from "./src/components/session/session-sentiment-timeline";
 
 const loginBackground = require("./assets/videos/login-bg.mp4");
 
@@ -216,6 +247,7 @@ type Screen =
   | { type: "session-comments"; sessionId: string; sessionTitle?: string }
   | { type: "session-ai-chat"; sessionId: string; sessionTitle?: string; prospectName?: string }
   | { type: "session-audio-insights"; sessionId: string; sessionTitle?: string; initialStatus?: AudioInsightsStatus; initialInsights?: AudioInsights | null }
+  | { type: "session-audio-chat"; sessionId: string; sessionTitle?: string }
   | { type: "session-report"; sessionId: string }
   | { type: "bulk-upload"; batchId?: string }
   | { type: "create-session" }
@@ -226,6 +258,7 @@ type Screen =
 
 type TourStep = "contact" | "preferences" | "ready";
 type SlideDirection = "forward" | "back";
+const SESSION_REVIEW_MODE_ORDER: SessionReviewMode[] = ["transcript", "rubric", "prospect", "coaching", "comments"];
 type UploadPhase = "preparing" | "uploading" | "finalizing";
 type UploadStats = {
   phase: UploadPhase;
@@ -484,28 +517,6 @@ function PulseDot({ color = C.red }: { color?: string }) {
   return <Reanimated.View style={[st.pulseDot, { backgroundColor: color }, animatedStyle]} />;
 }
 
-function LoadingShimmer({ rows = 3 }: { rows?: number }) {
-  const shimmer = useSharedValue(0.35);
-  useEffect(() => {
-    shimmer.value = withRepeat(withSequence(
-      withTiming(1, { duration: 760 }),
-      withTiming(0.35, { duration: 760 })
-    ), -1, true);
-  }, [shimmer]);
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: shimmer.value }));
-
-  return (
-    <View style={{ gap: 10 }}>
-      {Array.from({ length: rows }).map((_, index) => (
-        <Reanimated.View key={index} style={[st.shimmerCard, animatedStyle]}>
-          <View style={[st.shimmerBar, { width: index % 2 === 0 ? "68%" : "52%" }]} />
-          <View style={[st.shimmerBar, { width: index % 2 === 0 ? "44%" : "72%", height: 8 }]} />
-        </Reanimated.View>
-      ))}
-    </View>
-  );
-}
-
 function AnimatedProgressFill({ percent, color = C.brand }: { percent: number; color?: string }) {
   const progress = useSharedValue(percent);
 
@@ -547,14 +558,16 @@ function UploadStatusCard({
 
   return (
     <View style={[st.card, { padding: 20, gap: 14 }]}>
-      <View style={{ alignItems: "center", gap: 10 }}>
+      <View style={st.uploadHeadingRow}>
         <View style={[st.uploadRing, error && { backgroundColor: C.redBg }]}>
-          {error ? <Ionicons name="cloud-offline-outline" size={28} color={C.red} /> : <LoadingDots size="small" color={C.brand} />}
+          {error ? <Ionicons name="cloud-offline-outline" size={21} color={C.red} /> : <LoadingDots size="small" color={C.brand} />}
         </View>
-        <Text style={st.formTitle}>{error ? "Upload Needs Retry" : title}</Text>
-        <Text style={[st.pageSub, { textAlign: "center", marginTop: -6 }]}>
-          {error || phaseLabel}
-        </Text>
+        <View style={st.flex1}>
+          <Text style={st.formTitle}>{error ? "Upload interrupted" : title}</Text>
+          <Text style={[st.pageSub, { marginTop: 2 }]} numberOfLines={error ? 3 : 1}>
+            {error || phaseLabel}
+          </Text>
+        </View>
       </View>
 
       <View style={st.uploadInfoPanel}>
@@ -575,12 +588,12 @@ function UploadStatusCard({
           {onRetry ? (
             <Pressable onPress={onRetry} style={({ pressed }) => [st.primaryBtn, { flex: 1 }, pressed && st.pressed]}>
               <Ionicons name="refresh" size={18} color="#fff" />
-              <Text style={st.primaryBtnText}>Retry Upload</Text>
+              <Text style={st.primaryBtnText}>Retry</Text>
             </Pressable>
           ) : null}
           {onChooseDifferent ? (
             <Pressable onPress={onChooseDifferent} style={({ pressed }) => [st.outlineBtn, { flex: 1 }, pressed && st.pressed]}>
-              <Text style={st.outlineBtnText}>Choose File</Text>
+              <Text style={st.outlineBtnText}>Choose another</Text>
             </Pressable>
           ) : null}
         </View>
@@ -595,6 +608,7 @@ function screenKey(screen: Screen) {
   if (screen.type === "session-comments") return `session-comments:${screen.sessionId}`;
   if (screen.type === "session-ai-chat") return `session-ai:${screen.sessionId}`;
   if (screen.type === "session-audio-insights") return `session-audio:${screen.sessionId}`;
+  if (screen.type === "session-audio-chat") return `session-audio-chat:${screen.sessionId}`;
   if (screen.type === "session-report") return `session-report:${screen.sessionId}`;
   if (screen.type === "bulk-upload") return `bulk-upload:${screen.batchId ?? "new"}`;
   return screen.type;
@@ -613,9 +627,24 @@ function screenRank(screen: Screen) {
   if (screen.type === "session-comments") return 14;
   if (screen.type === "session-ai-chat") return 14;
   if (screen.type === "session-audio-insights") return 14;
+  if (screen.type === "session-audio-chat") return 15;
   if (screen.type === "session-report") return 14;
   if (screen.type === "bulk-upload") return 13;
   return 0;
+}
+
+function displaySessionTitle(session: {
+  title?: string | null;
+  agentName?: string | null;
+  prospectName?: string | null;
+  leads?: Array<{ name: string }> | null;
+}) {
+  return buildSessionTourTitle({
+    title: session.title,
+    agentName: session.agentName,
+    prospectName: session.prospectName ?? session.leads?.[0]?.name,
+    preferPeopleTitle: true,
+  });
 }
 
 function ScreenTransition({
@@ -930,6 +959,22 @@ export default function App() {
                   initialStatus={screen.initialStatus}
                   initialInsights={screen.initialInsights ?? null}
                   onBack={() => nav({ type: "session-detail", sessionId: screen.sessionId })}
+                  onOpenAudioChat={() => nav({
+                    type: "session-audio-chat",
+                    sessionId: screen.sessionId,
+                    sessionTitle: screen.sessionTitle,
+                  })}
+                />
+              )}
+              {screen.type === "session-audio-chat" && (
+                <SessionAudioChatScreen
+                  sessionId={screen.sessionId}
+                  sessionTitle={screen.sessionTitle}
+                  onBack={() => nav({
+                    type: "session-audio-insights",
+                    sessionId: screen.sessionId,
+                    sessionTitle: screen.sessionTitle,
+                  })}
                 />
               )}
               {screen.type === "session-report" && (
@@ -1022,6 +1067,9 @@ function CommunityTopBar({
           onPress={onCommunityPress}
           style={({ pressed }) => [homeSt.propertyPicker, pressed && st.pressed]}
         >
+          <View style={homeSt.propertyPickerIcon}>
+            <Ionicons name="business" size={13} color={C.brand} />
+          </View>
           <Text style={homeSt.propertyPickerText} numberOfLines={1}>{propertyLabel}</Text>
           <Ionicons name="chevron-down" size={15} color={C.textSec} />
         </Pressable>
@@ -1089,6 +1137,12 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
     sessionId: string | null;
     url: string | null;
   } | null>(null);
+  const [checkInPrompt, setCheckInPrompt] = useState<{
+    sessionId: string;
+    prospectName: string;
+  } | null>(null);
+  const handledCheckInIdsRef = useRef(new Set<string>());
+  const sessionStatesRef = useRef<Map<string, string> | null>(null);
   const publicMemberAlias = defaultMemberPublicAlias({
     alias: authSession.workspace.teamMember?.alias,
     name: authSession.workspace.teamMember?.name || authSession.workspace.user.fullName,
@@ -1121,6 +1175,8 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
   useEffect(() => {
     setCheckInOpen(false);
     setCheckInBinding(null);
+    setCheckInPrompt(null);
+    handledCheckInIdsRef.current.clear();
   }, [authSession.workspace.community.id]);
 
   const onRefresh = useCallback(async () => {
@@ -1167,6 +1223,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
 
     checkInStartingRef.current = true;
     setCheckInBinding({ sessionId: null, url: null });
+    setCheckInPrompt(null);
     setCheckInOpen(true);
     try {
       const binding = await createCheckInLink();
@@ -1179,6 +1236,63 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
       checkInStartingRef.current = false;
     }
   }, []);
+
+  const showCheckedInSession = useCallback((sessionId: string) => {
+    if (handledCheckInIdsRef.current.has(sessionId)) return;
+    handledCheckInIdsRef.current.add(sessionId);
+
+    impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.all() });
+    // Show the confirmation immediately. The follow-up request replaces the
+    // neutral label with the guest's name without making the agent wait.
+    setCheckInPrompt({ sessionId, prospectName: "A guest" });
+    void fetchSession(sessionId)
+      .then(({ session }) => {
+        const prospectName = session.prospectName?.trim()
+          || session.leads?.[0]?.name?.trim()
+          || "A guest";
+        setCheckInPrompt((current) => current?.sessionId === sessionId
+          ? { sessionId, prospectName }
+          : current,
+        );
+      })
+      .catch(() => {
+        // The in-sheet confirmation still gives the agent a reliable route
+        // into the live session if this best-effort name lookup fails.
+      });
+  }, [queryClient]);
+
+  useAgentCheckInRealtime({
+    userId: authSession.workspace.user.id,
+    onCheckIn: showCheckedInSession,
+  });
+
+  // While the agent has the QR open, refresh the scoped session list as a
+  // recovery path for a temporarily unavailable Realtime connection.
+  useEffect(() => {
+    if (!checkInOpen) return;
+    const interval = setInterval(() => {
+      void sessionsQuery.refetch();
+    }, 3_000);
+    return () => clearInterval(interval);
+  }, [checkInOpen, sessionsQuery.refetch]);
+
+  useEffect(() => {
+    if (sessionsQuery.isLoading) return;
+
+    const nextStates = new Map(sessions.map((session) => [session.id, session.status]));
+    const previousStates = sessionStatesRef.current;
+    sessionStatesRef.current = nextStates;
+    if (!previousStates) return;
+
+    const linkedSessionId = checkInBinding?.sessionId ?? null;
+    const checkedInSession = sessions.find((session) => {
+      if (session.status !== "in_progress") return false;
+      if (!previousStates.has(session.id)) return session.source === "qr";
+      return previousStates.get(session.id) !== "in_progress" && linkedSessionId === session.id;
+    });
+    if (checkedInSession) showCheckedInSession(checkedInSession.id);
+  }, [checkInBinding?.sessionId, sessions, sessionsQuery.isLoading, showCheckedInSession]);
 
   return (
     <View style={st.flex1}>
@@ -1213,11 +1327,12 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
                 property={property}
               />
             )}
-            {tab === "calendar" && <CalendarScreen sessions={sessions} upcomingSessions={upcomingSessions} entrataEvents={calendarEvents} onSession={onSession} onReload={async () => { await calendarQuery.refetch(); }} onCommunityPress={() => setCommunityPickerOpen(true)} property={property} />}
+            {tab === "calendar" && <CalendarScreen sessions={sessions} upcomingSessions={upcomingSessions} entrataEvents={calendarEvents} loading={loading} onSession={onSession} onReload={async () => { await calendarQuery.refetch(); }} onCommunityPress={() => setCommunityPickerOpen(true)} property={property} />}
             {tab === "materials" && (
               <MaterialsScreen
                 materials={materials}
                 tourLibrary={tourLibrary}
+                communityId={authSession.workspace.community.id}
                 loading={materialsLoading}
                 onReload={async () => { await materialsQuery.refetch(); }}
                 onBack={() => handleTabPress("home")}
@@ -1287,23 +1402,160 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onAudioTes
       {checkInBinding ? (
         <CheckInSheet
           visible={checkInOpen}
-          onClose={() => setCheckInOpen(false)}
+          onClose={() => {
+            setCheckInOpen(false);
+            setCheckInPrompt(null);
+          }}
           property={property}
           propertyId={authSession.workspace.community.propertyTygId || authSession.workspace.community.id}
           agentName={agentName}
+          agentTitle={profile?.title ?? authSession.workspace.user.title ?? "Leasing Consultant"}
           repSlug={publicMemberAlias}
           sessionId={checkInBinding.sessionId}
           checkInUrl={checkInBinding.url}
+          checkedInGuest={checkInPrompt}
+          onContinueWithQr={() => setCheckInPrompt(null)}
           onCheckedIn={(sessionId) => {
             setCheckInOpen(false);
             setCheckInBinding(null);
+            setCheckInPrompt(null);
             onSession(sessionId, { autoStartRecording: true });
           }}
         />
       ) : null}
+      <CheckInStartPrompt
+        prompt={checkInOpen ? null : checkInPrompt}
+        onClose={() => setCheckInPrompt(null)}
+        onStart={() => {
+          if (!checkInPrompt) return;
+          const { sessionId } = checkInPrompt;
+          setCheckInPrompt(null);
+          onSession(sessionId, { autoStartRecording: true });
+        }}
+      />
     </View>
   );
 }
+
+function CheckInStartPrompt({
+  prompt,
+  onClose,
+  onStart,
+}: {
+  prompt: { sessionId: string; prospectName: string } | null;
+  onClose: () => void;
+  onStart: () => void;
+}) {
+  return (
+    <BottomSheetModal
+      visible={Boolean(prompt)}
+      onClose={onClose}
+      sheetHeight={322}
+      contentStyle={checkInPromptSt.content}
+    >
+      <View style={checkInPromptSt.iconWrap}>
+        <Ionicons name="person-add" size={22} color={C.brand} />
+      </View>
+      <Text style={checkInPromptSt.eyebrow}>CHECK-IN COMPLETE</Text>
+      <Text style={checkInPromptSt.title} numberOfLines={2}>
+        {prompt?.prospectName ?? "A prospect"} is ready for their tour
+      </Text>
+      <Text style={checkInPromptSt.copy}>
+        Start the live session when you're ready. Recording and tour assistance will open together.
+      </Text>
+      <View style={checkInPromptSt.actions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Not now"
+          onPress={onClose}
+          style={({ pressed }) => [checkInPromptSt.secondaryButton, pressed && st.pressed]}
+        >
+          <Text style={checkInPromptSt.secondaryText}>Not now</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Start tour"
+          onPress={onStart}
+          style={({ pressed }) => [checkInPromptSt.primaryButton, pressed && st.pressed]}
+        >
+          <Ionicons name="play" size={17} color="#fff" />
+          <Text style={checkInPromptSt.primaryText}>Start Tour</Text>
+        </Pressable>
+      </View>
+    </BottomSheetModal>
+  );
+}
+
+const checkInPromptSt = StyleSheet.create({
+  content: {
+    alignItems: "flex-start",
+    paddingTop: 4,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: "#EAF3FF",
+    marginBottom: 14,
+  },
+  eyebrow: {
+    color: C.brand,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    marginBottom: 5,
+  },
+  title: {
+    color: C.text,
+    fontSize: 23,
+    fontWeight: "800",
+    lineHeight: 29,
+  },
+  copy: {
+    color: C.textSec,
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: 8,
+  },
+  actions: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    gap: 10,
+    marginTop: "auto",
+    paddingTop: 18,
+  },
+  secondaryButton: {
+    height: 48,
+    flex: 0.85,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#D0D5DD",
+  },
+  secondaryText: {
+    color: C.textSec,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  primaryButton: {
+    height: 48,
+    flex: 1.3,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: C.brand,
+  },
+  primaryText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+});
 
 // ═══════════════════════════════════════
 // Error Banner
@@ -1399,7 +1651,7 @@ function DashboardScreen({ sessions, upcomingSessions, materialCount, tourLibrar
           }}
           style={({ pressed }) => [homeSt.profileCardSettings, pressed && st.pressed]}
         >
-          <Ionicons name="settings-outline" size={20} color="#fff" />
+          <Ionicons name="pencil-outline" size={20} color="#fff" />
         </Pressable>
         <View style={homeSt.profileBody}>
           <View style={[homeSt.profileAvatarLarge, { backgroundColor: accent }]}>
@@ -1430,61 +1682,61 @@ function DashboardScreen({ sessions, upcomingSessions, materialCount, tourLibrar
         </MotionPressable>
       </View>
 
-      {todayTours.length > 0 && (
-        <HomeSection title="Needs your attention">
-          <View style={homeSt.focusStack}>
-            {todayTours.map((session) => (
-              <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={homeSt.tourCard}>
-                <View style={st.flex1}>
-                  <Text style={homeSt.tourTitle} numberOfLines={1}>
-                    {buildSessionTourTitle({
-                      title: session.title,
-                      agentName: session.agentName,
-                      prospectName: session.prospectName ?? session.leads?.[0]?.name,
-                    })}
-                  </Text>
-                  <View style={homeSt.tourMetaRow}>
-                    <Text style={homeSt.timePill}>{session.status === "in_progress" ? "Now" : session.scheduledAt ? fmtTime(session.scheduledAt) : "Today"}</Text>
-                    <Text style={homeSt.tourMeta} numberOfLines={1}>
-                      {formatPersonName(session.prospectName)
-                        ?? formatPersonName(session.agentName)
-                        ?? "Guest ready for tour"}
-                    </Text>
-                  </View>
-                  {formatSessionCardDescription(session) ? (
-                    <Text style={homeSt.tourMeta} numberOfLines={2}>{formatSessionCardDescription(session)}</Text>
-                  ) : null}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-              </MotionPressable>
-            ))}
-          </View>
-        </HomeSection>
-      )}
+      {loading ? <DashboardDataSkeleton /> : (
+        <>
+          {todayTours.length > 0 && (
+            <HomeSection title="Needs your attention">
+              <View style={homeSt.focusStack}>
+                {todayTours.map((session) => (
+                  <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={homeSt.tourCard}>
+                    <View style={st.flex1}>
+                      <Text style={homeSt.tourTitle} numberOfLines={1}>
+                        {displaySessionTitle(session)}
+                      </Text>
+                      <View style={homeSt.tourMetaRow}>
+                        <Text style={homeSt.timePill}>{session.status === "in_progress" ? "Now" : session.scheduledAt ? fmtTime(session.scheduledAt) : "Today"}</Text>
+                        <Text style={homeSt.tourMeta} numberOfLines={1}>
+                          {formatPersonName(session.prospectName)
+                            ?? formatPersonName(session.agentName)
+                            ?? "Guest ready for tour"}
+                        </Text>
+                      </View>
+                      {formatSessionCardDescription(session) ? (
+                        <Text style={homeSt.tourMeta} numberOfLines={2}>{formatSessionCardDescription(session)}</Text>
+                      ) : null}
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+                  </MotionPressable>
+                ))}
+              </View>
+            </HomeSection>
+          )}
 
-      <HomeSection title="Assets" action="Open" onAction={onAssets}>
-        <MotionPressable
-          accessibilityLabel="Open property assets"
-          onPress={onAssets}
-          haptic="selection"
-          style={homeSt.assetLinkCard}
-        >
-          <View style={[homeSt.assetLinkIcon, tourLibrary && homeSt.assetLinkIconConnected]}>
-            <Ionicons name={tourLibrary ? "play" : "folder-outline"} size={22} color={tourLibrary ? "#fff" : C.brand} />
-          </View>
-          <View style={st.flex1}>
-            <Text style={homeSt.assetLinkTitle}>
-              {tourLibrary ? "Tour Library connected" : "Local property assets"}
-            </Text>
-            <Text style={homeSt.assetLinkMeta}>
-              {tourLibrary
-                ? `${materialCount} local and Tour.video resources`
-                : `${materialCount} resources stored for this property`}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-        </MotionPressable>
-      </HomeSection>
+          <HomeSection title="Assets" action="Open" onAction={onAssets}>
+            <MotionPressable
+              accessibilityLabel="Open property assets"
+              onPress={onAssets}
+              haptic="selection"
+              style={homeSt.assetLinkCard}
+            >
+              <View style={[homeSt.assetLinkIcon, tourLibrary && homeSt.assetLinkIconConnected]}>
+                <Ionicons name={tourLibrary ? "play" : "folder-outline"} size={22} color={tourLibrary ? "#fff" : C.brand} />
+              </View>
+              <View style={st.flex1}>
+                <Text style={homeSt.assetLinkTitle}>
+                  {tourLibrary ? "Tour Library connected" : "Local property assets"}
+                </Text>
+                <Text style={homeSt.assetLinkMeta}>
+                  {tourLibrary
+                    ? `${materialCount} local and Tour.video resources`
+                    : `${materialCount} resources stored for this property`}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+            </MotionPressable>
+          </HomeSection>
+        </>
+      )}
     </View>
   );
 }
@@ -1598,7 +1850,7 @@ function SessionRow({ session, onPress, isLast }: { session: SessionSummary; onP
   return (
     <MotionPressable onPress={onPress} haptic="selection" style={[st.sessionRow, !isLast && st.rowBorder]}>
       <View style={st.flex1}>
-        <Text style={st.sessionTitle} numberOfLines={1}>{session.title}</Text>
+        <Text style={st.sessionTitle} numberOfLines={1}>{displaySessionTitle(session)}</Text>
         <Text style={st.sessionMeta} numberOfLines={1}>{formatSessionCardMeta(session)}</Text>
         {formatSessionCardDescription(session) ? (
           <Text style={st.sessionMeta} numberOfLines={2}>{formatSessionCardDescription(session)}</Text>
@@ -1720,7 +1972,7 @@ function SessionListSwipeRow({
         <View style={st.flex1}>
           <View style={slst.sessionNameRow}>
             {session.status === "in_progress" && <PulseDot color="#f04438" />}
-            <Text style={slst.sessionName} numberOfLines={1}>{session.title}</Text>
+            <Text style={slst.sessionName} numberOfLines={1}>{displaySessionTitle(session)}</Text>
           </View>
           <Text style={slst.sessionMeta} numberOfLines={1}>
             {checkedInSummary || formatSessionCardMeta(session)}
@@ -1751,10 +2003,10 @@ function SampleSessionListRow({ session, onOpen }: { session: SessionSummary; on
       style={[slst.sessionCard, slst.sampleSessionCard]}
     >
       <View style={slst.sampleSessionIcon}>
-        <Ionicons name="sparkles" size={18} color={C.purple} />
+        <Ionicons name="sparkles" size={18} color={C.ai} />
       </View>
       <View style={st.flex1}>
-        <Text style={slst.sessionName} numberOfLines={1}>{session.title}</Text>
+        <Text style={slst.sessionName} numberOfLines={1}>{displaySessionTitle(session)}</Text>
         <Text style={slst.sessionMeta} numberOfLines={1}>
           {[session.location, session.prospectName].filter(Boolean).join(" · ") || "40Fifty Lofts example"}
         </Text>
@@ -1977,7 +2229,7 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
 
       {showSamples ? (
         <Pressable accessibilityRole="button" onPress={() => setShowSamples(false)} style={slst.sampleModeBanner}>
-          <View style={slst.sampleModeIcon}><Ionicons name="sparkles" size={16} color={C.purple} /></View>
+          <View style={slst.sampleModeIcon}><Ionicons name="sparkles" size={16} color={C.ai} /></View>
           <View style={st.flex1}>
             <Text style={slst.sampleModeTitle}>Exploring real examples</Text>
             <Text style={slst.sampleModeSub}>These never affect {property}’s sessions or scores.</Text>
@@ -2044,7 +2296,7 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
   const ListEmpty = useMemo(() => {
     if (loading || (sessions.length === 0 && sampleSessionsQuery.isLoading)) return (
       <View style={{ paddingTop: 20 }}>
-        <LoadingShimmer rows={5} />
+        <SessionsListSkeleton />
       </View>
     );
     if (showSamples && sampleSessionsQuery.error) {
@@ -2064,7 +2316,7 @@ function SessionsListScreen({ onBack, onCommunityPress, onSession, onSampleSessi
     if (samplesAvailable && !search && statusFilter === "all") {
       return (
         <Reanimated.View entering={FadeInDown.duration(280).springify()} style={slst.sampleEmptyCard}>
-          <View style={slst.sampleEmptyIcon}><Ionicons name="sparkles" size={25} color={C.purple} /></View>
+          <View style={slst.sampleEmptyIcon}><Ionicons name="sparkles" size={25} color={C.ai} /></View>
           <Text style={slst.sampleEmptyTitle}>No sessions yet</Text>
           <Text style={slst.sampleEmptySub}>
             Explore real, fully analyzed tours from 40Fifty Lofts while your team records its first session.
@@ -2122,13 +2374,13 @@ const slst = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 120 },
   header: { gap: 12, marginBottom: 8 },
   sampleHeadingSub: { marginTop: 3, color: C.textMuted, fontSize: 11, fontWeight: "700" },
-  sampleModeBanner: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 14, backgroundColor: "#faf7ff" },
-  sampleModeIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.purpleBg },
+  sampleModeBanner: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: C.aiBorder, borderRadius: 14, backgroundColor: "#f8fbff" },
+  sampleModeIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.aiBg },
   sampleModeTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
   sampleModeSub: { marginTop: 2, color: C.textSec, fontSize: 11, lineHeight: 15, fontWeight: "600" },
   sampleModeAction: { color: C.brand, fontSize: 12, fontWeight: "900" },
-  sampleEmptyCard: { alignItems: "center", gap: 12, marginTop: 12, paddingHorizontal: 20, paddingVertical: 24, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 20, backgroundColor: "#fff" },
-  sampleEmptyIcon: { width: 54, height: 54, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: C.purpleBg },
+  sampleEmptyCard: { alignItems: "center", gap: 12, marginTop: 12, paddingHorizontal: 20, paddingVertical: 24, borderWidth: 1, borderColor: C.aiBorder, borderRadius: 20, backgroundColor: "#fff" },
+  sampleEmptyIcon: { width: 54, height: 54, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: C.aiBg },
   sampleEmptyTitle: { color: C.text, fontSize: 21, fontWeight: "900", letterSpacing: -0.25 },
   sampleEmptySub: { maxWidth: 330, color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600", textAlign: "center" },
   sampleFeatureRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6 },
@@ -2196,10 +2448,10 @@ const slst = StyleSheet.create({
   deleteActionPressed: { backgroundColor: "#dc2626", opacity: 0.92 },
   deleteActionText: { color: "#fff", fontSize: 11, fontWeight: "800" },
   sessionCard: { minHeight: 74, flexDirection: "row", alignItems: "center", gap: 12, padding: 15, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, backgroundColor: "#fff" },
-  sampleSessionCard: { marginBottom: 10, borderColor: "#ddd6fe", backgroundColor: "#fefcff" },
-  sampleSessionIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.purpleBg },
-  sampleBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, backgroundColor: C.purpleBg },
-  sampleBadgeText: { color: C.purple, fontSize: 8, fontWeight: "900" },
+  sampleSessionCard: { marginBottom: 10, borderColor: C.aiBorder, backgroundColor: "#f8fbff" },
+  sampleSessionIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.aiBg },
+  sampleBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, backgroundColor: C.aiBg },
+  sampleBadgeText: { color: C.ai, fontSize: 8, fontWeight: "900" },
   sessionCardDeleting: { opacity: 0.55 },
   sessionNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   sessionName: { flex: 1, color: "#1a1a1a", fontSize: 15, fontWeight: "900" },
@@ -2226,6 +2478,7 @@ function CalendarScreen({
   sessions,
   upcomingSessions,
   entrataEvents,
+  loading,
   onSession,
   onReload,
   onCommunityPress,
@@ -2234,6 +2487,7 @@ function CalendarScreen({
   sessions: SessionSummary[];
   upcomingSessions: SessionSummary[];
   entrataEvents: CalendarEvent[];
+  loading: boolean;
   onSession: (id: string) => void;
   onReload: () => Promise<void>;
   onCommunityPress: () => void;
@@ -2298,6 +2552,20 @@ function CalendarScreen({
     }
   }
 
+  if (loading) {
+    return (
+      <View style={st.page}>
+        <CommunityTopBar
+          property={property}
+          onCommunityPress={onCommunityPress}
+          left={<TourLogo width={62} />}
+          right={<View style={homeSt.headerIcon}><Skeleton style={{ width: 18, height: 18, borderRadius: 9 }} /></View>}
+        />
+        <CalendarScreenSkeleton />
+      </View>
+    );
+  }
+
   return (
     <View style={st.page}>
       <CommunityTopBar
@@ -2338,7 +2606,7 @@ function CalendarScreen({
             {upcomingSessions.slice(0, 4).map((session) => (
               <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={homeSt.tourCard}>
                 <View style={st.flex1}>
-                  <Text style={homeSt.tourTitle} numberOfLines={1}>{session.title}</Text>
+                  <Text style={homeSt.tourTitle} numberOfLines={1}>{displaySessionTitle(session)}</Text>
                   <View style={homeSt.tourMetaRow}>
                     <Text style={homeSt.timePill}>
                       {session.status === "in_progress"
@@ -2383,7 +2651,7 @@ function CalendarScreen({
                   <Pressable key={di} onPress={() => setSelectedDay(d === selectedDay ? null : d)} style={[st.calDayCell, isSelected && st.calDaySelected, isToday && !isSelected && st.calDayToday]}>
                     <Text style={[st.calDayText, isToday && st.calDayTextToday, isSelected && st.calDayTextSelected]}>{d}</Text>
                     <View style={st.calDots}>
-                      {hasEntrata && <View style={[st.calDot, { backgroundColor: isSelected ? "#fff" : C.purple }]} />}
+                      {hasEntrata && <View style={[st.calDot, { backgroundColor: isSelected ? "#fff" : C.ai }]} />}
                       {hasSessions && <View style={[st.calDot, { backgroundColor: isSelected ? "#fff" : C.brand }]} />}
                     </View>
                   </Pressable>
@@ -2408,7 +2676,7 @@ function CalendarScreen({
                   onPress={() => item.event.session_id && onSession(item.event.session_id)}
                   style={({ pressed }) => [st.calendarEventRow, index < dayItems.length - 1 && st.rowBorder, pressed && st.pressed]}
                 >
-                  <View style={st.entrataEventIcon}><Ionicons name={item.event.event_type === "virtual" ? "videocam-outline" : "business-outline"} size={18} color={C.purple} /></View>
+                  <View style={st.entrataEventIcon}><Ionicons name={item.event.event_type === "virtual" ? "videocam-outline" : "business-outline"} size={18} color={C.ai} /></View>
                   <View style={st.flex1}>
                     <Text style={st.sessionTitle} numberOfLines={1}>{item.event.prospect_name ?? "Entrata tour"}</Text>
                     <Text style={st.sessionMeta}>
@@ -2418,7 +2686,7 @@ function CalendarScreen({
                       <Text style={st.calendarContact} numberOfLines={1}>{item.event.prospect_email ?? item.event.prospect_phone}</Text>
                     )}
                   </View>
-                  <View style={[st.badge, { backgroundColor: C.purpleBg }]}><Text style={[st.badgeText, { color: C.purple }]}>{item.event.status.replaceAll("_", " ")}</Text></View>
+                  <View style={[st.badge, { backgroundColor: C.aiBg }]}><Text style={[st.badgeText, { color: C.ai }]}>{item.event.status.replaceAll("_", " ")}</Text></View>
                   {item.event.session_id && <Ionicons name="chevron-forward" size={17} color={C.textMuted} />}
                 </Pressable>
               ))}
@@ -2446,18 +2714,42 @@ const assetSt = StyleSheet.create({
   header: { gap: 14 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   titleText: { flex: 1, minWidth: 0 },
-  recordButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 999, backgroundColor: "#fff" },
-  recordButtonText: { color: C.text, fontSize: 14, fontWeight: "900" },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
-  cardWrap: { width: (Dimensions.get("window").width - 54) / 2 },
+  libraryControls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  recordButton: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, backgroundColor: C.brand },
+  recordButtonText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  libraryControl: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 12, backgroundColor: "#fff" },
+  libraryControlText: { color: C.textSec, fontSize: 11, fontWeight: "900" },
+  selectionHeader: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 },
+  selectionCount: { flex: 1, color: C.text, fontSize: 14, fontWeight: "900" },
+  selectionLink: { minHeight: 36, alignItems: "center", justifyContent: "center", paddingHorizontal: 9 },
+  selectionLinkText: { color: C.brand, fontSize: 11, fontWeight: "900" },
+  bulkActions: { flexDirection: "row", gap: 8, padding: 6, borderWidth: 1, borderColor: "#dfe5ed", borderRadius: 14, backgroundColor: "#fff" },
+  bulkAction: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 10 },
+  bulkActionDisabled: { opacity: 0.35 },
+  bulkActionText: { color: C.textSec, fontSize: 9, fontWeight: "900" },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  cardWrap: { width: (Dimensions.get("window").width - 52) / 2 },
   card: { gap: 8 },
-  thumb: { aspectRatio: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 18, backgroundColor: "#eef4ff" },
+  cardSelected: { opacity: 0.92 },
+  thumb: { aspectRatio: 4 / 3, alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 14, backgroundColor: "#eaf2fc" },
+  thumbSelected: { borderWidth: 2, borderColor: C.brand },
   thumbImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  thumbOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.08)" },
-  playBadge: { position: "absolute", left: 10, bottom: 10, width: 30, height: 30, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", borderRadius: 15, backgroundColor: "rgba(15,23,42,0.86)" },
+  thumbOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.12)" },
+  playBadge: { position: "absolute", left: 9, bottom: 9, width: 28, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.9)", borderRadius: 14, backgroundColor: "rgba(15,23,42,0.78)" },
   fallbackIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 16, backgroundColor: "#fff" },
-  cardTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
-  cardMeta: { color: C.textSec, fontSize: 11, fontWeight: "700" },
+  selectCircle: { position: "absolute", top: 9, left: 9, width: 24, height: 24, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.95)", borderRadius: 12, backgroundColor: "rgba(15,23,42,0.42)" },
+  selectCircleActive: { borderColor: C.brand, backgroundColor: C.brand },
+  cardTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  cardMetaRow: { minHeight: 16, flexDirection: "row", alignItems: "center", gap: 5 },
+  cardMeta: { flexShrink: 1, color: C.textSec, fontSize: 10, fontWeight: "700" },
+  syncMeta: { flexDirection: "row", alignItems: "center", gap: 3 },
+  syncMetaText: { fontSize: 9, fontWeight: "800" },
+  localAction: { position: "absolute", right: 9, bottom: 9, width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "rgba(0,108,229,0.94)" },
+  sortSheet: { gap: 8, paddingHorizontal: 6 },
+  sortTitle: { marginBottom: 7, color: C.text, fontSize: 20, fontWeight: "900" },
+  sortOption: { minHeight: 50, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 12 },
+  sortOptionActive: { backgroundColor: "#eef6ff" },
+  sortOptionText: { flex: 1, color: C.text, fontSize: 13, fontWeight: "800" },
   modalScrim: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.42)" },
   modalSheet: { maxHeight: "88%", gap: 14, padding: 18, paddingBottom: Platform.OS === "ios" ? 34 : 20, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: "#fff" },
   modalHandle: { alignSelf: "center", width: 42, height: 5, borderRadius: 3, backgroundColor: "#d1d5db" },
@@ -2478,10 +2770,148 @@ const assetSt = StyleSheet.create({
   tourLibraryLinkMeta: { color: C.textSec, fontSize: 11, fontWeight: "700", marginTop: 2 },
 });
 
-function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, onCommunityPress, property }: { materials: Material[]; tourLibrary: TourLibraryLink | null; loading: boolean; onReload: () => Promise<void>; onBack: () => void; onCommunityPress: () => void; property: string }) {
+type AssetSort = "newest" | "oldest" | "name";
+type DisplayAsset = { material: Material; local: LocalAsset | null };
+
+const ASSET_SORT_LABELS: Record<AssetSort, string> = {
+  newest: "Newest",
+  oldest: "Oldest",
+  name: "Name",
+};
+const assetThumbnailCache = new Map<string, string>();
+
+function AssetThumbnail({ material, local }: DisplayAsset) {
+  const providedPreview = materialPreviewUrl(material);
+  const videoSource = local?.kind === "video"
+    ? local.localUri
+    : material.media?.videoUrl ?? (!providedPreview ? materialUrl(material) : null);
+  const [generatedPreview, setGeneratedPreview] = useState(() => videoSource ? assetThumbnailCache.get(videoSource) ?? null : null);
+
+  useEffect(() => {
+    if (providedPreview || !videoSource || generatedPreview || Platform.OS === "web") return;
+    let cancelled = false;
+    void VideoThumbnails.getThumbnailAsync(videoSource, { time: 300, quality: 0.72 })
+      .then(({ uri }) => {
+        if (cancelled) return;
+        assetThumbnailCache.set(videoSource, uri);
+        setGeneratedPreview(uri);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [generatedPreview, providedPreview, videoSource]);
+
+  const preview = providedPreview ?? generatedPreview;
+  const playable = Boolean(videoSource || material.media?.iframeUrl);
+  return (
+    <>
+      {preview ? (
+        <>
+          <Image source={{ uri: preview }} style={assetSt.thumbImage} resizeMode="cover" />
+          <View style={assetSt.thumbOverlay} />
+        </>
+      ) : (
+        <View style={assetSt.fallbackIcon}>
+          <Ionicons name={playable ? "videocam-outline" : "document-outline"} size={22} color={C.brand} />
+        </View>
+      )}
+      {playable ? (
+        <View style={assetSt.playBadge}>
+          <Ionicons name="play" size={12} color="#fff" />
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+function AssetSyncMeta({ local }: { local: LocalAsset | null }) {
+  if (!local) return null;
+  const state = local.status === "synced"
+    ? { icon: "cloud-done-outline" as const, label: "Synced", color: C.green }
+    : local.status === "uploading"
+      ? { icon: "sync-outline" as const, label: "Syncing", color: C.brand }
+      : local.status === "failed"
+        ? { icon: "alert-circle-outline" as const, label: "Needs attention", color: C.red }
+        : { icon: "cloud-offline-outline" as const, label: "Not synced", color: C.textMuted };
+  return (
+    <View accessibilityLabel={state.label} style={assetSt.syncMeta}>
+      <Ionicons name={state.icon} size={11} color={state.color} />
+      <Text style={[assetSt.syncMetaText, { color: state.color }]}>{state.label}</Text>
+    </View>
+  );
+}
+
+function AssetBulkAction({
+  icon,
+  label,
+  disabled,
+  destructive,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  disabled?: boolean;
+  destructive?: boolean;
+  onPress: () => void;
+}) {
+  const color = destructive ? C.red : C.brand;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [assetSt.bulkAction, disabled && assetSt.bulkActionDisabled, pressed && st.pressed]}
+    >
+      <Ionicons name={icon} size={17} color={color} />
+      <Text style={[assetSt.bulkActionText, { color }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function MaterialsScreen({ materials, tourLibrary, communityId, loading, onReload, onBack, onCommunityPress, property }: { materials: Material[]; tourLibrary: TourLibraryLink | null; communityId: string; loading: boolean; onReload: () => Promise<void>; onBack: () => void; onCommunityPress: () => void; property: string }) {
   const [uploading, setUploading] = useState(false);
-  const [selected, setSelected] = useState<Material | null>(null);
+  const [selected, setSelected] = useState<{ material: Material; local: LocalAsset | null } | null>(null);
   const [videoRecorderOpen, setVideoRecorderOpen] = useState(false);
+  const [localAssets, setLocalAssets] = useState<LocalAsset[]>([]);
+  const [localAssetsLoading, setLocalAssetsLoading] = useState(true);
+  const [syncingLocalAssetId, setSyncingLocalAssetId] = useState<string | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [assetSort, setAssetSort] = useState<AssetSort>("newest");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const loadLocalAssets = useCallback(async () => {
+    setLocalAssets(await listLocalAssets(communityId));
+    setLocalAssetsLoading(false);
+  }, [communityId]);
+
+  useEffect(() => {
+    void loadLocalAssets();
+    return subscribeLocalAssets(() => void loadLocalAssets());
+  }, [loadLocalAssets]);
+
+  async function syncLocalAsset(asset: LocalAsset, quiet = false) {
+    if (syncingLocalAssetId) return;
+    setSyncingLocalAssetId(asset.id);
+    await updateLocalAsset(asset.id, { status: "uploading", error: null });
+    try {
+      const material = await uploadMaterial(asset.localUri, asset.mimeType, asset.fileName, {
+        name: asset.name,
+        description: asset.description,
+        type: asset.kind === "video" ? "recording" : "other",
+      });
+      await updateLocalAsset(asset.id, { status: "synced", remoteMaterialId: material.id, error: null });
+      await onReload().catch(() => undefined);
+      if (!quiet) showToast("Asset synced to this community", "success");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Could not upload this asset.";
+      await updateLocalAsset(asset.id, { status: "failed", error: message });
+      throw caught;
+    } finally {
+      setSyncingLocalAssetId(null);
+    }
+  }
 
   async function addAsset() {
     try {
@@ -2492,9 +2922,20 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
       const file = result.assets?.[0];
       if (result.canceled || !file) return;
       setUploading(true);
-      await uploadMaterial(file.uri, file.mimeType ?? "application/octet-stream", file.name);
-      await onReload();
-      showToast("Asset added to this community", "success");
+      const mimeType = file.mimeType ?? "application/octet-stream";
+      if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
+        const localAsset = await preserveLocalAsset({
+          communityId,
+          sourceUri: file.uri,
+          mimeType,
+          fileName: file.name,
+        });
+        await syncLocalAsset(localAsset);
+      } else {
+        await uploadMaterial(file.uri, mimeType, file.name);
+        await onReload();
+        showToast("Asset added to this community", "success");
+      }
     } catch (caught) {
       showToast(caught instanceof Error ? caught.message : "Could not upload asset", "error");
     } finally {
@@ -2503,13 +2944,135 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
   }
 
   async function uploadRecordedVideo(asset: RecordedVideoAsset) {
-    await uploadMaterial(asset.uri, asset.mimeType, asset.fileName, {
+    const localAsset = asset.localAssetId
+      ? (await listLocalAssets(communityId)).find((candidate) => candidate.id === asset.localAssetId)
+      : await preserveLocalAsset({
+        communityId,
+        sourceUri: asset.uri,
+        mimeType: asset.mimeType,
+        fileName: asset.fileName,
+        name: asset.name,
+        description: asset.description,
+      });
+    if (!localAsset) throw new Error("This saved video is no longer available on this device.");
+    await syncLocalAsset(localAsset);
+  }
+
+  async function saveRecordedVideo(asset: RecordedVideoAsset) {
+    const localAsset = await preserveLocalAsset({
+      communityId,
+      sourceUri: asset.uri,
+      mimeType: asset.mimeType,
+      fileName: asset.fileName,
       name: asset.name,
       description: asset.description,
-      type: "recording",
     });
-    await onReload().catch(() => undefined);
-    showToast("Video asset added to this community", "success");
+    showToast("Saved in your Tour asset library", "success");
+    return { id: localAsset.id, uri: localAsset.localUri };
+  }
+
+  const displayAssets = useMemo<DisplayAsset[]>(() => {
+    const remoteIdsSavedLocally = new Set(localAssets.map((asset) => asset.remoteMaterialId).filter(Boolean));
+    return [
+      ...localAssets.map((asset) => ({
+        local: asset,
+        material: {
+          id: asset.id,
+          name: asset.name,
+          type: asset.kind === "video" ? "recording" as const : "other" as const,
+          description: asset.description,
+          fileUrl: asset.localUri,
+          createdAt: asset.createdAt,
+          media: {
+            sourceKey: asset.id,
+            videoUrl: asset.kind === "video" ? asset.localUri : null,
+            imageUrl: asset.kind === "image" ? asset.localUri : null,
+            gifUrl: null,
+            iframeUrl: null,
+          },
+        } satisfies Material,
+      })),
+      ...materials
+        .filter((material) => !remoteIdsSavedLocally.has(material.id))
+        .map((material) => ({ local: null, material })),
+    ];
+  }, [localAssets, materials]);
+
+  const sortedAssets = useMemo(() => [...displayAssets].sort((left, right) => {
+    if (assetSort === "name") return left.material.name.localeCompare(right.material.name);
+    const direction = assetSort === "newest" ? -1 : 1;
+    return left.material.createdAt.localeCompare(right.material.createdAt) * direction;
+  }), [assetSort, displayAssets]);
+
+  const selectedAssets = useMemo(
+    () => sortedAssets.filter(({ material }) => selectedAssetIds.includes(material.id)),
+    [selectedAssetIds, sortedAssets],
+  );
+  const syncableSelected = selectedAssets.filter(({ local }) => local && local.status !== "synced");
+  const removableSelected = selectedAssets.filter(({ local }) => Boolean(local));
+
+  useEffect(() => {
+    setSelectedAssetIds((current) => current.filter((id) => displayAssets.some(({ material }) => material.id === id)));
+  }, [displayAssets]);
+
+  function toggleAssetSelection(id: string) {
+    selectionHaptic();
+    setSelectedAssetIds((current) => current.includes(id) ? current.filter((candidate) => candidate !== id) : [...current, id]);
+  }
+
+  function closeSelectionMode() {
+    setSelectionMode(false);
+    setSelectedAssetIds([]);
+  }
+
+  async function shareSelectedAssets() {
+    if (!selectedAssets.length) return;
+    const lines = selectedAssets.map(({ material }) => {
+      const url = materialUrl(material);
+      return url ? `${material.name}\n${url}` : material.name;
+    });
+    await Share.share({ title: "Tour assets", message: lines.join("\n\n") });
+  }
+
+  async function syncSelectedAssets() {
+    if (!syncableSelected.length || bulkBusy) return;
+    setBulkBusy(true);
+    let failed = 0;
+    for (const { local } of syncableSelected) {
+      if (!local) continue;
+      try {
+        await syncLocalAsset(local, true);
+      } catch {
+        failed += 1;
+      }
+    }
+    setBulkBusy(false);
+    if (failed) showToast(`${failed} ${failed === 1 ? "asset" : "assets"} could not sync`, "error");
+    else showToast(`${syncableSelected.length} ${syncableSelected.length === 1 ? "asset" : "assets"} synced`, "success");
+  }
+
+  function removeSelectedAssets() {
+    if (!removableSelected.length || bulkBusy) return;
+    Alert.alert(
+      `Remove ${removableSelected.length} ${removableSelected.length === 1 ? "asset" : "assets"}?`,
+      "Unsynced files will be deleted. Synced files remain available from the property library.",
+      [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => void (async () => {
+            setBulkBusy(true);
+            for (const { local } of removableSelected) {
+              if (local) await removeLocalAsset(local.id);
+            }
+            setBulkBusy(false);
+            closeSelectionMode();
+            showToast("Selected assets removed", "success");
+          })(),
+        },
+      ],
+    );
   }
 
   return (
@@ -2524,14 +3087,16 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
             </Pressable>
           }
           right={
-            <Pressable onPress={() => void addAsset()} disabled={uploading} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-              {uploading ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="add" size={21} color={C.text} />}
-            </Pressable>
+            selectionMode ? null : (
+              <Pressable accessibilityLabel="Add an asset" onPress={() => void addAsset()} disabled={uploading} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
+                {uploading ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="add" size={21} color={C.text} />}
+              </Pressable>
+            )
           }
         />
         <View>
           <Text style={st.pageTitle}>Assets</Text>
-          <Text style={st.pageHeadingSub}>{materials.length} community resources</Text>
+          <Text style={st.pageHeadingSub}>{displayAssets.length} saved {displayAssets.length === 1 ? "asset" : "assets"}</Text>
         </View>
         {tourLibrary ? (
           <Pressable
@@ -2550,39 +3115,91 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
             <Ionicons name="open-outline" size={18} color={C.brand} />
           </Pressable>
         ) : null}
-        <Pressable onPress={() => setVideoRecorderOpen(true)} style={({ pressed }) => [assetSt.recordButton, pressed && st.pressed]}>
-          <Ionicons name="videocam-outline" size={17} color={C.purple} />
-          <Text style={assetSt.recordButtonText}>Record Projects</Text>
-        </Pressable>
+        {selectionMode ? (
+          <>
+            <View style={assetSt.selectionHeader}>
+              <Text style={assetSt.selectionCount}>{selectedAssetIds.length} selected</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={selectedAssetIds.length === sortedAssets.length ? "Clear selection" : "Select all assets"}
+                onPress={() => setSelectedAssetIds(selectedAssetIds.length === sortedAssets.length ? [] : sortedAssets.map(({ material }) => material.id))}
+                style={assetSt.selectionLink}
+              >
+                <Text style={assetSt.selectionLinkText}>{selectedAssetIds.length === sortedAssets.length ? "Clear all" : "Select all"}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Finish selecting" onPress={closeSelectionMode} style={assetSt.selectionLink}>
+                <Text style={assetSt.selectionLinkText}>Done</Text>
+              </Pressable>
+            </View>
+            <View style={assetSt.bulkActions}>
+              <AssetBulkAction icon="share-outline" label="Share" disabled={!selectedAssets.length || bulkBusy} onPress={() => void shareSelectedAssets()} />
+              <AssetBulkAction icon="cloud-upload-outline" label="Sync" disabled={!syncableSelected.length || bulkBusy} onPress={() => void syncSelectedAssets()} />
+              <AssetBulkAction icon="trash-outline" label="Remove" destructive disabled={!removableSelected.length || bulkBusy} onPress={removeSelectedAssets} />
+            </View>
+          </>
+        ) : (
+          <View style={assetSt.libraryControls}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Record a video asset" onPress={() => setVideoRecorderOpen(true)} style={({ pressed }) => [assetSt.recordButton, pressed && st.pressed]}>
+              <Ionicons name="videocam-outline" size={16} color="#fff" />
+              <Text style={assetSt.recordButtonText}>Record video</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Sort assets, ${ASSET_SORT_LABELS[assetSort]}`} onPress={() => setSortOpen(true)} style={({ pressed }) => [assetSt.libraryControl, pressed && st.pressed]}>
+              <Ionicons name="swap-vertical-outline" size={16} color={C.textSec} />
+              <Text style={assetSt.libraryControlText}>{ASSET_SORT_LABELS[assetSort]}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Select assets" disabled={!displayAssets.length} onPress={() => setSelectionMode(true)} style={({ pressed }) => [assetSt.libraryControl, !displayAssets.length && assetSt.bulkActionDisabled, pressed && st.pressed]}>
+              <Ionicons name="checkmark-circle-outline" size={16} color={C.textSec} />
+              <Text style={assetSt.libraryControlText}>Select</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
-      {loading ? <LoadingBox /> : materials.length === 0 ? <EmptyState icon="folder-open-outline" title="No materials" subtitle="Tour videos and community resources will appear here" /> : (
+      {(loading || localAssetsLoading) ? <MaterialsGridSkeleton /> : displayAssets.length === 0 ? <EmptyState icon="folder-open-outline" title="No assets yet" subtitle="Record a property video or add media from this device" /> : (
         <View style={assetSt.grid}>
-          {materials.map((material) => {
-            const previewUrl = materialPreviewUrl(material);
-            const canPlay = Boolean(materialUrl(material));
+          {sortedAssets.map(({ material, local }) => {
+            const assetSelected = selectedAssetIds.includes(material.id);
             return (
               <View key={material.id} style={assetSt.cardWrap}>
-              <Pressable onPress={() => setSelected(material)} style={({ pressed }) => [assetSt.card, pressed && st.pressed]}>
-                <View style={assetSt.thumb}>
-                  {previewUrl ? (
-                    <>
-                      <Image source={{ uri: previewUrl }} style={assetSt.thumbImage} resizeMode="cover" />
-                      <View style={assetSt.thumbOverlay} />
-                    </>
-                  ) : (
-                    <View style={assetSt.fallbackIcon}>
-                      <Ionicons name={canPlay ? "play" : "document-outline"} size={22} color={C.brand} />
+              <Pressable
+                accessibilityRole={selectionMode ? "checkbox" : "button"}
+                accessibilityState={selectionMode ? { checked: assetSelected } : undefined}
+                accessibilityLabel={selectionMode ? `${assetSelected ? "Deselect" : "Select"} ${material.name}` : `Open ${material.name}`}
+                onPress={() => selectionMode ? toggleAssetSelection(material.id) : setSelected({ material, local })}
+                onLongPress={() => {
+                  if (selectionMode) return;
+                  selectionHaptic();
+                  setSelectionMode(true);
+                  setSelectedAssetIds([material.id]);
+                }}
+                style={({ pressed }) => [assetSt.card, assetSelected && assetSt.cardSelected, pressed && st.pressed]}
+              >
+                <View style={[assetSt.thumb, assetSelected && assetSt.thumbSelected]}>
+                  <AssetThumbnail material={material} local={local} />
+                  {selectionMode ? (
+                    <View style={[assetSt.selectCircle, assetSelected && assetSt.selectCircleActive]}>
+                      {assetSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
                     </View>
-                  )}
-                  {canPlay && (
-                    <View style={assetSt.playBadge}>
-                      <Ionicons name="play" size={13} color="#fff" />
-                    </View>
-                  )}
+                  ) : null}
+                  {local && local.status !== "synced" && !selectionMode ? (
+                    <Pressable
+                      accessibilityLabel={`Upload ${local.name}`}
+                      disabled={syncingLocalAssetId === local.id}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void syncLocalAsset(local).catch((caught) => showToast(caught instanceof Error ? caught.message : "Could not sync asset", "error"));
+                      }}
+                      style={assetSt.localAction}
+                    >
+                      {syncingLocalAssetId === local.id ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="cloud-upload-outline" size={16} color="#fff" />}
+                    </Pressable>
+                  ) : null}
                 </View>
                 <Text style={assetSt.cardTitle} numberOfLines={1}>{material.name}</Text>
-                <Text style={assetSt.cardMeta} numberOfLines={1}>{material.type} · {fmtDate(material.createdAt)}</Text>
+                <View style={assetSt.cardMetaRow}>
+                  <Text style={assetSt.cardMeta} numberOfLines={1}>{local ? (local.kind === "video" ? "Video" : "Image") : material.type} · {fmtDate(material.createdAt)}</Text>
+                  <AssetSyncMeta local={local} />
+                </View>
               </Pressable>
               </View>
             );
@@ -2590,20 +3207,61 @@ function MaterialsScreen({ materials, tourLibrary, loading, onReload, onBack, on
         </View>
       )}
 
-      <MaterialPreviewModal material={selected} onClose={() => setSelected(null)} />
+      <MaterialPreviewModal
+        material={selected?.material ?? null}
+        onClose={() => setSelected(null)}
+        onDelete={selected?.local ? () => {
+          const localAsset = selected.local!;
+          Alert.alert("Remove this asset?", "The on-device copy will be deleted from Tour.", [
+            { text: "Keep", style: "cancel" },
+            {
+              text: "Remove",
+              style: "destructive",
+              onPress: () => void removeLocalAsset(localAsset.id).then(() => {
+                setSelected(null);
+                showToast("Asset removed", "success");
+              }),
+            },
+          ]);
+        } : undefined}
+      />
       <VideoAssetRecorder
         visible={videoRecorderOpen}
         onClose={() => setVideoRecorderOpen(false)}
+        onSaveLocal={saveRecordedVideo}
         onUpload={uploadRecordedVideo}
       />
+      <BottomSheetModal visible={sortOpen} onClose={() => setSortOpen(false)} sheetHeight={286} contentStyle={assetSt.sortSheet}>
+        <Text style={assetSt.sortTitle}>Sort assets</Text>
+        {(["newest", "oldest", "name"] as AssetSort[]).map((option) => {
+          const active = option === assetSort;
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active }}
+              onPress={() => {
+                selectionHaptic();
+                setAssetSort(option);
+                setSortOpen(false);
+              }}
+              style={({ pressed }) => [assetSt.sortOption, active && assetSt.sortOptionActive, pressed && st.pressed]}
+            >
+              <Ionicons name={option === "name" ? "text-outline" : option === "newest" ? "arrow-down-outline" : "arrow-up-outline"} size={17} color={active ? C.brand : C.textMuted} />
+              <Text style={assetSt.sortOptionText}>{option === "name" ? "Name" : option === "newest" ? "Newest first" : "Oldest first"}</Text>
+              {active ? <Ionicons name="checkmark" size={18} color={C.brand} /> : null}
+            </Pressable>
+          );
+        })}
+      </BottomSheetModal>
     </View>
   );
 }
 
-function MaterialPreviewModal({ material, onClose }: { material: Material | null; onClose: () => void }) {
+function MaterialPreviewModal({ material, onClose, onDelete }: { material: Material | null; onClose: () => void; onDelete?: () => void }) {
   const url = material ? materialUrl(material) : null;
   const previewUrl = material ? materialPreviewUrl(material) : null;
-  const videoUrl = material?.media?.videoUrl ?? (url && isVideoLikeUrl(url) ? url : null);
+  const videoUrl = material?.media?.videoUrl ?? (!previewUrl && url && isVideoLikeUrl(url) ? url : null);
 
   async function shareSelected() {
     if (!material) return;
@@ -2633,6 +3291,11 @@ function MaterialPreviewModal({ material, onClose }: { material: Material | null
               <Text style={assetSt.modalTitle} numberOfLines={2}>{material?.name}</Text>
               <Text style={assetSt.modalMeta}>{material ? `${material.type} · ${fmtDate(material.createdAt)}` : ""}</Text>
             </View>
+            {onDelete ? (
+              <Pressable accessibilityLabel="Remove local asset" onPress={onDelete} style={homeSt.headerIcon}>
+                <Ionicons name="trash-outline" size={18} color={C.red} />
+              </Pressable>
+            ) : null}
             <Pressable accessibilityLabel="Close media preview" onPress={onClose} style={homeSt.headerIcon}>
               <Ionicons name="close" size={19} color={C.text} />
             </Pressable>
@@ -2939,6 +3602,7 @@ function CreateSessionScreen({
   agentName?: string | null;
 }) {
   const rec = useRecording();
+  const insets = useSafeAreaInsets();
 
   const [phase, setPhase] = useState<"choose" | "practice" | "uploading" | "details">(pendingUpload ? "uploading" : "choose");
   const [uploadStats, setUploadStats] = useState<UploadStats>(initialUploadStats());
@@ -3268,23 +3932,47 @@ function CreateSessionScreen({
   // ── Choose: Record or Upload ──
   if (phase === "choose") {
     return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
-        <View style={st.page}>
-          <BackBtn label="Sessions" onPress={onBack} />
-          <Text style={st.pageTitle}>New Session</Text>
-          <CreateSessionModeTabs
-            active="session"
-            onSession={() => undefined}
-            onPractice={() => setPhase("practice")}
-          />
-          <View style={[st.card, { padding: 20, gap: 14 }]}>
-            <View style={{ alignItems: "center", gap: 8 }}>
-              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: C.brand + "10", alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="cloud-upload-outline" size={28} color={C.brand} />
-              </View>
-              <Text style={st.formTitle}>Add tour recordings</Text>
-              <Text style={[st.pageSub, { textAlign: "center" }]}>Record a live tour, upload one file, or select multiple recordings to process as separate sessions.</Text>
+      <View style={createSessionChoiceSt.root}>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[st.scroll, createSessionChoiceSt.scroll]}
+        >
+          <View style={st.page}>
+            <View style={createSessionChoiceSt.header}>
+              <MotionPressable accessibilityRole="button" accessibilityLabel="Back to sessions" onPress={onBack} style={createSessionChoiceSt.backButton}>
+                <Ionicons name="arrow-back" size={20} color={C.text} />
+              </MotionPressable>
+              <Text style={createSessionChoiceSt.pageTitle}>New session</Text>
             </View>
+            <CreateSessionModeTabs
+              active="session"
+              onSession={() => undefined}
+              onPractice={() => setPhase("practice")}
+            />
+
+            <View style={createSessionChoiceSt.liveCard}>
+              <View style={createSessionChoiceSt.liveCardHeader}>
+                <View style={createSessionChoiceSt.liveIcon}>
+                  <Ionicons name="radio-outline" size={20} color={C.brand} />
+                </View>
+                <View style={st.flex1}>
+                  <Text style={createSessionChoiceSt.liveTitle}>Record this tour live</Text>
+                  <Text style={createSessionChoiceSt.liveCopy}>Capture the conversation and follow the transcript as it happens.</Text>
+                </View>
+              </View>
+              <View style={createSessionChoiceSt.liveFeatures}>
+                <View style={createSessionChoiceSt.liveFeature}>
+                  <Ionicons name="timer-outline" size={15} color={C.textSec} />
+                  <Text style={createSessionChoiceSt.liveFeatureText}>3-second countdown</Text>
+                </View>
+                <View style={createSessionChoiceSt.liveFeature}>
+                  <Ionicons name="text-outline" size={15} color={C.textSec} />
+                  <Text style={createSessionChoiceSt.liveFeatureText}>Live transcription</Text>
+                </View>
+              </View>
+            </View>
+
             <AgentIdentityToggle
               selected={uploaderIsAgent}
               agentName={agentName}
@@ -3293,18 +3981,50 @@ function CreateSessionScreen({
                 void Haptics.selectionAsync();
               }}
             />
-            <PrimaryBtn label="Record Audio" onPress={startRecording} icon="mic-outline" disabled={!createOptionsReady} />
-            <Pressable onPress={pickFile} disabled={!createOptionsReady} style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}>
-              <Ionicons name="document-attach-outline" size={18} color={C.textSec} />
-              <Text style={st.outlineBtnText}>Upload One File</Text>
-            </Pressable>
-            <Pressable onPress={onBulkUpload} disabled={!createOptionsReady} style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}>
-              <Ionicons name="copy-outline" size={18} color={C.textSec} />
-              <Text style={st.outlineBtnText}>Bulk Upload Files</Text>
-            </Pressable>
+
+            <View style={createSessionChoiceSt.uploadHeading}>
+              <Text style={createSessionChoiceSt.uploadTitle}>Already recorded the tour?</Text>
+              <Text style={createSessionChoiceSt.uploadCopy}>Upload audio or video to create a review.</Text>
+            </View>
+            <View style={createSessionChoiceSt.importList}>
+              <Pressable onPress={pickFile} disabled={!createOptionsReady} style={({ pressed }) => [createSessionChoiceSt.importRow, pressed && st.pressed]}>
+                <View style={createSessionChoiceSt.importIcon}>
+                  <Ionicons name="cloud-upload-outline" size={19} color={C.textSec} />
+                </View>
+                <View style={st.flex1}>
+                  <Text style={createSessionChoiceSt.importTitle}>Upload one recording</Text>
+                  <Text style={createSessionChoiceSt.importCopy}>Choose one audio or video file</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
+              </Pressable>
+              <View style={createSessionChoiceSt.importDivider} />
+              <Pressable onPress={onBulkUpload} disabled={!createOptionsReady} style={({ pressed }) => [createSessionChoiceSt.importRow, pressed && st.pressed]}>
+                <View style={createSessionChoiceSt.importIcon}>
+                  <Ionicons name="copy-outline" size={19} color={C.textSec} />
+                </View>
+                <View style={st.flex1}>
+                  <Text style={createSessionChoiceSt.importTitle}>Upload multiple recordings</Text>
+                  <Text style={createSessionChoiceSt.importCopy}>Create a separate session for each file</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
+              </Pressable>
+            </View>
           </View>
+        </ScrollView>
+
+        <View style={[createSessionChoiceSt.bottomDock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <MotionPressable
+            accessibilityRole="button"
+            accessibilityLabel="Start recording"
+            disabled={!createOptionsReady}
+            haptic="medium"
+            onPress={startRecording}
+            style={createSessionChoiceSt.startRecordingButton}
+          >
+            <Ionicons name="mic" size={28} color="#fff" />
+          </MotionPressable>
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
@@ -3434,6 +4154,33 @@ const createSessionTabsSt = StyleSheet.create({
   labelActive: { color: C.brand },
 });
 
+const createSessionChoiceSt = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
+  scroll: { paddingTop: 18, paddingBottom: 18 },
+  header: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 12 },
+  backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  pageTitle: { color: C.text, fontSize: 26, lineHeight: 32, fontWeight: "900" },
+  liveCard: { gap: 15, padding: 16, borderWidth: 1, borderColor: C.border, borderRadius: 14, backgroundColor: C.card },
+  liveCardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  liveIcon: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.brand + "10" },
+  liveTitle: { color: C.text, fontSize: 16, lineHeight: 21, fontWeight: "900" },
+  liveCopy: { marginTop: 3, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600" },
+  liveFeatures: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  liveFeature: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: "#f4f6f9" },
+  liveFeatureText: { color: C.textSec, fontSize: 10, fontWeight: "800" },
+  uploadHeading: { gap: 2, marginTop: 4 },
+  uploadTitle: { color: C.text, fontSize: 15, lineHeight: 20, fontWeight: "900" },
+  uploadCopy: { color: C.textSec, fontSize: 11, lineHeight: 16, fontWeight: "600" },
+  importList: { overflow: "hidden", borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  importRow: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 13, paddingVertical: 9 },
+  importIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#f1f5f9" },
+  importTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  importCopy: { marginTop: 2, color: C.textSec, fontSize: 11, lineHeight: 15, fontWeight: "600" },
+  importDivider: { height: StyleSheet.hairlineWidth, marginLeft: 60, backgroundColor: C.border },
+  bottomDock: { alignItems: "center", paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border, backgroundColor: C.card },
+  startRecordingButton: { width: 72, height: 72, alignItems: "center", justifyContent: "center", borderRadius: 36, borderWidth: 5, borderColor: "#dbeafe", backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.24, shadowRadius: 14, elevation: 5 },
+});
+
 function AgentIdentityToggle({
   selected,
   agentName,
@@ -3447,6 +4194,9 @@ function AgentIdentityToggle({
 }) {
   return (
     <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: selected, disabled }}
+      accessibilityLabel="I am the leasing agent"
       onPress={onToggle}
       disabled={disabled}
       style={({ pressed }) => [
@@ -3456,17 +4206,22 @@ function AgentIdentityToggle({
         disabled && { opacity: 0.6 },
       ]}
     >
-      <View style={[st.agentToggleCheck, selected && st.agentToggleCheckSelected]}>
-        {selected ? <Ionicons name="checkmark" size={14} color="white" /> : null}
-      </View>
       <View style={st.flex1}>
-        <Text style={st.agentToggleTitle}>I am the leasing agent</Text>
+        <Text style={st.agentToggleTitle}>{selected ? "You’re the leasing agent" : "Identify the agent from audio"}</Text>
         <Text style={st.agentToggleCopy}>
           {selected
-            ? `Use ${agentName?.trim() || "my profile name"} for this session.`
-            : "Leave unchecked to let AI identify the agent from audio."}
+            ? `Use ${agentName?.trim() || "your profile name"} for this session.`
+            : "Tour will assign the speakers after upload."}
         </Text>
       </View>
+      <Switch
+        pointerEvents="none"
+        value={selected}
+        disabled={disabled}
+        trackColor={{ false: "#d0d5dd", true: C.brand }}
+        thumbColor="#fff"
+        ios_backgroundColor="#d0d5dd"
+      />
     </Pressable>
   );
 }
@@ -3612,7 +4367,8 @@ function transcriptAnnotationChipIcon(kind: TranscriptAnnotation["kind"]): keyof
 }
 
 function transcriptAnnotationChipColor(kind: TranscriptAnnotation["kind"]) {
-  return kind === "ai_note" ? C.purple : C.brand;
+  void kind;
+  return C.brand;
 }
 
 function SampleSessionDetailScreen({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
@@ -3641,6 +4397,7 @@ function SampleSessionDetailScreen({ sessionId, onBack }: { sessionId: string; o
       comments={[]}
       actions={sample.actions}
       audioInsights={null}
+      audioInsightsStatus="unavailable"
       sessionId={sessionId}
       onBack={onBack}
       onReload={() => void sampleQuery.refetch()}
@@ -3653,38 +4410,34 @@ function SampleSessionDetailScreen({ sessionId, onBack }: { sessionId: string; o
   );
 }
 
-function CheckedInVisitorsCard({
-  leads,
-  description,
-}: {
-  leads: SessionSummary["leads"];
-  description: string;
-}) {
+function CheckedInVisitorsCard({ leads }: { leads: SessionSummary["leads"] }) {
+  const visibleLeads = leads.slice(0, 3);
+  const names = leads.map((lead) => lead.name.trim()).filter(Boolean);
+  const namesLabel = names.length <= 2
+    ? names.join(" & ")
+    : `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
+  const visitorLabel = `${leads.length} ${leads.length === 1 ? "visitor" : "visitors"} checked in`;
+
   return (
-    <View style={st.checkedInCard}>
-      <View style={st.checkedInHeader}>
-        <View style={st.checkedInIcon}>
-          <Ionicons name="people" size={18} color={C.green} />
-        </View>
-        <View style={st.flex1}>
-          <Text style={st.checkedInTitle}>Checked in</Text>
-          <Text style={st.checkedInSubtitle}>{description}</Text>
-        </View>
-      </View>
-      {leads.map((lead) => (
-        <View key={`${lead.createdAt}-${lead.email ?? ""}-${lead.phone ?? ""}`} style={st.checkedInPerson}>
-          <View style={st.checkedInAvatar}>
+    <Reanimated.View entering={FadeInDown.duration(220)} style={st.checkedInCard}>
+      <View style={st.checkedInAvatars}>
+        {visibleLeads.map((lead, index) => (
+          <View
+            key={`${lead.createdAt}-${lead.email ?? ""}-${lead.phone ?? ""}`}
+            style={[st.checkedInAvatar, index > 0 && st.checkedInAvatarOverlap, { zIndex: visibleLeads.length - index }]}
+          >
             <Text style={st.checkedInAvatarText}>{lead.name.slice(0, 1).toUpperCase()}</Text>
           </View>
-          <View style={st.flex1}>
-            <Text style={st.checkedInName}>{lead.name}</Text>
-            <Text style={st.checkedInContact} numberOfLines={1}>
-              {[lead.email, lead.phone].filter(Boolean).join(" · ") || lead.reason || "Contact details pending"}
-            </Text>
-          </View>
-        </View>
-      ))}
-    </View>
+        ))}
+      </View>
+      <View style={st.flex1}>
+        <Text style={st.checkedInName} numberOfLines={1}>{namesLabel || "Visitor ready"}</Text>
+        <Text style={st.checkedInContact}>{visitorLabel} · Ready to begin</Text>
+      </View>
+      <View style={st.checkedInState}>
+        <Ionicons name="checkmark" size={15} color={C.green} />
+      </View>
+    </Reanimated.View>
   );
 }
 
@@ -3763,7 +4516,7 @@ function SessionDetailScreen({
   }, [analysis, analysisQuery, session, sessionQuery]);
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
 
-  if (loading && !session) return <SessionReviewSkeleton onBack={onBack} />;
+  if (loading && !session) return <SessionLiveSkeleton onBack={onBack} />;
 
   if (!session) return (
     <View style={[st.flex1, st.center, { gap: 12 }]}>
@@ -3774,9 +4527,13 @@ function SessionDetailScreen({
   );
 
   const hasAnalysis = !!analysis;
+  const reviewIsLoading = !analysis
+    && analysisQuery.isLoading
+    && (session.status === "analysis_ready" || session.status === "reviewed");
   const sc = STATUS_COLORS[session.status] ?? { bg: "#eaf4ff", text: C.brand };
   const sl = STATUS_LABELS[session.status] ?? session.status;
   const isProcessable = ["uploaded", "failed"].includes(session.status);
+  const sessionPeopleTitle = displaySessionTitle(session);
 
   if (hasAnalysis) {
     return (
@@ -3788,28 +4545,29 @@ function SessionDetailScreen({
         comments={comments}
         actions={actions}
         audioInsights={audioInsights}
+        audioInsightsStatus={audioInsightsStatus}
         sessionId={sessionId}
         onBack={onBack}
         onReload={load}
-        onOpenComments={() =>
-          onOpenComments({
-            sessionId,
-            sessionTitle: session.title,
-          })
-        }
-        onOpenAiChat={() =>
-          onOpenAiChat({
-            sessionId,
-            sessionTitle: session.title,
-            prospectName: session.prospectName ?? undefined,
-          })
-        }
-        onOpenAudioInsights={() =>
-          onOpenAudioInsights({
-            sessionId,
-            sessionTitle: session.title,
-            initialStatus: audioInsightsStatus,
-            initialInsights: audioInsights,
+          onOpenComments={() =>
+            onOpenComments({
+              sessionId,
+              sessionTitle: sessionPeopleTitle,
+            })
+          }
+          onOpenAiChat={() =>
+            onOpenAiChat({
+              sessionId,
+              sessionTitle: sessionPeopleTitle,
+              prospectName: session.prospectName ?? undefined,
+            })
+          }
+          onOpenAudioInsights={() =>
+            onOpenAudioInsights({
+              sessionId,
+              sessionTitle: sessionPeopleTitle,
+              initialStatus: audioInsightsStatus,
+              initialInsights: audioInsights,
           })
         }
         onOpenReport={() => onOpenReport(sessionId)}
@@ -3817,28 +4575,34 @@ function SessionDetailScreen({
     );
   }
 
+  if (reviewIsLoading) return <SessionReviewSkeleton onBack={onBack} />;
+
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
+    <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={[st.scroll, liveSessionSt.pageScroll]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
       <View style={st.page}>
         {error && <ErrorBanner message={error instanceof Error ? error.message : "Failed to load session"} onRetry={load} />}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <BackBtn label="Sessions" onPress={onBack} />
+          <MotionPressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to sessions"
+            onPress={onBack}
+            style={liveSessionSt.backAction}
+          >
+            <Ionicons name="arrow-back" size={20} color={C.text} />
+          </MotionPressable>
           <View style={st.flex1} />
           <View style={[st.badge, { backgroundColor: sc.bg }]}><Text style={[st.badgeText, { color: sc.text }]}>{sl}</Text></View>
         </View>
 
-        <Text style={st.detailTitle}>{session.title}</Text>
+        <Text style={st.detailTitle}>{sessionPeopleTitle}</Text>
         <View style={{ gap: 3 }}>
           {session.scheduledAt && <DetailMeta icon="calendar-outline" text={`${fmtDate(session.scheduledAt)} ${fmtTime(session.scheduledAt)}`} />}
-          {session.prospectName && <DetailMeta icon="person-outline" text={session.prospectName} />}
+          {session.prospectName && !(session.leads?.length ?? 0) && <DetailMeta icon="person-outline" text={session.prospectName} />}
           {session.location && <DetailMeta icon="location-outline" text={session.location} />}
         </View>
 
         {(session.leads?.length ?? 0) > 0 ? (
-          <CheckedInVisitorsCard
-            leads={session.leads ?? []}
-            description={`${session.leads?.length} ${(session.leads?.length ?? 0) === 1 ? "visitor" : "visitors"} ready for this tour`}
-          />
+          <CheckedInVisitorsCard leads={session.leads ?? []} />
         ) : null}
 
         {/* Upload / Process section for non-analyzed sessions */}
@@ -3851,6 +4615,8 @@ function SessionDetailScreen({
             prospectName={session.prospectName}
             agentName={session.agentName}
             propertyName={session.location || session.title}
+            hasRecording={Boolean(session.audioUrl || session.videoUrl)}
+            processingError={session.analysisWorkflowError}
             autoStartRecording={autoStartRecording}
             initialNotes={session.notes}
             initialLeads={session.leads ?? []}
@@ -3890,6 +4656,46 @@ function SessionDetailScreen({
   );
 }
 
+type TranscriptSpeakerRole = "agent" | "prospect" | "other";
+
+function transcriptSpeakerRole(
+  speaker: string | null | undefined,
+  agentName: string | null | undefined,
+  prospectName: string | null | undefined,
+  corroboratingSpeaker?: string | null,
+): TranscriptSpeakerRole {
+  if (isAgentSpeakerLabel(speaker)) return "agent";
+  if (isProspectSpeakerLabel(speaker)) return "prospect";
+  if (isAgentSpeakerLabel(corroboratingSpeaker)) return "agent";
+  if (isProspectSpeakerLabel(corroboratingSpeaker)) return "prospect";
+
+  const normalized = (value: string | null | undefined) =>
+    value?.trim().replace(/^~\s*/, "").replace(/\s+/g, " ").toLowerCase() ?? "";
+  const candidate = normalized(speaker);
+  const corroboratingCandidate = normalized(corroboratingSpeaker);
+  const normalizedAgent = normalized(agentName);
+  const normalizedProspect = normalized(prospectName);
+  if ([candidate, corroboratingCandidate].includes(normalizedAgent) && normalizedAgent) return "agent";
+  if ([candidate, corroboratingCandidate].includes(normalizedProspect) && normalizedProspect) return "prospect";
+
+  // Lettered diarization is the common fallback for the primary two voices.
+  // Audio Insights remains the stronger signal above when it identified roles.
+  if (/^speaker\s*a$/i.test(candidate)) return "agent";
+  if (/^speaker\s*b$/i.test(candidate)) return "prospect";
+  return "other";
+}
+
+function transcriptSpeakerName(
+  role: TranscriptSpeakerRole,
+  rawSpeaker: string | null | undefined,
+  agentName: string | null,
+  prospectName: string | null,
+) {
+  if (role === "agent") return agentName ?? "Agent";
+  if (role === "prospect") return prospectName ?? "Prospect";
+  return rawSpeaker?.trim() || "Speaker";
+}
+
 function SessionReviewExperience({
   session,
   analysis,
@@ -3898,6 +4704,7 @@ function SessionReviewExperience({
   comments,
   actions,
   audioInsights,
+  audioInsightsStatus,
   sessionId,
   onBack,
   onReload,
@@ -3914,6 +4721,7 @@ function SessionReviewExperience({
   comments: SessionComment[];
   actions: FollowUpAction[];
   audioInsights: AudioInsights | null;
+  audioInsightsStatus: AudioInsightsStatus;
   sessionId: string;
   onBack: () => void;
   onReload: () => void;
@@ -3931,11 +4739,13 @@ function SessionReviewExperience({
   const [speed, setSpeed] = useState(1);
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(transcript[0]?.id ?? null);
   const [reviewMode, setReviewMode] = useState<SessionReviewMode>("transcript");
+  const [reviewTabDirection, setReviewTabDirection] = useState<SlideDirection>("forward");
   const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([]);
   const [commentComposerOpen, setCommentComposerOpen] = useState(false);
   const [selectionComment, setSelectionComment] = useState("");
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [transcriptSearchOpen, setTranscriptSearchOpen] = useState(false);
   const [followPlayback, setFollowPlayback] = useState(true);
   const [annotationSheet, setAnnotationSheet] = useState<{
     items: TranscriptAnnotation[];
@@ -3952,9 +4762,26 @@ function SessionReviewExperience({
   const followPlaybackRef = useRef(true);
   const longPressedSegmentRef = useRef<string | null>(null);
   const lastTranscriptTapRef = useRef<{ id: string; at: number } | null>(null);
+  const transcriptSearchRef = useRef<TextInput | null>(null);
+  const agentDisplayName = formatPersonName(session.agentName)
+    ?? formatPersonName(audioInsights?.participants?.agentName)
+    ?? formatPersonName(analysis.participantNames?.agentName);
+  const prospectDisplayName = formatPersonName(session.prospectName)
+    ?? formatPersonName(audioInsights?.participants?.prospectName)
+    ?? formatPersonName(analysis.participantNames?.prospectName);
 
   useEffect(() => { setLocalActions(actions); }, [actions]);
   useEffect(() => { reviewModeRef.current = reviewMode; }, [reviewMode]);
+
+  const changeReviewMode = useCallback((nextMode: SessionReviewMode) => {
+    const currentMode = reviewModeRef.current;
+    if (nextMode === currentMode) return;
+    const currentIndex = SESSION_REVIEW_MODE_ORDER.indexOf(currentMode);
+    const nextIndex = SESSION_REVIEW_MODE_ORDER.indexOf(nextMode);
+    setReviewTabDirection(nextIndex >= currentIndex ? "forward" : "back");
+    reviewModeRef.current = nextMode;
+    setReviewMode(nextMode);
+  }, []);
   useEffect(() => { followPlaybackRef.current = followPlayback; }, [followPlayback]);
 
   const scrollToSegment = useCallback((segment: any, animated = true) => {
@@ -4048,11 +4875,6 @@ function SessionReviewExperience({
   }
 
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
-  const focusSection = useMemo(() => {
-    const sections = analysis.sectionScores;
-    if (!sections.length) return null;
-    return sections.reduce((min, sec) => (sec.score < min.score ? sec : min)).section;
-  }, [analysis.sectionScores]);
   const coachingMoments = useMemo(() => {
     return analysis.exactMoments
       .map((moment, index) => ({
@@ -4086,51 +4908,33 @@ function SessionReviewExperience({
     const end = Math.max(...selectedSegments.map((segment) => segment.endTime));
     return { start, end };
   }, [selectedSegments]);
+  const emotionByTranscriptId = useMemo(
+    () => matchAudioInsightsToTranscript(transcript, audioInsights?.segments),
+    [audioInsights?.segments, transcript],
+  );
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return [];
-    return transcript.filter((segment) =>
-      segment.text?.toLowerCase().includes(query) ||
-      segment.speaker?.toLowerCase().includes(query)
-    );
-  }, [searchQuery, transcript]);
-  const audioSignalsBySegment = useMemo(() => {
-    const signals = new Map<string, { emotion: string; energy: string; ambience: string | null }>();
-    const insightSegments = audioInsights?.segments ?? [];
-    const ambienceCues = audioInsights?.ambienceCues ?? [];
-    if (insightSegments.length === 0) return signals;
-
-    for (const segment of transcript) {
-      let closest: (typeof insightSegments)[number] | null = null;
-      let closestDistance = Number.POSITIVE_INFINITY;
-      let largestOverlap = 0;
-
-      for (const insight of insightSegments) {
-        const overlap = Math.max(0, Math.min(segment.endTime, insight.endTime) - Math.max(segment.startTime, insight.startTime));
-        const distance = overlap > 0
-          ? 0
-          : Math.max(insight.startTime - segment.endTime, segment.startTime - insight.endTime, 0);
-        if (overlap > largestOverlap || (overlap === largestOverlap && distance < closestDistance)) {
-          closest = insight;
-          largestOverlap = overlap;
-          closestDistance = distance;
-        }
-      }
-
-      if (!closest || (largestOverlap === 0 && closestDistance > 3)) continue;
-      const ambience = ambienceCues.find((cue) =>
-        cue.startTime <= segment.endTime && cue.endTime >= segment.startTime,
-      )?.label ?? null;
-      signals.set(segment.id, {
-        emotion: closest.emotion,
-        energy: closest.energy,
-        ambience,
-      });
-    }
-
-    return signals;
-  }, [audioInsights, transcript]);
-
+    return transcript.filter((segment) => {
+      const signal = emotionByTranscriptId.get(segment.id);
+      const role = transcriptSpeakerRole(
+        segment.speaker,
+        agentDisplayName,
+        prospectDisplayName,
+        signal?.speaker,
+      );
+      const displayName = transcriptSpeakerName(
+        role,
+        segment.speaker,
+        agentDisplayName,
+        prospectDisplayName,
+      );
+      return segment.text?.toLowerCase().includes(query)
+        || segment.speaker?.toLowerCase().includes(query)
+        || displayName.toLowerCase().includes(query)
+        || role.includes(query);
+    });
+  }, [agentDisplayName, emotionByTranscriptId, prospectDisplayName, searchQuery, transcript]);
   function beginSegmentSelection(segmentId: string) {
     impactHaptic();
     longPressedSegmentRef.current = segmentId;
@@ -4174,12 +4978,16 @@ function SessionReviewExperience({
     );
   }
 
-  function openTranscriptAtSegment(segment: any) {
-    reviewModeRef.current = "transcript";
-    setReviewMode("transcript");
-    setPlaybackFollowing(true);
-    void seekToSeconds(segment.startTime, true);
-    requestAnimationFrame(() => scrollToSegment(segment));
+  function openTranscriptSearch() {
+    setPlaybackFollowing(false);
+    setTranscriptSearchOpen(true);
+    requestAnimationFrame(() => transcriptSearchRef.current?.focus());
+  }
+
+  function closeTranscriptSearch() {
+    Keyboard.dismiss();
+    setSearchQuery("");
+    setTranscriptSearchOpen(false);
   }
 
   async function saveSelectionComment() {
@@ -4233,14 +5041,17 @@ function SessionReviewExperience({
 
   function openSessionMoreMenu() {
     Alert.alert("Session options", undefined, [
+      { text: "Ask Tour AI", onPress: onOpenAiChat },
+      { text: "View report", onPress: onOpenReport },
       { text: comments.length > 0 ? `Comments (${comments.length})` : "Comments", onPress: onOpenComments },
       { text: "Audio insights", onPress: onOpenAudioInsights },
+      { text: "Coaching", onPress: () => changeReviewMode("coaching") },
       { text: "Cancel", style: "cancel" },
     ]);
   }
 
-  const transcriptGroups = useMemo(() => {
-    if (!transcript.length) return [] as Array<{ id: string; label: string; startTime: number; color: string; segments: any[] }>;
+  const transcriptGroups = useMemo<Array<{ id: string; label: string; startTime: number; color: string; segments: any[] }>>(() => {
+    if (!transcript.length) return [];
     if (!phases?.spans.length) {
       return [{ id: "all", label: "Transcript", startTime: transcript[0]?.startTime ?? 0, color: C.brand, segments: transcript }];
     }
@@ -4257,6 +5068,83 @@ function SessionReviewExperience({
       })
       .filter((group) => group.segments.length > 0);
   }, [phases, transcript]);
+  const visibleTranscriptGroups = useMemo(() => {
+    if (!searchQuery.trim()) return transcriptGroups;
+    const matchingIds = new Set(searchResults.map((segment) => segment.id));
+    return transcriptGroups
+      .map((group) => ({
+        ...group,
+        segments: group.segments.filter((segment) => matchingIds.has(segment.id)),
+      }))
+      .filter((group) => group.segments.length > 0);
+  }, [searchQuery, searchResults, transcriptGroups]);
+
+  const [activePhaseId, setActivePhaseId] = useState<string | null>(null);
+  const activeTranscriptGroup = useMemo(
+    () => transcriptGroups.find((group) => group.id === activePhaseId) ?? transcriptGroups[0] ?? null,
+    [activePhaseId, transcriptGroups],
+  );
+  const activePhaseMomentCount = useMemo(() => {
+    if (!activeTranscriptGroup) return 0;
+    return coachingMoments.filter((moment) =>
+      moment.seconds != null &&
+      moment.seconds >= activeTranscriptGroup.startTime &&
+      moment.seconds < (transcriptGroups[transcriptGroups.indexOf(activeTranscriptGroup) + 1]?.startTime ?? Number.POSITIVE_INFINITY),
+    ).length;
+  }, [activeTranscriptGroup, coachingMoments, transcriptGroups]);
+  const activePhaseAnnotations = useMemo<TranscriptAnnotation[]>(() => {
+    if (!activeTranscriptGroup) return [];
+    const activeIndex = transcriptGroups.indexOf(activeTranscriptGroup);
+    const endTime = transcriptGroups[activeIndex + 1]?.startTime ?? Number.POSITIVE_INFINITY;
+    return coachingMoments
+      .filter((moment) => moment.seconds != null && moment.seconds >= activeTranscriptGroup.startTime && moment.seconds < endTime)
+      .map((moment) => ({
+        id: moment.id,
+        kind: "ai_note" as const,
+        title: "AI coaching note",
+        body: [
+          moment.explanation,
+          moment.suggestedImprovement ? `Try: ${moment.suggestedImprovement}` : null,
+        ].filter(Boolean).join("\n\n"),
+        timestampSec: moment.seconds,
+      }));
+  }, [activeTranscriptGroup, coachingMoments, transcriptGroups]);
+
+  useEffect(() => {
+    setActivePhaseId((current) =>
+      current && transcriptGroups.some((group) => group.id === current)
+        ? current
+        : transcriptGroups[0]?.id ?? null,
+    );
+  }, [transcriptGroups]);
+
+  useEffect(() => {
+    if (!playing || transcriptGroups.length === 0) return;
+    const next = transcriptGroups.reduce(
+      (current, group) => (group.startTime <= position ? group : current),
+      transcriptGroups[0]!,
+    );
+    setActivePhaseId((current) => (current === next.id ? current : next.id));
+  }, [playing, position, transcriptGroups]);
+
+  function updateActivePhaseForScroll(scrollY: number) {
+    if (reviewModeRef.current !== "transcript" || transcriptGroups.length === 0) return;
+    const anchor = scrollY + 148;
+    let next = transcriptGroups[0]!;
+    for (const group of transcriptGroups) {
+      const phaseTop = tabBodyY.current + (phaseY.current[group.id] ?? Number.POSITIVE_INFINITY);
+      if (phaseTop <= anchor) next = group;
+    }
+    setActivePhaseId((current) => (current === next.id ? current : next.id));
+  }
+
+  const reviewGuestName = session.prospectName?.trim().split(/\s+/)[0] ?? null;
+  const reviewTitle = reviewGuestName ? `${reviewGuestName}'s tour` : session.title;
+  const reviewSubtitle = [
+    session.agentName ? `with ${session.agentName}` : null,
+    duration ? fmtSec(duration) : null,
+    session.location || null,
+  ].filter(Boolean).join(" · ");
 
   return (
     <View style={reviewSt.root}>
@@ -4270,6 +5158,7 @@ function SessionReviewExperience({
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[1]}
         scrollEventThrottle={16}
+        onScroll={(event) => updateActivePhaseForScroll(event.nativeEvent.contentOffset.y)}
         onScrollBeginDrag={() => {
           if (reviewMode === "transcript") {
             userDragging.current = true;
@@ -4282,47 +5171,63 @@ function SessionReviewExperience({
         <View>
           <TourScreenHeader
             onBack={onBack}
-            title={session.title}
-            subtitle={[
-              session.prospectName || "Recorded tour",
-              duration ? fmtSec(duration) : null,
-              `${analysis.overallScore}% score`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+            title={reviewTitle}
+            subtitle={reviewSubtitle || "Recorded tour"}
             onMorePress={readOnly ? undefined : openSessionMoreMenu}
             moreAccessibilityLabel="Session options"
           />
-          {!readOnly ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open PDF report"
-              onPress={onOpenReport}
-              style={({ pressed }) => [reviewSt.reportCta, pressed && st.pressed]}
-            >
-              <View style={reviewSt.reportCtaIcon}><Ionicons name="document-text-outline" size={20} color={C.brand} /></View>
-              <View style={st.flex1}>
-                <Text style={reviewSt.reportCtaTitle}>PDF report</Text>
-                <Text style={reviewSt.reportCtaSub}>Preview, share, save, or choose an analysis version</Text>
-              </View>
-              <Ionicons name="arrow-forward" size={18} color={C.brand} />
-            </Pressable>
+          <SessionReviewSnapshot
+            score={analysis.overallScore}
+            onOpenRubric={() => changeReviewMode("rubric")}
+          />
+          {audioInsights?.segments.length ? (
+            <SessionSentimentTimeline
+              segments={audioInsights.segments}
+              overallSentiment={audioInsights.overallSentiment}
+              conversationStats={audioInsights.conversationStats}
+              duration={duration}
+              currentTime={position}
+              onPress={onOpenAudioInsights}
+            />
           ) : null}
         </View>
 
         <View style={reviewSt.tabSticky}>
           <SessionModeTabs
             value={reviewMode}
-            modes={readOnly ? ["rubric", "prospect", "transcript", "search", "coaching"] : undefined}
+            modes={["transcript", "rubric", "prospect"]}
             commentCount={comments.filter((comment) => !comment.parentId).length}
             onChange={(mode) => {
               if (mode === "ai") {
                 onOpenAiChat();
                 return;
               }
-              setReviewMode(mode);
+              if (mode !== "transcript") closeTranscriptSearch();
+              changeReviewMode(mode);
             }}
           />
+          {reviewMode === "transcript" && activeTranscriptGroup ? (
+            <TranscriptLandmark
+              label={activeTranscriptGroup.label}
+              timestamp={activeTranscriptGroup.startTime}
+              color={activeTranscriptGroup.color}
+              momentCount={activePhaseMomentCount}
+              searchOpen={transcriptSearchOpen}
+              onSearchPress={transcriptSearchOpen ? closeTranscriptSearch : openTranscriptSearch}
+              onOpenMoments={activePhaseAnnotations.length > 0
+                ? () => setAnnotationSheet({ items: activePhaseAnnotations, index: 0 })
+                : undefined}
+            />
+          ) : null}
+          {reviewMode === "transcript" && transcriptSearchOpen ? (
+            <TranscriptSearchInline
+              inputRef={transcriptSearchRef}
+              query={searchQuery}
+              resultCount={searchResults.length}
+              onChangeQuery={setSearchQuery}
+              onClose={closeTranscriptSearch}
+            />
+          ) : null}
         </View>
 
         <View
@@ -4331,7 +5236,7 @@ function SessionReviewExperience({
         >
         {readOnly ? (
           <View style={reviewSt.sampleReadOnlyBanner}>
-            <View style={reviewSt.sampleReadOnlyIcon}><Ionicons name="sparkles" size={16} color={C.purple} /></View>
+            <View style={reviewSt.sampleReadOnlyIcon}><Ionicons name="eye-outline" size={16} color={C.brand} /></View>
             <View style={st.flex1}>
               <Text style={reviewSt.sampleReadOnlyTitle}>40Fifty Lofts sample</Text>
               <Text style={reviewSt.sampleReadOnlySub}>Read only · Explore the scoring, coaching, audio, and transcript.</Text>
@@ -4339,99 +5244,23 @@ function SessionReviewExperience({
           </View>
         ) : null}
         {!readOnly && session.leads?.length > 0 ? (
-          <CheckedInVisitorsCard
-            leads={session.leads}
-            description={`${session.leads.length} ${session.leads.length === 1 ? "visitor" : "visitors"} joined this session`}
-          />
+          <CheckedInVisitorsCard leads={session.leads} />
         ) : null}
         {reviewMode === "rubric" && (
-          <AnimatedTabContent tabKey="rubric">
-            <View style={{ gap: 12 }}>
-              {focusSection ? (
-                <View style={reviewSt.focusBanner}>
-                  <Text style={reviewSt.focusBannerLabel}>Focus area</Text>
-                  <Text style={reviewSt.focusBannerValue}>{focusSection}</Text>
-                </View>
-              ) : null}
-              <RubricTab analysis={analysis} />
-              <CollapsibleSection title="Analysis summary">
-                <Text style={{ fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 21 }}>
-                  {analysis.summary}
-                </Text>
-              </CollapsibleSection>
-              {analysis.strengths.length > 0 ? (
-                <CollapsibleSection
-                  title="Strengths"
-                  defaultOpen={analysis.overallScore >= 70}
-                >
-                  {analysis.strengths.map((strength, index) => (
-                    <BulletItem key={index} text={strength} color={C.textSec} />
-                  ))}
-                </CollapsibleSection>
-              ) : null}
-            </View>
+          <AnimatedTabContent tabKey="rubric" direction={reviewTabDirection}>
+            <RubricTab analysis={analysis} />
           </AnimatedTabContent>
         )}
         {reviewMode === "prospect" && (
-          <AnimatedTabContent tabKey="prospect">
+          <AnimatedTabContent tabKey="prospect" direction={reviewTabDirection}>
             <ProspectInsightsCard
               analysis={analysis}
               providedInterests={session.customerInterests ?? []}
             />
           </AnimatedTabContent>
         )}
-        {reviewMode === "search" && (
-          <AnimatedTabContent tabKey="search">
-            <View style={reviewSt.searchPanel}>
-              <View style={reviewSt.searchInputWrap}>
-                <Ionicons name="search" size={18} color={C.textMuted} />
-                <TextInput
-                  autoFocus
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Search transcript or speaker"
-                  placeholderTextColor={C.textMuted}
-                  returnKeyType="search"
-                  style={reviewSt.searchInput}
-                />
-                {searchQuery ? (
-                  <Pressable onPress={() => setSearchQuery("")} hitSlop={10}>
-                    <Ionicons name="close-circle" size={18} color={C.textMuted} />
-                  </Pressable>
-                ) : null}
-              </View>
-              {!searchQuery.trim() ? (
-                <Text style={reviewSt.searchHint}>Search names, phrases, questions, or moments from this session.</Text>
-              ) : searchResults.length === 0 ? (
-                <EmptyState icon="search-outline" title="No matches" subtitle="Try another word or phrase." />
-              ) : (
-                <View style={reviewSt.searchResults}>
-                  <Text style={reviewSt.searchCount}>{searchResults.length} result{searchResults.length === 1 ? "" : "s"}</Text>
-                  {searchResults.map((segment) => (
-                    <Pressable
-                      key={segment.id}
-                      onPress={() => openTranscriptAtSegment(segment)}
-                      style={reviewSt.searchResult}
-                    >
-                      <View style={reviewSt.searchResultIcon}>
-                        <Ionicons name="play" size={13} color={C.brand} />
-                      </View>
-                      <View style={st.flex1}>
-                        <View style={reviewSt.searchResultMeta}>
-                          <Text style={reviewSt.searchResultSpeaker}>{segment.speaker}</Text>
-                          <Text style={reviewSt.searchResultTime}>{fmtSec(segment.startTime)}</Text>
-                        </View>
-                        <Text style={reviewSt.searchResultText} numberOfLines={3}>{segment.text}</Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-          </AnimatedTabContent>
-        )}
         {reviewMode === "coaching" && (
-          <AnimatedTabContent tabKey="coaching">
+          <AnimatedTabContent tabKey="coaching" direction={reviewTabDirection}>
             <ActionsTab
               actions={localActions}
               sessionId={sessionId}
@@ -4442,38 +5271,60 @@ function SessionReviewExperience({
           </AnimatedTabContent>
         )}
         {reviewMode === "comments" && (
-          <AnimatedTabContent tabKey="comments">
+          <AnimatedTabContent tabKey="comments" direction={reviewTabDirection}>
             <CommentsTab comments={comments} sessionId={sessionId} onUpdate={onReload} />
           </AnimatedTabContent>
         )}
-        {reviewMode === "transcript" && transcript.length === 0 && (
-          <AnimatedTabContent tabKey="transcript-empty">
-            <EmptyState icon="chatbubble-outline" title="No transcript yet" subtitle="The transcript will appear after processing." />
-          </AnimatedTabContent>
-        )}
-        {reviewMode === "transcript" && transcript.length > 0 && (
-          <View style={reviewSt.commentHint}>
-            <Ionicons name="hand-left-outline" size={14} color={C.brand} />
-            <Text style={reviewSt.commentHintText}>
-              Long-press to select lines, or double-tap a line to comment at that timestamp.
-            </Text>
-          </View>
-        )}
-        {reviewMode === "transcript" && transcriptGroups.map((group) => (
-          <View
-            key={group.id}
-            style={reviewSt.phaseSection}
-            onLayout={(event) => { phaseY.current[group.id] = event.nativeEvent.layout.y; }}
-          >
-            <View style={reviewSt.phaseDivider}>
-              <View style={[reviewSt.phaseDividerLine, { backgroundColor: group.color }]} />
-              <Text style={[reviewSt.phaseDividerTitle, { color: group.color }]}>{group.label}</Text>
-              <Text style={reviewSt.phaseDividerTime}>{fmtSec(group.startTime)}</Text>
-            </View>
+        {reviewMode === "transcript" ? (
+          <AnimatedTabContent tabKey="transcript" direction={reviewTabDirection}>
+            {transcript.length === 0 ? (
+              <EmptyState icon="chatbubble-outline" title="No transcript yet" subtitle="The transcript will appear after processing." />
+            ) : null}
+            {searchQuery.trim() && searchResults.length === 0 ? (
+              <View style={reviewSt.transcriptSearchEmpty}>
+                <Ionicons name="search-outline" size={17} color={C.textMuted} />
+                <Text style={reviewSt.transcriptSearchEmptyText}>No matching moments</Text>
+              </View>
+            ) : null}
+            {visibleTranscriptGroups.map((group, groupIndex) => (
+              <View
+                key={group.id}
+                style={reviewSt.phaseSection}
+                onLayout={(event) => { phaseY.current[group.id] = event.nativeEvent.layout.y; }}
+              >
+            {groupIndex > 0 ? (
+              <View style={reviewSt.phaseDivider}>
+                <View style={reviewSt.phaseDividerRule} />
+                <View style={reviewSt.phaseDividerLabel}>
+                  <View style={[reviewSt.phaseDividerDot, { backgroundColor: group.color }]} />
+                  <Text style={[reviewSt.phaseDividerTitle, { color: group.color }]}>{group.label}</Text>
+                </View>
+                <Text style={reviewSt.phaseDividerTime}>{fmtSec(group.startTime)}</Text>
+              </View>
+            ) : null}
             {group.segments.map((segment, index) => {
               const active = segment.id === activeSegmentId;
               const selected = selectedSegmentIds.includes(segment.id);
-              const isAgent = segment.speaker?.toLowerCase().includes("agent");
+              const emotionSignal = emotionByTranscriptId.get(segment.id);
+              const speakerRole = transcriptSpeakerRole(
+                segment.speaker,
+                agentDisplayName,
+                prospectDisplayName,
+                emotionSignal?.speaker,
+              );
+              const isAgent = speakerRole === "agent";
+              const isProspect = speakerRole === "prospect";
+              const speakerName = transcriptSpeakerName(
+                speakerRole,
+                segment.speaker,
+                agentDisplayName,
+                prospectDisplayName,
+              );
+              const speakerRoleLabel = isAgent ? "Agent" : isProspect ? "Prospect" : null;
+              const showRoleLabel = Boolean(
+                speakerRoleLabel && speakerName.toLowerCase() !== speakerRoleLabel.toLowerCase(),
+              );
+              const speakerInitial = speakerName.replace(/^~\s*/, "").match(/[A-Za-z0-9]/)?.[0]?.toUpperCase() ?? "·";
               const prev = group.segments[index - 1];
               const showInitial = !prev || prev.speaker !== segment.speaker;
               const moments = coachingMoments.filter((moment) =>
@@ -4482,56 +5333,70 @@ function SessionReviewExperience({
                 moment.seconds < segment.endTime
               );
               const segmentComments = commentsBySegment.get(segment.id) ?? [];
-              const audioSignal = audioSignalsBySegment.get(segment.id);
               return (
                 <Reanimated.View
                   key={segment.id || index}
-                  entering={FadeInDown.delay(Math.min(index * 18, 180)).duration(240)}
                   onLayout={(event) => {
                     segmentY.current[segment.id] =
                       tabBodyY.current +
                       (phaseY.current[group.id] ?? 0) +
                       event.nativeEvent.layout.y;
                   }}
-                  style={[
-                    reviewSt.turnRow,
-                    active && reviewSt.turnRowActive,
-                    selected && reviewSt.turnRowSelected,
-                  ]}
+                  style={reviewSt.turnRow}
                 >
                   <Pressable
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
-                    accessibilityHint={readOnly ? "Tap to play from this timestamp." : "Tap to play from this timestamp. Long press to select transcript segments."}
+                    accessibilityHint={readOnly ? "Tap to play from this timestamp." : "Tap to play this timestamp, double tap to add a comment, or press and hold to select transcript segments."}
                     onLongPress={readOnly ? undefined : () => beginSegmentSelection(segment.id)}
                     delayLongPress={360}
                     onPress={() => handleTranscriptPress(segment)}
-                    style={reviewSt.turnMain}
+                    style={[
+                      reviewSt.turnMain,
+                      isAgent
+                        ? reviewSt.turnMainAgent
+                        : isProspect
+                          ? reviewSt.turnMainProspect
+                          : reviewSt.turnMainOther,
+                      active && reviewSt.turnMainActive,
+                      selected && reviewSt.turnMainSelected,
+                    ]}
                   >
                     <View style={reviewSt.turnInitialSlot}>
                       {showInitial && (
-                        <Text style={[reviewSt.turnInitial, { color: isAgent ? tourColors.agent : tourColors.prospect }]}>
-                          {isAgent ? "A" : "P"}
-                        </Text>
+                        <View style={[
+                          reviewSt.turnInitial,
+                          isAgent
+                            ? reviewSt.turnInitialAgent
+                            : isProspect
+                              ? reviewSt.turnInitialProspect
+                              : reviewSt.turnInitialOther,
+                        ]}>
+                          <Text style={[reviewSt.turnInitialText, { color: isAgent ? tourColors.agent : isProspect ? tourColors.prospect : C.textMuted }]}>
+                            {speakerInitial}
+                          </Text>
+                        </View>
                       )}
                     </View>
                     <View style={st.flex1}>
                       <View style={reviewSt.turnMeta}>
-                        <Text style={[reviewSt.turnSpeaker, { color: isAgent ? tourColors.agent : tourColors.prospect }]}>
-                          {segment.speaker || (isAgent ? "Agent" : "Prospect")}
+                        <Text
+                          style={[reviewSt.turnSpeaker, { color: isAgent ? tourColors.agent : isProspect ? tourColors.prospect : C.textMuted }]}
+                        >
+                          {speakerName}
                         </Text>
-                        <Text style={reviewSt.segmentTime}>{fmtSec(segment.startTime)}</Text>
+                        {showRoleLabel ? <Text style={reviewSt.turnRole}>· {speakerRoleLabel}</Text> : null}
+                        {emotionSignal ? (
+                          <Ionicons
+                            accessibilityLabel={`Emotional signal: ${emotionAccessibilityLabel(emotionSignal.emotion, emotionSignal.energy)}`}
+                            name={emotionIcon(emotionSignal.emotion)}
+                            size={14}
+                            color={emotionColor(emotionSignal.emotion)}
+                          />
+                        ) : null}
+                        <Text style={[reviewSt.segmentTime, active && reviewSt.segmentTimeActive]}>{fmtSec(segment.startTime)}</Text>
                       </View>
-                      <Text style={reviewSt.turnText}>{segment.text}</Text>
-                      {audioSignal ? (
-                        <View style={reviewSt.audioSignalRow}>
-                          <AudioSignalPill kind="emotion" value={audioSignal.emotion} />
-                          <AudioSignalPill kind="energy" value={audioSignal.energy} />
-                          {audioSignal.ambience ? (
-                            <AudioSignalPill kind="ambience" value={audioSignal.ambience} />
-                          ) : null}
-                        </View>
-                      ) : null}
+                      <Text style={[reviewSt.turnText, active && reviewSt.turnTextActive]}>{segment.text}</Text>
                     </View>
                   </Pressable>
                   {(() => {
@@ -4595,7 +5460,6 @@ function SessionReviewExperience({
                                 size={12}
                                 color={color}
                               />
-                              <Text style={[reviewSt.annotationText, { color }]}>{label}</Text>
                               <View style={[reviewSt.annotationCountBadge, { backgroundColor: color }]}>
                                 <Text style={reviewSt.annotationCountText}>{count > 99 ? "99+" : String(count)}</Text>
                               </View>
@@ -4608,8 +5472,10 @@ function SessionReviewExperience({
                 </Reanimated.View>
               );
             })}
-          </View>
-        ))}
+              </View>
+            ))}
+          </AnimatedTabContent>
+        ) : null}
         </View>
       </ScrollView>
 
@@ -4643,8 +5509,12 @@ function SessionReviewExperience({
             <Text style={reviewSt.selectionActionText}>Create clip</Text>
           </Pressable>
         </View>
-      ) : !readOnly ? (
-        <SessionAiFab onPress={onOpenAiChat} bottomOffset={Platform.OS === "ios" ? 118 : 104} />
+      ) : null}
+      {!readOnly && selectedSegmentIds.length === 0 ? (
+        <SessionAiFab
+          onPress={onOpenAiChat}
+          bottomOffset={reviewMode === "transcript" && !followPlayback ? 166 : 126}
+        />
       ) : null}
       <SessionPlayer
         position={position}
@@ -4678,7 +5548,7 @@ function SessionReviewExperience({
                   <View style={reviewSt.commentModalHeader}>
                     <View style={[
                       reviewSt.commentModalIcon,
-                      current.kind === "ai_note" && { backgroundColor: C.purple + "18" },
+                      current.kind === "ai_note" && { backgroundColor: C.aiBg },
                     ]}>
                       <Ionicons
                         name={
@@ -4689,7 +5559,7 @@ function SessionReviewExperience({
                               : "chatbubble-outline"
                         }
                         size={18}
-                        color={current.kind === "ai_note" ? C.purple : C.brand}
+                        color={current.kind === "ai_note" ? C.ai : C.brand}
                       />
                     </View>
                     <View style={st.flex1}>
@@ -4809,6 +5679,111 @@ function DetailMeta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text
   );
 }
 
+function SessionReviewSnapshot({
+  score,
+  onOpenRubric,
+}: {
+  score: number;
+  onOpenRubric: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open rubric review. ${score} out of 100.`}
+      onPress={onOpenRubric}
+      style={({ pressed }) => [reviewSt.reviewSnapshot, pressed && st.pressed]}
+    >
+      <Text selectable style={reviewSt.reviewScoreValue}>{score}</Text>
+      <Text style={reviewSt.reviewScoreUnit}>/100</Text>
+      <Text style={reviewSt.reviewScoreLabel}>Tour score</Text>
+      <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+    </Pressable>
+  );
+}
+
+function TranscriptLandmark({
+  label,
+  timestamp,
+  color,
+  momentCount,
+  searchOpen,
+  onSearchPress,
+  onOpenMoments,
+}: {
+  label: string;
+  timestamp: number;
+  color: string;
+  momentCount: number;
+  searchOpen: boolean;
+  onSearchPress: () => void;
+  onOpenMoments?: () => void;
+}) {
+  return (
+    <View style={reviewSt.transcriptLandmark} accessibilityLabel={`Current tour stage: ${label}`}>
+      <View style={[reviewSt.transcriptLandmarkDot, { backgroundColor: color }]} />
+      <Text numberOfLines={1} style={[reviewSt.transcriptLandmarkLabel, { color }]}>{label}</Text>
+      <Text style={reviewSt.transcriptLandmarkTime}>{fmtSec(timestamp)}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={searchOpen ? "Close transcript search" : "Search transcript"}
+        onPress={onSearchPress}
+        style={[reviewSt.transcriptLandmarkSearch, searchOpen && reviewSt.transcriptLandmarkSearchActive]}
+      >
+        <Ionicons name={searchOpen ? "close" : "search-outline"} size={15} color={searchOpen ? C.brand : C.textMuted} />
+      </Pressable>
+      {momentCount > 0 && onOpenMoments ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${momentCount} coaching moments in this stage`}
+          onPress={onOpenMoments}
+          style={reviewSt.transcriptLandmarkMoment}
+        >
+          <Ionicons name="sparkles" size={12} color={C.ai} />
+          <Text style={reviewSt.transcriptLandmarkMomentText}>{momentCount}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function TranscriptSearchInline({
+  inputRef,
+  query,
+  resultCount,
+  onChangeQuery,
+  onClose,
+}: {
+  inputRef: React.RefObject<TextInput | null>;
+  query: string;
+  resultCount: number;
+  onChangeQuery: (query: string) => void;
+  onClose: () => void;
+}) {
+  const hasQuery = Boolean(query.trim());
+  return (
+    <Reanimated.View entering={FadeInDown.duration(180)} exiting={FadeIn.duration(120)} style={reviewSt.transcriptSearchWrap}>
+      <View style={reviewSt.transcriptSearchInput}>
+        <Ionicons name="search" size={16} color={C.textMuted} />
+        <TextInput
+          ref={inputRef}
+          value={query}
+          onChangeText={onChangeQuery}
+          placeholder="Search transcript"
+          placeholderTextColor={C.textMuted}
+          returnKeyType="search"
+          style={reviewSt.transcriptSearchText}
+        />
+        {hasQuery ? (
+          <Text style={reviewSt.transcriptSearchCount}>{resultCount}</Text>
+        ) : null}
+        <Pressable accessibilityLabel="Close transcript search" onPress={onClose} hitSlop={10}>
+          <Ionicons name="close" size={17} color={C.textMuted} />
+        </Pressable>
+      </View>
+    </Reanimated.View>
+  );
+}
+
 function CoachingMomentCard({
   moment,
   onSeek,
@@ -4827,7 +5802,7 @@ function CoachingMomentCard({
   return (
     <MotionPressable onPress={onSeek} haptic="selection" entering={FadeInDown.duration(260).springify()} style={[reviewSt.coachingMoment, compact && reviewSt.coachingMomentCompact]}>
       <View style={reviewSt.coachingMomentHeader}>
-        <View style={reviewSt.coachingMomentIcon}><Ionicons name="flash" size={13} color={C.purple} /></View>
+        <View style={reviewSt.coachingMomentIcon}><Ionicons name="sparkles" size={13} color={C.ai} /></View>
         <Text style={reviewSt.coachingMomentKicker}>Coachable Moment</Text>
         <Text style={reviewSt.coachingMomentTime}>{moment.timestamp}</Text>
       </View>
@@ -4860,22 +5835,23 @@ function RubricPicker({
 }) {
   const selected = rubrics.find((rubric) => rubric.id === value);
   return (
-    <View>
-      <Text style={st.fieldLabel}>Evaluation rubric</Text>
-      <Pressable onPress={onToggle} style={({ pressed }) => [st.inputWrap, pressed && st.pressed]}>
-        <Ionicons name="clipboard-outline" size={18} color={C.textMuted} />
+    <View style={liveSessionSt.settingBlock}>
+      <Pressable onPress={onToggle} style={({ pressed }) => [liveSessionSt.settingAction, pressed && st.pressed]}>
+        <View style={liveSessionSt.settingIcon}>
+          <Ionicons name="clipboard-outline" size={18} color={C.textSec} />
+        </View>
         <View style={st.flex1}>
           <Text style={st.pickerValue} numberOfLines={1}>{selected?.name ?? "Select rubric"}</Text>
-          {selected && (
-            <Text style={st.pickerMeta}>
-              {rubricTotalPoints(selected.definition)} pts · {rubricItemCount(selected.definition)} items
-            </Text>
-          )}
+          <Text style={st.pickerMeta}>
+            {selected
+              ? `Evaluation rubric · ${rubricTotalPoints(selected.definition)} pts · ${rubricItemCount(selected.definition)} items`
+              : "Choose how this tour will be evaluated"}
+          </Text>
         </View>
         <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
       </Pressable>
       {open && (
-        <View style={st.pickerMenu}>
+        <View style={[st.pickerMenu, liveSessionSt.rubricMenu]}>
           {rubrics.map((rubric, index) => (
             <Pressable
               key={rubric.id}
@@ -4906,40 +5882,181 @@ function RubricPicker({
 function ProcessingTimeline({ status }: { status: string }) {
   const activeIndex = Math.max(0, SESSION_PROCESS_STEPS.findIndex((step) => step.id === status));
   const isComplete = status === "analysis_ready" || status === "reviewed";
+  const visibleIndex = isComplete ? SESSION_PROCESS_STEPS.length - 1 : activeIndex;
+  const activeStep = SESSION_PROCESS_STEPS[visibleIndex] ?? SESSION_PROCESS_STEPS[0];
+  const percent = isComplete ? 100 : ((visibleIndex + 1) / SESSION_PROCESS_STEPS.length) * 100;
 
   return (
     <View style={reviewSt.processingTimeline}>
-      {SESSION_PROCESS_STEPS.map((step, index) => {
-        const done = isComplete || index < activeIndex;
-        const active = !isComplete && index === activeIndex;
-        const color = done ? C.green : active ? C.brand : C.textMuted;
-        return (
-          <View key={step.id} style={reviewSt.processingStep}>
-            <View style={[reviewSt.processingStepIcon, active && reviewSt.processingStepIconActive, done && reviewSt.processingStepIconDone]}>
-              {active ? <PulseDot color={C.brand} /> : <Ionicons name={(done ? "checkmark" : step.icon) as any} size={16} color={color} />}
-            </View>
-            <Text style={[reviewSt.processingStepText, (active || done) && { color }]}>{step.label}</Text>
-          </View>
-        );
-      })}
+      <View style={reviewSt.processingProgressHeader}>
+        <View style={reviewSt.processingCurrentStep}>
+          {isComplete ? <Ionicons name="checkmark-circle" size={16} color={C.green} /> : <PulseDot color={C.brand} />}
+          <Text style={reviewSt.processingCurrentLabel}>{isComplete ? "Review ready" : activeStep.label}</Text>
+        </View>
+        <Text style={reviewSt.processingStepCount}>{isComplete ? "Complete" : `${visibleIndex + 1} of ${SESSION_PROCESS_STEPS.length}`}</Text>
+      </View>
+      <View style={reviewSt.processingTrack}>
+        <AnimatedProgressFill percent={percent} color={isComplete ? C.green : C.brand} />
+      </View>
+      <View style={reviewSt.processingLabels}>
+        <Text style={reviewSt.processingLabel}>Recording saved</Text>
+        <Text style={reviewSt.processingLabel}>Review ready</Text>
+      </View>
     </View>
   );
 }
 
-function processingTitle(status: string) {
-  switch (status) {
-    case "uploaded":
-      return "Preparing Your Tour";
-    case "transcribing":
-      return "Creating Transcript";
-    case "segmenting":
-      return "Organizing Tour Moments";
-    case "analyzing":
-      return "Scoring Conversation";
-    default:
-      return "Preparing Insights";
-  }
-}
+const liveSessionSt = StyleSheet.create({
+  pageScroll: {
+    paddingTop: 18,
+  },
+  backAction: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    backgroundColor: C.card,
+  },
+  root: {
+    gap: 16,
+    paddingTop: 2,
+  },
+  sectionLabel: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  recordingLaunch: {
+    alignItems: "center",
+    gap: 11,
+    paddingVertical: 12,
+  },
+  recordButtonHalo: {
+    width: 88,
+    height: 88,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 44,
+    backgroundColor: C.brand + "12",
+  },
+  recordButton: {
+    width: 64,
+    height: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 32,
+    backgroundColor: C.brand,
+    shadowColor: C.brand,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  readyCopyWrap: {
+    alignItems: "center",
+  },
+  readyTitle: {
+    color: C.text,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  readyCopy: {
+    marginTop: 3,
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  settingsList: {
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    backgroundColor: C.card,
+  },
+  settingBlock: {
+    backgroundColor: C.card,
+  },
+  settingAction: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+  },
+  settingIcon: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: "#f1f5f9",
+  },
+  settingDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 58,
+    backgroundColor: C.border,
+  },
+  rubricMenu: {
+    marginHorizontal: 10,
+    marginBottom: 10,
+  },
+  uploadAction: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+  },
+  uploadText: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  uploadMeta: {
+    marginTop: 2,
+    color: C.textSec,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  cancelAction: {
+    minHeight: 36,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  cancelText: {
+    color: C.red,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+});
+
+const analysisPendingSt = StyleSheet.create({
+  root: { gap: 16, paddingVertical: 8 },
+  headingRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  icon: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: C.aiBg },
+  title: { color: C.text, fontSize: 17, fontWeight: "900" },
+  copy: { marginTop: 3, color: C.textSec, fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  fileRow: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: C.border, borderRadius: 10, backgroundColor: C.card },
+  fileName: { flex: 1, color: C.textSec, fontSize: 12, fontWeight: "700" },
+  backgroundNote: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  backgroundCopy: { color: C.textMuted, fontSize: 11, lineHeight: 16, fontWeight: "600", textAlign: "center" },
+  errorRoot: { gap: 16, padding: 18, borderWidth: 1, borderColor: "#fecdca", borderRadius: 16, backgroundColor: "#fff" },
+  errorIcon: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: C.redBg },
+  errorTitle: { color: C.text, fontSize: 16, fontWeight: "900" },
+  errorCopy: { marginTop: 3, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600" },
+});
 
 // ═══════════════════════════════════════
 // Upload & Process Card
@@ -4953,6 +6070,8 @@ function UploadProcessCard({
   prospectName,
   agentName,
   propertyName,
+  hasRecording,
+  processingError,
   autoStartRecording = false,
   initialNotes,
   initialLeads,
@@ -4966,6 +6085,8 @@ function UploadProcessCard({
   prospectName?: string | null;
   agentName?: string | null;
   propertyName?: string | null;
+  hasRecording: boolean;
+  processingError?: string | null;
   autoStartRecording?: boolean;
   initialNotes?: string | null;
   initialLeads: SessionLead[];
@@ -4973,20 +6094,17 @@ function UploadProcessCard({
   onDone: () => void;
 }) {
   const rec = useRecording();
-  const [phase, setPhase] = useState<"idle" | "uploading" | "details" | "processing" | "done" | "error">(
+  const [phase, setPhase] = useState<"idle" | "uploading" | "processing" | "done" | "error">(
     PROCESSING_STATUSES.has(status) ? "processing" : "idle"
   );
   const [uploadStats, setUploadStats] = useState<UploadStats>(initialUploadStats());
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  const [errorKind, setErrorKind] = useState<"upload" | "processing" | null>(null);
+  const [errorKind, setErrorKind] = useState<"upload" | "processing" | "missing_recording" | null>(null);
+  const [recordingAvailable, setRecordingAvailable] = useState(hasRecording);
   const [pickedFile, setPickedFile] = useState<RecordingUploadFile | null>(null);
   const [pendingLocalId, setPendingLocalId] = useState<string | null>(null);
   const [pendingUploadChecked, setPendingUploadChecked] = useState(false);
 
-  // Details form fields
-  const [dTitle, setDTitle] = useState("");
-  const [dProspect, setDProspect] = useState("");
-  const [dLocation, setDLocation] = useState("");
   const [dNotes, setDNotes] = useState(initialNotes ?? "");
   const [assets, setAssets] = useState<Material[]>([]);
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(
@@ -5023,11 +6141,13 @@ function UploadProcessCard({
     if (PROCESSING_STATUSES.has(status)) setPhase("processing");
     if (status === "analysis_ready" || status === "reviewed") setPhase("done");
     if (status === "failed") {
-      setErrMsg("Analysis did not complete. Retry when you have a stable connection.");
-      setErrorKind("processing");
+      setErrMsg(recordingAvailable
+        ? processingError?.trim() || "Tour could not prepare this review. Retry the analysis or upload a different recording."
+        : "Add an audio or video recording before starting analysis.");
+      setErrorKind(recordingAvailable ? "processing" : "missing_recording");
       setPhase("error");
     }
-  }, [status]);
+  }, [processingError, recordingAvailable, status]);
 
   useEffect(() => {
     let mounted = true;
@@ -5112,10 +6232,11 @@ function UploadProcessCard({
       );
       await clearPendingRecordingUpload(sessionId, localId);
       promoteLocalRecordingToCache(sessionId, durableUri);
+      setRecordingAvailable(true);
       void trackAnalyticsEvent("session_upload_complete", { sessionId });
       setUploadStats((current) => ({ ...current, phase: "finalizing", percent: 100, etaSeconds: 0 }));
       showToast("Recording uploaded", "success");
-      setPhase("details");
+      await startProcess(true);
     } catch (caught) {
       await savePendingRecordingUpload({
         sessionId,
@@ -5139,9 +6260,9 @@ function UploadProcessCard({
     rec.openExperience({
       meta: {
         sessionId,
-        title: dTitle.trim() || sessionTitle?.trim() || "Tour conversation",
-        prospectName: dProspect.trim() || prospectName?.trim() || null,
-        propertyName: dLocation.trim() || propertyName?.trim() || null,
+        title: sessionTitle?.trim() || "Tour conversation",
+        prospectName: prospectName?.trim() || null,
+        propertyName: propertyName?.trim() || null,
         agentName: agentName?.trim() || null,
         source: "session-detail",
       },
@@ -5151,8 +6272,8 @@ function UploadProcessCard({
         selectedAssetIds,
         participants: initialLeads,
         attachments: initialAttachments,
-        prospect: dProspect.trim() || prospectName?.trim() || "",
-        location: dLocation.trim() || propertyName?.trim() || "",
+        prospect: prospectName?.trim() || "",
+        location: propertyName?.trim() || "",
         rubricId,
       },
       onBeforeRecordingStart: async () => {
@@ -5287,42 +6408,13 @@ function UploadProcessCard({
     }
   }
 
-  async function submitDetailsAndProcess() {
-    // Save session details if anything was filled in
-    const patchBody: Record<string, string> = {};
-    if (dTitle.trim()) patchBody.title = dTitle.trim();
-    if (dProspect.trim()) patchBody.prospectName = dProspect.trim();
-    if (dLocation.trim()) patchBody.location = dLocation.trim();
-    if (dNotes.trim()) patchBody.notes = dNotes.trim();
-
-    if (Object.keys(patchBody).length > 0) {
-      try {
-        await authenticatedFetch(`/api/sessions/${sessionId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(patchBody),
-        });
-      } catch { /* best effort */ }
-    }
-
-    // Process the already-uploaded recording
-    setPhase("processing");
-    setErrMsg(null);
-    setErrorKind(null);
-    try {
-      await processSession(sessionId);
-      setPhase("done");
-      showToast("Analysis complete!", "success");
-      setTimeout(onDone, 600);
-    } catch (err) {
+  async function startProcess(fromFreshUpload = false) {
+    if (!recordingAvailable && !fromFreshUpload) {
+      setErrMsg("Add an audio or video recording before starting analysis.");
+      setErrorKind("missing_recording");
       setPhase("error");
-      setErrorKind("processing");
-      setErrMsg(err instanceof Error ? err.message : "Processing failed");
-      showToast(err instanceof Error ? err.message : "Processing failed", "error");
+      return;
     }
-  }
-
-  async function startProcess() {
     setPhase("processing");
     setErrMsg(null);
     setErrorKind(null);
@@ -5355,59 +6447,26 @@ function UploadProcessCard({
   // ── Idle: pick a file ──
   if (phase === "idle" && (status === "scheduled" || status === "in_progress")) {
     return (
-      <View style={[st.card, { padding: 20, gap: 14 }]}>
-        <View style={{ alignItems: "center", gap: 8 }}>
-        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: C.brand + "10", alignItems: "center", justifyContent: "center" }}>
-          <Ionicons name="mic-outline" size={28} color={C.brand} />
-        </View>
-        <Text style={st.formTitle}>{status === "in_progress" ? "Resume this tour" : "Start this tour"}</Text>
-        <Text style={[st.pageSub, { textAlign: "center" }]}>Record live audio or upload an existing recording.</Text>
-        </View>
-        {rubrics.length > 0 && (
-          <RubricPicker
-            rubrics={rubrics}
-            value={rubricId}
-            open={rubricOpen}
-            onToggle={() => setRubricOpen((current) => !current)}
-            onSelect={(id) => void selectRubric(id)}
-          />
-        )}
-        <PrimaryBtn label="Record Audio" onPress={startSessionRecording} icon="mic-outline" />
-        <Pressable onPress={pickAndUpload} style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}>
-          <Ionicons name="document-attach-outline" size={18} color={C.textSec} />
-          <Text style={st.outlineBtnText}>Upload File</Text>
-        </Pressable>
-        {status === "in_progress" && (
-          <Pressable disabled={cancelling} onPress={confirmCancelSession} style={({ pressed }) => [st.cancelSessionBtn, pressed && st.pressed]}>
-            {cancelling ? <LoadingDots size="small" color={C.red} /> : <Ionicons name="close-circle-outline" size={18} color={C.red} />}
-            <Text style={st.cancelSessionText}>{cancelling ? "Cancelling..." : "Cancel active session"}</Text>
-          </Pressable>
-        )}
-      </View>
-    );
-  }
-
-  // ── Details form after upload ──
-  if (phase === "details") {
-    const fileSizeMB = pickedFile?.size ? (pickedFile.size / 1024 / 1024).toFixed(1) : null;
-    return (
-      <View style={[st.card, { overflow: "hidden" }]}>
-        {/* Upload success header */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14, backgroundColor: C.greenBg, borderBottomWidth: 1, borderBottomColor: "#e2e8f0" }}>
-          <Ionicons name="checkmark-circle" size={20} color={C.green} />
-          <View style={st.flex1}>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: C.green }}>Recording uploaded</Text>
-            <Text style={{ fontSize: 12, fontWeight: "600", color: C.textSec }} numberOfLines={1}>{pickedFile?.name}{fileSizeMB ? ` (${fileSizeMB} MB)` : ""}</Text>
+      <Reanimated.View entering={FadeInDown.duration(220)} style={liveSessionSt.root}>
+        <Text style={liveSessionSt.sectionLabel}>Recording</Text>
+        <View style={liveSessionSt.recordingLaunch}>
+          <MotionPressable
+            accessibilityRole="button"
+            accessibilityLabel="Start live recording"
+            haptic="medium"
+            onPress={startSessionRecording}
+            style={liveSessionSt.recordButtonHalo}
+          >
+            <View style={liveSessionSt.recordButton}>
+              <Ionicons name="mic" size={27} color="#fff" />
+            </View>
+          </MotionPressable>
+          <View style={liveSessionSt.readyCopyWrap}>
+            <Text style={liveSessionSt.readyTitle}>Start the tour</Text>
+            <Text style={liveSessionSt.readyCopy}>3-second countdown · Live transcription</Text>
           </View>
         </View>
-
-        {/* Session details form */}
-        <View style={{ padding: 18, gap: 14 }}>
-          <Text style={st.formTitle}>Session Details</Text>
-          <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec, marginTop: -8 }}>Add context before processing (optional)</Text>
-          <Input placeholder="Session title" value={dTitle} onChangeText={setDTitle} icon="text-outline" />
-          <Input placeholder="Prospect name" value={dProspect} onChangeText={setDProspect} icon="person-outline" />
-          <Input placeholder="Location / unit" value={dLocation} onChangeText={setDLocation} icon="location-outline" />
+        <View style={liveSessionSt.settingsList}>
           {rubrics.length > 0 && (
             <RubricPicker
               rubrics={rubrics}
@@ -5417,13 +6476,36 @@ function UploadProcessCard({
               onSelect={(id) => void selectRubric(id)}
             />
           )}
-          <Input placeholder="Notes or focus areas" value={dNotes} onChangeText={setDNotes} icon="document-text-outline" multiline />
-          <PrimaryBtn label="Start Processing" onPress={submitDetailsAndProcess} icon="analytics-outline" />
-          <Pressable onPress={() => submitDetailsAndProcess()} style={({ pressed }) => [pressed && st.pressed]}>
-            <Text style={{ textAlign: "center", fontSize: 13, fontWeight: "700", color: C.textMuted, paddingVertical: 6 }}>Skip, process now</Text>
+          {rubrics.length > 0 ? <View style={liveSessionSt.settingDivider} /> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Upload an existing recording"
+            onPress={pickAndUpload}
+            style={({ pressed }) => [liveSessionSt.uploadAction, pressed && st.pressed]}
+          >
+            <View style={liveSessionSt.settingIcon}>
+              <Ionicons name="cloud-upload-outline" size={18} color={C.textSec} />
+            </View>
+            <View style={st.flex1}>
+              <Text style={liveSessionSt.uploadText}>Use an existing recording</Text>
+              <Text style={liveSessionSt.uploadMeta}>Import audio or video from this device</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
           </Pressable>
         </View>
-      </View>
+        {status === "in_progress" && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel active session"
+            disabled={cancelling}
+            onPress={confirmCancelSession}
+            style={({ pressed }) => [liveSessionSt.cancelAction, pressed && st.pressed]}
+          >
+            {cancelling ? <LoadingDots size="small" color={C.red} /> : <Ionicons name="close-circle-outline" size={18} color={C.red} />}
+            <Text style={liveSessionSt.cancelText}>{cancelling ? "Cancelling..." : "Cancel session"}</Text>
+          </Pressable>
+        )}
+      </Reanimated.View>
     );
   }
 
@@ -5441,11 +6523,25 @@ function UploadProcessCard({
   // ── Processing ──
   if (phase === "processing") {
     return (
-      <View style={[st.card, { padding: 20, gap: 14, alignItems: "center" }]}>
-        <LoadingDots size="large" color={C.brand} />
-        <Text style={st.formTitle}>{processingTitle(status)}</Text>
-        <Text style={[st.pageSub, { textAlign: "center" }]}>{processingStatusMessage(status)}</Text>
+      <View style={analysisPendingSt.root}>
+        <View style={analysisPendingSt.headingRow}>
+          <View style={analysisPendingSt.icon}><Ionicons name="sparkles-outline" size={21} color={C.brand} /></View>
+          <View style={st.flex1}>
+            <Text style={analysisPendingSt.title}>Preparing your review</Text>
+            <Text style={analysisPendingSt.copy}>Tour is turning your recording into a transcript, segments, and score.</Text>
+          </View>
+        </View>
+        {pickedFile?.name ? (
+          <View style={analysisPendingSt.fileRow}>
+            <Ionicons name="checkmark-circle" size={16} color={C.green} />
+            <Text style={analysisPendingSt.fileName} numberOfLines={1}>{pickedFile.name}</Text>
+          </View>
+        ) : null}
         <ProcessingTimeline status={status} />
+        <View style={analysisPendingSt.backgroundNote}>
+          <Ionicons name="phone-portrait-outline" size={15} color={C.textMuted} />
+          <Text style={analysisPendingSt.backgroundCopy}>You can leave this screen. We’ll keep working.</Text>
+        </View>
       </View>
     );
   }
@@ -5464,6 +6560,7 @@ function UploadProcessCard({
   // ── Error ──
   if (phase === "error") {
     const uploadError = errorKind === "upload";
+    const missingRecording = errorKind === "missing_recording";
     return (
       uploadError ? (
         <UploadStatusCard
@@ -5475,15 +6572,25 @@ function UploadProcessCard({
           onChooseDifferent={() => void pickAndUpload()}
         />
       ) : (
-        <View style={[st.card, { padding: 20, gap: 12 }]}>
+        <View style={analysisPendingSt.errorRoot}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Ionicons name="alert-circle" size={24} color={C.red} />
-            <Text style={[st.formTitle, { color: C.red }]}>Processing Failed</Text>
+            <View style={analysisPendingSt.errorIcon}>
+              <Ionicons name={missingRecording ? "mic-off-outline" : "alert-circle-outline"} size={22} color={C.red} />
+            </View>
+            <View style={st.flex1}>
+              <Text style={analysisPendingSt.errorTitle}>{missingRecording ? "Recording required" : "Review couldn't be prepared"}</Text>
+              <Text style={analysisPendingSt.errorCopy}>{errMsg}</Text>
+            </View>
           </View>
-          {errMsg && <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec }}>{errMsg}</Text>}
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable onPress={startProcess} style={({ pressed }) => [st.primaryBtn, { flex: 1 }, pressed && st.pressed]}><Text style={st.primaryBtnText}>Retry Analysis</Text></Pressable>
-            <Pressable onPress={pickAndUpload} style={({ pressed }) => [st.outlineBtn, { flex: 1 }, pressed && st.pressed]}><Text style={st.outlineBtnText}>Upload Different</Text></Pressable>
+            <Pressable onPress={missingRecording ? startSessionRecording : () => void startProcess()} style={({ pressed }) => [st.primaryBtn, { flex: 1 }, pressed && st.pressed]}>
+              <Ionicons name={missingRecording ? "mic-outline" : "refresh"} size={17} color="#fff" />
+              <Text style={st.primaryBtnText}>{missingRecording ? "Record" : "Retry"}</Text>
+            </Pressable>
+            <Pressable onPress={pickAndUpload} style={({ pressed }) => [st.outlineBtn, { flex: 1 }, pressed && st.pressed]}>
+              <Ionicons name="cloud-upload-outline" size={17} color={C.text} />
+              <Text style={st.outlineBtnText}>{missingRecording ? "Upload file" : "Replace file"}</Text>
+            </Pressable>
           </View>
         </View>
       )
@@ -5498,7 +6605,7 @@ function UploadProcessCard({
         <Text style={{ fontSize: 14, fontWeight: "700", color: C.green }}>Recording uploaded</Text>
       </View>
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <PrimaryBtn label="Process Now" onPress={startProcess} icon="analytics-outline" />
+        <PrimaryBtn label="Process Now" onPress={() => void startProcess()} icon="analytics-outline" />
         <Pressable onPress={pickAndUpload} style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}><Text style={st.outlineBtnText}>Re-upload</Text></Pressable>
       </View>
     </View>
@@ -5703,46 +6810,6 @@ function BulletItem({ text, color }: { text: string; color: string }) {
   );
 }
 
-function AudioSignalPill({
-  kind,
-  value,
-}: {
-  kind: "emotion" | "energy" | "ambience";
-  value: string;
-}) {
-  const normalized = value.trim().toLowerCase();
-  const emotionTone: Record<string, { color: string; backgroundColor: string }> = {
-    happy: { color: "#15803d", backgroundColor: "#f0fdf4" },
-    excited: { color: "#7c3aed", backgroundColor: "#f5f3ff" },
-    concerned: { color: "#b45309", backgroundColor: "#fffbeb" },
-    sad: { color: "#2563eb", backgroundColor: "#eff6ff" },
-    angry: { color: "#dc2626", backgroundColor: "#fef2f2" },
-    neutral: { color: "#667085", backgroundColor: "#f2f4f7" },
-  };
-  const tone = kind === "emotion"
-    ? (emotionTone[normalized] ?? emotionTone.neutral!)
-    : kind === "energy"
-      ? { color: "#475467", backgroundColor: "#f2f4f7" }
-      : { color: "#0369a1", backgroundColor: "#f0f9ff" };
-  const icon = kind === "emotion" ? "sparkles-outline" : kind === "energy" ? "pulse-outline" : "volume-medium-outline";
-  const label = kind === "energy"
-    ? `${titleCase(value)} energy`
-    : kind === "ambience"
-      ? titleCase(value)
-      : titleCase(value);
-
-  return (
-    <View style={[reviewSt.audioSignalPill, { backgroundColor: tone.backgroundColor }]}>
-      <Ionicons name={icon} size={11} color={tone.color} />
-      <Text style={[reviewSt.audioSignalText, { color: tone.color }]}>{label}</Text>
-    </View>
-  );
-}
-
-function titleCase(value: string) {
-  return value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
 // ═══════════════════════════════════════
 // Transcript Tab
 // ═══════════════════════════════════════
@@ -5757,8 +6824,8 @@ function TranscriptTab({ transcript }: { transcript: any[] }) {
           return (
             <View key={seg.id || i} style={[{ paddingVertical: 10 }, i > 0 && { borderTopWidth: 1, borderTopColor: "#f1f5f9" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <View style={[st.speakerBadge, { backgroundColor: isAgent ? C.brand + "15" : C.purpleBg }]}>
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: isAgent ? C.brand : C.purple }}>{seg.speaker}</Text>
+                <View style={[st.speakerBadge, { backgroundColor: isAgent ? C.brand + "15" : C.aiBg }]}>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: isAgent ? C.brand : C.ai }}>{seg.speaker}</Text>
                 </View>
                 <Text style={st.timeText}>{fmtSec(seg.startTime)}</Text>
               </View>
@@ -5789,12 +6856,14 @@ function ActionsTab({
   readOnly?: boolean;
 }) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const updateActionMutation = useUpdateActionStatusMutation(sessionId);
   const priorityRank = { high: 0, medium: 1, low: 2 } as const;
   const open = actions
     .filter((a) => a.status === "open")
     .sort((left, right) => (priorityRank[left.priority] ?? 1) - (priorityRank[right.priority] ?? 1));
   const done = actions.filter((a) => a.status !== "open");
+  const selectedAction = actions.find((action) => action.id === selectedActionId) ?? null;
 
   async function handleStatus(id: string, status: "completed" | "dismissed") {
     const previous = actions;
@@ -5814,51 +6883,39 @@ function ActionsTab({
 
   if (!actions.length) return <EmptyState icon="rocket-outline" title="No actions" subtitle="Follow-up actions will appear after analysis" />;
 
-  const defaultPi = { icon: "remove-circle" as keyof typeof Ionicons.glyphMap, color: C.amber };
-  const priorityIcon: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
-    high: { icon: "arrow-up-circle", color: C.red },
-    medium: defaultPi,
-    low: { icon: "arrow-down-circle", color: C.green },
-  };
-
   return (
-    <View style={{ gap: 12 }}>
-      {actions.length > 0 ? (
-        <View style={reviewSt.focusBanner}>
-          <Text style={reviewSt.focusBannerLabel}>Progress</Text>
-          <Text style={reviewSt.focusBannerValue}>
-            {done.length} of {actions.length} complete
+    <View style={reviewSt.coachingQueue}>
+      <View style={reviewSt.coachingQueueHeader}>
+        <View style={reviewSt.coachingQueueIcon}>
+          <Ionicons name="checkmark-done-outline" size={17} color={C.brand} />
+        </View>
+        <View style={st.flex1}>
+          <Text style={reviewSt.coachingQueueTitle}>Coaching</Text>
+          <Text style={reviewSt.coachingQueueSubtitle}>
+            {open.length === 1 ? "1 move to consider" : `${open.length} moves to consider`}
           </Text>
         </View>
-      ) : null}
-      {open.length > 0 && open.map((a) => {
-        const pi = priorityIcon[a.priority] ?? defaultPi;
+      </View>
+      {open.length > 0 && open.map((a, index) => {
         return (
-          <View key={a.id} style={st.card}>
-            <View style={{ padding: 16, gap: 10 }}>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                <Ionicons name={pi.icon} size={20} color={pi.color} style={{ marginTop: 1 }} />
-                <View style={st.flex1}>
-                  <Text style={{ fontSize: 15, fontWeight: "800", color: C.text }} numberOfLines={2}>{a.title}</Text>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec, lineHeight: 20, marginTop: 2 }}>{a.description}</Text>
-                </View>
-              </View>
-              {a.suggestedMessage && (
-                <View style={{ backgroundColor: "#f8fafc", borderRadius: 12, padding: 12 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: C.textMuted, textTransform: "uppercase", marginBottom: 4 }}>Suggested message</Text>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: C.text, lineHeight: 20, fontStyle: "italic" }}>{a.suggestedMessage}</Text>
-                </View>
-              )}
-              {!readOnly && <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable onPress={() => handleStatus(a.id, "completed")} disabled={updatingId === a.id} style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.green, borderRadius: 12, paddingVertical: 10 }, pressed && st.pressed]}>
-                  {updatingId === a.id ? <LoadingDots size="small" color="#fff" /> : <><Ionicons name="checkmark-circle-outline" size={16} color="#fff" /><Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>Complete</Text></>}
-                </Pressable>
-                <Pressable onPress={() => handleStatus(a.id, "dismissed")} disabled={updatingId === a.id} style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#f1f5f9", borderRadius: 12, paddingVertical: 10 }, pressed && st.pressed]}>
-                  <Ionicons name="close-circle-outline" size={16} color={C.textSec} /><Text style={{ color: C.textSec, fontSize: 14, fontWeight: "800" }}>Dismiss</Text>
-                </Pressable>
-              </View>}
+          <Pressable
+            key={a.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Open follow-up: ${a.title}`}
+            onPress={() => {
+              selectionHaptic();
+              setSelectedActionId(a.id);
+            }}
+            style={({ pressed }) => [reviewSt.coachingQueueItem, pressed && st.pressed]}
+          >
+            <View style={reviewSt.coachingQueueIndex}>
+              <Text style={reviewSt.coachingQueueIndexText}>{index + 1}</Text>
             </View>
-          </View>
+            <View style={st.flex1}>
+              <Text style={reviewSt.coachingQueueItemTitle} numberOfLines={2}>{a.title}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
+          </Pressable>
         );
       })}
       {done.length > 0 ? (
@@ -5871,6 +6928,86 @@ function ActionsTab({
           ))}
         </CollapsibleSection>
       ) : null}
+
+      <Modal
+        visible={Boolean(selectedAction)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedActionId(null)}
+      >
+        <View style={reviewSt.actionSheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelectedActionId(null)} />
+          {selectedAction ? (() => {
+            const actionIndex = open.findIndex((action) => action.id === selectedAction.id);
+            return (
+              <View style={reviewSt.actionSheet}>
+                <View style={reviewSt.actionSheetHandle} />
+                <View style={reviewSt.actionSheetHeader}>
+                  <View style={reviewSt.coachingQueueIndex}>
+                    <Text style={reviewSt.coachingQueueIndexText}>{actionIndex + 1}</Text>
+                  </View>
+                  <View style={st.flex1}>
+                    <Text style={reviewSt.actionSheetKicker}>Coaching action</Text>
+                    <Text style={reviewSt.actionSheetTitle}>{selectedAction.title}</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Close follow-up action"
+                    onPress={() => setSelectedActionId(null)}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close" size={21} color={C.textMuted} />
+                  </Pressable>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={reviewSt.actionSheetContent}>
+                  <View style={reviewSt.actionSheetSection}>
+                    <Text style={reviewSt.actionSheetSectionLabel}>Why it matters</Text>
+                    <Text style={reviewSt.actionSheetBody}>{selectedAction.description}</Text>
+                  </View>
+                  {selectedAction.suggestedMessage ? (
+                    <View style={reviewSt.actionMessage}>
+                      <View style={reviewSt.actionMessageHeader}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={15} color={C.brand} />
+                        <Text style={reviewSt.actionMessageLabel}>Suggested follow-up</Text>
+                      </View>
+                      <Text style={reviewSt.actionMessageText}>{selectedAction.suggestedMessage}</Text>
+                    </View>
+                  ) : null}
+                </ScrollView>
+                {!readOnly ? (
+                  <View style={reviewSt.actionSheetActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Dismiss follow-up action"
+                      disabled={updatingId === selectedAction.id}
+                      onPress={() => void handleStatus(selectedAction.id, "dismissed").then(() => setSelectedActionId(null))}
+                      style={({ pressed }) => [reviewSt.actionSheetDismiss, pressed && st.pressed]}
+                    >
+                      <Text style={reviewSt.actionSheetDismissText}>Dismiss</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Mark follow-up action complete"
+                      disabled={updatingId === selectedAction.id}
+                      onPress={() => void handleStatus(selectedAction.id, "completed").then(() => setSelectedActionId(null))}
+                      style={({ pressed }) => [reviewSt.actionSheetComplete, pressed && st.pressed]}
+                    >
+                      {updatingId === selectedAction.id ? (
+                        <LoadingDots size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark" size={17} color="#fff" />
+                          <Text style={reviewSt.actionSheetCompleteText}>Mark done</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })() : null}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -5928,7 +7065,7 @@ function SessionCommentsScreen({
       >
         {error ? <ErrorBanner message={error instanceof Error ? error.message : "Could not load comments"} onRetry={load} /> : null}
         {loading ? (
-          <LoadingBox />
+          <CommentsSkeleton />
         ) : (
           <CommentsTab comments={comments} sessionId={sessionId} onUpdate={load} />
         )}
@@ -6035,9 +7172,9 @@ function CommentsTab({
                   <Ionicons
                     name={c.kind === "key_moment" ? "star" : "chatbubble-outline"}
                     size={10}
-                    color={c.kind === "key_moment" ? C.purple : C.brand}
+                    color={c.kind === "key_moment" ? C.ai : C.brand}
                   />
-                  <Text style={[reviewSt.commentKindText, c.kind === "key_moment" && { color: C.purple }]}>
+                  <Text style={[reviewSt.commentKindText, c.kind === "key_moment" && { color: C.ai }]}>
                     {c.kind === "key_moment" ? "Key moment" : "Manual"}
                   </Text>
                 </View>
@@ -6168,14 +7305,14 @@ function RubricsScreen({
               </View>
               <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
             </MotionPressable>
-          {loading ? <LoadingBox /> : rubrics.length === 0 ? (
+          {loading ? <RubricsSkeleton /> : rubrics.length === 0 ? (
             <EmptyState icon="clipboard-outline" title="No rubrics" subtitle="Evaluation templates will appear here" />
           ) : (
             <>
               {defaultRubric && (
                 <MotionPressable onPress={() => setSelected(defaultRubric)} haptic="selection" style={st.defaultRubricCard}>
                   <View style={st.defaultRubricIcon}>
-                    <Ionicons name="clipboard-outline" size={23} color={C.purple} />
+                    <Ionicons name="clipboard-outline" size={23} color={C.ai} />
                   </View>
                   <View style={st.flex1}>
                     <View style={st.rubricTitleRow}>
@@ -6202,7 +7339,7 @@ function RubricsScreen({
                     haptic="selection"
                     style={st.rubricCard}
                   >
-                    <View style={st.rubricListIcon}><Ionicons name="clipboard-outline" size={19} color={C.purple} /></View>
+                    <View style={st.rubricListIcon}><Ionicons name="clipboard-outline" size={19} color={C.ai} /></View>
                     <View style={st.rubricCardBody}>
                       <Text style={st.rubricCardTitle} numberOfLines={2}>{rubric.name}</Text>
                       <Text style={st.materialMeta} numberOfLines={1}>
@@ -6297,6 +7434,62 @@ function RubricsScreen({
 // Settings
 // ═══════════════════════════════════════
 
+type SettingsView = "main" | "check-in" | "legal" | "about";
+
+function SettingsGroup({ children }: { children: React.ReactNode }) {
+  return <View style={settingsPageSt.group}>{children}</View>;
+}
+
+function SettingsRow({
+  icon,
+  title,
+  subtitle,
+  value,
+  onPress,
+  destructive = false,
+  external = false,
+  last = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle?: string;
+  value?: string;
+  onPress?: () => void;
+  destructive?: boolean;
+  external?: boolean;
+  last?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole={onPress ? "button" : undefined}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => [settingsPageSt.row, !last && settingsPageSt.rowBorder, pressed && st.pressed]}
+    >
+      <View style={[settingsPageSt.rowIcon, destructive && settingsPageSt.rowIconDestructive]}>
+        <Ionicons name={icon} size={18} color={destructive ? C.red : C.textSec} />
+      </View>
+      <View style={st.flex1}>
+        <Text style={[settingsPageSt.rowTitle, destructive && { color: C.red }]}>{title}</Text>
+        {subtitle ? <Text style={settingsPageSt.rowSubtitle} numberOfLines={2}>{subtitle}</Text> : null}
+      </View>
+      {value ? <Text style={settingsPageSt.rowValue} numberOfLines={1}>{value}</Text> : null}
+      {onPress ? <Ionicons name={external ? "open-outline" : "chevron-forward"} size={17} color={destructive ? C.red : C.textMuted} /> : null}
+    </Pressable>
+  );
+}
+
+function SettingsSubpageHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <View style={settingsPageSt.subpageHeader}>
+      <MotionPressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={onBack} style={settingsPageSt.backButton}>
+        <Ionicons name="arrow-back" size={20} color={C.text} />
+      </MotionPressable>
+      <Text style={settingsPageSt.subpageTitle}>{title}</Text>
+    </View>
+  );
+}
+
 function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSignOut }: {
   session: MobileAuthSession;
   onSessionChange: (session: MobileAuthSession) => void;
@@ -6304,6 +7497,7 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
   onRubrics: () => void;
   onSignOut: () => void;
 }) {
+  const [view, setView] = useState<SettingsView>("main");
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [communityPickerOpen, setCommunityPickerOpen] = useState(false);
   const [communityQuery, setCommunityQuery] = useState("");
@@ -6388,46 +7582,19 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
     }
   }
 
-  return (
+  async function openSettingsUrl(path: string) {
+    const url = `${getSiteBaseUrl().replace(/\/$/, "")}${path}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      showToast("Could not open this page", "error");
+    }
+  }
+
+  const content = view === "check-in" ? (
     <View style={st.page}>
-      <Text style={st.pageTitle}>Settings</Text>
-      <Pressable onPress={onProfile} style={({ pressed }) => [st.settingsIdentity, pressed && st.pressed]}>
-        <View style={[st.avatar48, { backgroundColor: accent }]}>
-          <Text style={[st.avatar48Text, { color: "#fff" }]}>
-            {(session.workspace.user.fullName ?? session.workspace.user.email)[0]?.toUpperCase()}
-          </Text>
-        </View>
-        <View style={st.flex1}>
-          <Text style={st.cardRowTitle}>{session.workspace.user.fullName ?? "Team member"}</Text>
-          <Text style={st.cardRowSub}>
-            {session.workspace.user.title ?? teamRole} · Tap to edit card
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-      </Pressable>
-
-      <Text style={st.settingsSectionLabel}>ACTIVE PROPERTY</Text>
-      <View style={st.settingsIdentity}>
-        <View style={st.settingsCommunityRow}>
-          <View style={[st.communitySettingIcon, { backgroundColor: C.greenBg }]}>
-            <Ionicons name="business-outline" size={18} color={C.green} />
-          </View>
-          <View style={st.flex1}>
-            <Text style={st.communitySettingName}>{session.workspace.community.name}</Text>
-            <Text style={st.cardRowSub}>{authorizedPropertyCount} available {authorizedPropertyCount === 1 ? "property" : "properties"}</Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Switch active property"
-            onPress={() => setCommunityPickerOpen(true)}
-            style={({ pressed }) => [st.settingsSwitchButton, pressed && st.pressed]}
-          >
-            <Text style={st.settingsChangeText}>Switch</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <Text style={st.settingsSectionLabel}>PUBLIC CHECK-IN LINK</Text>
+      <SettingsSubpageHeader title="Public check-in" onBack={() => setView("main")} />
+      <Text style={settingsPageSt.intro}>Choose the public link guests use to check in for a tour.</Text>
       <View style={st.aliasSettingsCard}>
         <View style={st.aliasFieldGroup}>
           <Text style={st.aliasFieldLabel}>Property alias</Text>
@@ -6461,10 +7628,12 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
             />
           </View>
         </View>
-        <Text style={st.aliasPreview} numberOfLines={2}>{publicCheckInUrl}</Text>
-        <Text style={st.aliasHelp}>
-          Defaults from your current property and profile. This page uses your name, role, phone, email, and the active property.
-        </Text>
+        <View style={settingsPageSt.linkPreview}>
+          <View style={settingsPageSt.linkPreviewIcon}>
+            <Ionicons name="link-outline" size={18} color={C.brand} />
+          </View>
+          <Text style={settingsPageSt.linkPreviewText} numberOfLines={2}>{publicCheckInUrl}</Text>
+        </View>
         <Pressable
           accessibilityRole="button"
           disabled={savingAliases}
@@ -6472,14 +7641,95 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
           style={({ pressed }) => [st.aliasSaveButton, pressed && st.pressed, savingAliases && st.aliasSaveButtonDisabled]}
         >
           {savingAliases ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="checkmark" size={17} color="#fff" />}
-          <Text style={st.aliasSaveText}>{savingAliases ? "Saving…" : "Save aliases"}</Text>
+          <Text style={st.aliasSaveText}>{savingAliases ? "Saving…" : "Save check-in link"}</Text>
         </Pressable>
       </View>
-      <Text style={st.settingsSectionLabel}>EVALUATION</Text>
-      <CardRow icon="clipboard-outline" title="Rubrics" sub="Templates, criteria, and session applications" onPress={onRubrics} />
-      <Text style={st.settingsSectionLabel}>ACCOUNT</Text>
-      <CardRow icon="log-out-outline" title="Log out" sub="Remove this account from this device" onPress={() => setLogoutOpen(true)} destructive />
-      <Text style={st.settingsVersion}>Tour mobile 0.1.0 · {session.workspace.organization.name}</Text>
+      <SettingsGroup>
+        <SettingsRow icon="open-outline" title="Preview check-in page" value="Web" onPress={() => void Linking.openURL(publicCheckInUrl)} external last />
+      </SettingsGroup>
+    </View>
+  ) : view === "legal" ? (
+    <View style={st.page}>
+      <SettingsSubpageHeader title="Privacy & legal" onBack={() => setView("main")} />
+      <SettingsGroup>
+        <SettingsRow icon="shield-checkmark-outline" title="Privacy policy" subtitle="How Tour collects, uses, and protects data" onPress={() => void openSettingsUrl("/privacy-policy")} external />
+        <SettingsRow icon="document-text-outline" title="Terms of use" subtitle="The terms that govern use of Tour" onPress={() => void openSettingsUrl("/terms")} external last />
+      </SettingsGroup>
+      <View style={settingsPageSt.notice}>
+        <View style={settingsPageSt.noticeIcon}>
+          <Ionicons name="mic-outline" size={19} color={C.brand} />
+        </View>
+        <View style={st.flex1}>
+          <Text style={settingsPageSt.noticeTitle}>Recording consent</Text>
+          <Text style={settingsPageSt.noticeCopy}>Always get permission before recording. Recording and consent laws vary by location and your organization is responsible for following them.</Text>
+        </View>
+      </View>
+    </View>
+  ) : view === "about" ? (
+    <View style={st.page}>
+      <SettingsSubpageHeader title="About Tour" onBack={() => setView("main")} />
+      <View style={settingsPageSt.aboutHero}>
+        <TourMark size={58} />
+        <Text style={settingsPageSt.aboutTitle}>Tour</Text>
+        <Text style={settingsPageSt.aboutCopy}>Record and review leasing tours, understand each prospect, and improve every conversation.</Text>
+      </View>
+      <Text style={settingsPageSt.sectionLabel}>APP</Text>
+      <SettingsGroup>
+        <SettingsRow icon="globe-outline" title="Tour website" value="tour.you" onPress={() => void openSettingsUrl("")} external />
+        <SettingsRow icon="information-circle-outline" title="Version" value="0.1.0" last />
+      </SettingsGroup>
+    </View>
+  ) : (
+    <View style={st.page}>
+      <Text style={st.pageTitle}>Settings</Text>
+      <Pressable onPress={onProfile} style={({ pressed }) => [settingsPageSt.profileRow, pressed && st.pressed]}>
+        <View style={[settingsPageSt.profileAvatar, { backgroundColor: accent }]}>
+          <Text style={settingsPageSt.profileAvatarText}>
+            {(session.workspace.user.fullName ?? session.workspace.user.email)[0]?.toUpperCase()}
+          </Text>
+        </View>
+        <View style={st.flex1}>
+          <Text style={settingsPageSt.profileName}>{session.workspace.user.fullName ?? "Team member"}</Text>
+          <Text style={settingsPageSt.profileMeta}>{session.workspace.user.title ?? teamRole}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+      </Pressable>
+
+      <Text style={settingsPageSt.sectionLabel}>PROPERTY</Text>
+      <SettingsGroup>
+        <SettingsRow
+          icon="business-outline"
+          title={session.workspace.community.name}
+          subtitle={`${authorizedPropertyCount} available ${authorizedPropertyCount === 1 ? "property" : "properties"}`}
+          value="Switch"
+          onPress={() => setCommunityPickerOpen(true)}
+          last
+        />
+      </SettingsGroup>
+
+      <Text style={settingsPageSt.sectionLabel}>TOUR SETUP</Text>
+      <SettingsGroup>
+        <SettingsRow icon="qr-code-outline" title="Public check-in" subtitle="Manage your guest check-in link" onPress={() => setView("check-in")} />
+        <SettingsRow icon="clipboard-outline" title="Rubrics" subtitle="Evaluation templates and criteria" onPress={onRubrics} last />
+      </SettingsGroup>
+
+      <Text style={settingsPageSt.sectionLabel}>ABOUT</Text>
+      <SettingsGroup>
+        <SettingsRow icon="shield-outline" title="Privacy & legal" onPress={() => setView("legal")} />
+        <SettingsRow icon="information-circle-outline" title="About Tour" value="0.1.0" onPress={() => setView("about")} last />
+      </SettingsGroup>
+
+      <Text style={settingsPageSt.sectionLabel}>ACCOUNT</Text>
+      <SettingsGroup>
+        <SettingsRow icon="log-out-outline" title="Log out" onPress={() => setLogoutOpen(true)} destructive last />
+      </SettingsGroup>
+      <Text style={settingsPageSt.footer}>{session.workspace.organization.name}</Text>
+    </View>
+  );
+
+  return (
+    <>
+      {content}
 
       <CommunityPickerModal
         visible={communityPickerOpen}
@@ -6537,9 +7787,41 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
           </Pressable>
         </View>
       </BottomSheetModal>
-    </View>
+    </>
   );
 }
+
+const settingsPageSt = StyleSheet.create({
+  profileRow: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  profileAvatar: { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 14 },
+  profileAvatarText: { color: "#fff", fontSize: 18, fontWeight: "900" },
+  profileName: { color: C.text, fontSize: 15, fontWeight: "900" },
+  profileMeta: { marginTop: 2, color: C.textSec, fontSize: 12, fontWeight: "600" },
+  sectionLabel: { marginTop: 5, color: C.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 0.4 },
+  group: { overflow: "hidden", borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  row: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 13, paddingVertical: 9 },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border },
+  rowIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#f1f5f9" },
+  rowIconDestructive: { backgroundColor: C.redBg },
+  rowTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
+  rowSubtitle: { marginTop: 2, color: C.textSec, fontSize: 11, lineHeight: 15, fontWeight: "600" },
+  rowValue: { maxWidth: 86, color: C.textMuted, fontSize: 11, fontWeight: "700" },
+  footer: { color: C.textMuted, fontSize: 10, textAlign: "center", paddingVertical: 4 },
+  subpageHeader: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 12 },
+  backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  subpageTitle: { flex: 1, color: C.text, fontSize: 24, lineHeight: 30, fontWeight: "900" },
+  intro: { marginTop: -4, color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600" },
+  linkPreview: { minHeight: 54, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 11, borderRadius: 10, backgroundColor: C.aiBg },
+  linkPreviewIcon: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 9, backgroundColor: C.card },
+  linkPreviewText: { flex: 1, color: C.brand, fontSize: 11, lineHeight: 16, fontWeight: "800" },
+  notice: { flexDirection: "row", alignItems: "flex-start", gap: 11, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  noticeIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: C.aiBg },
+  noticeTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  noticeCopy: { marginTop: 3, color: C.textSec, fontSize: 11, lineHeight: 17, fontWeight: "600" },
+  aboutHero: { alignItems: "center", gap: 7, paddingHorizontal: 26, paddingVertical: 22 },
+  aboutTitle: { color: C.text, fontSize: 22, fontWeight: "900" },
+  aboutCopy: { maxWidth: 320, color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600", textAlign: "center" },
+});
 
 const logoutSheetSt = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12 },
@@ -6651,8 +7933,9 @@ const homeSt = StyleSheet.create({
   topBarSide: { minWidth: 44, flexShrink: 0, alignItems: "flex-start", justifyContent: "center" },
   topBarSideEnd: { alignItems: "flex-end" },
   topBarCenter: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" },
-  propertyPicker: { maxWidth: "100%", minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 16, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 999, backgroundColor: "#fff" },
-  propertyPickerText: { flexShrink: 1, color: "#5f6673", fontSize: 16, lineHeight: 19, fontWeight: "800", textAlign: "center" },
+  propertyPicker: { maxWidth: "100%", minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 10, borderRadius: 11, backgroundColor: "#eef3f8" },
+  propertyPickerIcon: { width: 25, height: 25, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: C.card },
+  propertyPickerText: { flexShrink: 1, color: C.text, fontSize: 14, lineHeight: 18, fontWeight: "800", textAlign: "center" },
   headerIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#e2e2e2", borderRadius: 8, backgroundColor: "#fff" },
   profileCard: { overflow: "hidden", borderRadius: 28, backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 4 },
   profileHeader: { height: 112, backgroundColor: "#111" },
@@ -6838,46 +8121,116 @@ const reviewSt = StyleSheet.create({
   commentsPageContent: { gap: 12, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 12, paddingBottom: 130 },
   tabSticky: { backgroundColor: tourColors.bg, zIndex: 2 },
   tabBody: { gap: 13, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 8 },
+  reviewSnapshot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    minHeight: 34,
+    marginHorizontal: SESSION_PAGE_PADDING,
+    marginTop: 1,
+    marginBottom: 6,
+  },
+  reviewScoreValue: { color: C.text, fontSize: 21, lineHeight: 24, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  reviewScoreUnit: { color: C.textMuted, fontSize: 10, fontWeight: "800" },
+  reviewScoreLabel: { flex: 1, marginLeft: 6, color: C.textSec, fontSize: 11, fontWeight: "800" },
+  transcriptLandmark: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginHorizontal: SESSION_PAGE_PADDING,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    backgroundColor: tourColors.bg,
+  },
+  transcriptLandmarkDot: { width: 7, height: 7, borderRadius: 999 },
+  transcriptLandmarkLabel: { flex: 1, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  transcriptLandmarkTime: { color: C.textMuted, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  transcriptLandmarkSearch: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 9 },
+  transcriptLandmarkSearchActive: { backgroundColor: "#eaf3ff" },
+  transcriptLandmarkMoment: { minWidth: 26, height: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 5, borderRadius: 999, backgroundColor: C.aiBg },
+  transcriptLandmarkMomentText: { color: C.ai, fontSize: 10, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  transcriptSearchWrap: { paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 5, paddingBottom: 8, backgroundColor: tourColors.bg },
+  transcriptSearchInput: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 11, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 11, backgroundColor: "#fff" },
+  transcriptSearchText: { flex: 1, minWidth: 0, color: C.text, fontSize: 14, fontWeight: "600", paddingVertical: 0 },
+  transcriptSearchCount: { minWidth: 18, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 999, color: C.brand, fontSize: 10, fontWeight: "900", textAlign: "center", backgroundColor: "#eaf3ff", fontVariant: ["tabular-nums"] },
+  transcriptSearchEmpty: { minHeight: 88, alignItems: "center", justifyContent: "center", gap: 7 },
+  transcriptSearchEmptyText: { color: C.textMuted, fontSize: 13, fontWeight: "800" },
   reportCta: { minHeight: 62, marginHorizontal: SESSION_PAGE_PADDING, marginTop: 8, marginBottom: 10, paddingHorizontal: 13, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 11, borderWidth: 1, borderColor: "#dbeafe", backgroundColor: "#f7fbff" },
   reportCtaIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#eaf4ff" },
   reportCtaTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
   reportCtaSub: { marginTop: 2, color: C.textSec, fontSize: 10, lineHeight: 14, fontWeight: "700" },
-  sampleReadOnlyBanner: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 14, backgroundColor: "#faf7ff" },
-  sampleReadOnlyIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.purpleBg },
+  sampleReadOnlyBanner: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: C.aiBorder, borderRadius: 14, backgroundColor: "#f8fbff" },
+  sampleReadOnlyIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.aiBg },
   sampleReadOnlyTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
   sampleReadOnlySub: { marginTop: 2, color: C.textSec, fontSize: 11, lineHeight: 15, fontWeight: "600" },
-  focusBanner: {
-    gap: 2,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
+  coachingQueue: { gap: 9, paddingTop: 2 },
+  coachingQueueHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    minHeight: 58,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: "#dbeafe",
+    borderColor: "#dbe5f0",
+    borderRadius: 14,
+    backgroundColor: "#f8fafc",
+  },
+  coachingQueueIcon: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
     backgroundColor: "#eff6ff",
   },
-  focusBannerLabel: {
-    fontSize: 10,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    color: "#667085",
+  coachingQueueTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  coachingQueueSubtitle: { marginTop: 1, color: C.textSec, fontSize: 11, fontWeight: "700" },
+  coachingQueueItem: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+    backgroundColor: "#fff",
   },
-  focusBannerValue: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: "#101828",
+  coachingQueueIndex: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 9, backgroundColor: "#eff6ff" },
+  coachingQueueIndexText: { color: C.brand, fontSize: 12, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  coachingQueueItemTitle: { color: C.text, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  actionSheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15, 23, 42, 0.38)" },
+  actionSheet: {
+    maxHeight: "78%",
+    gap: 12,
+    paddingTop: 8,
+    paddingHorizontal: SESSION_PAGE_PADDING,
+    paddingBottom: Platform.OS === "ios" ? 28 : 18,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    backgroundColor: "#fff",
   },
-  searchPanel: { gap: 12, paddingTop: 4 },
-  searchInputWrap: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 13, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 14, backgroundColor: "#fff" },
-  searchInput: { flex: 1, color: C.text, fontSize: 15, fontWeight: "600" },
-  searchHint: { paddingHorizontal: 4, color: C.textMuted, fontSize: 12, lineHeight: 18, fontWeight: "600" },
-  searchResults: { gap: 8 },
-  searchCount: { color: C.textMuted, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
-  searchResult: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 14, backgroundColor: "#fff" },
-  searchResultIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#eff6ff" },
-  searchResultMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 3 },
-  searchResultSpeaker: { flex: 1, color: C.brand, fontSize: 11, fontWeight: "900" },
-  searchResultTime: { color: C.textMuted, fontSize: 10, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  searchResultText: { color: C.textSec, fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  actionSheetHandle: { alignSelf: "center", width: 36, height: 4, borderRadius: 999, backgroundColor: "#d0d5dd" },
+  actionSheetHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingTop: 4 },
+  actionSheetKicker: { color: C.brand, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  actionSheetTitle: { marginTop: 2, color: C.text, fontSize: 17, lineHeight: 23, fontWeight: "900" },
+  actionSheetContent: { gap: 12, paddingBottom: 2 },
+  actionSheetSection: { gap: 5 },
+  actionSheetSectionLabel: { color: C.textMuted, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  actionSheetBody: { color: C.textSec, fontSize: 14, lineHeight: 21, fontWeight: "600" },
+  actionMessage: { gap: 8, padding: 12, borderWidth: 1, borderColor: "#dbeafe", borderRadius: 14, backgroundColor: "#f8fbff" },
+  actionMessageHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  actionMessageLabel: { color: C.brand, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  actionMessageText: { color: C.text, fontSize: 13, lineHeight: 20, fontWeight: "600" },
+  actionSheetActions: { flexDirection: "row", gap: 9, paddingTop: 2 },
+  actionSheetDismiss: { minHeight: 46, flex: 1, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 12, backgroundColor: "#fff" },
+  actionSheetDismissText: { color: C.textSec, fontSize: 13, fontWeight: "900" },
+  actionSheetComplete: { minHeight: 46, flex: 1.35, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, backgroundColor: C.green },
+  actionSheetCompleteText: { color: "#fff", fontSize: 13, fontWeight: "900" },
   header: { minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16 },
   headerButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#e6eaf0", borderRadius: 12, backgroundColor: "#fff" },
   propertyPicker: { maxWidth: 210, minHeight: 36, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 14, borderRadius: 999, backgroundColor: "#eef2f7" },
@@ -6903,24 +8256,33 @@ const reviewSt = StyleSheet.create({
   modeText: { color: "#667085", fontSize: 12, fontWeight: "900" },
   modeTextActive: { color: C.brand },
   transcriptContent: { gap: 13, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 8, paddingBottom: 150 },
-  phaseSection: { gap: 4 },
-  phaseDivider: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 10, paddingBottom: 7 },
-  phaseDividerLine: { width: 4, height: 18, borderRadius: 2 },
-  phaseDividerTitle: { flex: 1, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  phaseSection: { gap: 2 },
+  phaseDivider: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 12, paddingBottom: 5 },
+  phaseDividerLabel: { flexDirection: "row", alignItems: "center", gap: 6 },
+  phaseDividerDot: { width: 6, height: 6, borderRadius: 999 },
+  phaseDividerTitle: { fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  phaseDividerRule: { height: 1, flex: 1, backgroundColor: "#e8edf4" },
   phaseDividerTime: { color: "#98a2b3", fontSize: 11, fontWeight: "800" },
-  turnRow: { borderRadius: 12, backgroundColor: "transparent" },
-  turnRowActive: { backgroundColor: "#eaf4ff", borderLeftWidth: 3, borderLeftColor: C.brand },
-  turnRowSelected: { backgroundColor: "#e0efff", borderWidth: 1, borderColor: "#60a5fa" },
-  turnMain: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 8, paddingHorizontal: 8 },
-  turnInitialSlot: { width: 20, alignItems: "center", paddingTop: 1 },
-  turnInitial: { fontSize: 12, fontWeight: "900" },
+  turnRow: { backgroundColor: "transparent" },
+  turnMain: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 9, paddingHorizontal: 8, borderRadius: 10 },
+  turnMainAgent: { backgroundColor: "#f7fbff" },
+  turnMainProspect: { backgroundColor: "rgba(255, 255, 255, 0.7)" },
+  turnMainOther: { backgroundColor: "rgba(248, 250, 252, 0.7)" },
+  turnMainActive: { backgroundColor: "#eaf3ff" },
+  turnMainSelected: { borderWidth: 1, borderColor: "#60a5fa", backgroundColor: "#e0efff" },
+  turnInitialSlot: { width: 22, alignItems: "center", paddingTop: 1 },
+  turnInitial: { width: 22, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 7 },
+  turnInitialAgent: { backgroundColor: "#dcecff" },
+  turnInitialProspect: { backgroundColor: "#eef2f6" },
+  turnInitialOther: { backgroundColor: "#f2f4f7" },
+  turnInitialText: { fontSize: 11, fontWeight: "900" },
   turnMeta: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 3 },
   turnSpeaker: { fontSize: 12, fontWeight: "900" },
+  turnRole: { color: "#8a94a6", fontSize: 10, fontWeight: "800" },
   segmentTime: { color: "#98a2b3", fontSize: 11, fontWeight: "800", marginLeft: "auto" },
+  segmentTimeActive: { color: C.brand },
   turnText: { color: "#344054", fontSize: 14, lineHeight: 20, fontWeight: "600" },
-  audioSignalRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 7 },
-  audioSignalPill: { minHeight: 22, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, borderRadius: 999 },
-  audioSignalText: { fontSize: 10, fontWeight: "800" },
+  turnTextActive: { color: C.text, fontWeight: "700" },
   annotationRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   annotationSheetBody: { fontSize: 15, fontWeight: "600", color: C.textSec, lineHeight: 22 },
   annotationSheetActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 4 },
@@ -6944,7 +8306,7 @@ const reviewSt = StyleSheet.create({
     backgroundColor: C.brand,
   },
   annotationSheetPlayText: { color: "#fff", fontSize: 13, fontWeight: "900" },
-  annotationChip: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 8, paddingRight: 4, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: "#dbeafe", backgroundColor: "#fff" },
+  annotationChip: { minWidth: 28, height: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingLeft: 6, paddingRight: 4, borderRadius: 999, borderWidth: 1, borderColor: "#dbeafe", backgroundColor: "#fff" },
   annotationText: { color: C.brand, fontSize: 10, fontWeight: "900" },
   annotationCountBadge: {
     minWidth: 20,
@@ -6970,19 +8332,19 @@ const reviewSt = StyleSheet.create({
   commentHintText: { flex: 1, color: "#1D4ED8", fontSize: 12, fontWeight: "700", lineHeight: 17 },
   commentKindBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 999, backgroundColor: "#f4f7fb" },
   commentKindText: { color: C.brand, fontSize: 8, fontWeight: "900", textTransform: "uppercase" },
-  coachingMoment: { gap: 9, marginVertical: 6, padding: 12, borderWidth: 1, borderColor: "#e9d5ff", borderRadius: 14, backgroundColor: "#fbf7ff" },
+  coachingMoment: { gap: 9, marginVertical: 6, padding: 12, borderWidth: 1, borderColor: C.aiBorder, borderRadius: 14, backgroundColor: "#f8fbff" },
   coachingMomentCompact: { marginLeft: 36, marginRight: 8, marginTop: 2 },
   coachingMomentHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
-  coachingMomentIcon: { width: 22, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: C.purpleBg },
-  coachingMomentKicker: { flex: 1, color: C.purple, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
-  coachingMomentTime: { color: "#8b5cf6", fontSize: 11, fontWeight: "900" },
+  coachingMomentIcon: { width: 22, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: C.aiBg },
+  coachingMomentKicker: { flex: 1, color: C.ai, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  coachingMomentTime: { color: C.ai, fontSize: 11, fontWeight: "900" },
   coachingMomentBody: { color: C.text, fontSize: 13, fontWeight: "700", lineHeight: 19 },
   coachingSuggestion: { gap: 3, padding: 10, borderRadius: 10, backgroundColor: "#fff" },
-  coachingSuggestionLabel: { color: C.purple, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  coachingSuggestionLabel: { color: C.ai, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   coachingSuggestionText: { color: "#344054", fontSize: 13, fontWeight: "700", lineHeight: 18 },
   coachingQuote: { color: "#7b8496", fontSize: 12, lineHeight: 17, fontStyle: "italic" },
   coachingMomentActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  coachingMomentAction: { color: C.purple, fontSize: 11, fontWeight: "900" },
+  coachingMomentAction: { color: C.ai, fontSize: 11, fontWeight: "900" },
   selectionBar: {
     position: "absolute",
     left: SESSION_PAGE_PADDING,
@@ -7018,12 +8380,14 @@ const reviewSt = StyleSheet.create({
   commentModalInput: { minHeight: 110, padding: 12, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 14, color: C.text, fontSize: 15, fontWeight: "600", textAlignVertical: "top", backgroundColor: "#f8fafc" },
   commentModalSubmit: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13, backgroundColor: C.brand },
   commentModalSubmitText: { color: "#fff", fontSize: 14, fontWeight: "900" },
-  processingTimeline: { alignSelf: "stretch", flexDirection: "row", justifyContent: "space-between", gap: 8, marginTop: 2, paddingTop: 8 },
-  processingStep: { flex: 1, alignItems: "center", gap: 6, minWidth: 58 },
-  processingStepIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "#fff" },
-  processingStepIconActive: { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
-  processingStepIconDone: { borderColor: "#bbf7d0", backgroundColor: C.greenBg },
-  processingStepText: { color: C.textMuted, fontSize: 10, lineHeight: 13, fontWeight: "800", textAlign: "center" },
+  processingTimeline: { alignSelf: "stretch", gap: 9, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  processingProgressHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  processingCurrentStep: { flexDirection: "row", alignItems: "center", gap: 8 },
+  processingCurrentLabel: { color: C.text, fontSize: 13, fontWeight: "900" },
+  processingStepCount: { color: C.textMuted, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  processingTrack: { height: 6, overflow: "hidden", borderRadius: 3, backgroundColor: "#e9eef5" },
+  processingLabels: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  processingLabel: { color: C.textMuted, fontSize: 9, fontWeight: "700" },
   playerDock: {
     position: "absolute",
     left: 0,
@@ -7132,16 +8496,14 @@ const st = StyleSheet.create({
 
   // Detail
   detailTitle: { fontSize: 28, fontWeight: "900", color: C.text },
-  checkedInCard: { gap: 10, padding: 14, borderWidth: 1, borderColor: "#bbf7d0", borderRadius: 16, backgroundColor: "#f0fdf4" },
-  checkedInHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  checkedInIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: "#dcfce7" },
-  checkedInTitle: { color: C.text, fontSize: 15, fontWeight: "900" },
-  checkedInSubtitle: { marginTop: 2, color: C.textSec, fontSize: 11, fontWeight: "600" },
-  checkedInPerson: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#fff" },
-  checkedInAvatar: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "#e0f2fe" },
+  checkedInCard: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 13, paddingVertical: 10, borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  checkedInAvatars: { flexDirection: "row", alignItems: "center", paddingRight: 3 },
+  checkedInAvatar: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: C.card, borderRadius: 17, backgroundColor: "#e0f2fe" },
+  checkedInAvatarOverlap: { marginLeft: -9 },
   checkedInAvatarText: { color: C.brand, fontSize: 13, fontWeight: "900" },
   checkedInName: { color: C.text, fontSize: 13, fontWeight: "800" },
   checkedInContact: { marginTop: 2, color: C.textSec, fontSize: 11, fontWeight: "600" },
+  checkedInState: { width: 26, height: 26, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: C.greenBg },
 
   // Score Hero
   scoreHero: { backgroundColor: C.card, borderRadius: 8, borderWidth: 1, borderColor: C.border, padding: 18, gap: 18 },
@@ -7154,8 +8516,9 @@ const st = StyleSheet.create({
   // Progress
   progressTrack: { height: 6, borderRadius: 99, backgroundColor: "#f1f5f9", overflow: "hidden", alignSelf: "stretch" },
   progressFill: { height: "100%", borderRadius: 99, backgroundColor: C.brand },
-  uploadRing: { width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center", backgroundColor: C.brand + "10" },
-  uploadInfoPanel: { alignSelf: "stretch", gap: 9, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 14, backgroundColor: "#f8fafc" },
+  uploadHeadingRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  uploadRing: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: C.brand + "10" },
+  uploadInfoPanel: { alignSelf: "stretch", gap: 9, paddingTop: 2 },
   uploadFileName: { color: C.text, fontSize: 14, lineHeight: 18, fontWeight: "900" },
   uploadStatsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   uploadStatText: { color: C.text, fontSize: 12, fontWeight: "900" },
@@ -7206,14 +8569,14 @@ const st = StyleSheet.create({
   defaultBadge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: C.greenBg },
   defaultBadgeText: { color: C.green, fontSize: 9, fontWeight: "900", textTransform: "uppercase" },
   defaultRubricCard: { minHeight: 118, flexDirection: "row", alignItems: "center", gap: 13, padding: 16, borderWidth: 1, borderColor: "#e9d5ff", borderRadius: 18, backgroundColor: "#fbf7ff" },
-  defaultRubricIcon: { width: 50, height: 50, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: C.purpleBg },
+  defaultRubricIcon: { width: 50, height: 50, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: C.aiBg },
   defaultRubricTitle: { flex: 1, color: C.text, fontSize: 17, fontWeight: "900" },
   rubricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   rubricCard: { width: "48%", minHeight: 146, justifyContent: "space-between", gap: 12, padding: 13, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 16, backgroundColor: "#fff" },
   rubricCardBody: { gap: 4 },
   rubricCardTitle: { color: C.text, fontSize: 13, lineHeight: 17, fontWeight: "900" },
   rubricRow: { minHeight: 82, flexDirection: "row", alignItems: "center", gap: 11, padding: 13 },
-  rubricListIcon: { width: 40, height: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: C.purpleBg },
+  rubricListIcon: { width: 40, height: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: C.aiBg },
   rubricTitleRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   rubricAppliedText: { color: C.brand, fontSize: 10, fontWeight: "800", marginTop: 4 },
   rubricSectionHeader: { minHeight: 60, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, backgroundColor: "#f8fafc" },
@@ -7233,7 +8596,7 @@ const st = StyleSheet.create({
   callLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.brand },
   callLiveText: { color: C.brand, fontSize: 10, fontWeight: "900" },
   callCenter: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 12 },
-  callMicHalo: { width: 128, height: 128, borderRadius: 64, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(79,70,229,0.17)", marginBottom: 24 },
+  callMicHalo: { width: 128, height: 128, borderRadius: 64, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,108,229,0.15)", marginBottom: 24 },
   callMicCore: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center", backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.38, shadowRadius: 24, elevation: 8 },
   callTitle: { color: "#636366", fontSize: 20, fontWeight: "800", textTransform: "uppercase" },
   callTimer: { color: "#111", fontSize: 36, fontWeight: "800", fontVariant: ["tabular-nums"], marginTop: 18, textAlign: "center" },
@@ -7287,8 +8650,8 @@ const st = StyleSheet.create({
   connectedBadgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green },
   connectedBadgeText: { color: C.green, fontSize: 10, fontWeight: "900" },
   calendarEventRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 13 },
-  entrataEventIcon: { width: 38, height: 38, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: C.purpleBg },
-  calendarContact: { color: C.purple, fontSize: 10, fontWeight: "700", marginTop: 3 },
+  entrataEventIcon: { width: 38, height: 38, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: C.aiBg },
+  calendarContact: { color: C.ai, fontSize: 10, fontWeight: "700", marginTop: 3 },
   calNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   calMonth: { fontSize: 17, fontWeight: "800", color: C.text },
   calDowRow: { flexDirection: "row", marginBottom: 6 },
@@ -7333,8 +8696,8 @@ const st = StyleSheet.create({
   outlineBtnText: { color: C.textSec, fontSize: 15, fontWeight: "800" },
   darkBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.text, borderRadius: 8, minHeight: 52, paddingHorizontal: 16 },
   darkBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  agentToggle: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#f8fafc", padding: 12 },
-  agentToggleSelected: { borderColor: C.brand, backgroundColor: C.brand + "10" },
+  agentToggle: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, paddingHorizontal: 13, paddingVertical: 9 },
+  agentToggleSelected: { borderColor: C.brand + "45", backgroundColor: C.brand + "08" },
   agentToggleCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, alignItems: "center", justifyContent: "center" },
   agentToggleCheckSelected: { borderColor: C.brand, backgroundColor: C.brand },
   agentToggleTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
