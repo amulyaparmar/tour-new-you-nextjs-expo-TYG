@@ -1,36 +1,12 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { StyleSheet, View } from "react-native";
-import Reanimated, {
-  Easing,
-  cancelAnimation,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
 
 import { TourBackButton as BackBtn } from "@/components/tour";
 import { Skeleton } from "@/components/ui/skeleton";
 import { tourColors as C } from "@/theme/tour-brand";
 
 function ShimmerGroup({ children }: { children: React.ReactNode }) {
-  const opacity = useSharedValue(0.46);
-
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.92, { duration: 720, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.46, { duration: 720, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-      false,
-    );
-    return () => cancelAnimation(opacity);
-  }, [opacity]);
-
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return <Reanimated.View style={animatedStyle}>{children}</Reanimated.View>;
+  return <View>{children}</View>;
 }
 
 export function PracticeListSkeleton() {
@@ -58,8 +34,9 @@ export function PracticeListSkeleton() {
         <View style={[styles.sectionHeading, styles.historyHeading]}>
           <Skeleton style={styles.historyTitle} />
         </View>
-        {Array.from({ length: 2 }, (_, index) => (
-          <View key={`attempt-${index}`} style={styles.row}>
+        <View style={styles.historyList}>
+        {Array.from({ length: 3 }, (_, index) => (
+          <View key={`attempt-${index}`} style={[styles.attemptRow, index < 2 && styles.attemptBorder]}>
             <Skeleton style={styles.attemptIcon} />
             <View style={styles.rowBody}>
               <Skeleton style={[styles.line, index === 0 ? styles.copyLong : styles.copyMedium]} />
@@ -68,6 +45,7 @@ export function PracticeListSkeleton() {
             <Skeleton style={styles.score} />
           </View>
         ))}
+        </View>
       </View>
     </ShimmerGroup>
   );
@@ -119,8 +97,8 @@ const styles = StyleSheet.create({
   countPill: { width: 24, height: 18, borderRadius: 99 },
   historyHeading: { marginTop: 16 },
   historyTitle: { width: 154, height: 18, borderRadius: 7 },
-  row: { minHeight: 84, flexDirection: "row", alignItems: "center", gap: 11, padding: 13, borderWidth: 1, borderColor: C.border, borderRadius: 15, backgroundColor: C.card },
-  rowIcon: { width: 39, height: 39, borderRadius: 12 },
+  row: { minHeight: 104, flexDirection: "row", alignItems: "center", gap: 11, padding: 13, borderWidth: 1, borderColor: C.border, borderRadius: 14, backgroundColor: C.card },
+  rowIcon: { width: 40, height: 40, borderRadius: 12 },
   attemptIcon: { width: 37, height: 37, borderRadius: 12 },
   rowBody: { flex: 1, minWidth: 0, gap: 7 },
   rowTitleLine: { flexDirection: "row", alignItems: "center", gap: 9 },
@@ -131,6 +109,9 @@ const styles = StyleSheet.create({
   copyMedium: { width: "62%" },
   metaLine: { width: 66, height: 8 },
   score: { width: 38, height: 19, borderRadius: 7 },
+  historyList: { overflow: "hidden", borderWidth: 1, borderColor: C.border, borderRadius: 14, backgroundColor: C.card },
+  attemptRow: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 13, paddingVertical: 10 },
+  attemptBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border },
   sessionRoot: { flex: 1, backgroundColor: C.bg },
   sessionHeader: { gap: 14, paddingTop: 14, paddingHorizontal: 20, paddingBottom: 17, borderBottomWidth: 1, borderColor: C.border },
   headerTop: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

@@ -16,6 +16,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PracticeSessionSkeleton } from "./practice-loading";
 
 type Scenario = {
@@ -112,6 +113,7 @@ const toolWaypointIds = (message: any) => {
 };
 
 export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario | null; onBack: () => void }) {
+  const insets = useSafeAreaInsets();
   const [launch, setLaunch] = useState<Launch | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -443,7 +445,7 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
   if (!launch) return null;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { paddingTop: Math.max(insets.top, 12) }]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <BackBtn label="Practice" onPress={onBack} />
@@ -454,7 +456,11 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
 
       <View style={styles.callStage}>
         <View style={styles.callCard}>
-          <View style={[styles.avatar, assistantSpeaking && styles.avatarSpeaking]}><Ionicons name={assistantSpeaking ? "volume-high" : "person"} size={30} color="#fff" /></View>
+          <View style={[styles.avatarRing, assistantSpeaking && styles.avatarRingSpeaking]}>
+            <View style={[styles.avatar, assistantSpeaking && styles.avatarSpeaking]}>
+              <Ionicons name={assistantSpeaking ? "volume-high" : "person"} size={28} color="#fff" />
+            </View>
+          </View>
           <Text style={styles.prospectName}>AI prospect</Text>
           <Text style={styles.callHint}>{callState === "live" ? assistantSpeaking ? "Speaking…" : "Listening…" : callState === "connecting" ? "Connecting to the AI prospect…" : callState === "ended" ? "Practice complete." : launch.scenario.description || "Practice a real conversation before your next tour."}</Text>
           {callState === "live" ? <View style={styles.volumeRow}>{Array.from({ length: 18 }, (_, index) => <View key={index} style={[styles.volumeBar, index / 18 < Math.min(1, Math.sqrt(volume)) ? styles.volumeBarActive : null]} />)}</View> : null}
@@ -463,7 +469,20 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
         <View style={styles.transcriptArea}>
           <ScrollView ref={transcriptScrollRef} style={styles.transcriptScroll} contentContainerStyle={styles.transcriptContent} showsVerticalScrollIndicator>
             {error ? <View style={styles.error}><Ionicons name="alert-circle-outline" size={18} color={C.red} /><Text style={styles.errorText}>{error}</Text></View> : null}
-            {transcript.length ? transcript.map((line) => <View key={line.id} style={[styles.line, line.role === "agent" ? styles.agentLine : styles.prospectLine]}><Text style={[styles.lineRole, line.role === "agent" ? styles.agentText : styles.prospectText]}>{line.role === "agent" ? "You" : "AI prospect"} · {timeLabel(line.seconds)}</Text><Text style={styles.lineText}>{line.text}</Text></View>) : <View style={styles.emptyTranscript}><Ionicons name="chatbubble-ellipses-outline" size={23} color={C.textMuted} /><Text style={styles.emptyTranscriptText}>{callState === "live" ? "The conversation will appear here as you speak." : "Start when you’re ready. The conversation will appear here."}</Text></View>}
+            {transcript.length ? transcript.map((line) => (
+              <View key={line.id} style={[styles.line, line.role === "agent" ? styles.agentLine : styles.prospectLine]}>
+                <View style={[styles.speakerMark, line.role === "agent" ? styles.agentMark : styles.prospectMark]}>
+                  <Text style={[styles.speakerMarkText, line.role === "agent" ? styles.agentText : styles.prospectText]}>{line.role === "agent" ? "Y" : "AI"}</Text>
+                </View>
+                <View style={styles.lineBody}>
+                  <View style={styles.lineMeta}>
+                    <Text style={[styles.lineRole, line.role === "agent" ? styles.agentText : styles.prospectText]}>{line.role === "agent" ? "You" : "AI prospect"}</Text>
+                    <Text style={styles.lineTime}>{timeLabel(line.seconds)}</Text>
+                  </View>
+                  <Text style={styles.lineText}>{line.text}</Text>
+                </View>
+              </View>
+            )) : <View style={styles.emptyTranscript}><Ionicons name="chatbubble-ellipses-outline" size={23} color={C.textMuted} /><Text style={styles.emptyTranscriptText}>{callState === "live" ? "The conversation will appear here as you speak." : "Tap the microphone when you’re ready."}</Text></View>}
             {callState === "ended" ? <View style={styles.scoreCard}>{grading ? <><LoadingDots color={C.brand} /><Text style={styles.scoreTitle}>Reviewing your practice…</Text><Text style={styles.scoreCopy}>Your result will appear here as soon as it is ready.</Text></> : <>{scorecard?.score !== null && scorecard?.score !== undefined ? <Text style={styles.score}>{scorecard.score}%</Text> : <Ionicons name="time-outline" size={28} color={C.amber} />}<Text style={styles.scoreTitle}>{scorecard?.status === "passed" ? "Practice passed" : scorecard?.score != null ? "Practice complete" : "Analysis is still processing"}</Text>{scorecard?.summary ? <Text style={styles.scoreCopy}>{scorecard.summary}</Text> : null}<Text style={styles.scoreSaved}>{scorecard?.saved ? "Saved to your practice history." : "You can return to practice history for the full result."}</Text><Pressable onPress={onBack} style={styles.doneButton}><Text style={styles.doneButtonText}>Back to practice</Text></Pressable></>}</View> : null}
           </ScrollView>
         </View>
@@ -504,21 +523,28 @@ function GoalsButton({ completed, total, onPress }: { completed: number; total: 
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg, paddingTop: 42 },
+  root: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 28, backgroundColor: C.bg },
-  header: { gap: 8, paddingHorizontal: 20, paddingBottom: 16 }, headerTop: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerCopy: { flex: 1, minWidth: 0 }, eyebrow: { color: C.textMuted, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 }, title: { color: C.text, fontSize: 18, fontWeight: "900", lineHeight: 23 },
-  goalsButton: { width: 46, height: 46, alignItems: "center", justifyContent: "center", gap: 0, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.card }, goalsButtonText: { color: C.textMuted, fontSize: 10, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  header: { gap: 8, paddingHorizontal: 20, paddingBottom: 14 }, headerTop: { minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerCopy: { flex: 1, minWidth: 0 }, eyebrow: { color: C.textMuted, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 }, title: { color: C.text, fontSize: 20, fontWeight: "900", lineHeight: 25 },
+  goalsButton: { width: 46, height: 46, alignItems: "center", justifyContent: "center", gap: 0, borderRadius: 23, borderWidth: 1, borderColor: C.border, backgroundColor: C.card }, goalsButtonText: { color: C.textMuted, fontSize: 10, fontWeight: "900", fontVariant: ["tabular-nums"] },
   status: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 99, backgroundColor: C.card, borderWidth: 1, borderColor: C.border }, statusLive: { backgroundColor: C.green + "12", borderColor: C.green + "35" }, statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.textMuted }, statusDotLive: { backgroundColor: C.green }, statusText: { color: C.textMuted, fontSize: 10, fontWeight: "900" }, statusTextLive: { color: C.green },
   callStage: { flex: 1, minHeight: 0, paddingHorizontal: 20 },
-  callCard: { alignItems: "center", paddingTop: 10, paddingBottom: 18 }, avatar: { width: 64, height: 64, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: C.brand }, avatarSpeaking: { backgroundColor: "#6750A4", transform: [{ scale: 1.03 }] }, prospectName: { marginTop: 11, color: C.text, fontSize: 17, fontWeight: "900" }, callHint: { marginTop: 4, maxWidth: 280, color: C.textSec, fontSize: 12, fontWeight: "600", textAlign: "center", lineHeight: 18 },
-  controlDock: { minHeight: 88, paddingHorizontal: 20, paddingTop: 13, paddingBottom: 20, borderTopWidth: 1, borderColor: C.border, backgroundColor: C.bg }, readyControls: { position: "relative", width: "100%", height: 60, alignItems: "center", justifyContent: "center" }, readyGoals: { position: "absolute", left: "50%", marginLeft: 66 }, startButton: { width: 60, height: 60, alignItems: "center", justifyContent: "center", borderRadius: 30, backgroundColor: C.brand, shadowColor: C.brand, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } }, connecting: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 }, connectingText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
+  callCard: { alignItems: "center", paddingTop: 8, paddingBottom: 16 },
+  avatarRing: { width: 74, height: 74, alignItems: "center", justifyContent: "center", borderRadius: 37, backgroundColor: C.brand + "12" },
+  avatarRingSpeaking: { backgroundColor: C.brand + "22", transform: [{ scale: 1.04 }] },
+  avatar: { width: 60, height: 60, alignItems: "center", justifyContent: "center", borderRadius: 30, backgroundColor: C.brand }, avatarSpeaking: { backgroundColor: C.brand }, prospectName: { marginTop: 10, color: C.text, fontSize: 16, fontWeight: "900" }, callHint: { marginTop: 4, maxWidth: 280, color: C.textSec, fontSize: 12, fontWeight: "600", textAlign: "center", lineHeight: 18 },
+  controlDock: { minHeight: 88, paddingHorizontal: 20, paddingTop: 13, paddingBottom: 20, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.border, backgroundColor: C.card }, readyControls: { position: "relative", width: "100%", height: 64, alignItems: "center", justifyContent: "center" }, readyGoals: { position: "absolute", left: "50%", marginLeft: 70 }, startButton: { width: 64, height: 64, alignItems: "center", justifyContent: "center", borderRadius: 32, borderWidth: 4, borderColor: "#dbeafe", backgroundColor: C.brand, shadowColor: C.brand, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } }, connecting: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 }, connectingText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
   liveControlsRow: { flexDirection: "row", alignItems: "center", gap: 8 }, controls: { flex: 1, flexDirection: "row", gap: 10 }, control: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card }, liveMuteControl: { flex: 1 }, controlText: { color: C.text, fontSize: 13, fontWeight: "900" }, endControl: { borderColor: C.red, backgroundColor: C.red }, liveEndControl: { flex: 1 }, endControlText: { color: "#fff" },
   volumeRow: { height: 21, flexDirection: "row", alignItems: "flex-end", gap: 3, marginTop: 17 }, volumeBar: { width: 3, height: 5, borderRadius: 2, backgroundColor: C.border }, volumeBarActive: { height: 18, backgroundColor: C.brand },
   error: { flexDirection: "row", gap: 9, alignItems: "flex-start", padding: 12, borderRadius: 13, backgroundColor: C.redBg }, errorText: { flex: 1, color: C.red, fontSize: 12, fontWeight: "700", lineHeight: 18 },
   section: { gap: 9 }, sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, sectionTitle: { color: C.text, fontSize: 16, fontWeight: "900" }, sectionMeta: { minWidth: 23, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 99, backgroundColor: C.brand + "12", color: C.brand, fontSize: 10, fontWeight: "900", textAlign: "center" },
   waypoint: { flexDirection: "row", gap: 11, paddingVertical: 13, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.card }, waypointDone: { backgroundColor: C.green + "0A" }, waypointIcon: { width: 26, height: 26, alignItems: "center", justifyContent: "center", borderRadius: 13, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg }, waypointIconDone: { borderColor: C.green, backgroundColor: C.green }, grow: { flex: 1, minWidth: 0 }, waypointTitle: { color: C.text, fontSize: 13, fontWeight: "800", lineHeight: 18 }, waypointCue: { marginTop: 3, color: C.textSec, fontSize: 11, fontWeight: "500", lineHeight: 16 },
-  transcriptArea: { flex: 1, minHeight: 0, borderTopWidth: 1, borderColor: C.border + "A8" }, transcriptScroll: { flex: 1 }, transcriptContent: { flexGrow: 1, gap: 8, paddingVertical: 18, paddingRight: 2 }, line: { padding: 14, borderRadius: 12 }, agentLine: { backgroundColor: C.brand + "0C" }, prospectLine: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }, lineRole: { fontSize: 10, fontWeight: "900" }, agentText: { color: C.brand }, prospectText: { color: "#6750A4" }, lineText: { marginTop: 5, color: C.text, fontSize: 14, lineHeight: 20, fontWeight: "600" }, emptyTranscript: { flex: 1, minHeight: 150, alignItems: "center", justifyContent: "center", gap: 10, padding: 32 }, emptyTranscriptText: { maxWidth: 230, color: C.textMuted, fontSize: 13, fontWeight: "600", lineHeight: 20, textAlign: "center" },
+  transcriptArea: { flex: 1, minHeight: 0, borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.border }, transcriptScroll: { flex: 1 }, transcriptContent: { flexGrow: 1, gap: 6, paddingVertical: 14, paddingRight: 2 },
+  line: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 10, paddingVertical: 11, borderRadius: 10 },
+  agentLine: { backgroundColor: C.brand + "09" }, prospectLine: { backgroundColor: C.card },
+  speakerMark: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 14 }, agentMark: { backgroundColor: C.brand + "12" }, prospectMark: { backgroundColor: C.brand + "0A", borderWidth: 1, borderColor: C.brand + "22" }, speakerMarkText: { fontSize: 9, fontWeight: "900" },
+  lineBody: { flex: 1, minWidth: 0 }, lineMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, lineRole: { fontSize: 10, fontWeight: "900" }, lineTime: { color: C.textMuted, fontSize: 9, fontWeight: "800", fontVariant: ["tabular-nums"] }, agentText: { color: C.brand }, prospectText: { color: C.brand }, lineText: { marginTop: 4, color: C.text, fontSize: 14, lineHeight: 20, fontWeight: "600" }, emptyTranscript: { flex: 1, minHeight: 150, alignItems: "center", justifyContent: "center", gap: 10, padding: 32 }, emptyTranscriptText: { maxWidth: 230, color: C.textMuted, fontSize: 13, fontWeight: "600", lineHeight: 20, textAlign: "center" },
   drawerOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(12, 20, 36, 0.32)" }, drawerDismiss: { flex: 1 }, goalsDrawer: { width: "100%", maxHeight: "72%", paddingTop: 9, paddingHorizontal: 20, paddingBottom: 30, backgroundColor: C.bg, borderTopWidth: 1, borderColor: C.border, borderTopLeftRadius: 24, borderTopRightRadius: 24, shadowColor: "#0B1731", shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -7 } }, drawerHandle: { width: 34, height: 4, alignSelf: "center", borderRadius: 4, backgroundColor: C.border, marginBottom: 17 }, drawerHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }, drawerEyebrow: { color: C.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 0.7 }, drawerTitle: { marginTop: 3, color: C.text, fontSize: 24, fontWeight: "900" }, drawerClose: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, borderRadius: 18, backgroundColor: C.card }, drawerProgress: { marginTop: 11, marginBottom: 17, color: C.brand, fontSize: 13, fontWeight: "800" }, drawerList: { gap: 8, paddingBottom: 30 },
   scoreCard: { alignItems: "center", gap: 9, padding: 22, borderRadius: 18, borderWidth: 1, borderColor: C.brand + "30", backgroundColor: C.brand + "08" }, score: { color: C.brand, fontSize: 38, fontWeight: "900" }, scoreTitle: { color: C.text, fontSize: 16, fontWeight: "900", textAlign: "center" }, scoreCopy: { color: C.textSec, fontSize: 12, fontWeight: "600", lineHeight: 18, textAlign: "center" }, scoreSaved: { color: C.textMuted, fontSize: 11, fontWeight: "700", textAlign: "center" }, doneButton: { marginTop: 5, paddingHorizontal: 16, paddingVertical: 11, borderRadius: 11, backgroundColor: C.brand }, doneButtonText: { color: "#fff", fontSize: 12, fontWeight: "900" },
   loadingText: { color: C.textSec, fontSize: 13, fontWeight: "700" }, retry: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.brand }, retryText: { color: "#fff", fontSize: 13, fontWeight: "900" },
