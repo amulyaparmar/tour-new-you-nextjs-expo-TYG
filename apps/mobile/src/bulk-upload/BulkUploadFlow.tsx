@@ -108,7 +108,7 @@ function statusPresentation(status: BulkBatchItemStatus) {
     case "uploading":
       return { label: "Uploading", icon: "cloud-upload-outline" as const, color: C.brand, bg: "#eaf4ff" };
     case "processing":
-      return { label: "Analyzing", icon: "analytics-outline" as const, color: C.purple, bg: C.purpleBg };
+      return { label: "Analyzing", icon: "analytics-outline" as const, color: C.ai, bg: C.aiBg };
     case "ready":
       return { label: "Report ready", icon: "checkmark" as const, color: C.green, bg: C.greenBg };
     case "error":
@@ -463,7 +463,7 @@ function SelectStep({
 }) {
   return (
     <Reanimated.View entering={FadeInDown.duration(280).springify()} style={styles.stepGap}>
-      <LinearGradient colors={["#006ce5", "#4D8AE5", "#7c3aed"]} style={styles.hero}>
+      <LinearGradient colors={["#006ce5", "#4D8AE5", "#087d84"]} style={styles.hero}>
         <View style={styles.heroGlow} />
         <View style={styles.heroIcon}><Ionicons name="albums-outline" size={28} color="#fff" /></View>
         <Text style={styles.heroTitle}>Turn a folder of recordings into a clear review queue.</Text>

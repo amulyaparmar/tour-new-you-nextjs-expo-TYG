@@ -32,6 +32,13 @@ export async function POST(_request: Request, context: Context) {
       );
     }
 
+    if (!session.audioUrl && !session.videoUrl) {
+      return NextResponse.json(
+        { error: "Add an audio or video recording before starting analysis.", code: "recording_required" },
+        { status: 409 }
+      );
+    }
+
     await setSessionStatus(id, "transcribing");
     await prepareAudioInsightsProcessing(id);
 
