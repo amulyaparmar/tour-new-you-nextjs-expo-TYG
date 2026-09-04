@@ -108,7 +108,7 @@ const EMPTY_DRAFT: LiveRecordingDraft = {
   prospect: "",
   location: "",
   rubricId: null,
-  uploaderIsAgent: false,
+  uploaderIsAgent: true,
 };
 
 const EMPTY_CTX: RecordingCtx = {

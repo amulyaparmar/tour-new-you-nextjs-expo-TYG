@@ -309,7 +309,7 @@ function emptyLiveDraft(): LocalSessionMeta["draft"] {
     prospect: "",
     location: "",
     rubricId: null,
-    uploaderIsAgent: false,
+    uploaderIsAgent: true,
   };
 }
 
@@ -2458,6 +2458,7 @@ function SessionsListScreen({
         </Reanimated.View>
       )}
 
+      {/* Practice sessions — temporarily hidden from the UI.
       {!showSamples && (
         <View style={slst.practiceSection}>
           <View style={slst.practiceHeading}>
@@ -2513,6 +2514,7 @@ function SessionsListScreen({
           )}
         </View>
       )}
+      */}
 
       {!showSamples && (
         <Pressable

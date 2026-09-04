@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { setAudioModeAsync } from "expo-audio";
 import * as SecureStore from "expo-secure-store";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { WebView } from "react-native-webview";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCodeStyled from "react-native-qrcode-styled";
 import {
@@ -282,6 +283,7 @@ function sessionLeadKey(lead: SessionLead) {
 function attachmentTypeForMaterial(material: Material): SessionAttachment["type"] {
   const url = materialUrl(material)?.toLowerCase() ?? "";
   if (material.media?.videoUrl || /\.(mp4|mov|m4v|webm)(\?|$)/.test(url)) return "video";
+  if (material.media?.iframeUrl) return "link";
   if (material.media?.imageUrl || /\.(png|jpe?g|gif|webp)(\?|$)/.test(url)) return "image";
   if (/^https?:/.test(url)) return material.fileUrl ? "document" : "link";
   return "other";
@@ -322,6 +324,19 @@ function RecordingAssetVideoPreview({ source }: { source: string }) {
     videoPlayer.loop = false;
   });
   return <VideoView player={player} style={s.assetPreviewMedia} contentFit="contain" nativeControls />;
+}
+
+function RecordingAssetWebPreview({ source }: { source: string }) {
+  return (
+    <WebView
+      source={{ uri: source }}
+      style={s.assetPreviewMedia}
+      originWhitelist={["*"]}
+      javaScriptEnabled
+      domStorageEnabled
+      startInLoadingState
+    />
+  );
 }
 
 /** Own listeners — package hook drops native `{ message }` errors. */
@@ -1998,6 +2013,8 @@ export function RecordingExperience({
             <View style={s.assetPreviewStage}>
               {selectedAssetPreview.kind === "video" && selectedAssetPreview.url ? (
                 <RecordingAssetVideoPreview source={selectedAssetPreview.url} />
+              ) : selectedAssetPreview.kind === "link" && selectedAssetPreview.url ? (
+                <RecordingAssetWebPreview source={selectedAssetPreview.url} />
               ) : selectedAssetPreview.previewUrl ? (
                 <Image source={{ uri: selectedAssetPreview.previewUrl }} resizeMode="contain" style={s.assetPreviewMedia} />
               ) : (
