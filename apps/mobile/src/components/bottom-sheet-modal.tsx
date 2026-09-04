@@ -37,6 +37,7 @@ type BottomSheetModalProps = {
   sheetHeight?: number;
   dismissDisabled?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
+  sheetStyle?: StyleProp<ViewStyle>;
   keyboardAvoiding?: boolean;
   /** Enables a right-swipe back action inside a nested sheet state. */
   swipeBackEnabled?: boolean;
@@ -52,6 +53,7 @@ export function BottomSheetModal({
   sheetHeight = DEFAULT_SHEET_HEIGHT,
   dismissDisabled = false,
   contentStyle,
+  sheetStyle,
   keyboardAvoiding = false,
   swipeBackEnabled = false,
   onSwipeBack,
@@ -185,7 +187,7 @@ export function BottomSheetModal({
     opacity: backdropOpacity.value,
   }));
 
-  const sheetStyle = useAnimatedStyle(() => ({
+  const sheetAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
 
@@ -216,6 +218,7 @@ export function BottomSheetModal({
               style={[
                 styles.sheet,
                 sheetStyle,
+                sheetAnimatedStyle,
                 {
                   height: sheetHeight,
                   paddingBottom: keyboardVisible ? 0 : Math.max(insets.bottom, 16),
