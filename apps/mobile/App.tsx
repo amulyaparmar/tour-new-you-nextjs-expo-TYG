@@ -164,8 +164,10 @@ import { CustomText } from "./src/components/custom-text";
 import {
   LargeTitleCopy,
   LargeTitleHeader,
+  LARGE_TITLE_BAR_HEIGHT,
   largeTitleContentInset,
 } from "./src/components/large-title-header";
+import { LiquidGlassDropdown } from "./src/components/liquid-glass-dropdown";
 import { LiquidGlassIconButton } from "./src/components/liquid-glass-icon-button";
 import { LiquidGlassSearch } from "./src/components/liquid-glass-search";
 import {
@@ -1669,29 +1671,15 @@ function CommunityTopBar({
       .trim() || property;
   return (
     <View style={homeSt.topBar}>
-      {left ? <View style={homeSt.topBarSide}>{left}</View> : null}
-      <View style={[homeSt.topBarCenter, !right && homeSt.topBarCenterEnd]}>
-        <Pressable
+      <View style={homeSt.topBarSide}>{left}</View>
+      <View style={homeSt.topBarCenter}>
+        <LiquidGlassDropdown
+          label={propertyLabel}
           accessibilityLabel="Switch property"
           onPress={onCommunityPress}
-          style={({ pressed }) => [
-            homeSt.propertyPicker,
-            pressed && st.pressed,
-          ]}
-        >
-          <CustomText
-            textStyle="title"
-            numberOfLines={1}
-            style={homeSt.propertyPickerText}
-          >
-            {propertyLabel}
-          </CustomText>
-          <Ionicons name="chevron-down" size={15} color={C.textSec} />
-        </Pressable>
+        />
       </View>
-      {right ? (
-        <View style={[homeSt.topBarSide, homeSt.topBarSideEnd]}>{right}</View>
-      ) : null}
+      <View style={[homeSt.topBarSide, homeSt.topBarSideEnd]}>{right}</View>
     </View>
   );
 }
@@ -1912,7 +1900,7 @@ function MainTabs({
     ],
   );
 
-  const showScrollView = tab !== "sessions" && tab !== "materials";
+  const showScrollView = tab !== "home" && tab !== "sessions" && tab !== "materials";
   const handleTabPress = useCallback(
     (nextTab: MainTab) => {
       const currentIndex = TAB_ITEMS.findIndex((item) => item.id === tab);
@@ -1954,9 +1942,6 @@ function MainTabs({
           direction={tabTransitionDirection}
         >
           <ScrollView
-            style={
-              tab === "home" || tab === "materials" ? homeSt.pageBg : undefined
-            }
             contentInsetAdjustmentBehavior="automatic"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={st.mainScroll}
@@ -1974,40 +1959,6 @@ function MainTabs({
                   error instanceof Error ? error.message : "Failed to load data"
                 }
                 onRetry={() => void onRefresh()}
-              />
-            )}
-            {tab === "home" && (
-              <DashboardScreen
-                sessions={sessions}
-                upcomingSessions={upcomingSessions}
-                materials={materials}
-                materialCount={materials.length}
-                tourLibrary={tourLibrary}
-                loading={loading}
-                materialsLoading={materialsLoading}
-                onSession={onSession}
-                onProfile={() => setProfileEditorOpen(true)}
-                onCheckIn={() => void openSessionCheckIn()}
-                onCreate={onCreate}
-                onAudioTest={onAudioTest}
-                onAssets={() => handleTabPress("materials")}
-                onCommunityPress={() => setCommunityPickerOpen(true)}
-                agentName={agentName}
-                userTitle={
-                  profile?.title ??
-                  authSession.workspace.user.title ??
-                  "Leasing Consultant"
-                }
-                userPhone={
-                  profile?.phone ?? authSession.workspace.user.phone ?? null
-                }
-                userEmail={authSession.workspace.user.email}
-                cardAccent={
-                  profile?.cardAccent ??
-                  authSession.workspace.user.cardAccent ??
-                  "#006CE5"
-                }
-                property={property}
               />
             )}
             {tab === "calendar" && (
@@ -2058,6 +2009,50 @@ function MainTabs({
               />
             )}
           </ScrollView>
+        </ScreenTransition>
+      )}
+
+      {tab === "home" && (
+        <ScreenTransition
+          transitionKey="tab:home"
+          direction={tabTransitionDirection}
+        >
+          <DashboardScreen
+            sessions={sessions}
+            upcomingSessions={upcomingSessions}
+            materials={materials}
+            materialCount={materials.length}
+            tourLibrary={tourLibrary}
+            loading={loading}
+            materialsLoading={materialsLoading}
+            refreshing={refreshing}
+            error={error}
+            onRefresh={onRefresh}
+            onSession={onSession}
+            onProfile={() => setProfileEditorOpen(true)}
+            onCheckIn={() => void openSessionCheckIn()}
+            onCreate={onCreate}
+            onAudioTest={onAudioTest}
+            onAssets={() => handleTabPress("materials")}
+            onCommunityPress={() => setCommunityPickerOpen(true)}
+            onSettings={() => handleTabPress("settings")}
+            agentName={agentName}
+            userTitle={
+              profile?.title ??
+              authSession.workspace.user.title ??
+              "Leasing Consultant"
+            }
+            userPhone={
+              profile?.phone ?? authSession.workspace.user.phone ?? null
+            }
+            userEmail={authSession.workspace.user.email}
+            cardAccent={
+              profile?.cardAccent ??
+              authSession.workspace.user.cardAccent ??
+              "#006CE5"
+            }
+            property={property}
+          />
         </ScreenTransition>
       )}
 
@@ -2245,6 +2240,9 @@ function DashboardScreen({
   tourLibrary,
   loading,
   materialsLoading,
+  refreshing,
+  error,
+  onRefresh,
   onSession,
   onProfile,
   onCheckIn,
@@ -2252,6 +2250,7 @@ function DashboardScreen({
   onAudioTest,
   onAssets,
   onCommunityPress,
+  onSettings,
   agentName,
   userTitle,
   userPhone,
@@ -2266,6 +2265,9 @@ function DashboardScreen({
   tourLibrary: TourLibraryLink | null;
   loading: boolean;
   materialsLoading: boolean;
+  refreshing: boolean;
+  error: unknown;
+  onRefresh: () => Promise<void>;
   onSession: (id: string, opts?: { autoStartRecording?: boolean }) => void;
   onProfile: () => void;
   onCheckIn: () => void;
@@ -2273,6 +2275,7 @@ function DashboardScreen({
   onAudioTest: () => void;
   onAssets: () => void;
   onCommunityPress: () => void;
+  onSettings: () => void;
   agentName: string;
   userTitle: string;
   userPhone: string | null;
@@ -2283,8 +2286,15 @@ function DashboardScreen({
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(
     null,
   );
+  const insets = useSafeAreaInsets();
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
   const { width: dashboardWidth } = useWindowDimensions();
-  const assetTileWidth = Math.max(96, Math.min(120, (dashboardWidth - 52) / 3));
+  const assetTileWidth = Math.max(148, Math.min(168, (dashboardWidth - 40) / 2.15));
   const todayTours = useMemo(() => {
     const todayKey = new Date().toDateString();
     return upcomingSessions
@@ -2305,13 +2315,35 @@ function DashboardScreen({
   const accent = resolveCardAccent(cardAccent);
 
   return (
-    <View style={[st.page, homeSt.pageBg, { gap: 18 }]}>
-      <CommunityTopBar
-        property={property}
-        onCommunityPress={onCommunityPress}
-        left={<TourLogo width={74} />}
-      />
-
+    <View style={[st.flex1, homeSt.pageBg]}>
+      <Reanimated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={[
+          st.mainScroll,
+          {
+            paddingTop: insets.top + LARGE_TITLE_BAR_HEIGHT + 18,
+            gap: 18,
+          },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={ACCENT}
+          />
+        }
+      >
+        {error ? (
+          <ErrorBanner
+            message={
+              error instanceof Error ? error.message : "Failed to load data"
+            }
+            onRetry={() => void onRefresh()}
+          />
+        ) : null}
       <MotionPressable
         onPress={onProfile}
         haptic="selection"
@@ -2474,51 +2506,92 @@ function DashboardScreen({
                 directionalLockEnabled
                 showsHorizontalScrollIndicator={false}
                 decelerationRate="fast"
-                snapToInterval={assetTileWidth + 6}
+                snapToInterval={assetTileWidth + 8}
                 disableIntervalMomentum
                 style={homeSt.mediaRowBleed}
                 contentContainerStyle={homeSt.mediaRow}
               >
                 {materials.map((material) => {
                   const previewUrl = materialPreviewUrl(material);
-                  const canOpen = Boolean(materialUrl(material));
+                  const assetUrl = materialUrl(material);
+                  const panorama = isPanoramaMaterial(material);
+                  const canPlay = Boolean(
+                    !panorama && assetUrl && isVideoLikeUrl(assetUrl),
+                  );
+                  const canOpen = Boolean(assetUrl);
                   return (
                     <MotionPressable
                       key={material.id}
                       accessibilityLabel={`Preview ${material.name}`}
                       onPress={() => setSelectedMaterial(material)}
                       haptic="selection"
-                      style={[homeSt.mediaTile, { width: assetTileWidth }]}
+                      style={[assetSt.card, { width: assetTileWidth }]}
                     >
-                      <View style={homeSt.mediaThumb}>
+                      <View style={assetSt.thumb}>
                         {previewUrl ? (
                           <Image
                             source={{ uri: previewUrl }}
-                            style={homeSt.mediaPreviewImage}
+                            style={assetSt.thumbImage}
                             resizeMode="cover"
                           />
                         ) : (
-                          <View style={homeSt.mediaFallbackIcon}>
+                          <View style={assetSt.fallbackIcon}>
                             <Ionicons
-                              name={canOpen ? "play" : "document-outline"}
-                              size={canOpen ? 18 : 23}
+                              name={
+                                canPlay
+                                  ? "play"
+                                  : canOpen
+                                    ? "image-outline"
+                                    : "document-outline"
+                              }
+                              size={22}
                               color={ACCENT}
                             />
                           </View>
                         )}
-                        {canOpen ? (
-                          <View style={homeSt.mediaPlayBadge}>
-                            <Ionicons name="play" size={11} color="#fff" />
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.58)"]}
+                          style={assetSt.captionFade}
+                        />
+                        {panorama ? (
+                          <View style={assetSt.panoramaBadge}>
+                            <Ionicons
+                              name="globe-outline"
+                              size={12}
+                              color={CARD}
+                            />
+                            <CustomText
+                              textStyle="micro"
+                              style={assetSt.panoramaBadgeText}
+                            >
+                              360°
+                            </CustomText>
+                          </View>
+                        ) : canPlay ? (
+                          <View pointerEvents="none" style={assetSt.playWrap}>
+                            <View style={assetSt.playBadge}>
+                              <Ionicons name="play" size={13} color={CARD} />
+                            </View>
                           </View>
                         ) : null}
+                        <View pointerEvents="none" style={assetSt.caption}>
+                          <CustomText
+                            textStyle="title"
+                            numberOfLines={1}
+                            style={assetSt.captionTitle}
+                          >
+                            {material.name}
+                          </CustomText>
+                          <CustomText
+                            textStyle="micro"
+                            numberOfLines={1}
+                            style={assetSt.captionMeta}
+                          >
+                            {material.type} · {fmtDate(material.createdAt)}
+                          </CustomText>
+                        </View>
                       </View>
-                      <CustomText
-                        textStyle="micro"
-                        numberOfLines={1}
-                        style={homeSt.mediaLabel}
-                      >
-                        {material.name}
-                      </CustomText>
                     </MotionPressable>
                   );
                 })}
@@ -2560,11 +2633,27 @@ function DashboardScreen({
           </View>
         </HomeSection>
       </View>
+      </Reanimated.ScrollView>
       <MaterialPreviewModal
         material={selectedMaterial}
         property={property}
         onClose={() => setSelectedMaterial(null)}
       />
+      <LargeTitleHeader scrollY={scrollY} fadeStart={0} fadeEnd={44}>
+        <CommunityTopBar
+          property={property}
+          onCommunityPress={onCommunityPress}
+          left={<TourLogo width={74} />}
+          right={
+            <LiquidGlassIconButton
+              icon="settings"
+              iconSize={21}
+              accessibilityLabel="Settings"
+              onPress={onSettings}
+            />
+          }
+        />
+      </LargeTitleHeader>
     </View>
   );
 }
@@ -12392,7 +12481,7 @@ const homeSt = StyleSheet.create({
   },
   topBar: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 },
   topBarSide: {
-    minWidth: 44,
+    width: 74,
     flexShrink: 0,
     alignItems: "flex-start",
     justifyContent: "center",
@@ -12403,24 +12492,6 @@ const homeSt = StyleSheet.create({
     minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-  },
-  topBarCenterEnd: { alignItems: "flex-end" },
-  propertyPicker: {
-    maxWidth: "100%",
-    minHeight: 42,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    backgroundColor: CARD,
-  },
-  propertyPickerText: {
-    flexShrink: 1,
-    color: TEXT,
-    lineHeight: 19,
-    textAlign: "center",
   },
   headerIcon: {
     width: 38,
@@ -12706,7 +12777,7 @@ const homeSt = StyleSheet.create({
     backgroundColor: CARD,
   },
   mediaRowBleed: { marginHorizontal: -16 },
-  mediaRow: { gap: 6, paddingHorizontal: 16 },
+  mediaRow: { gap: 8, paddingHorizontal: 16 },
   mediaTile: {
     minHeight: 132,
     justifyContent: "space-between",

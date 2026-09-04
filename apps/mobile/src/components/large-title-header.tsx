@@ -57,17 +57,23 @@ export function LargeTitleHeader({
   title,
   scrollY,
   trailing,
+  children,
   hideCompactTitle = false,
+  fadeStart = COLLAPSE_START,
+  fadeEnd = COLLAPSE_END,
 }: {
-  title: string;
+  title?: string;
   scrollY: SharedValue<number>;
   trailing?: React.ReactNode;
+  children?: React.ReactNode;
   hideCompactTitle?: boolean;
+  fadeStart?: number;
+  fadeEnd?: number;
 }) {
   const insets = useSafeAreaInsets();
 
   const chromeStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [COLLAPSE_START, COLLAPSE_END], [0, 1], Extrapolation.CLAMP),
+    opacity: interpolate(scrollY.value, [fadeStart, fadeEnd], [0, 1], Extrapolation.CLAMP),
   }));
 
   const compactTitleStyle = useAnimatedStyle(() => ({
@@ -87,15 +93,23 @@ export function LargeTitleHeader({
         />
       </Reanimated.View>
       <View pointerEvents="box-none" style={[styles.bar, { marginTop: insets.top }]}>
-        {hideCompactTitle ? null : <View pointerEvents="none" style={styles.sideCluster} />}
-        {hideCompactTitle ? null : (
-          <Reanimated.View pointerEvents="none" style={[styles.titleWrap, compactTitleStyle]}>
-            <CustomText textStyle="title" numberOfLines={1} style={styles.title}>
-              {title}
-            </CustomText>
-          </Reanimated.View>
+        {children ? (
+          <View pointerEvents="box-none" style={styles.barFill}>
+            {children}
+          </View>
+        ) : (
+          <>
+            {hideCompactTitle ? null : <View pointerEvents="none" style={styles.sideCluster} />}
+            {hideCompactTitle ? null : (
+              <Reanimated.View pointerEvents="none" style={[styles.titleWrap, compactTitleStyle]}>
+                <CustomText textStyle="title" numberOfLines={1} style={styles.title}>
+                  {title}
+                </CustomText>
+              </Reanimated.View>
+            )}
+            <View style={[styles.trailing, hideCompactTitle && styles.trailingFill]}>{trailing}</View>
+          </>
         )}
-        <View style={[styles.trailing, hideCompactTitle && styles.trailingFill]}>{trailing}</View>
       </View>
     </View>
   );
@@ -121,6 +135,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
+  },
+  barFill: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
   },
   titleWrap: {
     flex: 1,
