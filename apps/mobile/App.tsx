@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -1769,7 +1769,6 @@ function MainTabs({
   const upcomingSessions = upcomingSessionsQuery.data?.sessions ?? [];
   const materials = materialsQuery.data?.materials ?? [];
   const tourLibrary = materialsQuery.data?.tourLibrary ?? null;
-  const propertyWebsite = materialsQuery.data?.propertyWebsite ?? null;
   const calendarEvents = calendarQuery.data?.events ?? [];
   const profile = profileQuery.data;
   const loading =
@@ -2091,7 +2090,6 @@ function MainTabs({
         >
           <SettingsScreen
             session={authSession}
-            propertyWebsite={propertyWebsite}
             aiTrainingDataFeedback={
               profile?.aiTrainingDataFeedback ??
               authSession.workspace.user.aiTrainingDataFeedback ??
@@ -2116,9 +2114,7 @@ function MainTabs({
                 },
               });
             }}
-            onSessionChange={onAuthSession}
             onBack={() => handleTabPress("home")}
-            onProfile={onProfile}
             onRubrics={onRubrics}
             onSignOut={onSignOut}
           />
@@ -2874,20 +2870,75 @@ function CardRow({
   onPress,
   destructive = false,
   trailing,
+  grouped = false,
   disabled = false,
   accessibilityRole = "button",
   accessibilityState,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof Ionicons.glyphMap;
   title: string;
-  sub: string;
+  sub?: string;
   onPress: () => void;
   destructive?: boolean;
   trailing?: React.ReactNode;
+  grouped?: boolean;
   disabled?: boolean;
   accessibilityRole?: "button" | "switch" | "link";
   accessibilityState?: { checked?: boolean };
 }) {
+  const row = (
+    <>
+      {icon ? (
+        <View
+          style={[
+            settingsSt.iconWrap,
+            destructive && settingsSt.iconWrapDestructive,
+          ]}
+        >
+          <Ionicons
+            name={icon}
+            size={20}
+            color={destructive ? C.red : ACCENT}
+          />
+        </View>
+      ) : null}
+      <View style={st.flex1}>
+        <CustomText
+          textStyle={grouped ? "body" : "title"}
+          style={destructive ? settingsSt.destructiveTitle : undefined}
+        >
+          {title}
+        </CustomText>
+        {sub ? (
+          <CustomText textStyle="caption" style={settingsSt.rowSub}>
+            {sub}
+          </CustomText>
+        ) : null}
+      </View>
+      {trailing ?? (
+        <Ionicons
+          name={destructive ? "log-out-outline" : "chevron-forward"}
+          size={18}
+          color={destructive ? C.red : C.textMuted}
+        />
+      )}
+    </>
+  );
+
+  if (grouped) {
+    return (
+      <Pressable
+        accessibilityRole={accessibilityRole}
+        accessibilityState={accessibilityState}
+        disabled={disabled}
+        onPress={onPress}
+        style={settingsSt.groupedRow}
+      >
+        {row}
+      </Pressable>
+    );
+  }
+
   return (
     <MotionPressable
       accessibilityRole={accessibilityRole}
@@ -2897,36 +2948,7 @@ function CardRow({
       onPress={onPress}
       style={settingsSt.card}
     >
-      <View
-        style={[
-          settingsSt.iconWrap,
-          destructive && settingsSt.iconWrapDestructive,
-        ]}
-      >
-        <Ionicons
-          name={icon}
-          size={20}
-          color={destructive ? C.red : ACCENT}
-        />
-      </View>
-      <View style={st.flex1}>
-        <CustomText
-          textStyle="title"
-          style={destructive ? settingsSt.destructiveTitle : undefined}
-        >
-          {title}
-        </CustomText>
-        <CustomText textStyle="caption" style={settingsSt.rowSub}>
-          {sub}
-        </CustomText>
-      </View>
-      {trailing ?? (
-        <Ionicons
-          name={destructive ? "log-out-outline" : "chevron-forward"}
-          size={18}
-          color={destructive ? C.red : C.textMuted}
-        />
-      )}
+      {row}
     </MotionPressable>
   );
 }
@@ -11368,78 +11390,24 @@ function RubricsScreen({
 
 function SettingsScreen({
   session,
-  onSessionChange,
   onBack,
-  onProfile,
   onRubrics,
   onSignOut,
   aiTrainingDataFeedback,
   onAiTrainingDataFeedback,
-  propertyWebsite,
 }: {
   session: MobileAuthSession;
-  onSessionChange: (session: MobileAuthSession) => void;
   onBack: () => void;
-  onProfile: () => void;
   onRubrics: () => void;
   onSignOut: () => void;
   aiTrainingDataFeedback: boolean;
   onAiTrainingDataFeedback: (enabled: boolean) => Promise<void>;
-  propertyWebsite: string | null;
 }) {
   const insets = useSafeAreaInsets();
-  const [switchingId, setSwitchingId] = useState<string | null>(null);
-  const [communityPickerOpen, setCommunityPickerOpen] = useState(false);
-  const [communityQuery, setCommunityQuery] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [savingPrivacy, setSavingPrivacy] = useState(false);
-  const teamRole = session.workspace.teamMember?.role || "Property Team";
-  const displayName = session.workspace.user.fullName ?? "Team member";
-  const initials =
-    displayName
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() ||
-    session.workspace.user.email[0]?.toUpperCase() ||
-    "?";
-  const authorizedPropertyCount =
-    authorizedCommunitiesForSession(session).length;
-  const accent = resolveCardAccent(session.workspace.user.cardAccent);
-  const propertyName = session.workspace.community.name;
-  const propertyWebsiteUrl = propertyWebsite
-    ? /^https?:\/\//i.test(propertyWebsite)
-      ? propertyWebsite
-      : `https://${propertyWebsite}`
-    : null;
-  const propertyWebsiteDisplay = propertyWebsite
-    ?.replace(/^https?:\/\//i, "")
-    .replace(/\/$/, "");
-
-  async function chooseCommunity(communityId: string) {
-    if (communityId === session.workspace.community.id) {
-      setCommunityPickerOpen(false);
-      return;
-    }
-    setSwitchingId(communityId);
-    try {
-      onSessionChange(await switchCommunity(communityId));
-      setCommunityPickerOpen(false);
-      setCommunityQuery("");
-      showToast("Property switched", "success");
-    } catch (caught) {
-      showToast(
-        caught instanceof Error ? caught.message : "Could not switch property",
-        "error",
-      );
-    } finally {
-      setSwitchingId(null);
-    }
-  }
 
   async function sendFeedback() {
     const message = feedbackText.trim();
@@ -11494,81 +11462,7 @@ function SettingsScreen({
           { paddingTop: glassNavContentInset(insets.top) },
         ]}
       >
-        <MotionPressable
-          accessibilityRole="button"
-          accessibilityLabel="Edit profile card"
-          haptic="selection"
-          onPress={onProfile}
-          style={settingsSt.card}
-        >
-          <View style={[settingsSt.avatar, { backgroundColor: accent }]}>
-            <CustomText textStyle="title" style={settingsSt.avatarText}>
-              {initials}
-            </CustomText>
-          </View>
-          <View style={st.flex1}>
-            <CustomText textStyle="title" numberOfLines={1}>
-              {displayName}
-            </CustomText>
-            <CustomText textStyle="caption" style={settingsSt.rowSub}>
-              {session.workspace.user.title ?? teamRole} · Tap to edit card
-            </CustomText>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-        </MotionPressable>
-
-        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
-          Active property
-        </CustomText>
-        <MotionPressable
-          accessibilityRole="button"
-          accessibilityLabel="Switch active property"
-          haptic="selection"
-          onPress={() => setCommunityPickerOpen(true)}
-          style={settingsSt.card}
-        >
-          <View style={settingsSt.iconWrap}>
-            <Ionicons name="business-outline" size={20} color={ACCENT} />
-          </View>
-          <View style={st.flex1}>
-            <CustomText textStyle="title" numberOfLines={1}>
-              {propertyName}
-            </CustomText>
-            <CustomText textStyle="caption" style={settingsSt.rowSub}>
-              {authorizedPropertyCount} available{" "}
-              {authorizedPropertyCount === 1 ? "property" : "properties"}
-            </CustomText>
-          </View>
-          <CustomText textStyle="label" style={settingsSt.switchLabel}>
-            Switch
-          </CustomText>
-        </MotionPressable>
-        {propertyWebsiteUrl ? (
-          <MotionPressable
-            accessibilityRole="link"
-            accessibilityLabel={`Open ${propertyName} website`}
-            haptic="selection"
-            onPress={() => void Linking.openURL(propertyWebsiteUrl)}
-            style={settingsSt.card}
-          >
-            <View style={settingsSt.iconWrap}>
-              <Ionicons name="globe-outline" size={20} color={ACCENT} />
-            </View>
-            <View style={st.flex1}>
-              <CustomText textStyle="title">Property website</CustomText>
-              <CustomText
-                textStyle="caption"
-                style={settingsSt.rowSub}
-                numberOfLines={1}
-              >
-                {propertyWebsiteDisplay}
-              </CustomText>
-            </View>
-            <Ionicons name="open-outline" size={18} color={ACCENT} />
-          </MotionPressable>
-        ) : null}
-
-        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
+        <CustomText textStyle="caption" style={settingsSt.sectionHeader}>
           Evaluation
         </CustomText>
         <CardRow
@@ -11578,7 +11472,7 @@ function SettingsScreen({
           onPress={onRubrics}
         />
 
-        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
+        <CustomText textStyle="caption" style={settingsSt.sectionHeader}>
           Support
         </CustomText>
         <CardRow
@@ -11588,53 +11482,64 @@ function SettingsScreen({
           onPress={() => setFeedbackOpen(true)}
         />
 
-        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
+        <CustomText textStyle="caption" style={settingsSt.sectionHeader}>
           Privacy
         </CustomText>
-        <CardRow
-          icon="sparkles-outline"
-          title="AI Training Data feedback"
-          sub={
-            aiTrainingDataFeedback
-              ? "On · helps improve AI features"
-              : "Off · your eligible feedback is not used for training"
-          }
-          accessibilityRole="switch"
-          accessibilityState={{ checked: aiTrainingDataFeedback }}
-          disabled={savingPrivacy}
-          onPress={() => void toggleAiTrainingDataFeedback()}
-          trailing={
-            <View pointerEvents="none">
-              <Switch
-                accessible={false}
-                value={aiTrainingDataFeedback}
-                disabled={savingPrivacy}
-                trackColor={{ false: "#d1d5db", true: ACCENT }}
-                ios_backgroundColor="#d1d5db"
-              />
-            </View>
-          }
-        />
-        <CardRow
-          icon="hand-left-outline"
-          title="Privacy Policy"
-          sub="How Tour.you handles your data"
-          accessibilityRole="link"
-          onPress={() =>
-            void Linking.openURL(`${getSiteBaseUrl()}/privacy-policy`)
-          }
-        />
+        <View style={settingsSt.group}>
+          <CardRow
+            grouped
+            title="Use my data to improve AI"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: aiTrainingDataFeedback }}
+            disabled={savingPrivacy}
+            onPress={() => void toggleAiTrainingDataFeedback()}
+            trailing={
+              <View pointerEvents="none">
+                <Switch
+                  accessible={false}
+                  value={aiTrainingDataFeedback}
+                  disabled={savingPrivacy}
+                  trackColor={{ false: "#d1d5db", true: ACCENT }}
+                  ios_backgroundColor="#d1d5db"
+                />
+              </View>
+            }
+          />
+          <View style={settingsSt.separator} />
+          <CardRow
+            grouped
+            title="Privacy Policy"
+            accessibilityRole="link"
+            onPress={() =>
+              void Linking.openURL(`${getSiteBaseUrl()}/privacy-policy`)
+            }
+            trailing={
+              <View style={settingsSt.policyLink}>
+                <CustomText
+                  textStyle="caption"
+                  numberOfLines={1}
+                  style={settingsSt.policyLinkText}
+                >
+                  tour.you/privacy-policy
+                </CustomText>
+                <Feather name="arrow-up-right" size={14} color={ACCENT} />
+              </View>
+            }
+          />
+        </View>
 
-        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
-          Account
-        </CustomText>
-        <CardRow
-          icon="log-out-outline"
-          title="Log out"
-          sub="Remove this account from this device"
+        <MotionPressable
+          accessibilityRole="button"
+          accessibilityLabel="Log out"
+          haptic="selection"
           onPress={() => setLogoutOpen(true)}
-          destructive
-        />
+          style={settingsSt.logoutPill}
+        >
+          <Ionicons name="log-out-outline" size={18} color={C.red} />
+          <CustomText textStyle="title" style={settingsSt.logoutPillText}>
+            Logout
+          </CustomText>
+        </MotionPressable>
         <CustomText textStyle="caption" style={settingsSt.version}>
           Tour mobile 0.1.0 · Host Your Voice
         </CustomText>
@@ -11642,26 +11547,6 @@ function SettingsScreen({
 
       <GlassNavHeader title="Settings" onBack={onBack} />
 
-      <CommunityPickerModal
-        visible={communityPickerOpen}
-        session={session}
-        query={communityQuery}
-        switchingId={switchingId}
-        onPropertyAdded={(nextSession) => {
-          onSessionChange(nextSession);
-          setCommunityPickerOpen(false);
-          setCommunityQuery("");
-          showToast(`Added ${nextSession.workspace.community.name}`, "success");
-        }}
-        onQueryChange={setCommunityQuery}
-        onClose={() => {
-          if (!switchingId) {
-            setCommunityPickerOpen(false);
-            setCommunityQuery("");
-          }
-        }}
-        onSelect={(communityId) => void chooseCommunity(communityId)}
-      />
       <BottomSheetModal
         visible={feedbackOpen}
         onClose={() => setFeedbackOpen(false)}
@@ -11773,7 +11658,6 @@ function SettingsScreen({
 
 const settingsSt = StyleSheet.create({
   scroll: {
-    gap: 12,
     paddingHorizontal: 16,
     paddingBottom: 120,
   },
@@ -11787,14 +11671,32 @@ const settingsSt = StyleSheet.create({
     borderCurve: "continuous",
     backgroundColor: CARD,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
+  group: {
+    backgroundColor: CARD,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    overflow: "hidden",
   },
-  avatarText: { color: CARD },
+  groupedRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 16,
+    backgroundColor: "rgba(60, 60, 67, 0.18)",
+  },
+  policyLink: {
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  policyLinkText: { color: ACCENT, flexShrink: 1 },
   iconWrap: {
     width: 40,
     height: 40,
@@ -11806,8 +11708,25 @@ const settingsSt = StyleSheet.create({
   iconWrapDestructive: { backgroundColor: C.redBg },
   destructiveTitle: { color: C.red },
   rowSub: { marginTop: 3, color: C.textSec },
-  switchLabel: { color: ACCENT },
-  sectionTitle: { marginTop: 10 },
+  sectionHeader: {
+    color: "rgba(0, 0, 0, 0.45)",
+    marginTop: 22,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  logoutPill: {
+    height: 50,
+    marginTop: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 25,
+    backgroundColor: CARD,
+  },
+  logoutPillText: { color: C.red },
   version: {
     marginTop: 8,
     color: C.textMuted,
@@ -14014,14 +13933,14 @@ const st = StyleSheet.create({
   tabBarIndicator: {
     position: "absolute",
     top: 4,
-    height: 47,
+    height: 60,
     alignItems: "center",
     justifyContent: "center",
   },
   tabBarIndicatorPill: {
     width: "82%",
-    height: 43,
-    borderRadius: 16,
+    height: 56,
+    borderRadius: 999,
     backgroundColor: C.brand + "0D",
   },
   tabBarItem: {
