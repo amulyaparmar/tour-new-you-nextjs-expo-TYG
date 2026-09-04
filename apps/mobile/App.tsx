@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -53,6 +54,7 @@ import Reanimated, {
   FadeInUp,
   FadeOut,
   runOnJS,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -140,6 +142,9 @@ import { trackAnalyticsEvent, setAnalyticsUserId } from "./src/analytics";
 import { LoginScreen } from "./src/LoginScreen";
 import { TourLogo, TourMark } from "./src/components/TourLogo";
 import { CustomText } from "./src/components/custom-text";
+import { LargeTitleCopy, LargeTitleHeader, largeTitleContentInset } from "./src/components/large-title-header";
+import { LiquidGlassIconButton } from "./src/components/liquid-glass-icon-button";
+import { LiquidGlassSearch } from "./src/components/liquid-glass-search";
 import {
   LiveRecordingCard,
   LiveRecordingDock,
@@ -1174,7 +1179,11 @@ export default function App() {
       <RecordingProvider onNotify={showToast}>
         <ToastProvider>
           <OfflineSyncHost onOpenRemoteSession={(sessionId) => nav({ type: "session-detail", sessionId })} />
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={st.flex1}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            enabled={screen.type !== "main"}
+            style={st.flex1}
+          >
             <ScreenTransition transitionKey={routeKey} direction={transitionDirection}>
               {((screen.type === "main" && screen.tab !== "sessions") || screen.type === "profile") && (
                 <ProfileNavigation
@@ -1452,7 +1461,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
     }
   }, [authSession.workspace.community.id, onAuthSession, queryClient, resetCommunityPicker]);
 
-  const showScrollView = tab !== "sessions";
+  const showScrollView = tab !== "sessions" && tab !== "materials";
   const handleTabPress = useCallback((nextTab: MainTab) => {
     const currentIndex = TAB_ITEMS.findIndex((item) => item.id === tab);
     const nextIndex = TAB_ITEMS.findIndex((item) => item.id === nextTab);
@@ -1479,10 +1488,10 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
   }, []);
 
   return (
-    <View style={[st.flex1, tab === "home" && homeSt.pageBg]}>
+    <View style={[st.flex1, (tab === "home" || tab === "materials") && homeSt.pageBg]}>
       {showScrollView && (
         <ScreenTransition transitionKey={`tab:${tab}`} direction={tabTransitionDirection}>
-          <ScrollView style={tab === "home" ? homeSt.pageBg : undefined} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.mainScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
+          <ScrollView style={tab === "home" || tab === "materials" ? homeSt.pageBg : undefined} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.mainScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
             {error && (
               <ErrorBanner
                 message={error instanceof Error ? error.message : "Failed to load data"}
@@ -1514,21 +1523,10 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
               />
             )}
             {tab === "calendar" && <CalendarScreen sessions={sessions} upcomingSessions={upcomingSessions} entrataEvents={calendarEvents} onSession={onSession} onReload={async () => { await calendarQuery.refetch(); }} onCommunityPress={() => setCommunityPickerOpen(true)} property={property} />}
-            {tab === "materials" && (
-              <MaterialsScreen
-                materials={materials}
-                tourLibrary={tourLibrary}
-                propertyWebsite={propertyWebsite}
-                loading={materialsLoading}
-                onReload={async () => { await materialsQuery.refetch(); }}
-                onBack={() => handleTabPress("home")}
-                onCommunityPress={() => setCommunityPickerOpen(true)}
-                property={property}
-              />
-            )}
             {tab === "settings" && (
         <SettingsScreen
           session={authSession}
+          propertyWebsite={propertyWebsite}
           aiTrainingDataFeedback={profile?.aiTrainingDataFeedback ?? authSession.workspace.user.aiTrainingDataFeedback ?? false}
           onAiTrainingDataFeedback={async (enabled) => {
             const nextProfile = await updateProfile({ aiTrainingDataFeedback: enabled });
@@ -1554,6 +1552,20 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
       {tab === "sessions" && (
         <ScreenTransition transitionKey="tab:sessions" direction={tabTransitionDirection}>
           <SessionsListScreen authSession={authSession} onBack={() => handleTabPress("home")} onCommunityPress={() => setCommunityPickerOpen(true)} onSession={onSession} onSampleSession={onSampleSession} onCreate={onCreate} onPractice={onPractice} initialSessions={sessions} property={property} />
+        </ScreenTransition>
+      )}
+
+      {tab === "materials" && (
+        <ScreenTransition transitionKey="tab:materials" direction={tabTransitionDirection}>
+          <MaterialsScreen
+            materials={materials}
+            tourLibrary={tourLibrary}
+            loading={materialsLoading}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            onReload={async () => { await materialsQuery.refetch(); }}
+            property={property}
+          />
         </ScreenTransition>
       )}
 
@@ -3256,56 +3268,53 @@ const assetSt = StyleSheet.create({
   header: { gap: 14 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   titleText: { flex: 1, minWidth: 0 },
-  recordButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 999, backgroundColor: "#fff" },
-  recordButtonText: { color: C.text, fontSize: 14, fontWeight: "900" },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
-  cardWrap: { width: (Dimensions.get("window").width - 54) / 2 },
-  card: { gap: 8 },
-  thumb: { aspectRatio: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 18, backgroundColor: "#eef4ff" },
+  iconBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: SMALL_CORNER, backgroundColor: CARD },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  cardWrap: { width: (Dimensions.get("window").width - 40) / 2 },
+  card: { overflow: "hidden", borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: BACKGROUND },
+  thumb: { aspectRatio: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", backgroundColor: BACKGROUND },
   thumbImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  thumbOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.08)" },
-  playBadge: { position: "absolute", left: 10, bottom: 10, width: 30, height: 30, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", borderRadius: 15, backgroundColor: "rgba(15,23,42,0.86)" },
-  panoramaBadge: { position: "absolute", left: 10, bottom: 10, minHeight: 30, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 9, borderWidth: 1, borderColor: "rgba(255,255,255,0.82)", borderRadius: 15, backgroundColor: "rgba(5,150,105,0.9)" },
-  panoramaBadgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
-  fallbackIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 16, backgroundColor: "#fff" },
-  cardTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
-  cardMeta: { color: C.textSec, fontSize: 11, fontWeight: "700" },
+  captionFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 72 },
+  caption: { position: "absolute", left: 10, right: 10, bottom: 9, gap: 1 },
+  captionTitle: { color: CARD },
+  captionMeta: { color: "rgba(255,255,255,0.78)", fontSize: 10 },
+  playBadge: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", borderRadius: 15, backgroundColor: "rgba(15,23,42,0.86)" },
+  playWrap: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  panoramaBadge: { position: "absolute", top: 8, left: 8, minHeight: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 12, backgroundColor: "rgba(5,150,105,0.72)" },
+  panoramaBadgeText: { color: CARD },
+  fallbackIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: SMALL_CORNER, backgroundColor: CARD },
   modalScrim: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.42)" },
-  modalSheet: { maxHeight: "88%", gap: 14, padding: 18, paddingBottom: Platform.OS === "ios" ? 34 : 20, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: "#fff" },
+  modalSheet: { maxHeight: "88%", gap: 14, padding: 18, paddingBottom: Platform.OS === "ios" ? 34 : 20, borderTopLeftRadius: LARGE_CORNER, borderTopRightRadius: LARGE_CORNER, backgroundColor: CARD },
   modalHandle: { alignSelf: "center", width: 42, height: 5, borderRadius: 3, backgroundColor: "#d1d5db" },
   modalHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  modalTitle: { color: C.text, fontSize: 22, fontWeight: "900" },
-  modalMeta: { color: C.textSec, fontSize: 12, fontWeight: "700", marginTop: 2, textTransform: "capitalize" },
-  modalPreview: { minHeight: 250, overflow: "hidden", borderRadius: 20, backgroundColor: "#eef4ff" },
+  modalMeta: { color: C.textSec, marginTop: 2, textTransform: "capitalize" },
+  modalPreview: { minHeight: 250, overflow: "hidden", borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: BACKGROUND },
   modalImage: { width: "100%", height: 250 },
   modalPanorama: { width: "100%", height: 250 },
   modalPanoramaStatus: { position: "absolute", left: 12, bottom: 12, minHeight: 28, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, borderRadius: 14, backgroundColor: "rgba(15,23,42,0.78)" },
-  modalPanoramaStatusText: { color: "#fff", fontSize: 10, fontWeight: "900" },
+  modalPanoramaStatusText: { color: CARD },
   modalFallback: { height: 250, alignItems: "center", justifyContent: "center" },
   modalActions: { flexDirection: "row", gap: 10 },
-  modalPrimary: { flex: 1, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, backgroundColor: C.brand },
-  modalPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "900" },
-  modalSecondary: { minWidth: 98, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 16, backgroundColor: "#fff" },
-  modalSecondaryText: { color: C.text, fontSize: 13, fontWeight: "900" },
-  websiteLink: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: "#dbe6f3", borderRadius: 18, backgroundColor: "#fff" },
-  websiteLinkIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "#eef6ff" },
-  websiteLinkTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  websiteLinkMeta: { color: C.textSec, fontSize: 11, fontWeight: "700", marginTop: 2 },
-  tourLibraryFooter: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: "#e6ebf2" },
-  tourLibraryFooterIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#eaf4ff" },
-  tourLibraryFooterTitle: { color: C.text, fontSize: 12, fontWeight: "900" },
-  tourLibraryFooterMeta: { color: C.textMuted, fontSize: 10, fontWeight: "700", marginTop: 2 },
+  modalPrimary: { flex: 1, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: SMALL_CORNER, backgroundColor: ACCENT },
+  modalPrimaryText: { color: CARD },
+  modalSecondary: { minWidth: 98, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderRadius: SMALL_CORNER, backgroundColor: BACKGROUND },
+  modalDesc: { color: C.textSec },
+  websiteLink: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
+  websiteLinkIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: BACKGROUND },
+  websiteLinkMeta: { color: C.textSec, marginTop: 2 },
+  tourLibraryFooter: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
+  tourLibraryFooterIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: BACKGROUND },
+  tourLibraryFooterMeta: { color: C.textSec, marginTop: 2 },
   assetMenuScrim: { flex: 1, backgroundColor: "rgba(15,23,42,0.28)" },
-  assetMenuCard: { position: "absolute", top: Platform.OS === "ios" ? 70 : 48, right: 16, width: 286, overflow: "hidden", padding: 8, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 20, backgroundColor: "#fff", shadowColor: "#0f172a", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 26, elevation: 12 },
-  assetMenuHeading: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 7, color: C.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
+  assetMenuCard: { position: "absolute", top: Platform.OS === "ios" ? 114 : 64, right: 16, width: 286, overflow: "hidden", padding: 8, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD, shadowColor: TEXT, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 26, elevation: 12 },
+  assetMenuHeading: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 7, color: C.textMuted, letterSpacing: 1.2 },
   assetMenuItem: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 10, borderRadius: 14 },
-  assetMenuItemPressed: { backgroundColor: "#f1f5f9" },
-  assetMenuIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "#eff6ff" },
+  assetMenuItemPressed: { backgroundColor: BACKGROUND },
+  assetMenuIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: BACKGROUND },
   assetMenuIconCamera: { backgroundColor: "#fff7ed" },
   assetMenuIconVideo: { backgroundColor: "#f3e8ff" },
   assetMenuIcon360: { backgroundColor: "#ecfdf5" },
-  assetMenuItemTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
-  assetMenuItemMeta: { marginTop: 2, color: C.textSec, fontSize: 11, fontWeight: "700" },
+  assetMenuItemMeta: { marginTop: 2, color: C.textSec },
 });
 
 function AssetTypeMenu({
@@ -3327,11 +3336,11 @@ function AssetTypeMenu({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable accessibilityLabel="Close add asset menu" onPress={onClose} style={assetSt.assetMenuScrim}>
         <Pressable onPress={(event) => event.stopPropagation()} style={assetSt.assetMenuCard}>
-          <Text style={assetSt.assetMenuHeading}>ADD NEW ASSET</Text>
+          <CustomText textStyle="micro" style={assetSt.assetMenuHeading}>ADD NEW ASSET</CustomText>
           <AssetTypeMenuItem
             icon="image-outline"
             iconStyle={assetSt.assetMenuIcon}
-            iconColor={C.brand}
+            iconColor={ACCENT}
             title="Photo library"
             meta="Choose an existing photo"
             onPress={onPhoto}
@@ -3387,28 +3396,36 @@ function AssetTypeMenuItem({
         <Ionicons name={icon} size={21} color={iconColor} />
       </View>
       <View style={st.flex1}>
-        <Text style={assetSt.assetMenuItemTitle}>{title}</Text>
-        <Text style={assetSt.assetMenuItemMeta}>{meta}</Text>
+        <CustomText textStyle="title">{title}</CustomText>
+        <CustomText textStyle="micro" style={assetSt.assetMenuItemMeta}>{meta}</CustomText>
       </View>
       <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
     </Pressable>
   );
 }
 
-function MaterialsScreen({ materials, tourLibrary, propertyWebsite, loading, onReload, onBack, onCommunityPress, property }: { materials: Material[]; tourLibrary: TourLibraryLink | null; propertyWebsite: string | null; loading: boolean; onReload: () => Promise<void>; onBack: () => void; onCommunityPress: () => void; property: string }) {
+function MaterialsScreen({ materials, tourLibrary, loading, refreshing, onRefresh, onReload, property }: { materials: Material[]; tourLibrary: TourLibraryLink | null; loading: boolean; refreshing: boolean; onRefresh: () => Promise<void>; onReload: () => Promise<void>; property: string }) {
+  const insets = useSafeAreaInsets();
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<Material | null>(null);
   const [assetMenuOpen, setAssetMenuOpen] = useState(false);
   const [photoRecorderOpen, setPhotoRecorderOpen] = useState(false);
   const [videoRecorderOpen, setVideoRecorderOpen] = useState(false);
   const [panoramaRecorderOpen, setPanoramaRecorderOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const tourLibraryAssetCount = materials.filter((material) => material.id.startsWith("tour-api-")).length;
-  const propertyWebsiteUrl = propertyWebsite
-    ? (/^https?:\/\//i.test(propertyWebsite) ? propertyWebsite : `https://${propertyWebsite}`)
-    : null;
-  const propertyWebsiteDisplay = propertyWebsite
-    ?.replace(/^https?:\/\//i, "")
-    .replace(/\/$/, "");
+  const visibleMaterials = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return materials;
+    return materials.filter((material) => material.name.toLowerCase().includes(query));
+  }, [materials, searchQuery]);
 
   async function addLibraryPhoto() {
     try {
@@ -3495,52 +3512,32 @@ function MaterialsScreen({ materials, tourLibrary, propertyWebsite, loading, onR
   }
 
   return (
-    <View style={st.page}>
+    <View style={[st.flex1, homeSt.pageBg]}>
+      <Reanimated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={[st.mainScroll, { paddingTop: largeTitleContentInset(insets.top), gap: 18 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={ACCENT} />}
+      >
       <View style={assetSt.header}>
-        <CommunityTopBar
-          property={property}
-          onCommunityPress={onCommunityPress}
-          left={
-            <Pressable accessibilityLabel="Back to home" onPress={onBack} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-              <Ionicons name="arrow-back" size={22} color={C.text} />
-            </Pressable>
-          }
-          right={
-            <Pressable accessibilityLabel="Add new asset" onPress={() => setAssetMenuOpen(true)} disabled={uploading} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-              {uploading ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="add" size={21} color={C.text} />}
-            </Pressable>
-          }
+        <LargeTitleCopy
+          title="Assets"
+          subtitle={`${property} · ${materials.length} ${materials.length === 1 ? "asset" : "assets"}`}
+          scrollY={scrollY}
         />
-        <View>
-          <Text style={st.pageTitle}>Assets</Text>
-          <Text style={st.pageHeadingSub}>{materials.length} community resources</Text>
-        </View>
-        {propertyWebsiteUrl ? (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`Open ${property} website`}
-            onPress={() => void Linking.openURL(propertyWebsiteUrl)}
-            style={({ pressed }) => [assetSt.websiteLink, pressed && st.pressed]}
-          >
-            <View style={assetSt.websiteLinkIcon}>
-              <Ionicons name="globe-outline" size={20} color={C.brand} />
-            </View>
-            <View style={st.flex1}>
-              <Text style={assetSt.websiteLinkTitle}>Property website</Text>
-              <Text style={assetSt.websiteLinkMeta} numberOfLines={1}>{propertyWebsiteDisplay}</Text>
-            </View>
-            <Ionicons name="open-outline" size={18} color={C.brand} />
-          </Pressable>
-        ) : null}
-        <Pressable accessibilityLabel="Add new asset" onPress={() => setAssetMenuOpen(true)} style={({ pressed }) => [assetSt.recordButton, pressed && st.pressed]}>
-          <Ionicons name="add-circle-outline" size={18} color={C.brand} />
-          <Text style={assetSt.recordButtonText}>Add new asset</Text>
-        </Pressable>
       </View>
 
-      {loading ? <LoadingBox /> : materials.length === 0 ? <EmptyState icon="folder-open-outline" title="No materials" subtitle="Tour videos and community resources will appear here" /> : (
+      {loading ? <LoadingBox /> : visibleMaterials.length === 0 ? (
+        <EmptyState
+          icon={searchQuery.trim() ? "search-outline" : "folder-open-outline"}
+          title={searchQuery.trim() ? "No matches" : "No materials"}
+          subtitle={searchQuery.trim() ? "No assets match that title." : "Tour videos and community resources will appear here"}
+        />
+      ) : (
         <View style={assetSt.grid}>
-          {materials.map((material) => {
+          {visibleMaterials.map((material) => {
             const previewUrl = materialPreviewUrl(material);
             const assetUrl = materialUrl(material);
             const panorama = isPanoramaMaterial(material);
@@ -3551,28 +3548,34 @@ function MaterialsScreen({ materials, tourLibrary, propertyWebsite, loading, onR
               <Pressable onPress={() => setSelected(material)} style={({ pressed }) => [assetSt.card, pressed && st.pressed]}>
                 <View style={assetSt.thumb}>
                   {previewUrl ? (
-                    <>
-                      <Image source={{ uri: previewUrl }} style={assetSt.thumbImage} resizeMode="cover" />
-                      <View style={assetSt.thumbOverlay} />
-                    </>
+                    <Image source={{ uri: previewUrl }} style={assetSt.thumbImage} resizeMode="cover" />
                   ) : (
                     <View style={assetSt.fallbackIcon}>
-                      <Ionicons name={canPlay ? "play" : canOpen ? "image-outline" : "document-outline"} size={22} color={C.brand} />
+                      <Ionicons name={canPlay ? "play" : canOpen ? "image-outline" : "document-outline"} size={22} color={ACCENT} />
                     </View>
                   )}
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.58)"]}
+                    style={assetSt.captionFade}
+                  />
                   {panorama ? (
                     <View style={assetSt.panoramaBadge}>
-                      <Ionicons name="globe-outline" size={13} color="#fff" />
-                      <Text style={assetSt.panoramaBadgeText}>360°</Text>
+                      <Ionicons name="globe-outline" size={12} color={CARD} />
+                      <CustomText textStyle="micro" style={assetSt.panoramaBadgeText}>360°</CustomText>
                     </View>
                   ) : canPlay ? (
-                    <View style={assetSt.playBadge}>
-                      <Ionicons name="play" size={13} color="#fff" />
+                    <View pointerEvents="none" style={assetSt.playWrap}>
+                      <View style={assetSt.playBadge}>
+                        <Ionicons name="play" size={13} color={CARD} />
+                      </View>
                     </View>
                   ) : null}
+                  <View pointerEvents="none" style={assetSt.caption}>
+                    <CustomText textStyle="title" numberOfLines={1} style={assetSt.captionTitle}>{material.name}</CustomText>
+                    <CustomText textStyle="micro" numberOfLines={1} style={assetSt.captionMeta}>{material.type} · {fmtDate(material.createdAt)}</CustomText>
+                  </View>
                 </View>
-                <Text style={assetSt.cardTitle} numberOfLines={1}>{material.name}</Text>
-                <Text style={assetSt.cardMeta} numberOfLines={1}>{material.type} · {fmtDate(material.createdAt)}</Text>
               </Pressable>
               </View>
             );
@@ -3588,17 +3591,46 @@ function MaterialsScreen({ materials, tourLibrary, propertyWebsite, loading, onR
           style={({ pressed }) => [assetSt.tourLibraryFooter, pressed && st.pressed]}
         >
           <View style={assetSt.tourLibraryFooterIcon}>
-            <Ionicons name="checkmark" size={15} color={C.brand} />
+            <Ionicons name="checkmark" size={15} color={ACCENT} />
           </View>
           <View style={st.flex1}>
-            <Text style={assetSt.tourLibraryFooterTitle}>Connected Tour Library</Text>
-            <Text style={assetSt.tourLibraryFooterMeta}>
+            <CustomText textStyle="title">Connected Tour Library</CustomText>
+            <CustomText textStyle="micro" style={assetSt.tourLibraryFooterMeta}>
               {tourLibraryAssetCount} synced {tourLibraryAssetCount === 1 ? "asset" : "assets"}
-            </Text>
+            </CustomText>
           </View>
           <Ionicons name="open-outline" size={17} color={C.textMuted} />
         </Pressable>
       ) : null}
+      </Reanimated.ScrollView>
+
+      <LargeTitleHeader
+        title="Assets"
+        scrollY={scrollY}
+        hideCompactTitle={searchOpen}
+        trailing={
+          <>
+            <LiquidGlassSearch
+              expanded={searchOpen}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onExpand={() => setSearchOpen(true)}
+              onCollapse={() => {
+                setSearchOpen(false);
+                setSearchQuery("");
+                Keyboard.dismiss();
+              }}
+            />
+            <LiquidGlassIconButton
+              icon="add"
+              iconSize={32}
+              accessibilityLabel="Add new asset"
+              disabled={uploading}
+              onPress={() => setAssetMenuOpen(true)}
+            />
+          </>
+        }
+      />
 
       <MaterialPreviewModal material={selected} onClose={() => setSelected(null)} />
       <AssetTypeMenu
@@ -3664,11 +3696,11 @@ function MaterialPreviewModal({ material, onClose }: { material: Material | null
           <View style={assetSt.modalHandle} />
           <View style={assetSt.modalHeader}>
             <View style={st.flex1}>
-              <Text style={assetSt.modalTitle} numberOfLines={2}>{material?.name}</Text>
-              <Text style={assetSt.modalMeta}>{material ? `${material.type} · ${fmtDate(material.createdAt)}` : ""}</Text>
+              <CustomText textStyle="hero" numberOfLines={2}>{material?.name}</CustomText>
+              <CustomText textStyle="caption" style={assetSt.modalMeta}>{material ? `${material.type} · ${fmtDate(material.createdAt)}` : ""}</CustomText>
             </View>
-            <Pressable accessibilityLabel="Close media preview" onPress={onClose} style={homeSt.headerIcon}>
-              <Ionicons name="close" size={19} color={C.text} />
+            <Pressable accessibilityLabel="Close media preview" onPress={onClose} style={assetSt.iconBtn}>
+              <Ionicons name="close" size={19} color={TEXT} />
             </Pressable>
           </View>
 
@@ -3681,10 +3713,10 @@ function MaterialPreviewModal({ material, onClose }: { material: Material | null
                   style={assetSt.modalPanorama}
                 />
                 <View pointerEvents="none" style={assetSt.modalPanoramaStatus}>
-                  {panoramaReady ? <Ionicons name="hand-left-outline" size={13} color="#fff" /> : <LoadingDots size="small" color="#fff" />}
-                  <Text style={assetSt.modalPanoramaStatusText}>
+                  {panoramaReady ? <Ionicons name="hand-left-outline" size={13} color={CARD} /> : <LoadingDots size="small" color={CARD} />}
+                  <CustomText textStyle="micro" style={assetSt.modalPanoramaStatusText}>
                     {panoramaReady ? "Drag to view your panorama" : "Loading panorama…"}
-                  </Text>
+                  </CustomText>
                 </View>
               </>
             ) : videoUrl ? (
@@ -3693,21 +3725,21 @@ function MaterialPreviewModal({ material, onClose }: { material: Material | null
               <Image source={{ uri: previewUrl }} style={assetSt.modalImage} resizeMode="cover" />
             ) : (
               <View style={assetSt.modalFallback}>
-                <Ionicons name={url ? "play-circle-outline" : "document-outline"} size={52} color={C.brand} />
+                <Ionicons name={url ? "play-circle-outline" : "document-outline"} size={52} color={ACCENT} />
               </View>
             )}
           </View>
 
-          <Text style={st.materialDesc}>{material?.description}</Text>
+          <CustomText textStyle="caption" style={assetSt.modalDesc}>{material?.description}</CustomText>
 
           <View style={assetSt.modalActions}>
             <Pressable onPress={() => void shareSelected()} style={({ pressed }) => [assetSt.modalSecondary, pressed && st.pressed]}>
-              <Ionicons name="share-social-outline" size={16} color={C.text} />
-              <Text style={assetSt.modalSecondaryText}>Share</Text>
+              <Ionicons name="share-social-outline" size={16} color={TEXT} />
+              <CustomText textStyle="label">Share</CustomText>
             </Pressable>
             <Pressable disabled={!url} onPress={() => void downloadSelected()} style={({ pressed }) => [assetSt.modalSecondary, !url && { opacity: 0.55 }, pressed && st.pressed]}>
-              <Ionicons name="download-outline" size={16} color={C.text} />
-              <Text style={assetSt.modalSecondaryText}>Download</Text>
+              <Ionicons name="download-outline" size={16} color={TEXT} />
+              <CustomText textStyle="label">Download</CustomText>
             </Pressable>
           </View>
         </Pressable>
@@ -7293,7 +7325,7 @@ function RubricsScreen({
 // Settings
 // ═══════════════════════════════════════
 
-function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSignOut, aiTrainingDataFeedback, onAiTrainingDataFeedback }: {
+function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSignOut, aiTrainingDataFeedback, onAiTrainingDataFeedback, propertyWebsite }: {
   session: MobileAuthSession;
   onSessionChange: (session: MobileAuthSession) => void;
   onProfile: () => void;
@@ -7301,6 +7333,7 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
   onSignOut: () => void;
   aiTrainingDataFeedback: boolean;
   onAiTrainingDataFeedback: (enabled: boolean) => Promise<void>;
+  propertyWebsite: string | null;
 }) {
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [communityPickerOpen, setCommunityPickerOpen] = useState(false);
@@ -7312,6 +7345,13 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
   const teamRole = session.workspace.teamMember?.role || "Property Team";
   const authorizedPropertyCount = authorizedCommunitiesForSession(session).length;
   const accent = resolveCardAccent(session.workspace.user.cardAccent);
+  const propertyName = session.workspace.community.name;
+  const propertyWebsiteUrl = propertyWebsite
+    ? (/^https?:\/\//i.test(propertyWebsite) ? propertyWebsite : `https://${propertyWebsite}`)
+    : null;
+  const propertyWebsiteDisplay = propertyWebsite
+    ?.replace(/^https?:\/\//i, "")
+    .replace(/\/$/, "");
 
   async function chooseCommunity(communityId: string) {
     if (communityId === session.workspace.community.id) {
@@ -7402,6 +7442,23 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
           </Pressable>
         </View>
       </View>
+      {propertyWebsiteUrl ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${propertyName} website`}
+          onPress={() => void Linking.openURL(propertyWebsiteUrl)}
+          style={({ pressed }) => [assetSt.websiteLink, pressed && st.pressed]}
+        >
+          <View style={assetSt.websiteLinkIcon}>
+            <Ionicons name="globe-outline" size={20} color={ACCENT} />
+          </View>
+          <View style={st.flex1}>
+            <CustomText textStyle="title">Property website</CustomText>
+            <CustomText textStyle="micro" style={assetSt.websiteLinkMeta} numberOfLines={1}>{propertyWebsiteDisplay}</CustomText>
+          </View>
+          <Ionicons name="open-outline" size={18} color={ACCENT} />
+        </Pressable>
+      ) : null}
 
       <Text style={st.settingsSectionLabel}>EVALUATION</Text>
       <CardRow icon="clipboard-outline" title="Rubrics" sub="Templates, criteria, and session applications" onPress={onRubrics} />
