@@ -1,17 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { CustomText } from "../components/custom-text";
+import { ACCENT, CARD, SMALL_CORNER } from "../theme/tokens";
 import { formatElapsed } from "./formatElapsed";
 import { liveSessionHeadline, liveSessionSubline } from "./liveSessionLabel";
 import { useRecording } from "./RecordingProvider";
 
 const C = {
-  card: "#FFFFFF",
-  border: "rgba(16,24,40,0.1)",
-  text: "#101828",
   textSec: "#667085",
   textMuted: "#98A2B3",
-  brand: "#006CE5",
   brandSoft: "#EAF4FF",
   red: "#D92D20",
   redSoft: "#FEF3F2",
@@ -76,24 +74,24 @@ export function LiveRecordingCard({ onPress }: LiveRecordingCardProps) {
     >
       <View style={st.avatar}>
         {initials ? (
-          <Text style={st.avatarText}>{initials}</Text>
+          <CustomText textStyle="title" style={st.avatarText}>{initials}</CustomText>
         ) : (
-          <Ionicons name="mic" size={22} color={C.brand} />
+          <Ionicons name="mic" size={22} color={ACCENT} />
         )}
       </View>
       <View style={st.body}>
-        <Text style={st.title} numberOfLines={1}>
+        <CustomText textStyle="title" numberOfLines={1}>
           {headline}
-        </Text>
-        <Text style={st.meta} numberOfLines={1}>
+        </CustomText>
+        <CustomText textStyle="label" numberOfLines={1} style={st.meta}>
           {subline}
-        </Text>
-        <Text style={st.preview} numberOfLines={2}>
+        </CustomText>
+        <CustomText textStyle="caption" numberOfLines={2} style={st.preview}>
           {preview}
-        </Text>
+        </CustomText>
         <View style={st.liveBadge}>
           <Animated.View style={[st.liveDot, { opacity: isPaused ? 1 : pulse }]} />
-          <Text style={st.liveText}>{isPaused ? "PAUSED" : "LIVE"}</Text>
+          <CustomText textStyle="micro" style={st.liveText}>{isPaused ? "PAUSED" : "LIVE"}</CustomText>
         </View>
       </View>
       <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
@@ -107,10 +105,9 @@ const st = StyleSheet.create({
     alignItems: "flex-start",
     gap: 12,
     padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
     shadowColor: "#101828",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.06,
@@ -126,11 +123,10 @@ const st = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: C.brandSoft,
   },
-  avatarText: { color: C.brand, fontSize: 15, fontWeight: "900", letterSpacing: 0.2 },
+  avatarText: { color: ACCENT, letterSpacing: 0.2 },
   body: { flex: 1, minWidth: 0, gap: 4 },
-  title: { color: C.text, fontSize: 16, fontWeight: "900" },
-  meta: { color: C.textSec, fontSize: 13, fontWeight: "700" },
-  preview: { color: C.textMuted, fontSize: 13, lineHeight: 18, fontWeight: "600", marginTop: 2 },
+  meta: { color: C.textSec },
+  preview: { color: C.textMuted, lineHeight: 18, marginTop: 2 },
   liveBadge: {
     alignSelf: "flex-start",
     marginTop: 8,
@@ -143,5 +139,5 @@ const st = StyleSheet.create({
     backgroundColor: C.redSoft,
   },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.red },
-  liveText: { color: C.red, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
+  liveText: { color: C.red, letterSpacing: 0.4 },
 });

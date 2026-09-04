@@ -139,6 +139,7 @@ import {
 import { trackAnalyticsEvent, setAnalyticsUserId } from "./src/analytics";
 import { LoginScreen } from "./src/LoginScreen";
 import { TourLogo, TourMark } from "./src/components/TourLogo";
+import { CustomText } from "./src/components/custom-text";
 import {
   LiveRecordingCard,
   LiveRecordingDock,
@@ -185,6 +186,7 @@ import {
   type SessionReviewMode,
 } from "./src/components/session";
 import { tourColors as C, tourColors, scoreColor } from "./src/theme/tour-brand";
+import { ACCENT, BACKGROUND, CARD, FONT, LARGE_CORNER, SMALL_CORNER, TEXT } from "./src/theme/tokens";
 import { selectionHaptic, impactHaptic } from "./src/lib/haptics";
 import {
   TourBackButton as BackBtn,
@@ -1315,7 +1317,7 @@ function CommunityTopBar({
           onPress={onCommunityPress}
           style={({ pressed }) => [homeSt.propertyPicker, pressed && st.pressed]}
         >
-          <Text style={homeSt.propertyPickerText} numberOfLines={1}>{propertyLabel}</Text>
+          <CustomText textStyle="title" numberOfLines={1} style={homeSt.propertyPickerText}>{propertyLabel}</CustomText>
           <Ionicons name="chevron-down" size={15} color={C.textSec} />
         </Pressable>
       </View>
@@ -1475,10 +1477,10 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
   }, []);
 
   return (
-    <View style={st.flex1}>
+    <View style={[st.flex1, tab === "home" && homeSt.pageBg]}>
       {showScrollView && (
         <ScreenTransition transitionKey={`tab:${tab}`} direction={tabTransitionDirection}>
-          <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.mainScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
+          <ScrollView style={tab === "home" ? homeSt.pageBg : undefined} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.mainScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
             {error && (
               <ErrorBanner
                 message={error instanceof Error ? error.message : "Failed to load data"}
@@ -1690,7 +1692,7 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
   const accent = resolveCardAccent(cardAccent);
 
   return (
-    <View style={[st.page, { gap: 18 }]}>
+    <View style={[st.page, homeSt.pageBg, { gap: 18 }]}>
       <CommunityTopBar
         property={property}
         onCommunityPress={onCommunityPress}
@@ -1699,69 +1701,73 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
 
       <MotionPressable onPress={onProfile} haptic="selection" style={homeSt.profileCard}>
         <View style={[homeSt.profileHeader, { backgroundColor: accent }]} />
-        <Pressable
-          accessibilityLabel="Edit contact profile"
-          accessibilityRole="button"
-          onPress={(event) => {
-            event.stopPropagation();
-            onProfile();
-          }}
-          style={({ pressed }) => [homeSt.profileCardSettings, pressed && st.pressed]}
-        >
-          <Ionicons name="settings-outline" size={20} color="#fff" />
-        </Pressable>
         <View style={homeSt.profileBody}>
           <View style={[homeSt.profileAvatarLarge, { backgroundColor: accent }]}>
-            <Text style={[homeSt.profileAvatarLargeText, { color: "#fff" }]}>{initials}</Text>
+            <CustomText textStyle="hero" style={[homeSt.profileAvatarLargeText, { color: CARD }]}>{initials}</CustomText>
           </View>
-          <Text style={homeSt.profileNameLarge}>{agentName}</Text>
-          <Text style={homeSt.profileRoleLarge}>{userTitle || "Leasing Consultant"}</Text>
-          <Text style={homeSt.profileProperty}>{property}</Text>
+          <CustomText textStyle="hero" style={homeSt.profileNameLarge}>{agentName}</CustomText>
+          <CustomText textStyle="body" style={homeSt.profileRoleLarge}>{userTitle || "Leasing Consultant"}</CustomText>
+          <CustomText textStyle="body" style={homeSt.profileProperty}>{property}</CustomText>
 
           <View style={homeSt.contactList}>
             <ProfileContact icon="mail" text={userEmail || "team@tour.video"} />
             <ProfileContact icon="call" text={userPhone?.trim() || "Add phone in profile"} />
           </View>
-          <Text style={homeSt.editProfileHint}>Tap to edit card color & details</Text>
+          <CustomText textStyle="caption" style={homeSt.editProfileHint}>Tap to edit card color & details</CustomText>
         </View>
       </MotionPressable>
 
       <LiveRecordingCard />
 
       <View style={homeSt.actionPillRow}>
-        <MotionPressable onPress={onCheckIn} haptic="medium" style={homeSt.checkInPill}>
-          <Ionicons name="navigate" size={21} color="#fff" />
-          <Text style={homeSt.checkInPillText}>Check-In</Text>
-        </MotionPressable>
-        <MotionPressable onPress={onCreate} haptic="medium" style={[homeSt.checkInPill, homeSt.newSessionPill]}>
-          <Ionicons name="mic" size={21} color="#fff" />
-          <Text style={homeSt.checkInPillText}>New Session</Text>
-        </MotionPressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
+            onCheckIn();
+          }}
+          style={({ pressed }) => [homeSt.checkInPill, pressed && homeSt.actionPillPressed]}
+        >
+          <Ionicons name="navigate" size={21} color={CARD} />
+          <CustomText textStyle="title" style={homeSt.checkInPillText}>Check-In</CustomText>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
+            onCreate();
+          }}
+          style={({ pressed }) => [homeSt.checkInPill, homeSt.newSessionPill, pressed && homeSt.actionPillPressed]}
+        >
+          <Ionicons name="mic" size={21} color={CARD} />
+          <CustomText textStyle="title" style={homeSt.checkInPillText}>New Session</CustomText>
+        </Pressable>
       </View>
 
+      <View style={homeSt.sectionStack}>
       {todayTours.length > 0 && (
         <HomeSection title="Needs your attention">
           <View style={homeSt.focusStack}>
             {todayTours.map((session) => (
-              <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={homeSt.tourCard}>
+              <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={[homeSt.tourCard, homeSt.card]}>
                 <View style={st.flex1}>
-                  <Text style={homeSt.tourTitle} numberOfLines={1}>
+                  <CustomText textStyle="title" numberOfLines={1}>
                     {buildSessionTourTitle({
                       title: session.title,
                       agentName: session.agentName,
                       prospectName: session.prospectName ?? session.leads?.[0]?.name,
                     })}
-                  </Text>
+                  </CustomText>
                   <View style={homeSt.tourMetaRow}>
-                    <Text style={homeSt.timePill}>{session.status === "in_progress" ? "Now" : session.scheduledAt ? fmtTime(session.scheduledAt) : "Today"}</Text>
-                    <Text style={homeSt.tourMeta} numberOfLines={1}>
+                    <CustomText textStyle="micro" style={homeSt.timePill}>{session.status === "in_progress" ? "Now" : session.scheduledAt ? fmtTime(session.scheduledAt) : "Today"}</CustomText>
+                    <CustomText textStyle="caption" numberOfLines={1} style={homeSt.tourMeta}>
                       {formatPersonName(session.prospectName)
                         ?? formatPersonName(session.agentName)
                         ?? "Guest ready for tour"}
-                    </Text>
+                    </CustomText>
                   </View>
                   {formatSessionCardDescription(session) ? (
-                    <Text style={homeSt.tourMeta} numberOfLines={2}>{formatSessionCardDescription(session)}</Text>
+                    <CustomText textStyle="caption" numberOfLines={2} style={homeSt.tourMeta}>{formatSessionCardDescription(session)}</CustomText>
                   ) : null}
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
@@ -1771,12 +1777,17 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
         </HomeSection>
       )}
 
-      <HomeSection title="Assets" action="Open" onAction={onAssets}>
+      <HomeSection
+        title="Assets"
+        subtitle={!materialsLoading && materials.length === 0 ? "Reusable tour assets will appear here." : undefined}
+        action="Open"
+        onAction={onAssets}
+      >
         <View style={homeSt.assetPreviewStack}>
           {materialsLoading && materials.length === 0 ? (
             <View style={homeSt.assetPreviewLoading}>
-              <LoadingDots size="small" color={C.brand} />
-              <Text style={homeSt.emptyInline}>Loading property assets…</Text>
+              <LoadingDots size="small" color={ACCENT} />
+              <CustomText textStyle="caption" style={homeSt.emptyInline}>Loading property assets…</CustomText>
             </View>
           ) : materials.length > 0 ? (
             <ScrollView
@@ -1805,7 +1816,7 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
                         <Image source={{ uri: previewUrl }} style={homeSt.mediaPreviewImage} resizeMode="cover" />
                       ) : (
                         <View style={homeSt.mediaFallbackIcon}>
-                          <Ionicons name={canOpen ? "play" : "document-outline"} size={canOpen ? 18 : 23} color={C.brand} />
+                          <Ionicons name={canOpen ? "play" : "document-outline"} size={canOpen ? 18 : 23} color={ACCENT} />
                         </View>
                       )}
                       {canOpen ? (
@@ -1814,14 +1825,12 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
                         </View>
                       ) : null}
                     </View>
-                    <Text style={homeSt.mediaLabel} numberOfLines={2}>{material.name}</Text>
+                    <CustomText textStyle="micro" numberOfLines={2} style={homeSt.mediaLabel}>{material.name}</CustomText>
                   </MotionPressable>
                 );
               })}
             </ScrollView>
-          ) : (
-            <Text style={homeSt.emptyInline}>Reusable tour assets will appear here.</Text>
-          )}
+          ) : null}
 
           <MotionPressable
             accessibilityLabel="Open property assets"
@@ -1830,22 +1839,23 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
             style={homeSt.assetLinkCard}
           >
             <View style={[homeSt.assetLinkIcon, tourLibrary && homeSt.assetLinkIconConnected]}>
-              <Ionicons name={tourLibrary ? "play" : "folder-outline"} size={22} color={tourLibrary ? "#fff" : C.brand} />
+              <Ionicons name={tourLibrary ? "play" : "folder-outline"} size={22} color={tourLibrary ? CARD : ACCENT} />
             </View>
             <View style={st.flex1}>
-              <Text style={homeSt.assetLinkTitle}>
+              <CustomText textStyle="title">
                 {tourLibrary ? "Tour Library connected" : "Local property assets"}
-              </Text>
-              <Text style={homeSt.assetLinkMeta}>
+              </CustomText>
+              <CustomText textStyle="micro" style={homeSt.assetLinkMeta}>
                 {tourLibrary
                   ? `${materialCount} local and Tour.video resources`
                   : `${materialCount} resources stored for this property`}
-              </Text>
+              </CustomText>
             </View>
             <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
           </MotionPressable>
         </View>
       </HomeSection>
+      </View>
       <MaterialPreviewModal material={selectedMaterial} onClose={() => setSelectedMaterial(null)} />
     </View>
   );
@@ -1886,25 +1896,28 @@ function ProfileContact({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; 
   return (
     <View style={homeSt.profileContactRow}>
       <View style={homeSt.profileContactIcon}>
-        <Ionicons name={icon} size={15} color="#111827" />
+        <Ionicons name={icon} size={15} color={TEXT} />
       </View>
-      <Text style={homeSt.profileContactText} numberOfLines={1}>{text}</Text>
+      <CustomText textStyle="body" numberOfLines={1} style={homeSt.profileContactText}>{text}</CustomText>
     </View>
   );
 }
 
 
-function HomeSection({ title, action, showLogo = false, onAction, children }: { title: string; action?: string; showLogo?: boolean; onAction?: () => void; children: React.ReactNode }) {
+function HomeSection({ title, subtitle, action, showLogo = false, onAction, children }: { title: string; subtitle?: string; action?: string; showLogo?: boolean; onAction?: () => void; children: React.ReactNode }) {
   return (
     <View style={{ gap: 12 }}>
-      <View style={homeSt.sectionHeader}>
-        {showLogo && <TourLogo width={58} />}
-        <Text style={homeSt.sectionTitle}>{title}</Text>
-        {action && (
-          <Pressable onPress={onAction} disabled={!onAction} hitSlop={8} style={({ pressed }) => pressed ? st.pressed : undefined}>
-            <Text style={homeSt.sectionAction}>{action}</Text>
-          </Pressable>
-        )}
+      <View style={homeSt.sectionHeading}>
+        <View style={homeSt.sectionHeader}>
+          {showLogo && <TourLogo width={58} />}
+          <CustomText textStyle="title" style={{ flex: 1 }}>{title}</CustomText>
+          {action && (
+            <Pressable onPress={onAction} disabled={!onAction} hitSlop={8} style={({ pressed }) => pressed ? st.pressed : undefined}>
+              <CustomText textStyle="label" style={homeSt.sectionAction}>{action}</CustomText>
+            </Pressable>
+          )}
+        </View>
+        {subtitle ? <CustomText textStyle="caption" style={homeSt.sectionSubtitle}>{subtitle}</CustomText> : null}
       </View>
       {children}
     </View>
@@ -7635,31 +7648,33 @@ const audioTestSt = StyleSheet.create({
 });
 
 const homeSt = StyleSheet.create({
+  pageBg: { backgroundColor: BACKGROUND },
+  card: { backgroundColor: CARD, borderWidth: 0, borderRadius: SMALL_CORNER, borderCurve: "continuous", alignItems: "center" },
   topBar: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 },
   topBarSide: { minWidth: 44, flexShrink: 0, alignItems: "flex-start", justifyContent: "center" },
   topBarSideEnd: { alignItems: "flex-end" },
   topBarCenter: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" },
-  propertyPicker: { maxWidth: "100%", minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 16, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 999, backgroundColor: "#fff" },
-  propertyPickerText: { flexShrink: 1, color: "#5f6673", fontSize: 16, lineHeight: 19, fontWeight: "800", textAlign: "center" },
+  propertyPicker: { maxWidth: "100%", minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 16, borderRadius: 999, backgroundColor: CARD },
+  propertyPickerText: { flexShrink: 1, color: TEXT, lineHeight: 19, textAlign: "center" },
   headerIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#e2e2e2", borderRadius: 8, backgroundColor: "#fff" },
-  profileCard: { overflow: "hidden", borderRadius: 28, backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 4 },
+  profileCard: { overflow: "hidden", borderRadius: LARGE_CORNER, borderCurve: "continuous", backgroundColor: CARD, shadowColor: "#101828", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 4 },
   profileHeader: { height: 112, backgroundColor: "#111" },
-  profileCardSettings: { position: "absolute", top: 16, right: 16, zIndex: 2, width: 42, height: 42, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.45)", borderRadius: 21, backgroundColor: "rgba(15,23,42,0.28)" },
   profileBody: { alignItems: "center", gap: 5, paddingHorizontal: 24, paddingTop: 0, paddingBottom: 24 },
-  profileAvatarLarge: { width: 88, height: 88, marginTop: -44, borderWidth: 4, borderColor: "#fff", borderRadius: 44, alignItems: "center", justifyContent: "center", backgroundColor: "#d1d5db" },
-  profileAvatarLargeText: { color: "#6b7280", fontSize: 30, fontWeight: "900" },
-  profileNameLarge: { color: "#111", fontSize: 22, fontWeight: "900", marginTop: 12, textAlign: "center" },
-  profileRoleLarge: { color: "#5f6673", fontSize: 15, fontWeight: "600" },
-  profileProperty: { color: "#7b8496", fontSize: 14, fontWeight: "700" },
-  editProfileHint: { marginTop: 10, color: "#98A2B3", fontSize: 12, fontWeight: "700" },
+  profileAvatarLarge: { width: 88, height: 88, marginTop: -44, borderWidth: 4, borderColor: CARD, borderRadius: 44, alignItems: "center", justifyContent: "center", backgroundColor: "#d1d5db" },
+  profileAvatarLargeText: { color: CARD, fontSize: 30 },
+  profileNameLarge: { color: TEXT, marginTop: 12, textAlign: "center" },
+  profileRoleLarge: { color: "#5f6673" },
+  profileProperty: { color: "#7b8496" },
+  editProfileHint: { marginTop: 10, color: "#98A2B3" },
   contactList: { alignSelf: "stretch", gap: 14, marginTop: 22 },
   profileContactRow: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 14 },
-  profileContactIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "#f1f1f1" },
-  profileContactText: { flex: 1, color: "#252a32", fontSize: 14, fontWeight: "600" },
+  profileContactIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: BACKGROUND },
+  profileContactText: { flex: 1, color: TEXT },
   actionPillRow: { flexDirection: "row", gap: 10 },
-  checkInPill: { flex: 1, minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 14, borderRadius: 29, backgroundColor: "#2f343c", shadowColor: "#111827", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.16, shadowRadius: 18, elevation: 5 },
-  newSessionPill: { backgroundColor: C.brand },
-  checkInPillText: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  checkInPill: { flex: 1, minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 14, borderRadius: 29, backgroundColor: "#2f343c", boxShadow: "0 6px 14px rgba(47, 52, 60, 0.28)" },
+  newSessionPill: { backgroundColor: ACCENT, boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)" },
+  actionPillPressed: { boxShadow: "none", transform: [{ scale: 0.975 }] },
+  checkInPillText: { color: CARD },
   practiceCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: 13, padding: 14, borderWidth: 1, borderColor: "#c7d7fe", borderRadius: 18, backgroundColor: "#f8fbff" },
   practiceIcon: { width: 45, height: 45, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: C.brand },
   practiceTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
@@ -7691,29 +7706,32 @@ const homeSt = StyleSheet.create({
   focusTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
   focusMeta: { color: C.textSec, fontSize: 11, fontWeight: "700", marginTop: 3 },
   focusScore: { fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  sectionStack: { gap: 32, marginTop: 28 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 7 },
-  sectionTitle: { flex: 1, color: C.text, fontSize: 17, fontWeight: "900" },
-  sectionAction: { color: C.brand, fontSize: 13, fontWeight: "800" },
-  tourCard: { minHeight: 70, flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderWidth: 1, borderColor: C.border, borderRadius: 16, backgroundColor: "#fff" },
-  tourTitle: { color: C.text, fontSize: 15, fontWeight: "800" },
+  sectionHeading: { gap: 2 },
+  sectionTitle: { flex: 1, color: TEXT, fontSize: 17, fontFamily: FONT.extrabold },
+  sectionSubtitle: { color: C.textSec },
+  sectionAction: { color: ACCENT },
+  tourCard: { minHeight: 70, flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderWidth: 1, borderColor: C.border, borderRadius: SMALL_CORNER, backgroundColor: CARD },
+  tourTitle: { color: TEXT, fontSize: 15, fontFamily: FONT.extrabold },
   tourMetaRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
-  timePill: { color: C.brand, fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4, backgroundColor: "rgba(0,108,229,0.07)" },
-  tourMeta: { flex: 1, color: C.textSec, fontSize: 12 },
+  timePill: { color: ACCENT, fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4, backgroundColor: "rgba(0,108,229,0.07)" },
+  tourMeta: { flex: 1, color: C.textSec, fontSize: 12, fontWeight: "600" },
   assetPreviewStack: { gap: 12 },
-  assetPreviewLoading: { minHeight: 132, alignItems: "center", justifyContent: "center", gap: 9, borderRadius: 14, backgroundColor: "#eef4ff" },
+  assetPreviewLoading: { minHeight: 132, alignItems: "center", justifyContent: "center", gap: 9, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
   mediaRow: { gap: 10, paddingRight: 4 },
-  mediaTile: { minHeight: 132, justifyContent: "space-between", gap: 8, padding: 8, borderRadius: 12, backgroundColor: "#eef4ff" },
-  mediaThumb: { flex: 1, minHeight: 82, alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", borderRadius: 10, backgroundColor: "rgba(255,255,255,0.55)" },
+  mediaTile: { minHeight: 132, justifyContent: "space-between", gap: 8, padding: 8, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
+  mediaThumb: { flex: 1, minHeight: 82, alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", borderRadius: 10, borderCurve: "continuous", backgroundColor: BACKGROUND },
   mediaPreviewImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  mediaFallbackIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19, backgroundColor: "#fff" },
+  mediaFallbackIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19, backgroundColor: CARD },
   mediaPlayBadge: { position: "absolute", right: 7, bottom: 7, width: 24, height: 24, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.86)", borderRadius: 12, backgroundColor: "rgba(15,23,42,0.88)" },
-  mediaLabel: { color: C.text, fontSize: 11, fontWeight: "700" },
-  emptyInline: { color: C.textSec, fontSize: 12 },
-  assetLinkCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: 13, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 18, backgroundColor: "#fff" },
+  mediaLabel: { color: TEXT },
+  emptyInline: { color: C.textSec },
+  assetLinkCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: 13, padding: 14, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
   assetLinkIcon: { width: 46, height: 46, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#eef4ff" },
-  assetLinkIconConnected: { backgroundColor: C.brand },
-  assetLinkTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
-  assetLinkMeta: { color: C.textSec, fontSize: 11, lineHeight: 16, fontWeight: "700", marginTop: 3 },
+  assetLinkIconConnected: { backgroundColor: ACCENT },
+  assetLinkTitle: { color: TEXT, fontSize: 14, fontFamily: FONT.extrabold },
+  assetLinkMeta: { color: C.textSec, lineHeight: 16, marginTop: 3 },
   statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
   statusText: { fontSize: 9, fontWeight: "900" },
   actionCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderWidth: 1, borderColor: "#e5e5e5", borderRadius: 12, backgroundColor: "#fff" },
