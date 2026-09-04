@@ -5,7 +5,6 @@ import {
   FlatList,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   useWindowDimensions,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
+import { CustomText } from "@/components/custom-text";
 import { LoadingDots } from "@/components/loading-dots";
 import {
   authorizedCommunitiesForSession,
@@ -26,6 +26,7 @@ import {
   type PropertyOnboardingCandidate,
 } from "../auth";
 import { tourColors } from "@/theme/tour-brand";
+import { ACCENT, BACKGROUND, CARD } from "@/theme/tokens";
 
 const SHEET_HEIGHT_RATIO = 0.72;
 const SHEET_MAX_HEIGHT = 650;
@@ -131,6 +132,12 @@ export function CommunityPickerModal({
     retry: 1,
   });
   const activeCommunityId = session.workspace.community.id;
+  const assignedProperties = useMemo(() => {
+    const items = assignedSearchQuery.data ?? [];
+    const selected = items.filter((item) => item.id === activeCommunityId);
+    const rest = items.filter((item) => item.id !== activeCommunityId);
+    return selected.length ? [...selected, ...rest] : items;
+  }, [activeCommunityId, assignedSearchQuery.data]);
   const switchLocked = Boolean(switchingId);
   const interactionLocked = switchLocked || Boolean(joiningPlaceId) || dismissDisabled;
 
@@ -209,14 +216,14 @@ export function CommunityPickerModal({
               />
             </View>
             <View style={styles.rowBody}>
-              <Text style={styles.rowName} numberOfLines={1}>
+              <CustomText textStyle="label" numberOfLines={1} style={styles.rowName}>
                 {propertyDisplayName(item.name)}
-              </Text>
+              </CustomText>
               <View style={styles.rowMetadata}>
                 {metadataLabels.map((label) => (
-                  <Text key={label} style={styles.rowAlias} numberOfLines={1}>
+                  <CustomText key={label} textStyle="caption" numberOfLines={1} style={styles.rowAlias}>
                     {label}
-                  </Text>
+                  </CustomText>
                 ))}
                 {enrichment ? <EnrichmentBadge enrichment={enrichment} /> : null}
               </View>
@@ -250,12 +257,12 @@ export function CommunityPickerModal({
               <Ionicons name="location-outline" size={19} color={tourColors.brand} />
             </View>
             <View style={styles.rowBody}>
-              <Text style={styles.rowName} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.candidateAddress} numberOfLines={2}>{item.address || "Google business listing"}</Text>
+              <CustomText textStyle="label" numberOfLines={1} style={styles.rowName}>{item.name}</CustomText>
+              <CustomText textStyle="micro" numberOfLines={2} style={styles.candidateAddress}>{item.address || "Google business listing"}</CustomText>
               <View style={styles.rowMetadata}>
                 <CandidateBadge state={item.state} />
                 {item.alreadyAssigned ? (
-                  <Text style={styles.assignedText}>Already on your team</Text>
+                  <CustomText textStyle="micro" style={styles.assignedText}>Already on your team</CustomText>
                 ) : null}
               </View>
             </View>
@@ -276,6 +283,7 @@ export function CommunityPickerModal({
       sheetHeight={sheetHeight}
       dismissDisabled={interactionLocked}
       keyboardAvoiding
+      sheetStyle={styles.sheet}
       dragHeader={
         <View style={styles.titleRow}>
           {mode === "add" ? (
@@ -293,16 +301,16 @@ export function CommunityPickerModal({
             </Pressable>
           ) : null}
           <View style={styles.headerCopy}>
-            <Text style={styles.title}>
+            <CustomText textStyle="hero" style={styles.title}>
               {mode === "add" ? (selectedCandidate ? "Confirm property" : "Add a property") : title}
-            </Text>
-            <Text style={styles.subtitle}>
+            </CustomText>
+            <CustomText textStyle="caption" style={styles.subtitle}>
               {mode === "add"
                 ? selectedCandidate
                   ? "Review the Google listing before joining this property team."
                   : "Search Google, add yourself to its property team, and start enrichment."
                 : subtitle}
-            </Text>
+            </CustomText>
           </View>
           {closeButtonVisible ? (
             <Pressable
@@ -338,7 +346,7 @@ export function CommunityPickerModal({
             {joinError ? (
               <View style={styles.errorBanner}>
                 <Ionicons name="alert-circle-outline" size={18} color="#b42318" />
-                <Text style={styles.errorText}>{joinError}</Text>
+                <CustomText textStyle="micro" style={styles.errorText}>{joinError}</CustomText>
               </View>
             ) : null}
             {selectedCandidate ? (
@@ -346,16 +354,16 @@ export function CommunityPickerModal({
                 <View style={styles.confirmIcon}>
                   <Ionicons name="business" size={25} color={tourColors.brand} />
                 </View>
-                <Text style={styles.confirmTitle}>{selectedCandidate.name}</Text>
-                <Text style={styles.confirmAddress}>
+                <CustomText textStyle="hero" style={styles.confirmTitle}>{selectedCandidate.name}</CustomText>
+                <CustomText textStyle="caption" style={styles.confirmAddress}>
                   {selectedCandidate.address || "Google business listing"}
-                </Text>
+                </CustomText>
                 <View style={styles.confirmBadges}>
                   <CandidateBadge state={selectedCandidate.state} />
                   {selectedCandidate.alreadyAssigned ? (
                     <View style={styles.alreadyAssignedBadge}>
                       <Ionicons name="checkmark-circle" size={13} color={tourColors.green} />
-                      <Text style={styles.alreadyAssignedBadgeText}>Already assigned</Text>
+                      <CustomText textStyle="micro" style={styles.alreadyAssignedBadgeText}>Already assigned</CustomText>
                     </View>
                   ) : null}
                 </View>
@@ -369,7 +377,7 @@ export function CommunityPickerModal({
                       <View style={styles.confirmStepIcon}>
                         <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={16} color={tourColors.brand} />
                       </View>
-                      <Text style={styles.confirmStepText}>{label}</Text>
+                      <CustomText textStyle="micro" style={styles.confirmStepText}>{label}</CustomText>
                     </View>
                   ))}
                 </View>
@@ -384,47 +392,47 @@ export function CommunityPickerModal({
                   ) : (
                     <Ionicons name={selectedCandidate.alreadyAssigned ? "arrow-forward" : "add"} size={19} color="#fff" />
                   )}
-                  <Text style={styles.confirmButtonText}>
+                  <CustomText textStyle="title" style={styles.confirmButtonText}>
                     {joiningPlaceId
                       ? "Preparing property…"
                       : selectedCandidate.alreadyAssigned
                         ? "Open this property"
                         : "Add property and continue"}
-                  </Text>
+                  </CustomText>
                 </Pressable>
-                <Text style={styles.confirmFootnote}>New team entries begin unverified and can be reviewed on Tour.report.</Text>
+                <CustomText textStyle="micro" style={styles.confirmFootnote}>New team entries begin unverified and can be reviewed on Tour.report.</CustomText>
               </View>
             ) : debouncedAddSearch.length < 2 ? (
               <View style={styles.searchPrompt}>
                 <View style={styles.searchPromptIcon}>
                   <Ionicons name="sparkles-outline" size={25} color={tourColors.brand} />
                 </View>
-                <Text style={styles.emptyTitle}>Find any property</Text>
-                <Text style={styles.searchPromptText}>
+                <CustomText textStyle="title" style={styles.emptyTitle}>Find any property</CustomText>
+                <CustomText textStyle="caption" style={styles.searchPromptText}>
                   Search by name and city. Tour will check whether it is already indexed or enriched before adding it.
-                </Text>
+                </CustomText>
               </View>
             ) : propertySearchQuery.isLoading ? (
               <View style={styles.loadingSearch}>
                 <LoadingDots color={tourColors.brand} />
-                <Text style={styles.loadingSearchText}>Checking Tour property intelligence…</Text>
+                <CustomText textStyle="caption" style={styles.loadingSearchText}>Checking Tour property intelligence…</CustomText>
               </View>
             ) : propertySearchQuery.error ? (
               <View style={styles.empty}>
                 <Ionicons name="cloud-offline-outline" size={28} color={tourColors.textMuted} />
-                <Text style={styles.emptyTitle}>Couldn’t search properties</Text>
-                <Text style={styles.emptySub}>
+                <CustomText textStyle="title" style={styles.emptyTitle}>Couldn’t search properties</CustomText>
+                <CustomText textStyle="caption" style={styles.emptySub}>
                   {propertySearchQuery.error instanceof Error ? propertySearchQuery.error.message : "Try again."}
-                </Text>
+                </CustomText>
                 <Pressable onPress={() => void propertySearchQuery.refetch()} style={styles.retryButton}>
-                  <Text style={styles.retryText}>Try again</Text>
+                  <CustomText textStyle="caption" style={styles.retryText}>Try again</CustomText>
                 </Pressable>
               </View>
             ) : (propertySearchQuery.data?.length ?? 0) === 0 ? (
               <View style={styles.empty}>
                 <Ionicons name="search-outline" size={28} color={tourColors.textMuted} />
-                <Text style={styles.emptyTitle}>No properties found</Text>
-                <Text style={styles.emptySub}>Try the full property name and city.</Text>
+                <CustomText textStyle="title" style={styles.emptyTitle}>No properties found</CustomText>
+                <CustomText textStyle="caption" style={styles.emptySub}>Try the full property name and city.</CustomText>
               </View>
             ) : (
               <FlatList
@@ -438,7 +446,7 @@ export function CommunityPickerModal({
             )}
             <View style={styles.securityNote}>
               <Ionicons name="shield-checkmark-outline" size={15} color={tourColors.green} />
-              <Text style={styles.securityNoteText}>Your exact email is added to PropertiesTYG.property_team.</Text>
+              <CustomText textStyle="micro" style={styles.securityNoteText}>Your exact email is added to PropertiesTYG.property_team.</CustomText>
             </View>
           </>
         ) : !listReady ? (
@@ -456,28 +464,29 @@ export function CommunityPickerModal({
         ) : assignedSearchQuery.isLoading ? (
           <View style={styles.loadingSearch}>
             <LoadingDots color={tourColors.brand} />
-            <Text style={styles.loadingSearchText}>Searching your assigned properties…</Text>
+            <CustomText textStyle="caption" style={styles.loadingSearchText}>Searching your assigned properties…</CustomText>
           </View>
         ) : assignedSearchQuery.error ? (
           <View style={styles.empty}>
             <Ionicons name="cloud-offline-outline" size={28} color={tourColors.textMuted} />
-            <Text style={styles.emptyTitle}>Couldn’t search properties</Text>
-            <Text style={styles.emptySub}>
+            <CustomText textStyle="title" style={styles.emptyTitle}>Couldn’t search properties</CustomText>
+            <CustomText textStyle="caption" style={styles.emptySub}>
               {assignedSearchQuery.error instanceof Error ? assignedSearchQuery.error.message : "Try again."}
-            </Text>
+            </CustomText>
             <Pressable onPress={() => void assignedSearchQuery.refetch()} style={styles.retryButton}>
-              <Text style={styles.retryText}>Try again</Text>
+              <CustomText textStyle="caption" style={styles.retryText}>Try again</CustomText>
             </Pressable>
           </View>
-        ) : (assignedSearchQuery.data?.length ?? 0) === 0 ? (
+        ) : assignedProperties.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="business-outline" size={28} color={tourColors.textMuted} />
-            <Text style={styles.emptyTitle}>No assigned properties found</Text>
-            <Text style={styles.emptySub}>Try another search or add a property below.</Text>
+            <CustomText textStyle="title" style={styles.emptyTitle}>No assigned properties found</CustomText>
+            <CustomText textStyle="caption" style={styles.emptySub}>Try another search or add a property below.</CustomText>
           </View>
         ) : (
           <FlatList
-            data={assignedSearchQuery.data ?? []}
+            data={assignedProperties}
+            extraData={activeCommunityId}
             renderItem={renderCommunity}
             keyExtractor={(item) => item.id}
             style={styles.list}
@@ -495,16 +504,10 @@ export function CommunityPickerModal({
           <Pressable
             accessibilityRole="button"
             onPress={beginAddProperty}
-            style={({ pressed }) => [styles.addPropertyButton, pressed && styles.addPropertyPressed]}
+            style={({ pressed }) => [styles.findPropertyButton, pressed && styles.findPropertyPressed]}
           >
-            <View style={styles.addPropertyIcon}>
-              <Ionicons name="add" size={18} color={tourColors.brand} />
-            </View>
-            <View style={styles.addPropertyCopy}>
-              <Text style={styles.addPropertyTitle}>Find or add a property</Text>
-              <Text style={styles.addPropertySubtitle}>Search Tour property intelligence</Text>
-            </View>
-            <Ionicons name="arrow-forward" size={17} color={tourColors.textMuted} />
+            <Ionicons name="add" size={21} color={CARD} />
+            <CustomText textStyle="title" style={styles.findPropertyText}>Find/Add A Property</CustomText>
           </Pressable>
         ) : null}
       </>
@@ -528,14 +531,15 @@ function EnrichmentBadge({ enrichment }: { enrichment: CommunityEnrichment }) {
           enriched ? styles.enrichmentDotReady : indexed ? styles.enrichmentDotIndexed : null,
         ]}
       />
-      <Text
+      <CustomText
+        textStyle="micro"
         style={[
           styles.enrichmentText,
           enriched ? styles.enrichmentTextReady : indexed ? styles.enrichmentTextIndexed : null,
         ]}
       >
         {enriched ? "Enriched" : indexed ? "Indexed" : "Not linked"}
-      </Text>
+      </CustomText>
     </View>
   );
 }
@@ -546,14 +550,17 @@ function CandidateBadge({ state }: { state: PropertyOnboardingCandidate["state"]
   return (
     <View style={[styles.enrichmentBadge, enriched ? styles.enrichmentBadgeReady : indexed ? styles.enrichmentBadgeIndexed : null]}>
       <View style={[styles.enrichmentDot, enriched ? styles.enrichmentDotReady : indexed ? styles.enrichmentDotIndexed : null]} />
-      <Text style={[styles.enrichmentText, enriched ? styles.enrichmentTextReady : indexed ? styles.enrichmentTextIndexed : null]}>
+      <CustomText textStyle="micro" style={[styles.enrichmentText, enriched ? styles.enrichmentTextReady : indexed ? styles.enrichmentTextIndexed : null]}>
         {enriched ? "Enriched" : indexed ? "Indexed" : "New property"}
-      </Text>
+      </CustomText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  sheet: {
+    backgroundColor: BACKGROUND,
+  },
   titleRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -565,23 +572,18 @@ const styles = StyleSheet.create({
   },
   title: {
     color: tourColors.text,
-    fontSize: 20,
-    fontWeight: "900",
   },
   subtitle: {
     color: tourColors.textSec,
-    fontSize: 12,
     lineHeight: 17,
   },
   closeBtn: {
     width: 42,
     height: 42,
-    borderRadius: 8,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: tourColors.border,
-    backgroundColor: tourColors.card,
+    backgroundColor: CARD,
   },
   backBtn: {
     width: 42,
@@ -598,12 +600,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     minHeight: 48,
+    marginTop: 14,
     marginBottom: 8,
     paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    backgroundColor: tourColors.card,
+    borderRadius: 999,
+    backgroundColor: CARD,
   },
   searchInput: {
     flex: 1,
@@ -648,9 +649,7 @@ const styles = StyleSheet.create({
   candidateAddress: {
     marginTop: 3,
     color: tourColors.textSec,
-    fontSize: 11,
     lineHeight: 15,
-    fontWeight: "600",
   },
   addCircle: {
     width: 30,
@@ -662,9 +661,6 @@ const styles = StyleSheet.create({
   },
   assignedText: {
     color: tourColors.green,
-    fontSize: 9,
-    lineHeight: 12,
-    fontWeight: "800",
   },
   rowIcon: {
     width: 34,
@@ -685,13 +681,9 @@ const styles = StyleSheet.create({
   },
   rowName: {
     color: tourColors.text,
-    fontSize: 13,
-    fontWeight: "800",
   },
   rowAlias: {
     color: tourColors.textSec,
-    fontSize: 12,
-    fontWeight: "600",
   },
   rowMetadata: {
     minHeight: 17,
@@ -714,7 +706,7 @@ const styles = StyleSheet.create({
   enrichmentDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#98a2b3" },
   enrichmentDotReady: { backgroundColor: "#17b26a" },
   enrichmentDotIndexed: { backgroundColor: tourColors.brand },
-  enrichmentText: { color: "#667085", fontSize: 9, lineHeight: 12, fontWeight: "800" },
+  enrichmentText: { color: "#667085" },
   enrichmentTextReady: { color: "#067647" },
   enrichmentTextIndexed: { color: "#175cd3" },
   empty: {
@@ -724,12 +716,9 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: tourColors.text,
-    fontSize: 15,
-    fontWeight: "800",
   },
   emptySub: {
     color: tourColors.textSec,
-    fontSize: 12,
     textAlign: "center",
     lineHeight: 17,
   },
@@ -758,17 +747,13 @@ const styles = StyleSheet.create({
   confirmTitle: {
     marginTop: 13,
     color: tourColors.text,
-    fontSize: 20,
-    fontWeight: "900",
     textAlign: "center",
   },
   confirmAddress: {
     maxWidth: 340,
     marginTop: 5,
     color: tourColors.textSec,
-    fontSize: 12,
     lineHeight: 18,
-    fontWeight: "600",
     textAlign: "center",
   },
   confirmBadges: {
@@ -786,7 +771,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#ecfdf3",
   },
-  alreadyAssignedBadgeText: { color: "#067647", fontSize: 9, fontWeight: "800" },
+  alreadyAssignedBadgeText: { color: "#067647" },
   confirmSteps: {
     alignSelf: "stretch",
     gap: 9,
@@ -809,9 +794,7 @@ const styles = StyleSheet.create({
   confirmStepText: {
     flex: 1,
     color: tourColors.text,
-    fontSize: 11,
     lineHeight: 16,
-    fontWeight: "700",
   },
   confirmButton: {
     alignSelf: "stretch",
@@ -824,13 +807,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: tourColors.brand,
   },
-  confirmButtonText: { color: "#fff", fontSize: 14, fontWeight: "900" },
+  confirmButtonText: { color: "#fff" },
   confirmFootnote: {
     marginTop: 9,
     color: tourColors.textMuted,
-    fontSize: 9,
     lineHeight: 13,
-    fontWeight: "600",
     textAlign: "center",
   },
   searchPromptIcon: {
@@ -844,10 +825,8 @@ const styles = StyleSheet.create({
   searchPromptText: {
     maxWidth: 320,
     color: tourColors.textSec,
-    fontSize: 12,
     lineHeight: 18,
     textAlign: "center",
-    fontWeight: "600",
   },
   loadingSearch: {
     flex: 1,
@@ -857,8 +836,6 @@ const styles = StyleSheet.create({
   },
   loadingSearchText: {
     color: tourColors.textSec,
-    fontSize: 12,
-    fontWeight: "700",
   },
   errorBanner: {
     flexDirection: "row",
@@ -873,9 +850,7 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     color: "#b42318",
-    fontSize: 11,
     lineHeight: 16,
-    fontWeight: "700",
   },
   retryButton: {
     marginTop: 6,
@@ -884,7 +859,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     backgroundColor: "#eef4ff",
   },
-  retryText: { color: tourColors.brand, fontSize: 12, fontWeight: "800" },
+  retryText: { color: tourColors.brand },
   securityNote: {
     flexDirection: "row",
     alignItems: "center",
@@ -895,33 +870,23 @@ const styles = StyleSheet.create({
   },
   securityNoteText: {
     color: tourColors.textSec,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  addPropertyButton: {
-    minHeight: 62,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    marginTop: 8,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#cfe0ff",
-    borderRadius: 12,
-    backgroundColor: "#f5f8ff",
   },
   addPropertyPressed: { opacity: 0.72 },
-  addPropertyIcon: {
-    width: 34,
-    height: 34,
+  findPropertyButton: {
+    alignSelf: "stretch",
+    minHeight: 58,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 9,
-    backgroundColor: "#e6efff",
+    gap: 9,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
-  addPropertyCopy: { flex: 1, gap: 2 },
-  addPropertyTitle: { color: tourColors.text, fontSize: 13, fontWeight: "800" },
-  addPropertySubtitle: { color: tourColors.textSec, fontSize: 11, fontWeight: "600" },
+  findPropertyPressed: { boxShadow: "none", transform: [{ scale: 0.975 }] },
+  findPropertyText: { color: CARD },
   skeletonRow: {
     height: ROW_HEIGHT,
     flexDirection: "row",
