@@ -19,7 +19,13 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppProviders } from "./src/components/app-providers";
 import { LoadingDots } from "./src/components/loading-dots";
 import {
@@ -63,9 +69,14 @@ import Reanimated, {
   withTiming,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import Swipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { NavigationContainer, type NavigationContainerRef } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  type NavigationContainerRef,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
   type AnalysisResult,
@@ -131,7 +142,15 @@ import { getApiBaseUrl, getSiteBaseUrl } from "./src/config";
 import { createLoadedAudioPlayer } from "./src/audio-player";
 import { computeDashboardMetrics } from "./src/dashboard";
 import type { UploadProgressInfo } from "./src/presignedUpload";
-import { authorizedCommunitiesForSession, type MobileAuthSession, authenticatedFetch, clearSession, getCurrentSession, restoreSession, switchCommunity } from "./src/auth";
+import {
+  authorizedCommunitiesForSession,
+  type MobileAuthSession,
+  authenticatedFetch,
+  clearSession,
+  getCurrentSession,
+  restoreSession,
+  switchCommunity,
+} from "./src/auth";
 import { useEasUpdateCheck } from "./src/hooks/use-eas-update-check";
 import {
   registerForPushNotifications,
@@ -142,7 +161,11 @@ import { trackAnalyticsEvent, setAnalyticsUserId } from "./src/analytics";
 import { LoginScreen } from "./src/LoginScreen";
 import { TourLogo, TourMark } from "./src/components/TourLogo";
 import { CustomText } from "./src/components/custom-text";
-import { LargeTitleCopy, LargeTitleHeader, largeTitleContentInset } from "./src/components/large-title-header";
+import {
+  LargeTitleCopy,
+  LargeTitleHeader,
+  largeTitleContentInset,
+} from "./src/components/large-title-header";
 import { LiquidGlassIconButton } from "./src/components/liquid-glass-icon-button";
 import { LiquidGlassSearch } from "./src/components/liquid-glass-search";
 import {
@@ -173,8 +196,14 @@ import {
   isOnline,
   startSyncOutbox,
 } from "./src/offline/sync-outbox";
-import { promoteLocalRecordingToCache, resolveSessionPlaybackUri } from "./src/session-audio-cache";
-import { MotionPressable, AnimatedTabContent } from "./src/components/ui/motion";
+import {
+  promoteLocalRecordingToCache,
+  resolveSessionPlaybackUri,
+} from "./src/session-audio-cache";
+import {
+  MotionPressable,
+  AnimatedTabContent,
+} from "./src/components/ui/motion";
 import {
   CollapsibleSection,
   RubricTab,
@@ -190,8 +219,20 @@ import {
   SESSION_PAGE_PADDING,
   type SessionReviewMode,
 } from "./src/components/session";
-import { tourColors as C, tourColors, scoreColor } from "./src/theme/tour-brand";
-import { ACCENT, BACKGROUND, CARD, FONT, LARGE_CORNER, SMALL_CORNER, TEXT } from "./src/theme/tokens";
+import {
+  tourColors as C,
+  tourColors,
+  scoreColor,
+} from "./src/theme/tour-brand";
+import {
+  ACCENT,
+  BACKGROUND,
+  CARD,
+  FONT,
+  LARGE_CORNER,
+  SMALL_CORNER,
+  TEXT,
+} from "./src/theme/tokens";
 import { selectionHaptic, impactHaptic } from "./src/lib/haptics";
 import {
   TourBackButton as BackBtn,
@@ -206,10 +247,22 @@ import { CommunityPickerModal } from "@/components/community-picker-modal";
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { CheckInSheet } from "./src/components/check-in/check-in-sheet";
 import { ProfileEditorModal } from "./src/components/profile/profile-editor-modal";
-import { ProfileEditorScreen, resolveCardAccent } from "./src/components/profile/profile-editor-screen";
-import { PhotoAssetRecorder, type RecordedPhotoAsset } from "./src/assets/PhotoAssetRecorder";
-import { VideoAssetRecorder, type RecordedVideoAsset } from "./src/assets/VideoAssetRecorder";
-import { PanoramaAssetRecorder, type RecordedPanoramaAsset } from "./src/assets/PanoramaAssetRecorder";
+import {
+  ProfileEditorScreen,
+  resolveCardAccent,
+} from "./src/components/profile/profile-editor-screen";
+import {
+  PhotoAssetRecorder,
+  type RecordedPhotoAsset,
+} from "./src/assets/PhotoAssetRecorder";
+import {
+  VideoAssetRecorder,
+  type RecordedVideoAsset,
+} from "./src/assets/VideoAssetRecorder";
+import {
+  PanoramaAssetRecorder,
+  type RecordedPanoramaAsset,
+} from "./src/assets/PanoramaAssetRecorder";
 import { PanoramaImageViewer } from "./src/assets/PanoramaImageViewer";
 import {
   queryKeys,
@@ -239,20 +292,46 @@ import type { SortOption, StatusFilter } from "./src/types/ui";
 import { Card, CardContent } from "@/components/ui/card";
 import { Text as UiText } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { BulkUploadDock, BulkUploadFlow } from "./src/bulk-upload/BulkUploadFlow";
+import {
+  BulkUploadDock,
+  BulkUploadFlow,
+} from "./src/bulk-upload/BulkUploadFlow";
 import { SessionReportScreen } from "./src/reports/SessionReportScreen";
 import { PracticeSessionsScreen } from "./src/practice/PracticeSessionsScreen";
 
 const loginBackground = require("./assets/videos/login-bg.mp4");
 
-type ProspectData = { name: string; email: string; phone: string; moveIn: string; bedrooms: string; budget: string };
+type ProspectData = {
+  name: string;
+  email: string;
+  phone: string;
+  moveIn: string;
+  bedrooms: string;
+  budget: string;
+};
 type MainTab = "home" | "sessions" | "calendar" | "materials" | "settings";
 type Screen =
   | { type: "main"; tab: MainTab }
-  | { type: "session-detail"; sessionId: string; sample?: boolean; autoStartRecording?: boolean }
+  | {
+      type: "session-detail";
+      sessionId: string;
+      sample?: boolean;
+      autoStartRecording?: boolean;
+    }
   | { type: "session-comments"; sessionId: string; sessionTitle?: string }
-  | { type: "session-ai-chat"; sessionId: string; sessionTitle?: string; prospectName?: string }
-  | { type: "session-audio-insights"; sessionId: string; sessionTitle?: string; initialStatus?: AudioInsightsStatus; initialInsights?: AudioInsights | null }
+  | {
+      type: "session-ai-chat";
+      sessionId: string;
+      sessionTitle?: string;
+      prospectName?: string;
+    }
+  | {
+      type: "session-audio-insights";
+      sessionId: string;
+      sessionTitle?: string;
+      initialStatus?: AudioInsightsStatus;
+      initialInsights?: AudioInsights | null;
+    }
   | { type: "session-report"; sessionId: string }
   | { type: "bulk-upload"; batchId?: string }
   | { type: "create-session" }
@@ -365,7 +444,11 @@ const STATUS_LABELS: Record<string, string> = {
   failed: "Failed",
 };
 
-const PROCESSING_STATUSES = new Set(["transcribing", "segmenting", "analyzing"]);
+const PROCESSING_STATUSES = new Set([
+  "transcribing",
+  "segmenting",
+  "analyzing",
+]);
 const SESSION_PROCESS_STEPS = [
   { id: "uploaded", label: "Uploaded", icon: "cloud-done-outline" },
   { id: "transcribing", label: "Transcript", icon: "mic-outline" },
@@ -377,7 +460,9 @@ function pendingUploadKey(sessionId: string) {
   return `tour.pendingRecordingUpload.${sessionId}`;
 }
 
-async function savePendingRecordingUpload(upload: PendingRecordingUpload & { localId?: string | null }) {
+async function savePendingRecordingUpload(
+  upload: PendingRecordingUpload & { localId?: string | null },
+) {
   try {
     if (upload.localId) {
       markReadyToSync(upload.localId, {
@@ -390,16 +475,26 @@ async function savePendingRecordingUpload(upload: PendingRecordingUpload & { loc
       return;
     }
     // Legacy fallback for uploads without a local session folder.
-    await AsyncStorage.setItem(pendingUploadKey(upload.sessionId), JSON.stringify(upload));
+    await AsyncStorage.setItem(
+      pendingUploadKey(upload.sessionId),
+      JSON.stringify(upload),
+    );
   } catch {
     // Best-effort local retry metadata only.
   }
 }
 
-async function loadPendingRecordingUpload(sessionId: string): Promise<(PendingRecordingUpload & { localId?: string | null }) | null> {
+async function loadPendingRecordingUpload(
+  sessionId: string,
+): Promise<(PendingRecordingUpload & { localId?: string | null }) | null> {
   try {
     const local = findLocalSessionByRemoteId(sessionId);
-    if (local && (local.status === "ready_to_sync" || local.status === "failed" || local.status === "syncing")) {
+    if (
+      local &&
+      (local.status === "ready_to_sync" ||
+        local.status === "failed" ||
+        local.status === "syncing")
+    ) {
       const uri = getRecordingUri(local.localId);
       if (uri) {
         return {
@@ -430,11 +525,15 @@ async function loadPendingRecordingUpload(sessionId: string): Promise<(PendingRe
   }
 }
 
-async function clearPendingRecordingUpload(sessionId: string, localId?: string | null) {
+async function clearPendingRecordingUpload(
+  sessionId: string,
+  localId?: string | null,
+) {
   try {
     // Keep local folders only while live audio is pending upload. After upload,
     // playback uses the audio cache / signed URL — not session meta cards.
-    const resolvedLocalId = localId ?? findLocalSessionByRemoteId(sessionId)?.localId ?? null;
+    const resolvedLocalId =
+      localId ?? findLocalSessionByRemoteId(sessionId)?.localId ?? null;
     if (resolvedLocalId) deleteLocalSession(resolvedLocalId);
     const key = pendingUploadKey(sessionId);
     await Promise.all([
@@ -489,12 +588,19 @@ function initialUploadStats(total?: number | null): UploadStats {
 
 function fmtDate(d: string | null) {
   if (!d) return "Unscheduled";
-  return new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return new Date(d).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function fmtTime(d: string | null) {
   if (!d) return "";
-  return new Date(d).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function fmtSec(sec: number) {
@@ -516,14 +622,22 @@ function PulseDot({ color = C.red }: { color?: string }) {
   const opacity = useSharedValue(1);
 
   useEffect(() => {
-    scale.value = withRepeat(withSequence(
-      withTiming(1.45, { duration: 850, easing: Easing.out(Easing.quad) }),
-      withTiming(1, { duration: 850, easing: Easing.in(Easing.quad) })
-    ), -1, false);
-    opacity.value = withRepeat(withSequence(
-      withTiming(0.45, { duration: 850 }),
-      withTiming(1, { duration: 850 })
-    ), -1, false);
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.45, { duration: 850, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 850, easing: Easing.in(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.45, { duration: 850 }),
+        withTiming(1, { duration: 850 }),
+      ),
+      -1,
+      false,
+    );
   }, [opacity, scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -531,7 +645,11 @@ function PulseDot({ color = C.red }: { color?: string }) {
     transform: [{ scale: scale.value }],
   }));
 
-  return <Reanimated.View style={[st.pulseDot, { backgroundColor: color }, animatedStyle]} />;
+  return (
+    <Reanimated.View
+      style={[st.pulseDot, { backgroundColor: color }, animatedStyle]}
+    />
+  );
 }
 
 function LoadingShimmer({ rows = 3 }: { rows?: number }) {
@@ -541,8 +659,18 @@ function LoadingShimmer({ rows = 3 }: { rows?: number }) {
         <View key={index} style={st.shimmerCard}>
           <View style={st.sessionSkeletonAvatar} />
           <View style={st.sessionSkeletonBody}>
-            <View style={[st.shimmerBar, { width: index % 2 === 0 ? "68%" : "52%" }]} />
-            <View style={[st.shimmerBar, { width: index % 2 === 0 ? "44%" : "72%", height: 8 }]} />
+            <View
+              style={[
+                st.shimmerBar,
+                { width: index % 2 === 0 ? "68%" : "52%" },
+              ]}
+            />
+            <View
+              style={[
+                st.shimmerBar,
+                { width: index % 2 === 0 ? "44%" : "72%", height: 8 },
+              ]}
+            />
           </View>
           <View style={st.sessionSkeletonChevron} />
         </View>
@@ -551,18 +679,31 @@ function LoadingShimmer({ rows = 3 }: { rows?: number }) {
   );
 }
 
-function AnimatedProgressFill({ percent, color = C.brand }: { percent: number; color?: string }) {
+function AnimatedProgressFill({
+  percent,
+  color = C.brand,
+}: {
+  percent: number;
+  color?: string;
+}) {
   const progress = useSharedValue(percent);
 
   useEffect(() => {
-    progress.value = withTiming(Math.max(0, Math.min(100, percent)), { duration: 260, easing: Easing.out(Easing.cubic) });
+    progress.value = withTiming(Math.max(0, Math.min(100, percent)), {
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+    });
   }, [percent, progress]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     width: `${progress.value}%`,
   }));
 
-  return <Reanimated.View style={[st.progressFill, { backgroundColor: color }, animatedStyle]} />;
+  return (
+    <Reanimated.View
+      style={[st.progressFill, { backgroundColor: color }, animatedStyle]}
+    />
+  );
 }
 
 function UploadStatusCard({
@@ -583,18 +724,28 @@ function UploadStatusCard({
   onChooseDifferent?: () => void;
 }) {
   const total = stats.total ?? fileSize ?? null;
-  const uploadedText = total ? `${formatBytes(stats.loaded)} of ${formatBytes(total)}` : formatBytes(fileSize);
-  const speedText = stats.bytesPerSecond ? `${formatBytes(stats.bytesPerSecond)}/s` : "Waiting for transfer";
+  const uploadedText = total
+    ? `${formatBytes(stats.loaded)} of ${formatBytes(total)}`
+    : formatBytes(fileSize);
+  const speedText = stats.bytesPerSecond
+    ? `${formatBytes(stats.bytesPerSecond)}/s`
+    : "Waiting for transfer";
   const phaseLabel =
-    stats.phase === "preparing" ? "Preparing secure upload"
-      : stats.phase === "finalizing" ? "Finalizing recording"
+    stats.phase === "preparing"
+      ? "Preparing secure upload"
+      : stats.phase === "finalizing"
+        ? "Finalizing recording"
         : "Uploading recording";
 
   return (
     <View style={[st.card, { padding: 20, gap: 14 }]}>
       <View style={{ alignItems: "center", gap: 10 }}>
         <View style={[st.uploadRing, error && { backgroundColor: C.redBg }]}>
-          {error ? <Ionicons name="cloud-offline-outline" size={28} color={C.red} /> : <LoadingDots size="small" color={C.brand} />}
+          {error ? (
+            <Ionicons name="cloud-offline-outline" size={28} color={C.red} />
+          ) : (
+            <LoadingDots size="small" color={C.brand} />
+          )}
         </View>
         <Text style={st.formTitle}>{error ? "Upload Needs Retry" : title}</Text>
         <Text style={[st.pageSub, { textAlign: "center", marginTop: -6 }]}>
@@ -603,28 +754,51 @@ function UploadStatusCard({
       </View>
 
       <View style={st.uploadInfoPanel}>
-        <Text style={st.uploadFileName} numberOfLines={1}>{fileName || "Recording file"}</Text>
-        <View style={st.progressTrack}><AnimatedProgressFill percent={stats.percent} color={error ? C.red : C.brand} /></View>
+        <Text style={st.uploadFileName} numberOfLines={1}>
+          {fileName || "Recording file"}
+        </Text>
+        <View style={st.progressTrack}>
+          <AnimatedProgressFill
+            percent={stats.percent}
+            color={error ? C.red : C.brand}
+          />
+        </View>
         <View style={st.uploadStatsRow}>
           <Text style={st.uploadStatText}>{stats.percent}%</Text>
           <Text style={st.uploadStatText}>{uploadedText}</Text>
         </View>
         <View style={st.uploadStatsRow}>
           <Text style={st.uploadSubStatText}>{speedText}</Text>
-          <Text style={st.uploadSubStatText}>{formatUploadEta(stats.etaSeconds)}</Text>
+          <Text style={st.uploadSubStatText}>
+            {formatUploadEta(stats.etaSeconds)}
+          </Text>
         </View>
       </View>
 
       {error && (onRetry || onChooseDifferent) ? (
         <View style={{ flexDirection: "row", gap: 10 }}>
           {onRetry ? (
-            <Pressable onPress={onRetry} style={({ pressed }) => [st.primaryBtn, { flex: 1 }, pressed && st.pressed]}>
+            <Pressable
+              onPress={onRetry}
+              style={({ pressed }) => [
+                st.primaryBtn,
+                { flex: 1 },
+                pressed && st.pressed,
+              ]}
+            >
               <Ionicons name="refresh" size={18} color="#fff" />
               <Text style={st.primaryBtnText}>Retry Upload</Text>
             </Pressable>
           ) : null}
           {onChooseDifferent ? (
-            <Pressable onPress={onChooseDifferent} style={({ pressed }) => [st.outlineBtn, { flex: 1 }, pressed && st.pressed]}>
+            <Pressable
+              onPress={onChooseDifferent}
+              style={({ pressed }) => [
+                st.outlineBtn,
+                { flex: 1 },
+                pressed && st.pressed,
+              ]}
+            >
               <Text style={st.outlineBtnText}>Choose File</Text>
             </Pressable>
           ) : null}
@@ -637,12 +811,18 @@ function UploadStatusCard({
 function screenKey(screen: Screen) {
   if (screen.type === "main") return `main:${screen.tab}`;
   if (screen.type === "session-detail") return `session:${screen.sessionId}`;
-  if (screen.type === "session-comments") return `session-comments:${screen.sessionId}`;
-  if (screen.type === "session-ai-chat") return `session-ai:${screen.sessionId}`;
-  if (screen.type === "session-audio-insights") return `session-audio:${screen.sessionId}`;
-  if (screen.type === "session-report") return `session-report:${screen.sessionId}`;
-  if (screen.type === "bulk-upload") return `bulk-upload:${screen.batchId ?? "new"}`;
-  if (screen.type === "practice") return `practice:${screen.scenarioId ?? "list"}`;
+  if (screen.type === "session-comments")
+    return `session-comments:${screen.sessionId}`;
+  if (screen.type === "session-ai-chat")
+    return `session-ai:${screen.sessionId}`;
+  if (screen.type === "session-audio-insights")
+    return `session-audio:${screen.sessionId}`;
+  if (screen.type === "session-report")
+    return `session-report:${screen.sessionId}`;
+  if (screen.type === "bulk-upload")
+    return `bulk-upload:${screen.batchId ?? "new"}`;
+  if (screen.type === "practice")
+    return `practice:${screen.scenarioId ?? "list"}`;
   return screen.type;
 }
 
@@ -699,10 +879,16 @@ function ScreenTransition({
 // Toast system
 // ═══════════════════════════════════════
 
-let _showToast: ((msg: string, type?: "error" | "success" | "info") => void) | null = null;
+let _showToast:
+  | ((msg: string, type?: "error" | "success" | "info") => void)
+  | null = null;
 
 function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toast, setToast] = useState<{ id: number; msg: string; type: "error" | "success" | "info" } | null>(null);
+  const [toast, setToast] = useState<{
+    id: number;
+    msg: string;
+    type: "error" | "success" | "info";
+  } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const insets = useSafeAreaInsets();
   const toastY = useSharedValue(-42);
@@ -717,16 +903,22 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
     });
   }, [finishToastDismiss, toastOpacity, toastY]);
 
-  _showToast = useCallback((msg: string, type?: "error" | "success" | "info") => {
-    const t = type ?? "info";
-    setToast({ id: Date.now(), msg, type: t });
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(dismissToast, 3500);
-  }, [dismissToast]);
+  _showToast = useCallback(
+    (msg: string, type?: "error" | "success" | "info") => {
+      const t = type ?? "info";
+      setToast({ id: Date.now(), msg, type: t });
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(dismissToast, 3500);
+    },
+    [dismissToast],
+  );
 
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!toast) return;
@@ -737,22 +929,26 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [toast?.id, toastOpacity, toastY]);
 
   const toastGesture = useMemo(
-    () => Gesture.Pan()
-      .activeOffsetY([-7, 7])
-      .failOffsetX([-32, 32])
-      .onUpdate((event) => {
-        if (event.translationY > 10) return;
-        toastY.value = Math.max(-100, event.translationY);
-        toastOpacity.value = Math.max(0.2, 1 - Math.abs(event.translationY) / 110);
-      })
-      .onEnd((event) => {
-        if (event.translationY < -38 || event.velocityY < -620) {
-          runOnJS(dismissToast)();
-          return;
-        }
-        toastY.value = withSpring(0, { damping: 20, stiffness: 270 });
-        toastOpacity.value = withTiming(1, { duration: 130 });
-      }),
+    () =>
+      Gesture.Pan()
+        .activeOffsetY([-7, 7])
+        .failOffsetX([-32, 32])
+        .onUpdate((event) => {
+          if (event.translationY > 10) return;
+          toastY.value = Math.max(-100, event.translationY);
+          toastOpacity.value = Math.max(
+            0.2,
+            1 - Math.abs(event.translationY) / 110,
+          );
+        })
+        .onEnd((event) => {
+          if (event.translationY < -38 || event.velocityY < -620) {
+            runOnJS(dismissToast)();
+            return;
+          }
+          toastY.value = withSpring(0, { damping: 20, stiffness: 270 });
+          toastOpacity.value = withTiming(1, { duration: 130 });
+        }),
     [dismissToast, toastOpacity, toastY],
   );
 
@@ -761,21 +957,42 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
     transform: [{ translateY: toastY.value }],
   }));
 
-  const accent = toast?.type === "error" ? C.red : toast?.type === "success" ? C.green : C.brand;
-  const tint = toast?.type === "error"
-    ? "rgba(255,235,235,0.72)"
-    : toast?.type === "success"
-      ? "rgba(232,250,240,0.72)"
-      : "rgba(226,242,255,0.72)";
-  const iconName: keyof typeof Ionicons.glyphMap = toast?.type === "error" ? "alert-circle" : toast?.type === "success" ? "checkmark-circle" : "information-circle";
+  const accent =
+    toast?.type === "error"
+      ? C.red
+      : toast?.type === "success"
+        ? C.green
+        : C.brand;
+  const tint =
+    toast?.type === "error"
+      ? "rgba(255,235,235,0.72)"
+      : toast?.type === "success"
+        ? "rgba(232,250,240,0.72)"
+        : "rgba(226,242,255,0.72)";
+  const iconName: keyof typeof Ionicons.glyphMap =
+    toast?.type === "error"
+      ? "alert-circle"
+      : toast?.type === "success"
+        ? "checkmark-circle"
+        : "information-circle";
 
   return (
     <View style={{ flex: 1 }}>
       {children}
       {toast && (
         <GestureDetector gesture={toastGesture}>
-          <Reanimated.View style={[st.toast, { top: Math.max(insets.top, 10) + 8 }, toastAnimatedStyle]}>
-            <BlurView intensity={72} tint="light" style={[st.toastGlass, { backgroundColor: tint }]}>
+          <Reanimated.View
+            style={[
+              st.toast,
+              { top: Math.max(insets.top, 10) + 8 },
+              toastAnimatedStyle,
+            ]}
+          >
+            <BlurView
+              intensity={72}
+              tint="light"
+              style={[st.toastGlass, { backgroundColor: tint }]}
+            >
               <View style={[st.toastIcon, { backgroundColor: accent + "16" }]}>
                 <Ionicons name={iconName} size={19} color={accent} />
               </View>
@@ -801,7 +1018,11 @@ function showToast(msg: string, type?: "error" | "success" | "info") {
   _showToast?.(msg, type);
 }
 
-function OfflineSyncHost({ onOpenRemoteSession }: { onOpenRemoteSession: (sessionId: string) => void }) {
+function OfflineSyncHost({
+  onOpenRemoteSession,
+}: {
+  onOpenRemoteSession: (sessionId: string) => void;
+}) {
   const recoveryShownRef = useRef(false);
 
   useEffect(() => {
@@ -809,7 +1030,10 @@ function OfflineSyncHost({ onOpenRemoteSession }: { onOpenRemoteSession: (sessio
     // Drop uploaded or empty meta so stale cards never reappear in the UI.
     for (const session of listLocalSessions()) {
       if (session.status === "uploaded" || !session.draft) {
-        if (session.status === "uploaded" || !getRecordingUri(session.localId)) {
+        if (
+          session.status === "uploaded" ||
+          !getRecordingUri(session.localId)
+        ) {
           deleteLocalSession(session.localId);
         }
       }
@@ -820,8 +1044,8 @@ function OfflineSyncHost({ onOpenRemoteSession }: { onOpenRemoteSession: (sessio
 
   useEffect(() => {
     if (recoveryShownRef.current) return;
-    const recoverable = listRecoverableRecordingSessions().filter(
-      (session) => Boolean(getRecordingUri(session.localId) || session.recordingSourceUri),
+    const recoverable = listRecoverableRecordingSessions().filter((session) =>
+      Boolean(getRecordingUri(session.localId) || session.recordingSourceUri),
     );
     if (recoverable.length === 0) return;
     recoveryShownRef.current = true;
@@ -834,7 +1058,8 @@ function OfflineSyncHost({ onOpenRemoteSession }: { onOpenRemoteSession: (sessio
           text: "Discard",
           style: "destructive",
           onPress: () => {
-            for (const session of recoverable) deleteLocalSession(session.localId);
+            for (const session of recoverable)
+              deleteLocalSession(session.localId);
           },
         },
         {
@@ -842,8 +1067,11 @@ function OfflineSyncHost({ onOpenRemoteSession }: { onOpenRemoteSession: (sessio
           onPress: () => {
             for (const session of recoverable) {
               markReadyToSync(session.localId, {
-                durationSec: session.durationSec ?? Math.max(1, session.elapsedSec),
-                sourceUri: getRecordingUri(session.localId) ?? session.recordingSourceUri,
+                durationSec:
+                  session.durationSec ?? Math.max(1, session.elapsedSec),
+                sourceUri:
+                  getRecordingUri(session.localId) ??
+                  session.recordingSourceUri,
                 remoteSessionId: session.remoteSessionId,
                 draft: session.draft ?? emptyLiveDraft(),
                 fileName: session.fileName,
@@ -851,10 +1079,13 @@ function OfflineSyncHost({ onOpenRemoteSession }: { onOpenRemoteSession: (sessio
               });
             }
             void drainSyncOutbox().then(() => {
-              const leftover = listLocalSessions().find((s) => s.localId === first.localId);
+              const leftover = listLocalSessions().find(
+                (s) => s.localId === first.localId,
+              );
               if (!leftover) {
                 showToast("Recording uploaded", "success");
-                if (first.remoteSessionId) onOpenRemoteSession(first.remoteSessionId);
+                if (first.remoteSessionId)
+                  onOpenRemoteSession(first.remoteSessionId);
                 return;
               }
               if (leftover.lastError) {
@@ -898,7 +1129,8 @@ function ProfileNavigation({
   onStartTour: () => void;
   children: React.ReactNode;
 }) {
-  const navigationRef = useRef<NavigationContainerRef<ProfileStackParamList>>(null);
+  const navigationRef =
+    useRef<NavigationContainerRef<ProfileStackParamList>>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -912,10 +1144,7 @@ function ProfileNavigation({
   }, [ready, showProfile]);
 
   return (
-    <NavigationContainer
-      ref={navigationRef}
-      onReady={() => setReady(true)}
-    >
+    <NavigationContainer ref={navigationRef} onReady={() => setReady(true)}>
       <ProfileStack.Navigator
         initialRouteName="Main"
         screenOptions={{
@@ -925,9 +1154,7 @@ function ProfileNavigation({
           contentStyle: { backgroundColor: "#f7f8fb" },
         }}
       >
-        <ProfileStack.Screen name="Main">
-          {() => children}
-        </ProfileStack.Screen>
+        <ProfileStack.Screen name="Main">{() => children}</ProfileStack.Screen>
         <ProfileStack.Screen name="Profile">
           {({ navigation }: { navigation: { goBack: () => void } }) => (
             <ProfileEditorScreen
@@ -972,11 +1199,21 @@ function SessionNavigation({
   onClose: () => void;
   children: React.ReactNode;
   onOpenComments: (meta: { sessionId: string; sessionTitle?: string }) => void;
-  onOpenAiChat: (meta: { sessionId: string; sessionTitle?: string; prospectName?: string }) => void;
-  onOpenAudioInsights: (meta: { sessionId: string; sessionTitle?: string; initialStatus?: AudioInsightsStatus; initialInsights?: AudioInsights | null }) => void;
+  onOpenAiChat: (meta: {
+    sessionId: string;
+    sessionTitle?: string;
+    prospectName?: string;
+  }) => void;
+  onOpenAudioInsights: (meta: {
+    sessionId: string;
+    sessionTitle?: string;
+    initialStatus?: AudioInsightsStatus;
+    initialInsights?: AudioInsights | null;
+  }) => void;
   onOpenReport: (sessionId: string) => void;
 }) {
-  const navigationRef = useRef<NavigationContainerRef<SessionStackParamList>>(null);
+  const navigationRef =
+    useRef<NavigationContainerRef<SessionStackParamList>>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -994,7 +1231,10 @@ function SessionNavigation({
       ref={navigationRef}
       onReady={() => setReady(true)}
       onStateChange={() => {
-        if (showDetail && navigationRef.current?.getCurrentRoute()?.name === "Sessions") {
+        if (
+          showDetail &&
+          navigationRef.current?.getCurrentRoute()?.name === "Sessions"
+        ) {
           onClose();
         }
       }}
@@ -1046,12 +1286,23 @@ export default function App() {
   });
 
   const [screen, setScreen] = useState<Screen>({ type: "main", tab: "home" });
-  const [authSession, setAuthSession] = useState<MobileAuthSession | null>(null);
+  const [authSession, setAuthSession] = useState<MobileAuthSession | null>(
+    null,
+  );
   const [authLoading, setAuthLoading] = useState(true);
   const [tourStep, setTourStep] = useState<TourStep>("contact");
-  const [prospect, setProspect] = useState<ProspectData>({ name: "", email: "", phone: "", moveIn: "", bedrooms: "2 bed", budget: "$2,200 - $2,600" });
-  const [transitionDirection, setTransitionDirection] = useState<SlideDirection>("forward");
-  const [pendingCreateUpload, setPendingCreateUpload] = useState<PendingCreateSessionUpload | null>(null);
+  const [prospect, setProspect] = useState<ProspectData>({
+    name: "",
+    email: "",
+    phone: "",
+    moveIn: "",
+    bedrooms: "2 bed",
+    budget: "$2,200 - $2,600",
+  });
+  const [transitionDirection, setTransitionDirection] =
+    useState<SlideDirection>("forward");
+  const [pendingCreateUpload, setPendingCreateUpload] =
+    useState<PendingCreateSessionUpload | null>(null);
   const screenRef = useRef<Screen>(screen);
   const lastMainTabRef = useRef<MainTab>("home");
 
@@ -1077,14 +1328,27 @@ export default function App() {
     void registerForPushNotifications();
   }, [authSession?.workspace.user.id]);
 
-  const tourIdx = useMemo(() => tourSteps.findIndex((s) => s.id === tourStep), [tourStep]);
-  const routeKey = screen.type === "main" || screen.type === "profile"
-    ? screen.type === "main" && screen.tab === "sessions" ? "sessions-stack" : "main-profile-stack"
-    : screen.type === "session-detail" ? "sessions-stack" : screenKey(screen);
-  const nav = useCallback((next: Screen) => {
-    setTransitionDirection(screenRank(next) >= screenRank(screen) ? "forward" : "back");
-    setScreen(next);
-  }, [screen]);
+  const tourIdx = useMemo(
+    () => tourSteps.findIndex((s) => s.id === tourStep),
+    [tourStep],
+  );
+  const routeKey =
+    screen.type === "main" || screen.type === "profile"
+      ? screen.type === "main" && screen.tab === "sessions"
+        ? "sessions-stack"
+        : "main-profile-stack"
+      : screen.type === "session-detail"
+        ? "sessions-stack"
+        : screenKey(screen);
+  const nav = useCallback(
+    (next: Screen) => {
+      setTransitionDirection(
+        screenRank(next) >= screenRank(screen) ? "forward" : "back",
+      );
+      setScreen(next);
+    },
+    [screen],
+  );
 
   useEffect(() => {
     const refreshSessions = () => {
@@ -1142,12 +1406,16 @@ export default function App() {
       key={authSession.workspace.community.id}
       tab={tab}
       onTab={(t) => nav({ type: "main", tab: t })}
-      onSession={(id, opts) => nav({
-        type: "session-detail",
-        sessionId: id,
-        autoStartRecording: opts?.autoStartRecording,
-      })}
-      onSampleSession={(id) => nav({ type: "session-detail", sessionId: id, sample: true })}
+      onSession={(id, opts) =>
+        nav({
+          type: "session-detail",
+          sessionId: id,
+          autoStartRecording: opts?.autoStartRecording,
+        })
+      }
+      onSampleSession={(id) =>
+        nav({ type: "session-detail", sessionId: id, sample: true })
+      }
       onCreate={() => nav({ type: "create-session" })}
       onPractice={(scenarioId) => nav({ type: "practice", scenarioId })}
       onAudioTest={() => nav({ type: "audio-test" })}
@@ -1174,132 +1442,212 @@ export default function App() {
 
   return (
     <AppProviders>
-    <View style={st.root}>
-      <StatusBar style="dark" />
-      <RecordingProvider onNotify={showToast}>
-        <ToastProvider>
-          <OfflineSyncHost onOpenRemoteSession={(sessionId) => nav({ type: "session-detail", sessionId })} />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            enabled={screen.type !== "main"}
-            style={st.flex1}
-          >
-            <ScreenTransition transitionKey={routeKey} direction={transitionDirection}>
-              {((screen.type === "main" && screen.tab !== "sessions") || screen.type === "profile") && (
-                <ProfileNavigation
-                  showProfile={screen.type === "profile"}
-                  onCloseProfile={() => nav({ type: "main", tab: "home" })}
-                  session={authSession}
-                  onSaved={setAuthSession}
-                  onStartTour={() => {
-                    setTourStep("contact");
-                    nav({ type: "tour" });
-                  }}
-                >
-                {renderMainTabs(screen.type === "main" ? screen.tab : "home")}
-                </ProfileNavigation>
-              )}
-              {((screen.type === "main" && screen.tab === "sessions") || screen.type === "session-detail") && (
-                <SessionNavigation
-                  showDetail={screen.type === "session-detail"}
-                  sessionId={screen.type === "session-detail" ? screen.sessionId : null}
-                  autoStartRecording={screen.type === "session-detail" ? screen.autoStartRecording : false}
-                  sample={screen.type === "session-detail" ? screen.sample : false}
-                  onClose={() => nav({ type: "main", tab: "sessions" })}
-                  onOpenComments={(meta) => nav({ type: "session-comments", ...meta })}
-                  onOpenAiChat={(meta) => nav({ type: "session-ai-chat", ...meta })}
-                  onOpenAudioInsights={(meta) => nav({ type: "session-audio-insights", ...meta })}
-                  onOpenReport={(sessionId) => nav({ type: "session-report", sessionId })}
-                >
-                  {renderMainTabs("sessions")}
-                </SessionNavigation>
-              )}
-              {screen.type === "session-comments" && (
-                <SessionCommentsScreen
-                  sessionId={screen.sessionId}
-                  sessionTitle={screen.sessionTitle}
-                  onBack={() => nav({ type: "session-detail", sessionId: screen.sessionId })}
-                />
-              )}
-              {screen.type === "session-ai-chat" && (
-                <SessionAiChatScreen
-                  sessionId={screen.sessionId}
-                  sessionTitle={screen.sessionTitle}
-                  prospectName={screen.prospectName}
-                  onBack={() => nav({ type: "session-detail", sessionId: screen.sessionId })}
-                />
-              )}
-              {screen.type === "session-audio-insights" && (
-                <SessionAudioInsightsScreen
-                  sessionId={screen.sessionId}
-                  sessionTitle={screen.sessionTitle}
-                  initialStatus={screen.initialStatus}
-                  initialInsights={screen.initialInsights ?? null}
-                  onBack={() => nav({ type: "session-detail", sessionId: screen.sessionId })}
-                />
-              )}
-              {screen.type === "session-report" && (
-                <SessionReportScreen
-                  sessionId={screen.sessionId}
-                  onBack={() => nav({ type: "session-detail", sessionId: screen.sessionId })}
-                  onNotify={showToast}
-                />
-              )}
-              {screen.type === "bulk-upload" && (
-                <BulkUploadFlow
-                  communityId={authSession.workspace.community.id}
-                  propertyName={property}
-                  agentName={agentName}
-                  initialBatchId={screen.batchId}
-                  onBack={() => nav({ type: "main", tab: "sessions" })}
-                  onOpenSession={(sessionId) => nav({ type: "session-detail", sessionId })}
-                  onNotify={showToast}
-                />
-              )}
-              {screen.type === "create-session" && (
-                <CreateSessionScreen
-                  onBack={() => nav({ type: "main", tab: lastMainTabRef.current })}
-                  onCreated={(id) => nav({ type: "session-detail", sessionId: id })}
-                  onLiveRecordingOpened={() => {
-                    if (screenRef.current.type === "create-session") {
-                      nav({ type: "main", tab: lastMainTabRef.current });
-                    }
-                  }}
-                  pendingUpload={pendingCreateUpload}
-                  onPendingUploadHandled={() => setPendingCreateUpload(null)}
-                  onRecordingFinished={(payload) => {
-                    setPendingCreateUpload(payload);
-                    nav({ type: "create-session" });
-                  }}
-                  onBulkUpload={() => nav({ type: "bulk-upload" })}
-                  agentName={agentName}
-                />
-              )}
-              {screen.type === "practice" && (
-                <PracticeSessionsScreen
-                  initialScenarioId={screen.scenarioId}
-                  onBack={() => nav({ type: "main", tab: "sessions" })}
-                />
-              )}
-              {screen.type === "audio-test" && <AudioTestScreen onBack={() => nav({ type: "main", tab: "home" })} />}
-              {screen.type === "rubrics" && <RubricsScreen session={authSession} onBack={() => nav({ type: "main", tab: "settings" })} onSession={(id) => nav({ type: "session-detail", sessionId: id })} />}
-              {screen.type === "tour" && (
-                <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
-                  <TourStepper session={authSession} idx={tourIdx} prospect={prospect} step={tourStep} onBack={() => nav({ type: "profile" })} onChange={(k, v) => setProspect((c) => ({ ...c, [k]: v }))} onStep={setTourStep} />
-                </ScrollView>
-              )}
-            </ScreenTransition>
-            <RecordingExperienceHost />
-            <BulkUploadDock
-              communityId={authSession.workspace.community.id}
-              hidden={screen.type === "bulk-upload"}
-              onOpen={(batchId) => nav({ type: "bulk-upload", batchId })}
+      <View style={st.root}>
+        <StatusBar style="dark" />
+        <RecordingProvider onNotify={showToast}>
+          <ToastProvider>
+            <OfflineSyncHost
+              onOpenRemoteSession={(sessionId) =>
+                nav({ type: "session-detail", sessionId })
+              }
             />
-            <LiveRecordingDock />
-          </KeyboardAvoidingView>
-        </ToastProvider>
-      </RecordingProvider>
-    </View>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              enabled={screen.type !== "main"}
+              style={st.flex1}
+            >
+              <ScreenTransition
+                transitionKey={routeKey}
+                direction={transitionDirection}
+              >
+                {((screen.type === "main" && screen.tab !== "sessions") ||
+                  screen.type === "profile") && (
+                  <ProfileNavigation
+                    showProfile={screen.type === "profile"}
+                    onCloseProfile={() => nav({ type: "main", tab: "home" })}
+                    session={authSession}
+                    onSaved={setAuthSession}
+                    onStartTour={() => {
+                      setTourStep("contact");
+                      nav({ type: "tour" });
+                    }}
+                  >
+                    {renderMainTabs(
+                      screen.type === "main" ? screen.tab : "home",
+                    )}
+                  </ProfileNavigation>
+                )}
+                {((screen.type === "main" && screen.tab === "sessions") ||
+                  screen.type === "session-detail") && (
+                  <SessionNavigation
+                    showDetail={screen.type === "session-detail"}
+                    sessionId={
+                      screen.type === "session-detail" ? screen.sessionId : null
+                    }
+                    autoStartRecording={
+                      screen.type === "session-detail"
+                        ? screen.autoStartRecording
+                        : false
+                    }
+                    sample={
+                      screen.type === "session-detail" ? screen.sample : false
+                    }
+                    onClose={() => nav({ type: "main", tab: "sessions" })}
+                    onOpenComments={(meta) =>
+                      nav({ type: "session-comments", ...meta })
+                    }
+                    onOpenAiChat={(meta) =>
+                      nav({ type: "session-ai-chat", ...meta })
+                    }
+                    onOpenAudioInsights={(meta) =>
+                      nav({ type: "session-audio-insights", ...meta })
+                    }
+                    onOpenReport={(sessionId) =>
+                      nav({ type: "session-report", sessionId })
+                    }
+                  >
+                    {renderMainTabs("sessions")}
+                  </SessionNavigation>
+                )}
+                {screen.type === "session-comments" && (
+                  <SessionCommentsScreen
+                    sessionId={screen.sessionId}
+                    sessionTitle={screen.sessionTitle}
+                    onBack={() =>
+                      nav({
+                        type: "session-detail",
+                        sessionId: screen.sessionId,
+                      })
+                    }
+                  />
+                )}
+                {screen.type === "session-ai-chat" && (
+                  <SessionAiChatScreen
+                    sessionId={screen.sessionId}
+                    sessionTitle={screen.sessionTitle}
+                    prospectName={screen.prospectName}
+                    onBack={() =>
+                      nav({
+                        type: "session-detail",
+                        sessionId: screen.sessionId,
+                      })
+                    }
+                  />
+                )}
+                {screen.type === "session-audio-insights" && (
+                  <SessionAudioInsightsScreen
+                    sessionId={screen.sessionId}
+                    sessionTitle={screen.sessionTitle}
+                    initialStatus={screen.initialStatus}
+                    initialInsights={screen.initialInsights ?? null}
+                    onBack={() =>
+                      nav({
+                        type: "session-detail",
+                        sessionId: screen.sessionId,
+                      })
+                    }
+                  />
+                )}
+                {screen.type === "session-report" && (
+                  <SessionReportScreen
+                    sessionId={screen.sessionId}
+                    onBack={() =>
+                      nav({
+                        type: "session-detail",
+                        sessionId: screen.sessionId,
+                      })
+                    }
+                    onNotify={showToast}
+                  />
+                )}
+                {screen.type === "bulk-upload" && (
+                  <BulkUploadFlow
+                    communityId={authSession.workspace.community.id}
+                    propertyName={property}
+                    agentName={agentName}
+                    initialBatchId={screen.batchId}
+                    onBack={() => nav({ type: "main", tab: "sessions" })}
+                    onOpenSession={(sessionId) =>
+                      nav({ type: "session-detail", sessionId })
+                    }
+                    onNotify={showToast}
+                  />
+                )}
+                {screen.type === "create-session" && (
+                  <CreateSessionScreen
+                    onBack={() =>
+                      nav({ type: "main", tab: lastMainTabRef.current })
+                    }
+                    onCreated={(id) =>
+                      nav({ type: "session-detail", sessionId: id })
+                    }
+                    onLiveRecordingOpened={() => {
+                      if (screenRef.current.type === "create-session") {
+                        nav({ type: "main", tab: lastMainTabRef.current });
+                      }
+                    }}
+                    pendingUpload={pendingCreateUpload}
+                    onPendingUploadHandled={() => setPendingCreateUpload(null)}
+                    onRecordingFinished={(payload) => {
+                      setPendingCreateUpload(payload);
+                      nav({ type: "create-session" });
+                    }}
+                    onBulkUpload={() => nav({ type: "bulk-upload" })}
+                    agentName={agentName}
+                  />
+                )}
+                {screen.type === "practice" && (
+                  <PracticeSessionsScreen
+                    initialScenarioId={screen.scenarioId}
+                    onBack={() => nav({ type: "main", tab: "sessions" })}
+                  />
+                )}
+                {screen.type === "audio-test" && (
+                  <AudioTestScreen
+                    onBack={() => nav({ type: "main", tab: "home" })}
+                  />
+                )}
+                {screen.type === "rubrics" && (
+                  <RubricsScreen
+                    session={authSession}
+                    onBack={() => nav({ type: "main", tab: "settings" })}
+                    onSession={(id) =>
+                      nav({ type: "session-detail", sessionId: id })
+                    }
+                  />
+                )}
+                {screen.type === "tour" && (
+                  <ScrollView
+                    contentInsetAdjustmentBehavior="automatic"
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={st.scroll}
+                  >
+                    <TourStepper
+                      session={authSession}
+                      idx={tourIdx}
+                      prospect={prospect}
+                      step={tourStep}
+                      onBack={() => nav({ type: "profile" })}
+                      onChange={(k, v) =>
+                        setProspect((c) => ({ ...c, [k]: v }))
+                      }
+                      onStep={setTourStep}
+                    />
+                  </ScrollView>
+                )}
+              </ScreenTransition>
+              <RecordingExperienceHost />
+              <BulkUploadDock
+                communityId={authSession.workspace.community.id}
+                hidden={screen.type === "bulk-upload"}
+                onOpen={(batchId) => nav({ type: "bulk-upload", batchId })}
+              />
+              <LiveRecordingDock />
+            </KeyboardAvoidingView>
+          </ToastProvider>
+        </RecordingProvider>
+      </View>
     </AppProviders>
   );
 }
@@ -1315,9 +1663,10 @@ function CommunityTopBar({
   property: string;
   onCommunityPress: () => void;
 }) {
-  const propertyLabel = property
-    .replace(/\s*(?:[·|—-]\s*)?entrata\s+sync(?:ed|ing)?\b/gi, "")
-    .trim() || property;
+  const propertyLabel =
+    property
+      .replace(/\s*(?:[·|—-]\s*)?entrata\s+sync(?:ed|ing)?\b/gi, "")
+      .trim() || property;
   return (
     <View style={homeSt.topBar}>
       {left ? <View style={homeSt.topBarSide}>{left}</View> : null}
@@ -1325,13 +1674,24 @@ function CommunityTopBar({
         <Pressable
           accessibilityLabel="Switch property"
           onPress={onCommunityPress}
-          style={({ pressed }) => [homeSt.propertyPicker, pressed && st.pressed]}
+          style={({ pressed }) => [
+            homeSt.propertyPicker,
+            pressed && st.pressed,
+          ]}
         >
-          <CustomText textStyle="title" numberOfLines={1} style={homeSt.propertyPickerText}>{propertyLabel}</CustomText>
+          <CustomText
+            textStyle="title"
+            numberOfLines={1}
+            style={homeSt.propertyPickerText}
+          >
+            {propertyLabel}
+          </CustomText>
           <Ionicons name="chevron-down" size={15} color={C.textSec} />
         </Pressable>
       </View>
-      {right ? <View style={[homeSt.topBarSide, homeSt.topBarSideEnd]}>{right}</View> : null}
+      {right ? (
+        <View style={[homeSt.topBarSide, homeSt.topBarSideEnd]}>{right}</View>
+      ) : null}
     </View>
   );
 }
@@ -1340,15 +1700,56 @@ function CommunityTopBar({
 // Bottom Tab Navigation
 // ═══════════════════════════════════════
 
-const TAB_ITEMS: Array<{ id: MainTab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
+const TAB_ITEMS: Array<{
+  id: MainTab;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconActive: keyof typeof Ionicons.glyphMap;
+}> = [
   { id: "home", label: "Home", icon: "home-outline", iconActive: "home" },
-  { id: "sessions", label: "Sessions", icon: "list-outline", iconActive: "list" },
-  { id: "calendar", label: "Calendar", icon: "calendar-outline", iconActive: "calendar" },
-  { id: "materials", label: "Assets", icon: "folder-outline", iconActive: "folder" },
-  { id: "settings", label: "Settings", icon: "settings-outline", iconActive: "settings" },
+  {
+    id: "sessions",
+    label: "Sessions",
+    icon: "list-outline",
+    iconActive: "list",
+  },
+  {
+    id: "calendar",
+    label: "Calendar",
+    icon: "calendar-outline",
+    iconActive: "calendar",
+  },
+  {
+    id: "materials",
+    label: "Assets",
+    icon: "folder-outline",
+    iconActive: "folder",
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    icon: "settings-outline",
+    iconActive: "settings",
+  },
 ];
 
-function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice, onAudioTest, onGuestRegistration, onProfile, onRubrics, onSignOut, authSession, onAuthSession, agentName, property }: {
+function MainTabs({
+  tab,
+  onTab,
+  onSession,
+  onSampleSession,
+  onCreate,
+  onPractice,
+  onAudioTest,
+  onGuestRegistration,
+  onProfile,
+  onRubrics,
+  onSignOut,
+  authSession,
+  onAuthSession,
+  agentName,
+  property,
+}: {
   tab: MainTab;
   onTab: (t: MainTab) => void;
   onSession: (id: string, opts?: { autoStartRecording?: boolean }) => void;
@@ -1368,7 +1769,11 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
   const { width: tabBarWidth } = useWindowDimensions();
   const queryClient = useQueryClient();
   const sessionsQuery = useSessionsQuery({ limit: 100 });
-  const upcomingSessionsQuery = useSessionsQuery({ limit: 10, upcoming: true, sort: "scheduled_asc" });
+  const upcomingSessionsQuery = useSessionsQuery({
+    limit: 10,
+    upcoming: true,
+    sort: "scheduled_asc",
+  });
   const materialsQuery = useMaterialsQuery();
   const calendarQuery = useCalendarEventsQuery();
   const profileQuery = useProfileQuery();
@@ -1379,17 +1784,32 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
   const propertyWebsite = materialsQuery.data?.propertyWebsite ?? null;
   const calendarEvents = calendarQuery.data?.events ?? [];
   const profile = profileQuery.data;
-  const loading = sessionsQuery.isLoading || upcomingSessionsQuery.isLoading || calendarQuery.isLoading;
+  const loading =
+    sessionsQuery.isLoading ||
+    upcomingSessionsQuery.isLoading ||
+    calendarQuery.isLoading;
   const materialsLoading = materialsQuery.isLoading;
   const [refreshing, setRefreshing] = useState(false);
-  const error = sessionsQuery.error ?? upcomingSessionsQuery.error ?? calendarQuery.error ?? materialsQuery.error ?? null;
+  const error =
+    sessionsQuery.error ??
+    upcomingSessionsQuery.error ??
+    calendarQuery.error ??
+    materialsQuery.error ??
+    null;
   const communityPickerOpen = useAppStore((state) => state.communityPickerOpen);
   const communityQuery = useAppStore((state) => state.communityQuery);
-  const setCommunityPickerOpen = useAppStore((state) => state.setCommunityPickerOpen);
+  const setCommunityPickerOpen = useAppStore(
+    (state) => state.setCommunityPickerOpen,
+  );
   const setCommunityQuery = useAppStore((state) => state.setCommunityQuery);
-  const resetCommunityPicker = useAppStore((state) => state.resetCommunityPicker);
-  const [switchingCommunityId, setSwitchingCommunityId] = useState<string | null>(null);
-  const [tabTransitionDirection, setTabTransitionDirection] = useState<SlideDirection>("forward");
+  const resetCommunityPicker = useAppStore(
+    (state) => state.resetCommunityPicker,
+  );
+  const [switchingCommunityId, setSwitchingCommunityId] = useState<
+    string | null
+  >(null);
+  const [tabTransitionDirection, setTabTransitionDirection] =
+    useState<SlideDirection>("forward");
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const checkInStartingRef = useRef(false);
@@ -1399,12 +1819,18 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
   } | null>(null);
   const publicMemberAlias = defaultMemberPublicAlias({
     alias: authSession.workspace.teamMember?.alias,
-    name: authSession.workspace.teamMember?.name || authSession.workspace.user.fullName,
+    name:
+      authSession.workspace.teamMember?.name ||
+      authSession.workspace.user.fullName,
     email: authSession.workspace.user.email,
     id: authSession.workspace.teamMember?.id || authSession.workspace.user.id,
   });
   const tabIndicatorX = useSharedValue(
-    (tabBarWidth / TAB_ITEMS.length) * Math.max(0, TAB_ITEMS.findIndex((item) => item.id === tab)),
+    (tabBarWidth / TAB_ITEMS.length) *
+      Math.max(
+        0,
+        TAB_ITEMS.findIndex((item) => item.id === tab),
+      ),
   );
   const tabIndicatorStyle = useAnimatedStyle(() => ({
     width: tabBarWidth / TAB_ITEMS.length,
@@ -1412,7 +1838,10 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
   }));
 
   useEffect(() => {
-    const activeIndex = Math.max(0, TAB_ITEMS.findIndex((item) => item.id === tab));
+    const activeIndex = Math.max(
+      0,
+      TAB_ITEMS.findIndex((item) => item.id === tab),
+    );
     tabIndicatorX.value = withTiming(
       (tabBarWidth / TAB_ITEMS.length) * activeIndex,
       { duration: 220, easing: Easing.out(Easing.cubic) },
@@ -1440,34 +1869,59 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
       profileQuery.refetch(),
     ]);
     setRefreshing(false);
-  }, [calendarQuery, materialsQuery, profileQuery, sessionsQuery, upcomingSessionsQuery]);
+  }, [
+    calendarQuery,
+    materialsQuery,
+    profileQuery,
+    sessionsQuery,
+    upcomingSessionsQuery,
+  ]);
 
-  const chooseCommunity = useCallback(async (communityId: string) => {
-    if (communityId === authSession.workspace.community.id) {
-      setCommunityPickerOpen(false);
-      return;
-    }
-    setSwitchingCommunityId(communityId);
-    try {
-      const nextSession = await switchCommunity(communityId);
-      onAuthSession(nextSession);
-      resetCommunityPicker();
-      showToast(`Switched to ${nextSession.workspace.community.name}`, "success");
-      void queryClient.invalidateQueries({ queryKey: queryKeys.all() });
-    } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Could not switch property", "error");
-    } finally {
-      setSwitchingCommunityId(null);
-    }
-  }, [authSession.workspace.community.id, onAuthSession, queryClient, resetCommunityPicker]);
+  const chooseCommunity = useCallback(
+    async (communityId: string) => {
+      if (communityId === authSession.workspace.community.id) {
+        setCommunityPickerOpen(false);
+        return;
+      }
+      setSwitchingCommunityId(communityId);
+      try {
+        const nextSession = await switchCommunity(communityId);
+        onAuthSession(nextSession);
+        resetCommunityPicker();
+        showToast(
+          `Switched to ${nextSession.workspace.community.name}`,
+          "success",
+        );
+        void queryClient.invalidateQueries({ queryKey: queryKeys.all() });
+      } catch (caught) {
+        showToast(
+          caught instanceof Error
+            ? caught.message
+            : "Could not switch property",
+          "error",
+        );
+      } finally {
+        setSwitchingCommunityId(null);
+      }
+    },
+    [
+      authSession.workspace.community.id,
+      onAuthSession,
+      queryClient,
+      resetCommunityPicker,
+    ],
+  );
 
   const showScrollView = tab !== "sessions" && tab !== "materials";
-  const handleTabPress = useCallback((nextTab: MainTab) => {
-    const currentIndex = TAB_ITEMS.findIndex((item) => item.id === tab);
-    const nextIndex = TAB_ITEMS.findIndex((item) => item.id === nextTab);
-    setTabTransitionDirection(nextIndex >= currentIndex ? "forward" : "back");
-    onTab(nextTab);
-  }, [onTab, tab]);
+  const handleTabPress = useCallback(
+    (nextTab: MainTab) => {
+      const currentIndex = TAB_ITEMS.findIndex((item) => item.id === tab);
+      const nextIndex = TAB_ITEMS.findIndex((item) => item.id === nextTab);
+      setTabTransitionDirection(nextIndex >= currentIndex ? "forward" : "back");
+      onTab(nextTab);
+    },
+    [onTab, tab],
+  );
 
   const openSessionCheckIn = useCallback(async () => {
     if (checkInStartingRef.current) return;
@@ -1488,13 +1942,37 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
   }, []);
 
   return (
-    <View style={[st.flex1, (tab === "home" || tab === "materials") && homeSt.pageBg]}>
+    <View
+      style={[
+        st.flex1,
+        (tab === "home" || tab === "materials") && homeSt.pageBg,
+      ]}
+    >
       {showScrollView && (
-        <ScreenTransition transitionKey={`tab:${tab}`} direction={tabTransitionDirection}>
-          <ScrollView style={tab === "home" || tab === "materials" ? homeSt.pageBg : undefined} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.mainScroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
+        <ScreenTransition
+          transitionKey={`tab:${tab}`}
+          direction={tabTransitionDirection}
+        >
+          <ScrollView
+            style={
+              tab === "home" || tab === "materials" ? homeSt.pageBg : undefined
+            }
+            contentInsetAdjustmentBehavior="automatic"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={st.mainScroll}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={C.brand}
+              />
+            }
+          >
             {error && (
               <ErrorBanner
-                message={error instanceof Error ? error.message : "Failed to load data"}
+                message={
+                  error instanceof Error ? error.message : "Failed to load data"
+                }
                 onRetry={() => void onRefresh()}
               />
             )}
@@ -1515,30 +1993,64 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
                 onAssets={() => handleTabPress("materials")}
                 onCommunityPress={() => setCommunityPickerOpen(true)}
                 agentName={agentName}
-                userTitle={profile?.title ?? authSession.workspace.user.title ?? "Leasing Consultant"}
-                userPhone={profile?.phone ?? authSession.workspace.user.phone ?? null}
+                userTitle={
+                  profile?.title ??
+                  authSession.workspace.user.title ??
+                  "Leasing Consultant"
+                }
+                userPhone={
+                  profile?.phone ?? authSession.workspace.user.phone ?? null
+                }
                 userEmail={authSession.workspace.user.email}
-                cardAccent={profile?.cardAccent ?? authSession.workspace.user.cardAccent ?? "#006CE5"}
+                cardAccent={
+                  profile?.cardAccent ??
+                  authSession.workspace.user.cardAccent ??
+                  "#006CE5"
+                }
                 property={property}
               />
             )}
-            {tab === "calendar" && <CalendarScreen sessions={sessions} upcomingSessions={upcomingSessions} entrataEvents={calendarEvents} onSession={onSession} onReload={async () => { await calendarQuery.refetch(); }} onCommunityPress={() => setCommunityPickerOpen(true)} property={property} />}
+            {tab === "calendar" && (
+              <CalendarScreen
+                sessions={sessions}
+                upcomingSessions={upcomingSessions}
+                entrataEvents={calendarEvents}
+                onSession={onSession}
+                onReload={async () => {
+                  await calendarQuery.refetch();
+                }}
+                onCommunityPress={() => setCommunityPickerOpen(true)}
+                property={property}
+              />
+            )}
             {tab === "settings" && (
-        <SettingsScreen
-          session={authSession}
-          propertyWebsite={propertyWebsite}
-          aiTrainingDataFeedback={profile?.aiTrainingDataFeedback ?? authSession.workspace.user.aiTrainingDataFeedback ?? false}
-          onAiTrainingDataFeedback={async (enabled) => {
-            const nextProfile = await updateProfile({ aiTrainingDataFeedback: enabled });
-            await queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
-            onAuthSession({
-              ...authSession,
-              workspace: {
-                ...authSession.workspace,
-                user: { ...authSession.workspace.user, aiTrainingDataFeedback: nextProfile.aiTrainingDataFeedback },
-              },
-            });
-          }}
+              <SettingsScreen
+                session={authSession}
+                propertyWebsite={propertyWebsite}
+                aiTrainingDataFeedback={
+                  profile?.aiTrainingDataFeedback ??
+                  authSession.workspace.user.aiTrainingDataFeedback ??
+                  false
+                }
+                onAiTrainingDataFeedback={async (enabled) => {
+                  const nextProfile = await updateProfile({
+                    aiTrainingDataFeedback: enabled,
+                  });
+                  await queryClient.invalidateQueries({
+                    queryKey: queryKeys.profile(),
+                  });
+                  onAuthSession({
+                    ...authSession,
+                    workspace: {
+                      ...authSession.workspace,
+                      user: {
+                        ...authSession.workspace.user,
+                        aiTrainingDataFeedback:
+                          nextProfile.aiTrainingDataFeedback,
+                      },
+                    },
+                  });
+                }}
                 onSessionChange={onAuthSession}
                 onProfile={onProfile}
                 onRubrics={onRubrics}
@@ -1550,27 +2062,48 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
       )}
 
       {tab === "sessions" && (
-        <ScreenTransition transitionKey="tab:sessions" direction={tabTransitionDirection}>
-          <SessionsListScreen authSession={authSession} onBack={() => handleTabPress("home")} onCommunityPress={() => setCommunityPickerOpen(true)} onSession={onSession} onSampleSession={onSampleSession} onCreate={onCreate} onPractice={onPractice} initialSessions={sessions} property={property} />
+        <ScreenTransition
+          transitionKey="tab:sessions"
+          direction={tabTransitionDirection}
+        >
+          <SessionsListScreen
+            authSession={authSession}
+            onBack={() => handleTabPress("home")}
+            onCommunityPress={() => setCommunityPickerOpen(true)}
+            onSession={onSession}
+            onSampleSession={onSampleSession}
+            onCreate={onCreate}
+            onPractice={onPractice}
+            initialSessions={sessions}
+            property={property}
+          />
         </ScreenTransition>
       )}
 
       {tab === "materials" && (
-        <ScreenTransition transitionKey="tab:materials" direction={tabTransitionDirection}>
+        <ScreenTransition
+          transitionKey="tab:materials"
+          direction={tabTransitionDirection}
+        >
           <MaterialsScreen
             materials={materials}
             tourLibrary={tourLibrary}
             loading={materialsLoading}
             refreshing={refreshing}
             onRefresh={onRefresh}
-            onReload={async () => { await materialsQuery.refetch(); }}
+            onReload={async () => {
+              await materialsQuery.refetch();
+            }}
             property={property}
           />
         </ScreenTransition>
       )}
 
       <View style={st.tabBar}>
-        <Reanimated.View pointerEvents="none" style={[st.tabBarIndicator, tabIndicatorStyle]}>
+        <Reanimated.View
+          pointerEvents="none"
+          style={[st.tabBarIndicator, tabIndicatorStyle]}
+        >
           <View style={st.tabBarIndicatorPill} />
         </Reanimated.View>
         {TAB_ITEMS.map((t) => (
@@ -1584,8 +2117,16 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
             }}
             style={st.tabBarItem}
           >
-            <Ionicons name={tab === t.id ? t.iconActive : t.icon} size={22} color={tab === t.id ? C.brand : C.textMuted} />
-            <Text style={[st.tabBarLabel, tab === t.id && st.tabBarLabelActive]}>{t.label}</Text>
+            <Ionicons
+              name={tab === t.id ? t.iconActive : t.icon}
+              size={22}
+              color={tab === t.id ? C.brand : C.textMuted}
+            />
+            <Text
+              style={[st.tabBarLabel, tab === t.id && st.tabBarLabelActive]}
+            >
+              {t.label}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -1620,7 +2161,10 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
           visible={checkInOpen}
           onClose={() => setCheckInOpen(false)}
           property={property}
-          propertyId={authSession.workspace.community.propertyTygId || authSession.workspace.community.id}
+          propertyId={
+            authSession.workspace.community.propertyTygId ||
+            authSession.workspace.community.id
+          }
           agentName={agentName}
           repSlug={publicMemberAlias}
           sessionId={checkInBinding.sessionId}
@@ -1640,14 +2184,27 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
 // Error Banner
 // ═══════════════════════════════════════
 
-function ErrorBanner({ message, onRetry }: { message: string; onRetry?: () => void }) {
+function ErrorBanner({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
   return (
     <Card style={errorBannerSt.card}>
       <CardContent style={errorBannerSt.content}>
         <Ionicons name="cloud-offline-outline" size={18} color={C.red} />
-        <UiText style={errorBannerSt.text} numberOfLines={2}>{message}</UiText>
+        <UiText style={errorBannerSt.text} numberOfLines={2}>
+          {message}
+        </UiText>
         {onRetry ? (
-          <Button variant="ghost" size="icon" onPress={onRetry} style={errorBannerSt.retry}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onPress={onRetry}
+            style={errorBannerSt.retry}
+          >
             <Ionicons name="refresh" size={16} color={C.brand} />
           </Button>
         ) : null}
@@ -1665,7 +2222,13 @@ const errorBannerSt = StyleSheet.create({
     backgroundColor: "rgba(239,68,68,0.05)",
     paddingVertical: 12,
   },
-  content: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 0 },
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+  },
   text: { flex: 1, fontSize: 14, fontWeight: "600", color: "#ef4444" },
   retry: { width: 36, height: 36 },
 });
@@ -1674,7 +2237,28 @@ const errorBannerSt = StyleSheet.create({
 // Dashboard
 // ═══════════════════════════════════════
 
-function DashboardScreen({ sessions, upcomingSessions, materials, materialCount, tourLibrary, loading, materialsLoading, onSession, onProfile, onCheckIn, onCreate, onAudioTest, onAssets, onCommunityPress, agentName, userTitle, userPhone, userEmail, cardAccent, property }: {
+function DashboardScreen({
+  sessions,
+  upcomingSessions,
+  materials,
+  materialCount,
+  tourLibrary,
+  loading,
+  materialsLoading,
+  onSession,
+  onProfile,
+  onCheckIn,
+  onCreate,
+  onAudioTest,
+  onAssets,
+  onCommunityPress,
+  agentName,
+  userTitle,
+  userPhone,
+  userEmail,
+  cardAccent,
+  property,
+}: {
   sessions: SessionSummary[];
   upcomingSessions: SessionSummary[];
   materials: Material[];
@@ -1696,19 +2280,28 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
   cardAccent: string;
   property: string;
 }) {
-  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(
+    null,
+  );
   const { width: dashboardWidth } = useWindowDimensions();
   const assetTileWidth = Math.max(96, Math.min(120, (dashboardWidth - 52) / 3));
   const todayTours = useMemo(() => {
     const todayKey = new Date().toDateString();
     return upcomingSessions
-      .filter((session) =>
-        session.status === "in_progress" ||
-        (session.scheduledAt && new Date(session.scheduledAt).toDateString() === todayKey)
+      .filter(
+        (session) =>
+          session.status === "in_progress" ||
+          (session.scheduledAt &&
+            new Date(session.scheduledAt).toDateString() === todayKey),
       )
       .slice(0, 2);
   }, [upcomingSessions]);
-  const initials = agentName.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase();
+  const initials = agentName
+    .split(" ")
+    .map((name) => name[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
   const accent = resolveCardAccent(cardAccent);
 
   return (
@@ -1719,21 +2312,43 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
         left={<TourLogo width={74} />}
       />
 
-      <MotionPressable onPress={onProfile} haptic="selection" style={homeSt.profileCard}>
+      <MotionPressable
+        onPress={onProfile}
+        haptic="selection"
+        style={homeSt.profileCard}
+      >
         <View style={[homeSt.profileHeader, { backgroundColor: accent }]} />
         <View style={homeSt.profileBody}>
-          <View style={[homeSt.profileAvatarLarge, { backgroundColor: accent }]}>
-            <CustomText textStyle="hero" style={[homeSt.profileAvatarLargeText, { color: CARD }]}>{initials}</CustomText>
+          <View
+            style={[homeSt.profileAvatarLarge, { backgroundColor: accent }]}
+          >
+            <CustomText
+              textStyle="hero"
+              style={[homeSt.profileAvatarLargeText, { color: CARD }]}
+            >
+              {initials}
+            </CustomText>
           </View>
-          <CustomText textStyle="hero" style={homeSt.profileNameLarge}>{agentName}</CustomText>
-          <CustomText textStyle="body" style={homeSt.profileRoleLarge}>{userTitle || "Leasing Consultant"}</CustomText>
-          <CustomText textStyle="body" style={homeSt.profileProperty}>{property}</CustomText>
+          <CustomText textStyle="hero" style={homeSt.profileNameLarge}>
+            {agentName}
+          </CustomText>
+          <CustomText textStyle="body" style={homeSt.profileRoleLarge}>
+            {userTitle || "Leasing Consultant"}
+          </CustomText>
+          <CustomText textStyle="body" style={homeSt.profileProperty}>
+            {property}
+          </CustomText>
 
           <View style={homeSt.contactList}>
             <ProfileContact icon="mail" text={userEmail || "team@tour.video"} />
-            <ProfileContact icon="call" text={userPhone?.trim() || "Add phone in profile"} />
+            <ProfileContact
+              icon="call"
+              text={userPhone?.trim() || "Add phone in profile"}
+            />
           </View>
-          <CustomText textStyle="caption" style={homeSt.editProfileHint}>Tap to edit card color & details</CustomText>
+          <CustomText textStyle="caption" style={homeSt.editProfileHint}>
+            Tap to edit card color & details
+          </CustomText>
         </View>
       </MotionPressable>
 
@@ -1746,10 +2361,15 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
             impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
             onCheckIn();
           }}
-          style={({ pressed }) => [homeSt.checkInPill, pressed && homeSt.actionPillPressed]}
+          style={({ pressed }) => [
+            homeSt.checkInPill,
+            pressed && homeSt.actionPillPressed,
+          ]}
         >
           <Ionicons name="navigate" size={21} color={CARD} />
-          <CustomText textStyle="title" style={homeSt.checkInPillText}>Check-In</CustomText>
+          <CustomText textStyle="title" style={homeSt.checkInPillText}>
+            Check-In
+          </CustomText>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -1757,147 +2377,230 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
             impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
             onCreate();
           }}
-          style={({ pressed }) => [homeSt.checkInPill, homeSt.newSessionPill, pressed && homeSt.actionPillPressed]}
+          style={({ pressed }) => [
+            homeSt.checkInPill,
+            homeSt.newSessionPill,
+            pressed && homeSt.actionPillPressed,
+          ]}
         >
           <Ionicons name="mic" size={21} color={CARD} />
-          <CustomText textStyle="title" style={homeSt.checkInPillText}>New Session</CustomText>
+          <CustomText textStyle="title" style={homeSt.checkInPillText}>
+            New Session
+          </CustomText>
         </Pressable>
       </View>
 
       <View style={homeSt.sectionStack}>
-      {todayTours.length > 0 && (
-        <HomeSection title="Needs your attention">
-          <View style={homeSt.focusStack}>
-            {todayTours.map((session) => (
-              <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={[homeSt.tourCard, homeSt.card]}>
-                <View style={st.flex1}>
-                  <CustomText textStyle="title" numberOfLines={1}>
-                    {buildSessionTourTitle({
-                      title: session.title,
-                      agentName: session.agentName,
-                      prospectName: session.prospectName ?? session.leads?.[0]?.name,
-                    })}
-                  </CustomText>
-                  <View style={homeSt.tourMetaRow}>
-                    <CustomText textStyle="micro" style={homeSt.timePill}>{session.status === "in_progress" ? "Now" : session.scheduledAt ? fmtTime(session.scheduledAt) : "Today"}</CustomText>
-                    <CustomText textStyle="caption" numberOfLines={1} style={homeSt.tourMeta}>
-                      {formatPersonName(session.prospectName)
-                        ?? formatPersonName(session.agentName)
-                        ?? "Guest ready for tour"}
+        {todayTours.length > 0 && (
+          <HomeSection title="Needs your attention">
+            <View style={homeSt.focusStack}>
+              {todayTours.map((session) => (
+                <MotionPressable
+                  key={session.id}
+                  onPress={() => onSession(session.id)}
+                  haptic="selection"
+                  style={[homeSt.tourCard, homeSt.card]}
+                >
+                  <View style={st.flex1}>
+                    <CustomText textStyle="title" numberOfLines={1}>
+                      {buildSessionTourTitle({
+                        title: session.title,
+                        agentName: session.agentName,
+                        prospectName:
+                          session.prospectName ?? session.leads?.[0]?.name,
+                      })}
                     </CustomText>
+                    <View style={homeSt.tourMetaRow}>
+                      <CustomText textStyle="micro" style={homeSt.timePill}>
+                        {session.status === "in_progress"
+                          ? "Now"
+                          : session.scheduledAt
+                            ? fmtTime(session.scheduledAt)
+                            : "Today"}
+                      </CustomText>
+                      <CustomText
+                        textStyle="caption"
+                        numberOfLines={1}
+                        style={homeSt.tourMeta}
+                      >
+                        {formatPersonName(session.prospectName) ??
+                          formatPersonName(session.agentName) ??
+                          "Guest ready for tour"}
+                      </CustomText>
+                    </View>
+                    {formatSessionCardDescription(session) ? (
+                      <CustomText
+                        textStyle="caption"
+                        numberOfLines={2}
+                        style={homeSt.tourMeta}
+                      >
+                        {formatSessionCardDescription(session)}
+                      </CustomText>
+                    ) : null}
                   </View>
-                  {formatSessionCardDescription(session) ? (
-                    <CustomText textStyle="caption" numberOfLines={2} style={homeSt.tourMeta}>{formatSessionCardDescription(session)}</CustomText>
-                  ) : null}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-              </MotionPressable>
-            ))}
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={C.textMuted}
+                  />
+                </MotionPressable>
+              ))}
+            </View>
+          </HomeSection>
+        )}
+
+        <HomeSection
+          title="Assets"
+          subtitle={
+            !materialsLoading && materials.length === 0
+              ? "Reusable tour assets will appear here."
+              : undefined
+          }
+          action="Open"
+          onAction={onAssets}
+        >
+          <View style={homeSt.assetPreviewStack}>
+            {materialsLoading && materials.length === 0 ? (
+              <View style={homeSt.assetPreviewLoading}>
+                <LoadingDots size="small" color={ACCENT} />
+                <CustomText textStyle="caption" style={homeSt.emptyInline}>
+                  Loading property assets…
+                </CustomText>
+              </View>
+            ) : materials.length > 0 ? (
+              <ScrollView
+                horizontal
+                nestedScrollEnabled
+                directionalLockEnabled
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToInterval={assetTileWidth + 6}
+                disableIntervalMomentum
+                style={homeSt.mediaRowBleed}
+                contentContainerStyle={homeSt.mediaRow}
+              >
+                {materials.map((material) => {
+                  const previewUrl = materialPreviewUrl(material);
+                  const canOpen = Boolean(materialUrl(material));
+                  return (
+                    <MotionPressable
+                      key={material.id}
+                      accessibilityLabel={`Preview ${material.name}`}
+                      onPress={() => setSelectedMaterial(material)}
+                      haptic="selection"
+                      style={[homeSt.mediaTile, { width: assetTileWidth }]}
+                    >
+                      <View style={homeSt.mediaThumb}>
+                        {previewUrl ? (
+                          <Image
+                            source={{ uri: previewUrl }}
+                            style={homeSt.mediaPreviewImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={homeSt.mediaFallbackIcon}>
+                            <Ionicons
+                              name={canOpen ? "play" : "document-outline"}
+                              size={canOpen ? 18 : 23}
+                              color={ACCENT}
+                            />
+                          </View>
+                        )}
+                        {canOpen ? (
+                          <View style={homeSt.mediaPlayBadge}>
+                            <Ionicons name="play" size={11} color="#fff" />
+                          </View>
+                        ) : null}
+                      </View>
+                      <CustomText
+                        textStyle="micro"
+                        numberOfLines={1}
+                        style={homeSt.mediaLabel}
+                      >
+                        {material.name}
+                      </CustomText>
+                    </MotionPressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+
+            <MotionPressable
+              accessibilityLabel="Open property assets"
+              onPress={onAssets}
+              haptic="selection"
+              style={homeSt.assetLinkCard}
+            >
+              <View
+                style={[
+                  homeSt.assetLinkIcon,
+                  tourLibrary && homeSt.assetLinkIconConnected,
+                ]}
+              >
+                <Ionicons
+                  name={tourLibrary ? "play" : "folder-outline"}
+                  size={22}
+                  color={tourLibrary ? CARD : ACCENT}
+                />
+              </View>
+              <View style={st.flex1}>
+                <CustomText textStyle="title">
+                  {tourLibrary
+                    ? "Tour Library connected"
+                    : "Local property assets"}
+                </CustomText>
+                <CustomText textStyle="micro" style={homeSt.assetLinkMeta}>
+                  {tourLibrary
+                    ? `${materialCount} local and Tour.video resources`
+                    : `${materialCount} resources stored for this property`}
+                </CustomText>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+            </MotionPressable>
           </View>
         </HomeSection>
-      )}
-
-      <HomeSection
-        title="Assets"
-        subtitle={!materialsLoading && materials.length === 0 ? "Reusable tour assets will appear here." : undefined}
-        action="Open"
-        onAction={onAssets}
-      >
-        <View style={homeSt.assetPreviewStack}>
-          {materialsLoading && materials.length === 0 ? (
-            <View style={homeSt.assetPreviewLoading}>
-              <LoadingDots size="small" color={ACCENT} />
-              <CustomText textStyle="caption" style={homeSt.emptyInline}>Loading property assets…</CustomText>
-            </View>
-          ) : materials.length > 0 ? (
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              directionalLockEnabled
-              showsHorizontalScrollIndicator={false}
-              decelerationRate="fast"
-              snapToInterval={assetTileWidth + 6}
-              disableIntervalMomentum
-              style={homeSt.mediaRowBleed}
-              contentContainerStyle={homeSt.mediaRow}
-            >
-              {materials.map((material) => {
-                const previewUrl = materialPreviewUrl(material);
-                const canOpen = Boolean(materialUrl(material));
-                return (
-                  <MotionPressable
-                    key={material.id}
-                    accessibilityLabel={`Preview ${material.name}`}
-                    onPress={() => setSelectedMaterial(material)}
-                    haptic="selection"
-                    style={[homeSt.mediaTile, { width: assetTileWidth }]}
-                  >
-                    <View style={homeSt.mediaThumb}>
-                      {previewUrl ? (
-                        <Image source={{ uri: previewUrl }} style={homeSt.mediaPreviewImage} resizeMode="cover" />
-                      ) : (
-                        <View style={homeSt.mediaFallbackIcon}>
-                          <Ionicons name={canOpen ? "play" : "document-outline"} size={canOpen ? 18 : 23} color={ACCENT} />
-                        </View>
-                      )}
-                      {canOpen ? (
-                        <View style={homeSt.mediaPlayBadge}>
-                          <Ionicons name="play" size={11} color="#fff" />
-                        </View>
-                      ) : null}
-                    </View>
-                    <CustomText textStyle="micro" numberOfLines={1} style={homeSt.mediaLabel}>{material.name}</CustomText>
-                  </MotionPressable>
-                );
-              })}
-            </ScrollView>
-          ) : null}
-
-          <MotionPressable
-            accessibilityLabel="Open property assets"
-            onPress={onAssets}
-            haptic="selection"
-            style={homeSt.assetLinkCard}
-          >
-            <View style={[homeSt.assetLinkIcon, tourLibrary && homeSt.assetLinkIconConnected]}>
-              <Ionicons name={tourLibrary ? "play" : "folder-outline"} size={22} color={tourLibrary ? CARD : ACCENT} />
-            </View>
-            <View style={st.flex1}>
-              <CustomText textStyle="title">
-                {tourLibrary ? "Tour Library connected" : "Local property assets"}
-              </CustomText>
-              <CustomText textStyle="micro" style={homeSt.assetLinkMeta}>
-                {tourLibrary
-                  ? `${materialCount} local and Tour.video resources`
-                  : `${materialCount} resources stored for this property`}
-              </CustomText>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-          </MotionPressable>
-        </View>
-      </HomeSection>
       </View>
-      <MaterialPreviewModal material={selectedMaterial} onClose={() => setSelectedMaterial(null)} />
+      <MaterialPreviewModal
+        material={selectedMaterial}
+        property={property}
+        onClose={() => setSelectedMaterial(null)}
+      />
     </View>
   );
 }
 
 function materialPreviewUrl(material: Material) {
-  const candidate = material.media?.imageUrl
-    ?? material.media?.gifUrl
-    ?? (material.fileUrl && /\.(?:jpe?g|png|gif)(?:[?#].*)?$/i.test(material.fileUrl) ? material.fileUrl : null);
+  const candidate =
+    material.media?.imageUrl ??
+    material.media?.gifUrl ??
+    (material.fileUrl &&
+    /\.(?:jpe?g|png|gif)(?:[?#].*)?$/i.test(material.fileUrl)
+      ? material.fileUrl
+      : null);
   if (!candidate) return null;
-  return candidate.startsWith("/") ? `${getApiBaseUrl()}${candidate}` : candidate;
+  return candidate.startsWith("/")
+    ? `${getApiBaseUrl()}${candidate}`
+    : candidate;
 }
 
 function isPanoramaMaterial(material: Material) {
-  if (/\/api\/recordings\/panorama-[^/]+\.jpe?g(?:[?#].*)?$/i.test(material.fileUrl ?? "")) {
+  if (
+    /\/api\/recordings\/panorama-[^/]+\.jpe?g(?:[?#].*)?$/i.test(
+      material.fileUrl ?? "",
+    )
+  ) {
     return true;
   }
   if (!material.parsedText) return false;
   try {
-    const metadata = JSON.parse(material.parsedText) as { kind?: unknown; projection?: unknown };
-    return metadata.kind === "panorama-360" || metadata.projection === "equirectangular";
+    const metadata = JSON.parse(material.parsedText) as {
+      kind?: unknown;
+      projection?: unknown;
+    };
+    return (
+      metadata.kind === "panorama-360" ||
+      metadata.projection === "equirectangular"
+    );
   } catch {
     return false;
   }
@@ -1909,48 +2612,110 @@ async function openMaterial(material: Material) {
   try {
     await Linking.openURL(url);
   } catch {
-    Alert.alert("Couldn't open media", "The video link is unavailable right now.");
+    Alert.alert(
+      "Couldn't open media",
+      "The video link is unavailable right now.",
+    );
   }
 }
 
-function ProfileContact({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+function ProfileContact({
+  icon,
+  text,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+}) {
   return (
     <View style={homeSt.profileContactRow}>
       <View style={homeSt.profileContactIcon}>
         <Ionicons name={icon} size={15} color={TEXT} />
       </View>
-      <CustomText textStyle="body" numberOfLines={1} style={homeSt.profileContactText}>{text}</CustomText>
+      <CustomText
+        textStyle="body"
+        numberOfLines={1}
+        style={homeSt.profileContactText}
+      >
+        {text}
+      </CustomText>
     </View>
   );
 }
 
-
-function HomeSection({ title, subtitle, action, showLogo = false, onAction, children }: { title: string; subtitle?: string; action?: string; showLogo?: boolean; onAction?: () => void; children: React.ReactNode }) {
+function HomeSection({
+  title,
+  subtitle,
+  action,
+  showLogo = false,
+  onAction,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: string;
+  showLogo?: boolean;
+  onAction?: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <View style={{ gap: 12 }}>
       <View style={homeSt.sectionHeading}>
         <View style={homeSt.sectionHeader}>
           {showLogo && <TourLogo width={58} />}
-          <CustomText textStyle="title" style={{ flex: 1 }}>{title}</CustomText>
+          <CustomText textStyle="title" style={{ flex: 1 }}>
+            {title}
+          </CustomText>
           {action && (
-            <Pressable onPress={onAction} disabled={!onAction} hitSlop={8} style={({ pressed }) => pressed ? st.pressed : undefined}>
-              <CustomText textStyle="label" style={homeSt.sectionAction}>{action}</CustomText>
+            <Pressable
+              onPress={onAction}
+              disabled={!onAction}
+              hitSlop={8}
+              style={({ pressed }) => (pressed ? st.pressed : undefined)}
+            >
+              <CustomText textStyle="label" style={homeSt.sectionAction}>
+                {action}
+              </CustomText>
             </Pressable>
           )}
         </View>
-        {subtitle ? <CustomText textStyle="caption" style={homeSt.sectionSubtitle}>{subtitle}</CustomText> : null}
+        {subtitle ? (
+          <CustomText textStyle="caption" style={homeSt.sectionSubtitle}>
+            {subtitle}
+          </CustomText>
+        ) : null}
       </View>
       {children}
     </View>
   );
 }
 
-function MetricCard({ icon, label, value, color, delay = 0, live = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; color: string; delay?: number; live?: boolean }) {
+function MetricCard({
+  icon,
+  label,
+  value,
+  color,
+  delay = 0,
+  live = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  color: string;
+  delay?: number;
+  live?: boolean;
+}) {
   return (
-    <Reanimated.View entering={FadeInUp.delay(delay).duration(360).springify()} style={homeSt.metricCard}>
+    <Reanimated.View
+      entering={FadeInUp.delay(delay).duration(360).springify()}
+      style={homeSt.metricCard}
+    >
       <Card style={metricSt.card}>
         <CardContent style={metricSt.content}>
-          {live ? <PulseDot color={color} /> : <Ionicons name={icon} size={20} color={color} />}
+          {live ? (
+            <PulseDot color={color} />
+          ) : (
+            <Ionicons name={icon} size={20} color={color} />
+          )}
           <UiText style={metricSt.value}>{value}</UiText>
           <UiText style={metricSt.label}>{label}</UiText>
         </CardContent>
@@ -1962,23 +2727,69 @@ function MetricCard({ icon, label, value, color, delay = 0, live = false }: { ic
 const metricSt = StyleSheet.create({
   card: { gap: 6, borderColor: C.border, paddingVertical: 16 },
   content: { gap: 6, paddingHorizontal: 16, paddingVertical: 0 },
-  value: { fontSize: 24, fontWeight: "900", fontVariant: ["tabular-nums"], color: C.text },
-  label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", color: C.textMuted },
+  value: {
+    fontSize: 24,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+    color: C.text,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    color: C.textMuted,
+  },
 });
 
-function CardRow({ icon, title, sub, onPress, destructive = false }: { icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; onPress: () => void; destructive?: boolean }) {
+function CardRow({
+  icon,
+  title,
+  sub,
+  onPress,
+  destructive = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  sub: string;
+  onPress: () => void;
+  destructive?: boolean;
+}) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => pressed && st.pressed}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => pressed && st.pressed}
+    >
       <Card style={[cardRowSt.card, destructive && cardRowSt.cardDestructive]}>
         <CardContent style={cardRowSt.content}>
-          <View style={[cardRowSt.iconWrap, destructive && cardRowSt.iconWrapDestructive]}>
-            <Ionicons name={icon} size={22} color={destructive ? C.red : C.brand} />
+          <View
+            style={[
+              cardRowSt.iconWrap,
+              destructive && cardRowSt.iconWrapDestructive,
+            ]}
+          >
+            <Ionicons
+              name={icon}
+              size={22}
+              color={destructive ? C.red : C.brand}
+            />
           </View>
           <View style={st.flex1}>
-            <UiText style={[cardRowSt.title, destructive && cardRowSt.titleDestructive]}>{title}</UiText>
+            <UiText
+              style={[
+                cardRowSt.title,
+                destructive && cardRowSt.titleDestructive,
+              ]}
+            >
+              {title}
+            </UiText>
             <UiText style={cardRowSt.sub}>{sub}</UiText>
           </View>
-          <Ionicons name={destructive ? "log-out-outline" : "chevron-forward"} size={18} color={destructive ? C.red : C.textMuted} />
+          <Ionicons
+            name={destructive ? "log-out-outline" : "chevron-forward"}
+            size={18}
+            color={destructive ? C.red : C.textMuted}
+          />
         </CardContent>
       </Card>
     </Pressable>
@@ -1986,9 +2797,21 @@ function CardRow({ icon, title, sub, onPress, destructive = false }: { icon: key
 }
 
 const cardRowSt = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 12, borderColor: C.border, paddingVertical: 12 },
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderColor: C.border,
+    paddingVertical: 12,
+  },
   cardDestructive: { borderColor: "#fecdca", backgroundColor: "#fffafa" },
-  content: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 0 },
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+  },
   iconWrap: {
     width: 44,
     height: 44,
@@ -2003,22 +2826,46 @@ const cardRowSt = StyleSheet.create({
   sub: { marginTop: 2, fontSize: 12, color: C.textSec },
 });
 
-function SessionRow({ session, onPress, isLast }: { session: SessionSummary; onPress: () => void; isLast: boolean }) {
+function SessionRow({
+  session,
+  onPress,
+  isLast,
+}: {
+  session: SessionSummary;
+  onPress: () => void;
+  isLast: boolean;
+}) {
   const colors = session.id.startsWith("local:")
     ? { bg: C.amberBg, text: C.amber }
     : (STATUS_COLORS[session.status] ?? { bg: "#eaf4ff", text: C.brand });
   const label = sessionStatusLabel(session);
   return (
-    <MotionPressable onPress={onPress} haptic="selection" style={[st.sessionRow, !isLast && st.rowBorder]}>
+    <MotionPressable
+      onPress={onPress}
+      haptic="selection"
+      style={[st.sessionRow, !isLast && st.rowBorder]}
+    >
       <View style={st.flex1}>
-        <Text style={st.sessionTitle} numberOfLines={1}>{session.title}</Text>
-        <Text style={st.sessionMeta} numberOfLines={1}>{formatSessionCardMeta(session)}</Text>
+        <Text style={st.sessionTitle} numberOfLines={1}>
+          {session.title}
+        </Text>
+        <Text style={st.sessionMeta} numberOfLines={1}>
+          {formatSessionCardMeta(session)}
+        </Text>
         {formatSessionCardDescription(session) ? (
-          <Text style={st.sessionMeta} numberOfLines={2}>{formatSessionCardDescription(session)}</Text>
+          <Text style={st.sessionMeta} numberOfLines={2}>
+            {formatSessionCardDescription(session)}
+          </Text>
         ) : null}
       </View>
       <TourStatusBadge label={label} bg={colors.bg} color={colors.text} />
-      {session.overallScore !== null && <Text style={[st.scoreNum, { color: scoreColor(session.overallScore) }]}>{session.overallScore}%</Text>}
+      {session.overallScore !== null && (
+        <Text
+          style={[st.scoreNum, { color: scoreColor(session.overallScore) }]}
+        >
+          {session.overallScore}%
+        </Text>
+      )}
       <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
     </MotionPressable>
   );
@@ -2034,7 +2881,11 @@ const FILTER_CHIPS: { value: StatusFilter; label: string }[] = [
   { value: "feedback", label: "Feedback received" },
 ];
 
-const SORT_OPTS: { value: SortOption; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+const SORT_OPTS: {
+  value: SortOption;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
   { value: "newest", label: "Newest", icon: "arrow-down-outline" },
   { value: "oldest", label: "Oldest", icon: "arrow-up-outline" },
   { value: "score_desc", label: "Score \u2193", icon: "trending-down-outline" },
@@ -2065,7 +2916,9 @@ function SessionListSwipeRow({
   isAnyOpen: () => boolean;
 }) {
   const swipeableRef = useRef<SwipeableMethods | null>(null);
-  const needsReview = ["uploaded", "failed", "analysis_ready"].includes(session.status);
+  const needsReview = ["uploaded", "failed", "analysis_ready"].includes(
+    session.status,
+  );
   const leads = session.leads ?? [];
   const checkedInSummary = leads.length
     ? `${leads.map((lead) => lead.name).join(", ")} · ${leads.length} checked in`
@@ -2103,7 +2956,10 @@ function SessionListSwipeRow({
               impactHaptic();
               onDelete();
             }}
-            style={({ pressed }) => [slst.deleteAction, (pressed || isDeleting) && slst.deleteActionPressed]}
+            style={({ pressed }) => [
+              slst.deleteAction,
+              (pressed || isDeleting) && slst.deleteActionPressed,
+            ]}
           >
             {isDeleting ? (
               <LoadingDots color="#fff" size="small" />
@@ -2132,7 +2988,9 @@ function SessionListSwipeRow({
         <View style={st.flex1}>
           <View style={slst.sessionNameRow}>
             {session.status === "in_progress" && <PulseDot color="#f04438" />}
-            <Text style={slst.sessionName} numberOfLines={1}>{session.title}</Text>
+            <Text style={slst.sessionName} numberOfLines={1}>
+              {session.title}
+            </Text>
           </View>
           <Text style={slst.sessionMeta} numberOfLines={1}>
             {checkedInSummary || formatSessionCardMeta(session)}
@@ -2145,16 +3003,26 @@ function SessionListSwipeRow({
         </View>
         <View style={slst.sessionRight}>
           <View style={[slst.syncBadge, badgeReviewStyle && slst.reviewBadge]}>
-            <Text style={[slst.syncText, badgeReviewStyle && slst.reviewText]}>{badgeLabel}</Text>
+            <Text style={[slst.syncText, badgeReviewStyle && slst.reviewText]}>
+              {badgeLabel}
+            </Text>
           </View>
-          {session.overallScore !== null && <Text style={slst.sessionScore}>{session.overallScore}</Text>}
+          {session.overallScore !== null && (
+            <Text style={slst.sessionScore}>{session.overallScore}</Text>
+          )}
         </View>
       </MotionPressable>
     </Swipeable>
   );
 }
 
-function SampleSessionListRow({ session, onOpen }: { session: SessionSummary; onOpen: () => void }) {
+function SampleSessionListRow({
+  session,
+  onOpen,
+}: {
+  session: SessionSummary;
+  onOpen: () => void;
+}) {
   return (
     <MotionPressable
       onPress={onOpen}
@@ -2165,14 +3033,22 @@ function SampleSessionListRow({ session, onOpen }: { session: SessionSummary; on
         <Ionicons name="sparkles" size={18} color={C.purple} />
       </View>
       <View style={st.flex1}>
-        <Text style={slst.sessionName} numberOfLines={1}>{session.title}</Text>
+        <Text style={slst.sessionName} numberOfLines={1}>
+          {session.title}
+        </Text>
         <Text style={slst.sessionMeta} numberOfLines={1}>
-          {[session.location, session.prospectName].filter(Boolean).join(" · ") || "40Fifty Lofts example"}
+          {[session.location, session.prospectName]
+            .filter(Boolean)
+            .join(" · ") || "40Fifty Lofts example"}
         </Text>
       </View>
       <View style={slst.sessionRight}>
-        <View style={slst.sampleBadge}><Text style={slst.sampleBadgeText}>SAMPLE</Text></View>
-        {session.overallScore !== null && <Text style={slst.sessionScore}>{session.overallScore}</Text>}
+        <View style={slst.sampleBadge}>
+          <Text style={slst.sampleBadgeText}>SAMPLE</Text>
+        </View>
+        {session.overallScore !== null && (
+          <Text style={slst.sessionScore}>{session.overallScore}</Text>
+        )}
       </View>
       <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
     </MotionPressable>
@@ -2226,7 +3102,8 @@ function SessionsListScreen({
     return authSession.workspace.community.teamMembers
       .map((member) => ({
         ...member,
-        agentId: member.alias?.trim() || member.id?.trim() || member.email.trim(),
+        agentId:
+          member.alias?.trim() || member.id?.trim() || member.email.trim(),
       }))
       .filter((member) => {
         const key = member.email.trim().toLowerCase();
@@ -2234,27 +3111,42 @@ function SessionsListScreen({
         seen.add(key);
         return true;
       })
-      .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+      .sort((left, right) =>
+        left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+      );
   }, [authSession.workspace.community.teamMembers]);
   const currentTeamMember = useMemo(() => {
     const currentEmail = authSession.workspace.user.email.trim().toLowerCase();
-    return teamMembers.find((member) =>
-      member.userId === authSession.workspace.user.id || member.email.trim().toLowerCase() === currentEmail
-    ) ?? null;
-  }, [authSession.workspace.user.email, authSession.workspace.user.id, teamMembers]);
-  const currentAgentId = currentTeamMember?.agentId ?? `user:${authSession.workspace.user.id}`;
-  const selectedTeamMember = teamMembers.find((member) => member.agentId === selectedAgentId) ?? null;
+    return (
+      teamMembers.find(
+        (member) =>
+          member.userId === authSession.workspace.user.id ||
+          member.email.trim().toLowerCase() === currentEmail,
+      ) ?? null
+    );
+  }, [
+    authSession.workspace.user.email,
+    authSession.workspace.user.id,
+    teamMembers,
+  ]);
+  const currentAgentId =
+    currentTeamMember?.agentId ?? `user:${authSession.workspace.user.id}`;
+  const selectedTeamMember =
+    teamMembers.find((member) => member.agentId === selectedAgentId) ?? null;
   const sessionViewLabel = showSamples
     ? "Samples"
     : selectedAgentId
       ? selectedAgentId === currentAgentId
         ? "You"
-        : selectedTeamMember?.name ?? "Team member"
+        : (selectedTeamMember?.name ?? "Team member")
       : "Your Team";
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(search), search ? 350 : 0);
+    debounceRef.current = setTimeout(
+      () => setDebouncedSearch(search),
+      search ? 350 : 0,
+    );
     return () => clearTimeout(debounceRef.current);
   }, [search]);
 
@@ -2262,34 +3154,42 @@ function SessionsListScreen({
     limit: SESSIONS_PAGE_SIZE,
     sort,
     search: debouncedSearch.trim() || undefined,
-    agentId: showSamples ? undefined : selectedAgentId ?? undefined,
+    agentId: showSamples ? undefined : (selectedAgentId ?? undefined),
   });
 
   // Remote-only list. Local folders hold in-flight live audio, not session cards.
   const fetchedSessions = useMemo(
-    () => sessionsQuery.data?.pages.flatMap((pageData) => pageData.sessions) ?? [],
+    () =>
+      sessionsQuery.data?.pages.flatMap((pageData) => pageData.sessions) ?? [],
     [sessionsQuery.data],
   );
-  const canUseInitialSessions = sort === "newest"
-    && !debouncedSearch.trim()
-    && selectedAgentId === null
-    && !showSamples;
-  const sessions = sessionsQuery.isSuccess || fetchedSessions.length > 0
-    ? fetchedSessions
-    : canUseInitialSessions
-      ? initialSessions.slice(0, SESSIONS_PAGE_SIZE)
-      : [];
+  const canUseInitialSessions =
+    sort === "newest" &&
+    !debouncedSearch.trim() &&
+    selectedAgentId === null &&
+    !showSamples;
+  const sessions =
+    sessionsQuery.isSuccess || fetchedSessions.length > 0
+      ? fetchedSessions
+      : canUseInitialSessions
+        ? initialSessions.slice(0, SESSIONS_PAGE_SIZE)
+        : [];
   const sampleSessionsQuery = useSampleSessionsQuery(showSamples);
   const sampleSessions = sampleSessionsQuery.data?.sessions ?? [];
-  const samplePropertyName = sampleSessionsQuery.data?.propertyName ?? "1540 Place Apartments";
-  const samplesAvailable = sampleSessionsQuery.isSuccess && sampleSessions.length > 0;
+  const samplePropertyName =
+    sampleSessionsQuery.data?.propertyName ?? "1540 Place Apartments";
+  const samplesAvailable =
+    sampleSessionsQuery.isSuccess && sampleSessions.length > 0;
   const visibleSessions = showSamples ? sampleSessions : sessions;
   const hasMore = sessionsQuery.hasNextPage;
   const loading = sessionsQuery.isLoading && sessions.length === 0;
   const loadingMore = sessionsQuery.isFetchingNextPage;
-  const practiceScenariosQuery = usePracticeScenarioPreviewsQuery(practicePreviewEnabled);
+  const practiceScenariosQuery = usePracticeScenarioPreviewsQuery(
+    practicePreviewEnabled,
+  );
   const practiceScenarios = practiceScenariosQuery.data ?? [];
-  const practiceLoading = !practiceScenariosQuery.data && !practiceScenariosQuery.error;
+  const practiceLoading =
+    !practiceScenariosQuery.data && !practiceScenariosQuery.error;
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -2332,38 +3232,50 @@ function SessionsListScreen({
     }
   }, []);
 
-  const performDeleteSession = useCallback(async (sessionId: string) => {
-    if (deletingId) return;
-    setDeletingId(sessionId);
-    closeOpenSwipeable();
-    try {
-      await deleteSessionMutation.mutateAsync(sessionId);
-      showToast("Session deleted", "success");
-    } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Could not delete session", "error");
-    } finally {
-      setDeletingId(null);
-    }
-  }, [closeOpenSwipeable, deleteSessionMutation, deletingId]);
+  const performDeleteSession = useCallback(
+    async (sessionId: string) => {
+      if (deletingId) return;
+      setDeletingId(sessionId);
+      closeOpenSwipeable();
+      try {
+        await deleteSessionMutation.mutateAsync(sessionId);
+        showToast("Session deleted", "success");
+      } catch (caught) {
+        showToast(
+          caught instanceof Error ? caught.message : "Could not delete session",
+          "error",
+        );
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [closeOpenSwipeable, deleteSessionMutation, deletingId],
+  );
 
-  const confirmDeleteSession = useCallback((session: SessionSummary) => {
-    Alert.alert(
-      "Delete session?",
-      `Delete “${session.title}” and its generated analysis? This can’t be undone.`,
-      [
-        { text: "Cancel", style: "cancel", onPress: closeOpenSwipeable },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => void performDeleteSession(session.id),
-        },
-      ],
-    );
-  }, [closeOpenSwipeable, performDeleteSession]);
+  const confirmDeleteSession = useCallback(
+    (session: SessionSummary) => {
+      Alert.alert(
+        "Delete session?",
+        `Delete “${session.title}” and its generated analysis? This can’t be undone.`,
+        [
+          { text: "Cancel", style: "cancel", onPress: closeOpenSwipeable },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => void performDeleteSession(session.id),
+          },
+        ],
+      );
+    },
+    [closeOpenSwipeable, performDeleteSession],
+  );
 
-  const openSession = useCallback((session: SessionSummary) => {
-    onSession(session.id);
-  }, [onSession]);
+  const openSession = useCallback(
+    (session: SessionSummary) => {
+      onSession(session.id);
+    },
+    [onSession],
+  );
 
   type SessionListItem =
     | { kind: "header"; id: string; label: string; count: number }
@@ -2373,250 +3285,454 @@ function SessionsListScreen({
     const filteredSessions = visibleSessions.filter((session) => {
       if (showSamples) return true;
       if (statusFilter === "all") return true;
-      if (statusFilter === "needs_review") return ["uploaded", "failed", "analysis_ready"].includes(session.status);
-      if (statusFilter === "feedback") return ["analysis_ready", "reviewed"].includes(session.status) || session.overallScore !== null;
+      if (statusFilter === "needs_review")
+        return ["uploaded", "failed", "analysis_ready"].includes(
+          session.status,
+        );
+      if (statusFilter === "feedback")
+        return (
+          ["analysis_ready", "reviewed"].includes(session.status) ||
+          session.overallScore !== null
+        );
       return true;
     });
 
     const label = showSamples
       ? `${samplePropertyName} samples`
       : statusFilter === "needs_review"
-          ? "Needs Review"
-          : statusFilter === "feedback"
-            ? "Feedback Received"
-            : "Recent Sessions";
+        ? "Needs Review"
+        : statusFilter === "feedback"
+          ? "Feedback Received"
+          : "Recent Sessions";
 
     return filteredSessions.length
       ? [
-          { kind: "header" as const, id: `header-${showSamples ? "samples" : statusFilter}`, label, count: filteredSessions.length },
-          ...filteredSessions.map((session) => ({ kind: "session" as const, id: session.id, session })),
+          {
+            kind: "header" as const,
+            id: `header-${showSamples ? "samples" : statusFilter}`,
+            label,
+            count: filteredSessions.length,
+          },
+          ...filteredSessions.map((session) => ({
+            kind: "session" as const,
+            id: session.id,
+            session,
+          })),
         ]
       : [];
   }, [samplePropertyName, showSamples, statusFilter, visibleSessions]);
 
-  const sessionMetrics = useMemo(() => computeDashboardMetrics(visibleSessions), [visibleSessions]);
-  const averageScore = sessionMetrics.averageScore !== null ? `${sessionMetrics.averageScore}%` : "--";
+  const sessionMetrics = useMemo(
+    () => computeDashboardMetrics(visibleSessions),
+    [visibleSessions],
+  );
+  const averageScore =
+    sessionMetrics.averageScore !== null
+      ? `${sessionMetrics.averageScore}%`
+      : "--";
 
-  const renderItem = useCallback(({ item }: { item: SessionListItem }) => {
-    if (item.kind === "header") {
+  const renderItem = useCallback(
+    ({ item }: { item: SessionListItem }) => {
+      if (item.kind === "header") {
+        return (
+          <View style={slst.groupHeader}>
+            <Text style={slst.groupLabel}>{item.label}</Text>
+            <View style={slst.groupCount}>
+              <Text style={slst.groupCountText}>{item.count}</Text>
+            </View>
+          </View>
+        );
+      }
+      const session = item.session;
+      if (showSamples) {
+        return (
+          <SampleSessionListRow
+            session={session}
+            onOpen={() => onSampleSession(session.id)}
+          />
+        );
+      }
       return (
-        <View style={slst.groupHeader}>
-          <Text style={slst.groupLabel}>{item.label}</Text>
-          <View style={slst.groupCount}><Text style={slst.groupCountText}>{item.count}</Text></View>
-        </View>
+        <SessionListSwipeRow
+          session={session}
+          isDeleting={deletingId === session.id}
+          onOpen={() => openSession(session)}
+          onDelete={() => confirmDeleteSession(session)}
+          onSwipeOpen={handleSwipeOpen}
+          onSwipeClose={handleSwipeClose}
+          onCloseOpen={closeOpenSwipeable}
+          isAnyOpen={() => openSwipeableRef.current !== null}
+        />
       );
-    }
-    const session = item.session;
-    if (showSamples) {
-      return <SampleSessionListRow session={session} onOpen={() => onSampleSession(session.id)} />;
-    }
-    return (
-      <SessionListSwipeRow
-        session={session}
-        isDeleting={deletingId === session.id}
-        onOpen={() => openSession(session)}
-        onDelete={() => confirmDeleteSession(session)}
-        onSwipeOpen={handleSwipeOpen}
-        onSwipeClose={handleSwipeClose}
-        onCloseOpen={closeOpenSwipeable}
-        isAnyOpen={() => openSwipeableRef.current !== null}
-      />
-    );
-  }, [closeOpenSwipeable, confirmDeleteSession, deletingId, handleSwipeClose, handleSwipeOpen, onSampleSession, onSession, openSession, showSamples]);
+    },
+    [
+      closeOpenSwipeable,
+      confirmDeleteSession,
+      deletingId,
+      handleSwipeClose,
+      handleSwipeOpen,
+      onSampleSession,
+      onSession,
+      openSession,
+      showSamples,
+    ],
+  );
 
   const keyExtractor = useCallback((item: SessionListItem) => item.id, []);
-  const activeFilterCount = Number(selectedAgentId !== null || showSamples) + Number(statusFilter !== "all") + Number(sort !== "newest");
-  const selectSessionView = useCallback((agentId: string | null, samples = false) => {
-    selectionHaptic();
-    setSelectedAgentId(agentId);
-    setShowSamples(samples);
-    setFiltersOpen(false);
-  }, []);
+  const activeFilterCount =
+    Number(selectedAgentId !== null || showSamples) +
+    Number(statusFilter !== "all") +
+    Number(sort !== "newest");
+  const selectSessionView = useCallback(
+    (agentId: string | null, samples = false) => {
+      selectionHaptic();
+      setSelectedAgentId(agentId);
+      setShowSamples(samples);
+      setFiltersOpen(false);
+    },
+    [],
+  );
 
-  const ListHeader = useMemo(() => (
-    <View style={slst.header}>
-      <CommunityTopBar
-        property={property}
-        onCommunityPress={onCommunityPress}
-        left={
-          <Pressable accessibilityLabel="Back to home" onPress={onBack} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-            <Ionicons name="arrow-back" size={22} color={C.text} />
-          </Pressable>
-        }
-        right={
-          showSamples ? (
-            <Pressable accessibilityLabel="Close sample sessions" onPress={() => setShowSamples(false)} style={homeSt.headerIcon}>
-              <Ionicons name="close" size={20} color={C.text} />
+  const ListHeader = useMemo(
+    () => (
+      <View style={slst.header}>
+        <CommunityTopBar
+          property={property}
+          onCommunityPress={onCommunityPress}
+          left={
+            <Pressable
+              accessibilityLabel="Back to home"
+              onPress={onBack}
+              style={({ pressed }) => [
+                homeSt.headerIcon,
+                pressed && st.pressed,
+              ]}
+            >
+              <Ionicons name="arrow-back" size={22} color={C.text} />
             </Pressable>
-          ) : (
-            <Pressable onPress={() => setShowSearch((value) => !value)} style={homeSt.headerIcon}>
-              <Ionicons name={showSearch ? "close" : "search"} size={19} color={C.text} />
-            </Pressable>
-          )
-        }
-      />
-      <View style={slst.titleRow}>
-        <View>
-          <Text style={st.pageTitle}>{showSamples ? "Sample sessions" : "Sessions"}</Text>
-          <Text style={slst.sampleHeadingSub}>
-            {showSamples ? `Curated from ${samplePropertyName} · Read only` : sessionViewLabel}
-          </Text>
-        </View>
-        {loading ? (
-          <View style={slst.avgPill}>
-            <View style={slst.metricSkeletonIcon} />
-            <View style={slst.metricSkeletonValue} />
-            <View style={slst.metricSkeletonLabel} />
+          }
+          right={
+            showSamples ? (
+              <Pressable
+                accessibilityLabel="Close sample sessions"
+                onPress={() => setShowSamples(false)}
+                style={homeSt.headerIcon}
+              >
+                <Ionicons name="close" size={20} color={C.text} />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => setShowSearch((value) => !value)}
+                style={homeSt.headerIcon}
+              >
+                <Ionicons
+                  name={showSearch ? "close" : "search"}
+                  size={19}
+                  color={C.text}
+                />
+              </Pressable>
+            )
+          }
+        />
+        <View style={slst.titleRow}>
+          <View>
+            <Text style={st.pageTitle}>
+              {showSamples ? "Sample sessions" : "Sessions"}
+            </Text>
+            <Text style={slst.sampleHeadingSub}>
+              {showSamples
+                ? `Curated from ${samplePropertyName} · Read only`
+                : sessionViewLabel}
+            </Text>
           </View>
-        ) : (
-          <View style={slst.avgPill}>
-            <Ionicons name="analytics-outline" size={14} color={sessionMetrics.averageScore !== null ? scoreColor(sessionMetrics.averageScore) : C.brand} />
-            <Text style={slst.avgPillValue}>{averageScore}</Text>
-            <Text style={slst.avgPillLabel}>Avg</Text>
-          </View>
-        )}
-      </View>
-
-      {showSamples ? (
-        <Pressable accessibilityRole="button" onPress={() => setShowSamples(false)} style={slst.sampleModeBanner}>
-          <View style={slst.sampleModeIcon}><Ionicons name="sparkles" size={16} color={C.purple} /></View>
-          <View style={st.flex1}>
-            <Text style={slst.sampleModeTitle}>Exploring real examples</Text>
-            <Text style={slst.sampleModeSub}>These never affect {property}’s sessions or scores.</Text>
-          </View>
-          <Text style={slst.sampleModeAction}>Back</Text>
-        </Pressable>
-      ) : showSearch && (
-        <Reanimated.View entering={FadeInDown.duration(220)} style={st.searchBar}>
-          <Ionicons name="search-outline" size={18} color={C.textMuted} />
-          <TextInput autoFocus placeholder="Search sessions..." placeholderTextColor={C.textMuted} value={search} onChangeText={setSearch} style={st.searchInput} returnKeyType="search" />
-        </Reanimated.View>
-      )}
-
-      {!showSamples && (
-        <View style={slst.practiceSection}>
-          <View style={slst.practiceHeading}>
-            <View style={st.flex1}>
-              <Text style={slst.practiceTitle}>Practice sessions</Text>
-              <Text style={slst.practiceSubtitle}>Train with an AI prospect</Text>
+          {loading ? (
+            <View style={slst.avgPill}>
+              <View style={slst.metricSkeletonIcon} />
+              <View style={slst.metricSkeletonValue} />
+              <View style={slst.metricSkeletonLabel} />
             </View>
-            <Pressable accessibilityRole="button" onPress={() => onPractice()} style={({ pressed }) => [slst.practiceOpen, pressed && st.pressed]}>
-              <Text style={slst.practiceOpenText}>Open</Text>
-              <Ionicons name="arrow-forward" size={14} color={C.brand} />
-            </Pressable>
-          </View>
-
-          {practiceLoading ? (
-            <View style={slst.practiceLoadingRow}>
-              {[0, 1, 2].map((index) => <View key={index} style={slst.practiceSkeleton} />)}
-            </View>
-          ) : practiceScenarios.length ? (
-            <ScrollView horizontal nestedScrollEnabled directionalLockEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={slst.practiceCards}>
-              {practiceScenarios.map((scenario, index) => {
-                const colors = [C.brand, C.purple, C.green];
-                const accent = colors[index % colors.length] ?? C.brand;
-                return (
-                  <MotionPressable
-                    key={scenario.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Start ${scenario.name} practice`}
-                    onPress={() => onPractice(scenario.id)}
-                    haptic="selection"
-                    style={[slst.practiceCard, { borderColor: `${accent}28` }]}
-                  >
-                    <View style={[slst.practiceIcon, { backgroundColor: `${accent}14` }]}>
-                      <Ionicons name="chatbubbles-outline" size={20} color={accent} />
-                    </View>
-                    <Text style={slst.practiceCardTitle} numberOfLines={2}>{scenario.name}</Text>
-                    <View style={slst.practiceCardFooter}>
-                      <Text style={[slst.practiceDifficulty, { color: accent }]}>{scenario.difficulty ?? "Practice"}</Text>
-                      <Ionicons name="play-circle" size={19} color={accent} />
-                    </View>
-                  </MotionPressable>
-                );
-              })}
-            </ScrollView>
           ) : (
-            <Pressable accessibilityRole="button" onPress={() => onPractice()} style={({ pressed }) => [slst.practiceEmpty, pressed && st.pressed]}>
-              <View style={slst.practiceEmptyIcon}><Ionicons name="sparkles" size={19} color={C.brand} /></View>
-              <View style={st.flex1}>
-                <Text style={slst.practiceEmptyTitle}>Open practice training</Text>
-                <Text style={slst.practiceEmptySubtitle}>View available scenarios and recent attempts.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
-            </Pressable>
+            <View style={slst.avgPill}>
+              <Ionicons
+                name="analytics-outline"
+                size={14}
+                color={
+                  sessionMetrics.averageScore !== null
+                    ? scoreColor(sessionMetrics.averageScore)
+                    : C.brand
+                }
+              />
+              <Text style={slst.avgPillValue}>{averageScore}</Text>
+              <Text style={slst.avgPillLabel}>Avg</Text>
+            </View>
           )}
         </View>
-      )}
 
-      {!showSamples && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open session filters"
-          onPress={() => setFiltersOpen(true)}
-          style={({ pressed }) => [slst.filterButton, pressed && st.pressed]}
-        >
-          <Ionicons name="options-outline" size={17} color={C.brand} />
-          <Text style={slst.filterButtonText}>Filter</Text>
-          <View style={st.flex1} />
-          {activeFilterCount > 0 && <View style={slst.filterCount}><Text style={slst.filterCountText}>{activeFilterCount}</Text></View>}
-          <Ionicons name="chevron-down" size={15} color={C.textMuted} />
-        </Pressable>
-      )}
-      {!showSamples && loading ? (
-        <View style={slst.loadingGroupHeader}>
-          <View style={slst.loadingGroupLabel} />
-          <View style={st.flex1} />
-          <View style={slst.loadingGroupCount} />
-        </View>
-      ) : null}
-    </View>
-  ), [activeFilterCount, averageScore, loading, onBack, onCommunityPress, onPractice, practiceLoading, practiceScenarios, property, samplePropertyName, search, sessionMetrics.averageScore, sessionViewLabel, showSamples, sort, showSearch, statusFilter]);
+        {showSamples ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setShowSamples(false)}
+            style={slst.sampleModeBanner}
+          >
+            <View style={slst.sampleModeIcon}>
+              <Ionicons name="sparkles" size={16} color={C.purple} />
+            </View>
+            <View style={st.flex1}>
+              <Text style={slst.sampleModeTitle}>Exploring real examples</Text>
+              <Text style={slst.sampleModeSub}>
+                These never affect {property}’s sessions or scores.
+              </Text>
+            </View>
+            <Text style={slst.sampleModeAction}>Back</Text>
+          </Pressable>
+        ) : (
+          showSearch && (
+            <Reanimated.View
+              entering={FadeInDown.duration(220)}
+              style={st.searchBar}
+            >
+              <Ionicons name="search-outline" size={18} color={C.textMuted} />
+              <TextInput
+                autoFocus
+                placeholder="Search sessions..."
+                placeholderTextColor={C.textMuted}
+                value={search}
+                onChangeText={setSearch}
+                style={st.searchInput}
+                returnKeyType="search"
+              />
+            </Reanimated.View>
+          )
+        )}
+
+        {!showSamples && (
+          <View style={slst.practiceSection}>
+            <View style={slst.practiceHeading}>
+              <View style={st.flex1}>
+                <Text style={slst.practiceTitle}>Practice sessions</Text>
+                <Text style={slst.practiceSubtitle}>
+                  Train with an AI prospect
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onPractice()}
+                style={({ pressed }) => [
+                  slst.practiceOpen,
+                  pressed && st.pressed,
+                ]}
+              >
+                <Text style={slst.practiceOpenText}>Open</Text>
+                <Ionicons name="arrow-forward" size={14} color={C.brand} />
+              </Pressable>
+            </View>
+
+            {practiceLoading ? (
+              <View style={slst.practiceLoadingRow}>
+                {[0, 1, 2].map((index) => (
+                  <View key={index} style={slst.practiceSkeleton} />
+                ))}
+              </View>
+            ) : practiceScenarios.length ? (
+              <ScrollView
+                horizontal
+                nestedScrollEnabled
+                directionalLockEnabled
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={slst.practiceCards}
+              >
+                {practiceScenarios.map((scenario, index) => {
+                  const colors = [C.brand, C.purple, C.green];
+                  const accent = colors[index % colors.length] ?? C.brand;
+                  return (
+                    <MotionPressable
+                      key={scenario.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Start ${scenario.name} practice`}
+                      onPress={() => onPractice(scenario.id)}
+                      haptic="selection"
+                      style={[
+                        slst.practiceCard,
+                        { borderColor: `${accent}28` },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          slst.practiceIcon,
+                          { backgroundColor: `${accent}14` },
+                        ]}
+                      >
+                        <Ionicons
+                          name="chatbubbles-outline"
+                          size={20}
+                          color={accent}
+                        />
+                      </View>
+                      <Text style={slst.practiceCardTitle} numberOfLines={2}>
+                        {scenario.name}
+                      </Text>
+                      <View style={slst.practiceCardFooter}>
+                        <Text
+                          style={[slst.practiceDifficulty, { color: accent }]}
+                        >
+                          {scenario.difficulty ?? "Practice"}
+                        </Text>
+                        <Ionicons name="play-circle" size={19} color={accent} />
+                      </View>
+                    </MotionPressable>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onPractice()}
+                style={({ pressed }) => [
+                  slst.practiceEmpty,
+                  pressed && st.pressed,
+                ]}
+              >
+                <View style={slst.practiceEmptyIcon}>
+                  <Ionicons name="sparkles" size={19} color={C.brand} />
+                </View>
+                <View style={st.flex1}>
+                  <Text style={slst.practiceEmptyTitle}>
+                    Open practice training
+                  </Text>
+                  <Text style={slst.practiceEmptySubtitle}>
+                    View available scenarios and recent attempts.
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={17}
+                  color={C.textMuted}
+                />
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {!showSamples && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open session filters"
+            onPress={() => setFiltersOpen(true)}
+            style={({ pressed }) => [slst.filterButton, pressed && st.pressed]}
+          >
+            <Ionicons name="options-outline" size={17} color={C.brand} />
+            <Text style={slst.filterButtonText}>Filter</Text>
+            <View style={st.flex1} />
+            {activeFilterCount > 0 && (
+              <View style={slst.filterCount}>
+                <Text style={slst.filterCountText}>{activeFilterCount}</Text>
+              </View>
+            )}
+            <Ionicons name="chevron-down" size={15} color={C.textMuted} />
+          </Pressable>
+        )}
+        {!showSamples && loading ? (
+          <View style={slst.loadingGroupHeader}>
+            <View style={slst.loadingGroupLabel} />
+            <View style={st.flex1} />
+            <View style={slst.loadingGroupCount} />
+          </View>
+        ) : null}
+      </View>
+    ),
+    [
+      activeFilterCount,
+      averageScore,
+      loading,
+      onBack,
+      onCommunityPress,
+      onPractice,
+      practiceLoading,
+      practiceScenarios,
+      property,
+      samplePropertyName,
+      search,
+      sessionMetrics.averageScore,
+      sessionViewLabel,
+      showSamples,
+      sort,
+      showSearch,
+      statusFilter,
+    ],
+  );
 
   const ListFooter = useMemo(() => {
     if (showSamples) return null;
-    if (loadingMore) return <LoadingDots style={{ paddingVertical: 20 }} color={C.brand} />;
-    if (!hasMore && sessions.length > 0) return (
-      <Text style={slst.endText}>All sessions loaded</Text>
-    );
+    if (loadingMore)
+      return <LoadingDots style={{ paddingVertical: 20 }} color={C.brand} />;
+    if (!hasMore && sessions.length > 0)
+      return <Text style={slst.endText}>All sessions loaded</Text>;
     return null;
   }, [hasMore, loadingMore, sessions.length, showSamples]);
 
   const ListEmpty = useMemo(() => {
-    if (loading || (showSamples && sampleSessionsQuery.isLoading)) return (
-      <View style={{ paddingTop: 20 }}>
-        <LoadingShimmer rows={5} />
-      </View>
-    );
+    if (loading || (showSamples && sampleSessionsQuery.isLoading))
+      return (
+        <View style={{ paddingTop: 20 }}>
+          <LoadingShimmer rows={5} />
+        </View>
+      );
     if (showSamples && sampleSessionsQuery.error) {
       return (
         <View style={{ gap: 12 }}>
           <ErrorBanner
-            message={sampleSessionsQuery.error instanceof Error ? sampleSessionsQuery.error.message : "Could not load sample sessions"}
+            message={
+              sampleSessionsQuery.error instanceof Error
+                ? sampleSessionsQuery.error.message
+                : "Could not load sample sessions"
+            }
             onRetry={() => void sampleSessionsQuery.refetch()}
           />
-          <PrimaryBtn label="Back to my sessions" icon="arrow-back" onPress={() => setShowSamples(false)} />
+          <PrimaryBtn
+            label="Back to my sessions"
+            icon="arrow-back"
+            onPress={() => setShowSamples(false)}
+          />
         </View>
       );
     }
     if (showSamples) {
-      return <EmptyState icon="albums-outline" title="Samples unavailable" subtitle="The curated examples could not be loaded." />;
+      return (
+        <EmptyState
+          icon="albums-outline"
+          title="Samples unavailable"
+          subtitle="The curated examples could not be loaded."
+        />
+      );
     }
     if (!search && statusFilter === "all") {
       return (
-        <Reanimated.View entering={FadeInDown.duration(280).springify()} style={slst.sampleEmptyCard}>
-          <View style={slst.sampleEmptyIcon}><Ionicons name="sparkles" size={25} color={C.purple} /></View>
+        <Reanimated.View
+          entering={FadeInDown.duration(280).springify()}
+          style={slst.sampleEmptyCard}
+        >
+          <View style={slst.sampleEmptyIcon}>
+            <Ionicons name="sparkles" size={25} color={C.purple} />
+          </View>
           <Text style={slst.sampleEmptyTitle}>No sessions yet</Text>
           <Text style={slst.sampleEmptySub}>
             Record a new session to get started.
           </Text>
           <View style={slst.emptyActions}>
-            <MotionPressable onPress={() => setShowSamples(true)} haptic="selection" style={slst.samplePrimaryButton}>
+            <MotionPressable
+              onPress={() => setShowSamples(true)}
+              haptic="selection"
+              style={slst.samplePrimaryButton}
+            >
               <Ionicons name="play-circle-outline" size={20} color="#fff" />
               <Text style={slst.samplePrimaryText}>View sample sessions</Text>
               <Ionicons name="arrow-forward" size={18} color="#fff" />
             </MotionPressable>
-            <MotionPressable onPress={onCreate} haptic="medium" style={slst.emptySecondaryButton}>
+            <MotionPressable
+              onPress={onCreate}
+              haptic="medium"
+              style={slst.emptySecondaryButton}
+            >
               <Ionicons name="mic-outline" size={20} color={C.brand} />
               <Text style={slst.emptySecondaryText}>Record new session</Text>
               <Ionicons name="arrow-forward" size={18} color={C.brand} />
@@ -2627,12 +3743,26 @@ function SessionsListScreen({
     }
     return (
       <EmptyState
-        icon={search || statusFilter !== "all" ? "search-outline" : "albums-outline"}
-        title={search || statusFilter !== "all" ? "No matching sessions" : "No sessions yet"}
+        icon={
+          search || statusFilter !== "all" ? "search-outline" : "albums-outline"
+        }
+        title={
+          search || statusFilter !== "all"
+            ? "No matching sessions"
+            : "No sessions yet"
+        }
         subtitle="Recent tours will appear here"
       />
     );
-  }, [loading, onCreate, sampleSessionsQuery, search, sessions.length, showSamples, statusFilter]);
+  }, [
+    loading,
+    onCreate,
+    sampleSessionsQuery,
+    search,
+    sessions.length,
+    showSamples,
+    statusFilter,
+  ]);
 
   return (
     <>
@@ -2656,7 +3786,13 @@ function SessionsListScreen({
         maxToRenderPerBatch={6}
         updateCellsBatchingPeriod={32}
         windowSize={7}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={C.brand}
+          />
+        }
         contentContainerStyle={slst.list}
         showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="automatic"
@@ -2670,75 +3806,170 @@ function SessionsListScreen({
           <View style={slst.filterSheetHeader}>
             <View>
               <Text style={slst.filterSheetTitle}>Filter</Text>
-              <Text style={slst.filterSheetSubtitle}>Choose whose sessions to view</Text>
+              <Text style={slst.filterSheetSubtitle}>
+                Choose whose sessions to view
+              </Text>
             </View>
-            <Pressable accessibilityLabel="Close filters" onPress={() => setFiltersOpen(false)} style={slst.filterSheetClose}>
+            <Pressable
+              accessibilityLabel="Close filters"
+              onPress={() => setFiltersOpen(false)}
+              style={slst.filterSheetClose}
+            >
               <Ionicons name="close" size={19} color={C.text} />
             </Pressable>
           </View>
         }
         contentStyle={slst.filterSheetBody}
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={slst.filterSheetContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={slst.filterSheetContent}
+        >
           <View style={slst.filterSheetSection}>
             <Text style={slst.filterSheetLabel}>Sessions</Text>
             <Pressable
               accessibilityRole="radio"
-              accessibilityState={{ checked: !showSamples && selectedAgentId === null }}
+              accessibilityState={{
+                checked: !showSamples && selectedAgentId === null,
+              }}
               onPress={() => selectSessionView(null)}
-              style={[slst.filterViewRow, !showSamples && selectedAgentId === null && slst.filterViewRowActive]}
+              style={[
+                slst.filterViewRow,
+                !showSamples &&
+                  selectedAgentId === null &&
+                  slst.filterViewRowActive,
+              ]}
             >
-              <View style={[slst.filterViewIcon, !showSamples && selectedAgentId === null && slst.filterViewIconActive]}>
-                <Ionicons name="people" size={18} color={!showSamples && selectedAgentId === null ? C.brand : C.textSec} />
+              <View
+                style={[
+                  slst.filterViewIcon,
+                  !showSamples &&
+                    selectedAgentId === null &&
+                    slst.filterViewIconActive,
+                ]}
+              >
+                <Ionicons
+                  name="people"
+                  size={18}
+                  color={
+                    !showSamples && selectedAgentId === null
+                      ? C.brand
+                      : C.textSec
+                  }
+                />
               </View>
               <View style={st.flex1}>
                 <Text style={slst.filterViewTitle}>Your Team</Text>
-                <Text style={slst.filterViewSubtitle}>Sessions from everyone at this property</Text>
+                <Text style={slst.filterViewSubtitle}>
+                  Sessions from everyone at this property
+                </Text>
               </View>
-              {!showSamples && selectedAgentId === null ? <Ionicons name="checkmark-circle" size={20} color={C.brand} /> : null}
+              {!showSamples && selectedAgentId === null ? (
+                <Ionicons name="checkmark-circle" size={20} color={C.brand} />
+              ) : null}
             </Pressable>
             <Pressable
               accessibilityRole="radio"
-              accessibilityState={{ checked: !showSamples && selectedAgentId === currentAgentId }}
+              accessibilityState={{
+                checked: !showSamples && selectedAgentId === currentAgentId,
+              }}
               onPress={() => selectSessionView(currentAgentId)}
-              style={[slst.filterViewRow, !showSamples && selectedAgentId === currentAgentId && slst.filterViewRowActive]}
+              style={[
+                slst.filterViewRow,
+                !showSamples &&
+                  selectedAgentId === currentAgentId &&
+                  slst.filterViewRowActive,
+              ]}
             >
-              <View style={[slst.filterViewIcon, !showSamples && selectedAgentId === currentAgentId && slst.filterViewIconActive]}>
-                <Ionicons name="person" size={18} color={!showSamples && selectedAgentId === currentAgentId ? C.brand : C.textSec} />
+              <View
+                style={[
+                  slst.filterViewIcon,
+                  !showSamples &&
+                    selectedAgentId === currentAgentId &&
+                    slst.filterViewIconActive,
+                ]}
+              >
+                <Ionicons
+                  name="person"
+                  size={18}
+                  color={
+                    !showSamples && selectedAgentId === currentAgentId
+                      ? C.brand
+                      : C.textSec
+                  }
+                />
               </View>
               <View style={st.flex1}>
                 <Text style={slst.filterViewTitle}>You</Text>
-                <Text style={slst.filterViewSubtitle}>{currentTeamMember?.name || authSession.workspace.user.fullName || authSession.workspace.user.email}</Text>
+                <Text style={slst.filterViewSubtitle}>
+                  {currentTeamMember?.name ||
+                    authSession.workspace.user.fullName ||
+                    authSession.workspace.user.email}
+                </Text>
               </View>
-              {!showSamples && selectedAgentId === currentAgentId ? <Ionicons name="checkmark-circle" size={20} color={C.brand} /> : null}
+              {!showSamples && selectedAgentId === currentAgentId ? (
+                <Ionicons name="checkmark-circle" size={20} color={C.brand} />
+              ) : null}
             </Pressable>
           </View>
 
           {teamMembers.some((member) => member.agentId !== currentAgentId) ? (
             <View style={slst.filterSheetSection}>
               <Text style={slst.filterSheetLabel}>Team members</Text>
-              {teamMembers.filter((member) => member.agentId !== currentAgentId).map((member) => {
-                const active = !showSamples && selectedAgentId === member.agentId;
-                const initials = member.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "?";
-                return (
-                  <Pressable
-                    key={member.agentId}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: active }}
-                    onPress={() => selectSessionView(member.agentId)}
-                    style={[slst.filterViewRow, active && slst.filterViewRowActive]}
-                  >
-                    <View style={[slst.filterMemberAvatar, active && slst.filterViewIconActive]}>
-                      <Text style={[slst.filterMemberInitials, active && slst.filterMemberInitialsActive]}>{initials}</Text>
-                    </View>
-                    <View style={st.flex1}>
-                      <Text style={slst.filterViewTitle}>{member.name}</Text>
-                      <Text style={slst.filterViewSubtitle}>{member.title || member.role || member.email}</Text>
-                    </View>
-                    {active ? <Ionicons name="checkmark-circle" size={20} color={C.brand} /> : null}
-                  </Pressable>
-                );
-              })}
+              {teamMembers
+                .filter((member) => member.agentId !== currentAgentId)
+                .map((member) => {
+                  const active =
+                    !showSamples && selectedAgentId === member.agentId;
+                  const initials =
+                    member.name
+                      .split(/\s+/)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((part) => part[0]?.toUpperCase())
+                      .join("") || "?";
+                  return (
+                    <Pressable
+                      key={member.agentId}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: active }}
+                      onPress={() => selectSessionView(member.agentId)}
+                      style={[
+                        slst.filterViewRow,
+                        active && slst.filterViewRowActive,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          slst.filterMemberAvatar,
+                          active && slst.filterViewIconActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            slst.filterMemberInitials,
+                            active && slst.filterMemberInitialsActive,
+                          ]}
+                        >
+                          {initials}
+                        </Text>
+                      </View>
+                      <View style={st.flex1}>
+                        <Text style={slst.filterViewTitle}>{member.name}</Text>
+                        <Text style={slst.filterViewSubtitle}>
+                          {member.title || member.role || member.email}
+                        </Text>
+                      </View>
+                      {active ? (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={C.brand}
+                        />
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
             </View>
           ) : null}
 
@@ -2748,16 +3979,41 @@ function SessionsListScreen({
               accessibilityRole="radio"
               accessibilityState={{ checked: showSamples }}
               onPress={() => selectSessionView(null, true)}
-              style={[slst.filterViewRow, showSamples && slst.filterViewRowActive]}
+              style={[
+                slst.filterViewRow,
+                showSamples && slst.filterViewRowActive,
+              ]}
             >
-              <View style={[slst.filterViewIcon, slst.filterSampleIcon, showSamples && slst.filterViewIconActive]}>
-                <Ionicons name="sparkles" size={18} color={showSamples ? C.brand : C.purple} />
+              <View
+                style={[
+                  slst.filterViewIcon,
+                  slst.filterSampleIcon,
+                  showSamples && slst.filterViewIconActive,
+                ]}
+              >
+                <Ionicons
+                  name="sparkles"
+                  size={18}
+                  color={showSamples ? C.brand : C.purple}
+                />
               </View>
               <View style={st.flex1}>
                 <Text style={slst.filterViewTitle}>Samples</Text>
-                <Text style={slst.filterViewSubtitle}>{samplesAvailable ? `${sampleSessions.length} analyzed sessions to explore` : "View curated example sessions"}</Text>
+                <Text style={slst.filterViewSubtitle}>
+                  {samplesAvailable
+                    ? `${sampleSessions.length} analyzed sessions to explore`
+                    : "View curated example sessions"}
+                </Text>
               </View>
-              {showSamples ? <Ionicons name="checkmark-circle" size={20} color={C.brand} /> : <Ionicons name="chevron-forward" size={17} color={C.textMuted} />}
+              {showSamples ? (
+                <Ionicons name="checkmark-circle" size={20} color={C.brand} />
+              ) : (
+                <Ionicons
+                  name="chevron-forward"
+                  size={17}
+                  color={C.textMuted}
+                />
+              )}
             </Pressable>
           </View>
 
@@ -2769,10 +4025,23 @@ function SessionsListScreen({
                 return (
                   <Pressable
                     key={chip.value}
-                    onPress={() => { selectionHaptic(); setStatusFilter(chip.value); }}
-                    style={[slst.filterOption, active && slst.filterOptionActive]}
+                    onPress={() => {
+                      selectionHaptic();
+                      setStatusFilter(chip.value);
+                    }}
+                    style={[
+                      slst.filterOption,
+                      active && slst.filterOptionActive,
+                    ]}
                   >
-                    <Text style={[slst.filterOptionText, active && slst.filterOptionTextActive]}>{chip.label}</Text>
+                    <Text
+                      style={[
+                        slst.filterOptionText,
+                        active && slst.filterOptionTextActive,
+                      ]}
+                    >
+                      {chip.label}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -2786,11 +4055,28 @@ function SessionsListScreen({
                 return (
                   <Pressable
                     key={option.value}
-                    onPress={() => { selectionHaptic(); setSort(option.value); }}
-                    style={[slst.filterOption, active && slst.filterOptionActive]}
+                    onPress={() => {
+                      selectionHaptic();
+                      setSort(option.value);
+                    }}
+                    style={[
+                      slst.filterOption,
+                      active && slst.filterOptionActive,
+                    ]}
                   >
-                    <Ionicons name={option.icon} size={15} color={active ? C.brand : C.textMuted} />
-                    <Text style={[slst.filterOptionText, active && slst.filterOptionTextActive]}>{option.label}</Text>
+                    <Ionicons
+                      name={option.icon}
+                      size={15}
+                      color={active ? C.brand : C.textMuted}
+                    />
+                    <Text
+                      style={[
+                        slst.filterOptionText,
+                        active && slst.filterOptionTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -2808,89 +4094,433 @@ const slst = StyleSheet.create({
   practiceSection: { gap: 10, paddingVertical: 3 },
   practiceHeading: { flexDirection: "row", alignItems: "center", gap: 12 },
   practiceTitle: { color: C.text, fontSize: 16, fontWeight: "900" },
-  practiceSubtitle: { marginTop: 2, color: C.textMuted, fontSize: 11, fontWeight: "600" },
-  practiceOpen: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
+  practiceSubtitle: {
+    marginTop: 2,
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  practiceOpen: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
   practiceOpenText: { color: C.brand, fontSize: 12, fontWeight: "900" },
   practiceCards: { gap: 9, paddingRight: 2 },
-  practiceCard: { width: 142, minHeight: 126, justifyContent: "space-between", gap: 9, padding: 13, borderWidth: 1, borderRadius: 16, backgroundColor: C.card },
-  practiceIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12 },
-  practiceCardTitle: { color: C.text, fontSize: 13, lineHeight: 17, fontWeight: "900" },
-  practiceCardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  practiceDifficulty: { flex: 1, fontSize: 10, fontWeight: "900", textTransform: "capitalize" },
+  practiceCard: {
+    width: 142,
+    minHeight: 126,
+    justifyContent: "space-between",
+    gap: 9,
+    padding: 13,
+    borderWidth: 1,
+    borderRadius: 16,
+    backgroundColor: C.card,
+  },
+  practiceIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+  },
+  practiceCardTitle: {
+    color: C.text,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "900",
+  },
+  practiceCardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  practiceDifficulty: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "capitalize",
+  },
   practiceLoadingRow: { flexDirection: "row", gap: 9 },
-  practiceSkeleton: { width: 142, height: 126, borderRadius: 16, backgroundColor: "#eef2f7" },
-  practiceEmpty: { minHeight: 70, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: C.border, borderRadius: 15, backgroundColor: C.card },
-  practiceEmptyIcon: { width: 39, height: 39, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.brand + "10" },
+  practiceSkeleton: {
+    width: 142,
+    height: 126,
+    borderRadius: 16,
+    backgroundColor: "#eef2f7",
+  },
+  practiceEmpty: {
+    minHeight: 70,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 15,
+    backgroundColor: C.card,
+  },
+  practiceEmptyIcon: {
+    width: 39,
+    height: 39,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: C.brand + "10",
+  },
   practiceEmptyTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  practiceEmptySubtitle: { marginTop: 3, color: C.textMuted, fontSize: 11, fontWeight: "600" },
-  sampleHeadingSub: { marginTop: 3, color: C.textMuted, fontSize: 11, fontWeight: "700" },
-  metricSkeletonIcon: { width: 14, height: 14, borderRadius: 7, backgroundColor: "#e8eef7" },
-  metricSkeletonValue: { width: 22, height: 15, borderRadius: 5, backgroundColor: "#e8eef7" },
-  metricSkeletonLabel: { width: 18, height: 9, borderRadius: 4, backgroundColor: "#eef2f7" },
-  loadingGroupHeader: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
-  loadingGroupLabel: { width: 112, height: 11, borderRadius: 6, backgroundColor: "#e8eef7" },
-  loadingGroupCount: { width: 24, height: 20, borderRadius: 10, backgroundColor: "#eef2f7" },
-  sampleModeBanner: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 14, backgroundColor: "#faf7ff" },
-  sampleModeIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.purpleBg },
+  practiceEmptySubtitle: {
+    marginTop: 3,
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  sampleHeadingSub: {
+    marginTop: 3,
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  metricSkeletonIcon: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#e8eef7",
+  },
+  metricSkeletonValue: {
+    width: 22,
+    height: 15,
+    borderRadius: 5,
+    backgroundColor: "#e8eef7",
+  },
+  metricSkeletonLabel: {
+    width: 18,
+    height: 9,
+    borderRadius: 4,
+    backgroundColor: "#eef2f7",
+  },
+  loadingGroupHeader: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  loadingGroupLabel: {
+    width: 112,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: "#e8eef7",
+  },
+  loadingGroupCount: {
+    width: 24,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#eef2f7",
+  },
+  sampleModeBanner: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+    borderRadius: 14,
+    backgroundColor: "#faf7ff",
+  },
+  sampleModeIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    backgroundColor: C.purpleBg,
+  },
   sampleModeTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  sampleModeSub: { marginTop: 2, color: C.textSec, fontSize: 11, lineHeight: 15, fontWeight: "600" },
+  sampleModeSub: {
+    marginTop: 2,
+    color: C.textSec,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "600",
+  },
   sampleModeAction: { color: C.brand, fontSize: 12, fontWeight: "900" },
-  sampleEmptyCard: { alignItems: "center", gap: 12, marginTop: 12, paddingHorizontal: 20, paddingVertical: 24, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 20, backgroundColor: "#fff" },
-  sampleEmptyIcon: { width: 54, height: 54, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: C.purpleBg },
-  sampleEmptyTitle: { color: C.text, fontSize: 21, fontWeight: "900", letterSpacing: -0.25 },
-  sampleEmptySub: { maxWidth: 330, color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600", textAlign: "center" },
+  sampleEmptyCard: {
+    alignItems: "center",
+    gap: 12,
+    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+    borderRadius: 20,
+    backgroundColor: "#fff",
+  },
+  sampleEmptyIcon: {
+    width: 54,
+    height: 54,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
+    backgroundColor: C.purpleBg,
+  },
+  sampleEmptyTitle: {
+    color: C.text,
+    fontSize: 21,
+    fontWeight: "900",
+    letterSpacing: -0.25,
+  },
+  sampleEmptySub: {
+    maxWidth: 330,
+    color: C.textSec,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
+    textAlign: "center",
+  },
   emptyActions: { alignSelf: "stretch", gap: 9, marginTop: 3 },
-  samplePrimaryButton: { alignSelf: "stretch", minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, marginTop: 2, paddingHorizontal: 16, borderRadius: 14, backgroundColor: C.brand },
-  samplePrimaryText: { flex: 1, color: "#fff", fontSize: 14, fontWeight: "900", textAlign: "center" },
-  emptySecondaryButton: { alignSelf: "stretch", minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 16, borderWidth: 1, borderColor: "#bfdbfe", borderRadius: 14, backgroundColor: "#eff6ff" },
-  emptySecondaryText: { flex: 1, color: C.brand, fontSize: 14, fontWeight: "900", textAlign: "center" },
-  filterButton: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 13, backgroundColor: "#fff" },
+  samplePrimaryButton: {
+    alignSelf: "stretch",
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    marginTop: 2,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: C.brand,
+  },
+  samplePrimaryText: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  emptySecondaryButton: {
+    alignSelf: "stretch",
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    borderRadius: 14,
+    backgroundColor: "#eff6ff",
+  },
+  emptySecondaryText: {
+    flex: 1,
+    color: C.brand,
+    fontSize: 14,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  filterButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 13,
+    borderWidth: 1,
+    borderColor: "#dbe3ef",
+    borderRadius: 13,
+    backgroundColor: "#fff",
+  },
   filterButtonText: { color: C.text, fontSize: 13, fontWeight: "900" },
-  filterCount: { minWidth: 20, height: 20, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, borderRadius: 10, backgroundColor: C.brand },
+  filterCount: {
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: C.brand,
+  },
   filterCountText: { color: "#fff", fontSize: 10, fontWeight: "900" },
   sep: { height: 1, backgroundColor: "#f1f5f9" },
-  endText: { textAlign: "center", paddingVertical: 20, fontSize: 12, fontWeight: "600", color: C.textMuted },
+  endText: {
+    textAlign: "center",
+    paddingVertical: 20,
+    fontSize: 12,
+    fontWeight: "600",
+    color: C.textMuted,
+  },
   skeleton: {
-    paddingVertical: 14, paddingHorizontal: 16, gap: 6,
-    borderBottomWidth: 1, borderBottomColor: "#f1f5f9",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
   skelBar: { height: 12, borderRadius: 6, backgroundColor: "#f1f5f9" },
-  filterSheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingBottom: 10 },
+  filterSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingBottom: 10,
+  },
   filterSheetTitle: { color: C.text, fontSize: 19, fontWeight: "900" },
-  filterSheetSubtitle: { marginTop: 2, color: C.textMuted, fontSize: 11, fontWeight: "600" },
-  filterSheetClose: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "#f2f4f7" },
+  filterSheetSubtitle: {
+    marginTop: 2,
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  filterSheetClose: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+    backgroundColor: "#f2f4f7",
+  },
   filterSheetBody: { paddingTop: 4 },
   filterSheetContent: { gap: 18, paddingBottom: 28 },
   filterSheetSection: { gap: 8 },
-  filterSheetLabel: { color: C.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" },
-  filterViewRow: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 13, backgroundColor: "#fff" },
+  filterSheetLabel: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  filterViewRow: {
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 13,
+    backgroundColor: "#fff",
+  },
   filterViewRowActive: { borderColor: "#93c5fd", backgroundColor: "#eff6ff" },
-  filterViewIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#f2f4f7" },
+  filterViewIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#f2f4f7",
+  },
   filterViewIconActive: { backgroundColor: "#dbeafe" },
   filterSampleIcon: { backgroundColor: C.purpleBg },
   filterViewTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  filterViewSubtitle: { marginTop: 2, color: C.textMuted, fontSize: 10, lineHeight: 14, fontWeight: "600" },
-  filterMemberAvatar: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19, backgroundColor: "#f2f4f7" },
+  filterViewSubtitle: {
+    marginTop: 2,
+    color: C.textMuted,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "600",
+  },
+  filterMemberAvatar: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 19,
+    backgroundColor: "#f2f4f7",
+  },
   filterMemberInitials: { color: C.textSec, fontSize: 12, fontWeight: "900" },
   filterMemberInitialsActive: { color: C.brand },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  filterOption: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 10, backgroundColor: "#fff" },
+  filterOption: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 11,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+  },
   filterOptionActive: { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
   filterOptionText: { color: C.textSec, fontSize: 11, fontWeight: "800" },
   filterOptionTextActive: { color: C.brand },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  avgPill: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 999, backgroundColor: "#fff" },
-  avgPillValue: { color: C.text, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  avgPillLabel: { color: C.textMuted, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "#fff" },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  avgPill: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 11,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 999,
+    backgroundColor: "#fff",
+  },
+  avgPillValue: {
+    color: C.text,
+    fontSize: 15,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  avgPillLabel: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#fff",
+  },
   filterChipActive: { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
   filterChipText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
   filterChipTextActive: { color: C.brand },
-  attentionChip: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: "#f59e0b", borderRadius: 18 },
+  attentionChip: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+    borderRadius: 18,
+  },
   attentionText: { color: "#f59e0b", fontSize: 12, fontWeight: "800" },
-  groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 8, paddingBottom: 7 },
-  groupLabel: { color: "#9ca3af", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  groupCount: { minWidth: 18, height: 18, borderRadius: 4, backgroundColor: "#e5e7eb", alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 7,
+  },
+  groupLabel: {
+    color: "#9ca3af",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  groupCount: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 4,
+    backgroundColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
   groupCountText: { color: C.textSec, fontSize: 10, fontWeight: "900" },
   swipeContainer: { marginBottom: 10, borderRadius: 12, overflow: "hidden" },
   swipeActions: { width: SESSION_SWIPE_DELETE_WIDTH },
@@ -2904,18 +4534,54 @@ const slst = StyleSheet.create({
   },
   deleteActionPressed: { backgroundColor: "#dc2626", opacity: 0.92 },
   deleteActionText: { color: "#fff", fontSize: 11, fontWeight: "800" },
-  sessionCard: { minHeight: 74, flexDirection: "row", alignItems: "center", gap: 12, padding: 15, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, backgroundColor: "#fff" },
-  sampleSessionCard: { marginBottom: 10, borderColor: "#ddd6fe", backgroundColor: "#fefcff" },
-  sampleSessionIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.purpleBg },
-  sampleBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, backgroundColor: C.purpleBg },
+  sessionCard: {
+    minHeight: 74,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+  },
+  sampleSessionCard: {
+    marginBottom: 10,
+    borderColor: "#ddd6fe",
+    backgroundColor: "#fefcff",
+  },
+  sampleSessionIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: C.purpleBg,
+  },
+  sampleBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
+    backgroundColor: C.purpleBg,
+  },
   sampleBadgeText: { color: C.purple, fontSize: 8, fontWeight: "900" },
   sessionCardDeleting: { opacity: 0.55 },
   sessionNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   sessionName: { flex: 1, color: "#1a1a1a", fontSize: 15, fontWeight: "900" },
   sessionMeta: { color: "#666", fontSize: 12, marginTop: 5 },
-  sessionDescription: { color: "#667085", fontSize: 12, marginTop: 4, lineHeight: 16 },
+  sessionDescription: {
+    color: "#667085",
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16,
+  },
   sessionRight: { alignItems: "flex-end", gap: 5 },
-  syncBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, backgroundColor: "#ebf5ff" },
+  syncBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: "#ebf5ff",
+  },
   syncText: { color: C.brand, fontSize: 9, fontWeight: "900" },
   reviewBadge: { backgroundColor: "#fffbeb" },
   reviewText: { color: "#f59e0b" },
@@ -2929,28 +4595,117 @@ const slst = StyleSheet.create({
 
 const calSt = StyleSheet.create({
   upcomingBlock: { gap: 12 },
-  upcomingHeaderCount: { minWidth: 30, height: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 9, borderRadius: 14, backgroundColor: C.brand + "12" },
+  upcomingHeaderCount: {
+    minWidth: 30,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 9,
+    borderRadius: 14,
+    backgroundColor: C.brand + "12",
+  },
   upcomingHeaderCountText: { color: C.brand, fontSize: 11, fontWeight: "900" },
   upcomingGroups: { gap: 16 },
   upcomingGroup: { gap: 8 },
-  upcomingGroupHeader: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 2 },
-  upcomingGroupMarker: { width: 4, height: 30, borderRadius: 2, backgroundColor: C.brand },
+  upcomingGroupHeader: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 2,
+  },
+  upcomingGroupMarker: {
+    width: 4,
+    height: 30,
+    borderRadius: 2,
+    backgroundColor: C.brand,
+  },
   upcomingGroupLabel: { color: C.text, fontSize: 13, fontWeight: "900" },
-  upcomingGroupDate: { color: C.textMuted, fontSize: 10, fontWeight: "700", marginTop: 2 },
-  upcomingGroupCount: { minWidth: 24, height: 24, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 12, backgroundColor: "#EEF4FF" },
+  upcomingGroupDate: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  upcomingGroupCount: {
+    minWidth: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 7,
+    borderRadius: 12,
+    backgroundColor: "#EEF4FF",
+  },
   upcomingGroupCountText: { color: C.brand, fontSize: 10, fontWeight: "900" },
   selectedDayBlock: { gap: 10 },
-  selectedDayHeader: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 2 },
-  selectedDayEyebrow: { color: C.brand, fontSize: 9, fontWeight: "900", letterSpacing: 0.9, textTransform: "uppercase" },
-  selectedDayTitle: { color: C.text, fontSize: 19, fontWeight: "900", marginTop: 2 },
-  selectedDayCount: { minWidth: 30, height: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 9, borderRadius: 14, backgroundColor: "#F2F4F7" },
+  selectedDayHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 2,
+  },
+  selectedDayEyebrow: {
+    color: C.brand,
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
+  },
+  selectedDayTitle: {
+    color: C.text,
+    fontSize: 19,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  selectedDayCount: {
+    minWidth: 30,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 9,
+    borderRadius: 14,
+    backgroundColor: "#F2F4F7",
+  },
   selectedDayCountText: { color: C.textSec, fontSize: 11, fontWeight: "900" },
-  connectionFooter: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: "#e6ebf2" },
-  connectionIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#ecfdf3" },
+  connectionFooter: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e6ebf2",
+  },
+  connectionIcon: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: "#ecfdf3",
+  },
   connectionTitle: { color: C.text, fontSize: 12, fontWeight: "900" },
-  connectionMeta: { color: C.textMuted, fontSize: 10, fontWeight: "700", marginTop: 2 },
-  liveStatus: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: "#ecfdf3" },
-  liveStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green },
+  connectionMeta: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  liveStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#ecfdf3",
+  },
+  liveStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.green,
+  },
   liveStatusText: { color: C.green, fontSize: 9, fontWeight: "900" },
 });
 
@@ -2975,13 +4730,25 @@ function CalendarScreen({
   const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
   const [monthOffset, setMonthOffset] = useState(0);
   const [syncing, setSyncing] = useState(false);
-  const viewDate = useMemo(() => new Date(today.getFullYear(), today.getMonth() + monthOffset, 1), [monthOffset]);
+  const viewDate = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth() + monthOffset, 1),
+    [monthOffset],
+  );
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
-  const monthLabel = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const monthLabel = viewDate.toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
 
   const itemsByDay = useMemo(() => {
-    const map: Record<number, Array<{ source: "session"; session: SessionSummary } | { source: "entrata"; event: CalendarEvent }>> = {};
+    const map: Record<
+      number,
+      Array<
+        | { source: "session"; session: SessionSummary }
+        | { source: "entrata"; event: CalendarEvent }
+      >
+    > = {};
     for (const s of sessions) {
       if (!s.scheduledAt) continue;
       const d = new Date(s.scheduledAt);
@@ -2991,7 +4758,9 @@ function CalendarScreen({
       }
     }
     for (const event of entrataEvents) {
-      const [eventYear, eventMonth, eventDay] = event.appointment_date.split("-").map(Number);
+      const [eventYear, eventMonth, eventDay] = event.appointment_date
+        .split("-")
+        .map(Number);
       if (eventYear === year && eventMonth === month + 1 && eventDay) {
         (map[eventDay] ??= []).push({ source: "entrata", event });
       }
@@ -3005,57 +4774,95 @@ function CalendarScreen({
   let week: Array<number | null> = Array(firstDow).fill(null);
   for (let d = 1; d <= daysInMonth; d++) {
     week.push(d);
-    if (week.length === 7) { weeks.push(week); week = []; }
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
   }
-  if (week.length) { while (week.length < 7) week.push(null); weeks.push(week); }
+  if (week.length) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
 
-  const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
+  const [selectedDay, setSelectedDay] = useState<number | null>(
+    today.getDate(),
+  );
   const dayItems = selectedDay ? (itemsByDay[selectedDay] ?? []) : [];
   const upcomingFiveDaySessions = useMemo(() => {
-    const windowStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const windowEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 5).getTime();
+    const windowStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    ).getTime();
+    const windowEnd = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() + 5,
+    ).getTime();
     return upcomingSessions.filter((session) => {
       if (session.status === "in_progress") return true;
       if (!session.scheduledAt) return false;
       const scheduledTime = new Date(session.scheduledAt).getTime();
-      return !Number.isNaN(scheduledTime) && scheduledTime >= windowStart && scheduledTime < windowEnd;
+      return (
+        !Number.isNaN(scheduledTime) &&
+        scheduledTime >= windowStart &&
+        scheduledTime < windowEnd
+      );
     });
   }, [todayKey, upcomingSessions]);
   const upcomingGroups = useMemo(() => {
-    const groups = new Map<string, {
-      key: string;
-      label: string;
-      dateLabel: string;
-      sessions: SessionSummary[];
-    }>();
-    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const groups = new Map<
+      string,
+      {
+        key: string;
+        label: string;
+        dateLabel: string;
+        sessions: SessionSummary[];
+      }
+    >();
+    const tomorrow = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() + 1,
+    );
     const isSameDay = (left: Date, right: Date) =>
-      left.getFullYear() === right.getFullYear()
-      && left.getMonth() === right.getMonth()
-      && left.getDate() === right.getDate();
+      left.getFullYear() === right.getFullYear() &&
+      left.getMonth() === right.getMonth() &&
+      left.getDate() === right.getDate();
 
     for (const session of upcomingFiveDaySessions) {
-      const scheduled = session.scheduledAt ? new Date(session.scheduledAt) : null;
-      const validScheduled = scheduled && !Number.isNaN(scheduled.getTime()) ? scheduled : null;
-      const key = session.status === "in_progress"
-        ? "in-progress"
-        : validScheduled
-          ? `${validScheduled.getFullYear()}-${validScheduled.getMonth() + 1}-${validScheduled.getDate()}`
-          : "unscheduled";
-      const label = session.status === "in_progress"
-        ? "Happening now"
-        : validScheduled && isSameDay(validScheduled, today)
-          ? "Today"
-          : validScheduled && isSameDay(validScheduled, tomorrow)
-            ? "Tomorrow"
-            : validScheduled
-              ? validScheduled.toLocaleDateString(undefined, { weekday: "long" })
-              : "Scheduled";
-      const dateLabel = session.status === "in_progress"
-        ? "Live now"
-        : validScheduled
-          ? validScheduled.toLocaleDateString(undefined, { month: "long", day: "numeric" })
-          : "Date to be confirmed";
+      const scheduled = session.scheduledAt
+        ? new Date(session.scheduledAt)
+        : null;
+      const validScheduled =
+        scheduled && !Number.isNaN(scheduled.getTime()) ? scheduled : null;
+      const key =
+        session.status === "in_progress"
+          ? "in-progress"
+          : validScheduled
+            ? `${validScheduled.getFullYear()}-${validScheduled.getMonth() + 1}-${validScheduled.getDate()}`
+            : "unscheduled";
+      const label =
+        session.status === "in_progress"
+          ? "Happening now"
+          : validScheduled && isSameDay(validScheduled, today)
+            ? "Today"
+            : validScheduled && isSameDay(validScheduled, tomorrow)
+              ? "Tomorrow"
+              : validScheduled
+                ? validScheduled.toLocaleDateString(undefined, {
+                    weekday: "long",
+                  })
+                : "Scheduled";
+      const dateLabel =
+        session.status === "in_progress"
+          ? "Live now"
+          : validScheduled
+            ? validScheduled.toLocaleDateString(undefined, {
+                month: "long",
+                day: "numeric",
+              })
+            : "Date to be confirmed";
       const group = groups.get(key);
       if (group) {
         group.sessions.push(session);
@@ -3067,9 +4874,7 @@ function CalendarScreen({
   }, [todayKey, upcomingFiveDaySessions]);
 
   useEffect(() => {
-    setSelectedDay(
-      monthOffset === 0 ? today.getDate() : null
-    );
+    setSelectedDay(monthOffset === 0 ? today.getDate() : null);
   }, [monthOffset]);
 
   async function runSync() {
@@ -3079,7 +4884,10 @@ function CalendarScreen({
       await onReload();
       showToast(`${result?.eventsSynced ?? 0} Entrata tours synced`, "success");
     } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Entrata sync failed", "error");
+      showToast(
+        caught instanceof Error ? caught.message : "Entrata sync failed",
+        "error",
+      );
     } finally {
       setSyncing(false);
     }
@@ -3092,43 +4900,98 @@ function CalendarScreen({
         onCommunityPress={onCommunityPress}
         left={<TourLogo width={62} />}
         right={
-          <Pressable onPress={() => void runSync()} disabled={syncing} style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}>
-            {syncing ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="sync" size={18} color={C.text} />}
+          <Pressable
+            onPress={() => void runSync()}
+            disabled={syncing}
+            style={({ pressed }) => [homeSt.headerIcon, pressed && st.pressed]}
+          >
+            {syncing ? (
+              <LoadingDots size="small" color={C.brand} />
+            ) : (
+              <Ionicons name="sync" size={18} color={C.text} />
+            )}
           </Pressable>
         }
       />
       <View style={st.pageHeadingRow}>
         <View style={st.flex1}>
           <Text style={st.pageTitle}>Calendar</Text>
-          <Text style={st.pageHeadingSub}>{entrataEvents.length} Entrata tours · {sessions.length} sessions</Text>
+          <Text style={st.pageHeadingSub}>
+            {entrataEvents.length} Entrata tours · {sessions.length} sessions
+          </Text>
         </View>
       </View>
 
       <View style={st.card}>
         <View style={{ padding: 16 }}>
           <View style={st.calNav}>
-            <Pressable onPress={() => setMonthOffset((p) => p - 1)}><Ionicons name="chevron-back" size={22} color={C.text} /></Pressable>
+            <Pressable onPress={() => setMonthOffset((p) => p - 1)}>
+              <Ionicons name="chevron-back" size={22} color={C.text} />
+            </Pressable>
             <Text style={st.calMonth}>{monthLabel}</Text>
-            <Pressable onPress={() => setMonthOffset((p) => p + 1)}><Ionicons name="chevron-forward" size={22} color={C.text} /></Pressable>
+            <Pressable onPress={() => setMonthOffset((p) => p + 1)}>
+              <Ionicons name="chevron-forward" size={22} color={C.text} />
+            </Pressable>
           </View>
           <View style={st.calDowRow}>
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <Text key={d} style={st.calDow}>{d}</Text>)}
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <Text key={d} style={st.calDow}>
+                {d}
+              </Text>
+            ))}
           </View>
           {weeks.map((w, wi) => (
             <View key={wi} style={st.calWeek}>
               {w.map((d, di) => {
                 if (d === null) return <View key={di} style={st.calDayCell} />;
-                const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+                const isToday =
+                  d === today.getDate() &&
+                  month === today.getMonth() &&
+                  year === today.getFullYear();
                 const dayItems = itemsByDay[d] ?? [];
-                const hasSessions = dayItems.some((item) => item.source === "session");
-                const hasEntrata = dayItems.some((item) => item.source === "entrata");
+                const hasSessions = dayItems.some(
+                  (item) => item.source === "session",
+                );
+                const hasEntrata = dayItems.some(
+                  (item) => item.source === "entrata",
+                );
                 const isSelected = d === selectedDay;
                 return (
-                  <Pressable key={di} onPress={() => setSelectedDay(d === selectedDay ? null : d)} style={[st.calDayCell, isSelected && st.calDaySelected, isToday && !isSelected && st.calDayToday]}>
-                    <Text style={[st.calDayText, isToday && st.calDayTextToday, isSelected && st.calDayTextSelected]}>{d}</Text>
+                  <Pressable
+                    key={di}
+                    onPress={() => setSelectedDay(d === selectedDay ? null : d)}
+                    style={[
+                      st.calDayCell,
+                      isSelected && st.calDaySelected,
+                      isToday && !isSelected && st.calDayToday,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        st.calDayText,
+                        isToday && st.calDayTextToday,
+                        isSelected && st.calDayTextSelected,
+                      ]}
+                    >
+                      {d}
+                    </Text>
                     <View style={st.calDots}>
-                      {hasEntrata && <View style={[st.calDot, { backgroundColor: isSelected ? "#fff" : C.purple }]} />}
-                      {hasSessions && <View style={[st.calDot, { backgroundColor: isSelected ? "#fff" : C.brand }]} />}
+                      {hasEntrata && (
+                        <View
+                          style={[
+                            st.calDot,
+                            { backgroundColor: isSelected ? "#fff" : C.purple },
+                          ]}
+                        />
+                      )}
+                      {hasSessions && (
+                        <View
+                          style={[
+                            st.calDot,
+                            { backgroundColor: isSelected ? "#fff" : C.brand },
+                          ]}
+                        />
+                      )}
                     </View>
                   </Pressable>
                 );
@@ -3144,38 +5007,89 @@ function CalendarScreen({
             <View style={st.flex1}>
               <Text style={calSt.selectedDayEyebrow}>Selected date</Text>
               <Text style={calSt.selectedDayTitle}>
-                {new Date(year, month, selectedDay).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+                {new Date(year, month, selectedDay).toLocaleDateString(
+                  undefined,
+                  { weekday: "long", month: "long", day: "numeric" },
+                )}
               </Text>
             </View>
             <View style={calSt.selectedDayCount}>
               <Text style={calSt.selectedDayCountText}>{dayItems.length}</Text>
             </View>
           </View>
-          {dayItems.length === 0 ? <EmptyState icon="calendar-outline" title="No calendar items" subtitle={`Nothing scheduled for ${monthLabel.split(" ")[0]} ${selectedDay}`} /> : (
+          {dayItems.length === 0 ? (
+            <EmptyState
+              icon="calendar-outline"
+              title="No calendar items"
+              subtitle={`Nothing scheduled for ${monthLabel.split(" ")[0]} ${selectedDay}`}
+            />
+          ) : (
             <View style={st.card}>
-              {dayItems.map((item, index) => item.source === "session" ? (
-                <SessionRow key={item.session.id} session={item.session} onPress={() => onSession(item.session.id)} isLast={index === dayItems.length - 1} />
-              ) : (
-                <Pressable
-                  key={item.event.id}
-                  disabled={!item.event.session_id}
-                  onPress={() => item.event.session_id && onSession(item.event.session_id)}
-                  style={({ pressed }) => [st.calendarEventRow, index < dayItems.length - 1 && st.rowBorder, pressed && st.pressed]}
-                >
-                  <View style={st.entrataEventIcon}><Ionicons name={item.event.event_type === "virtual" ? "videocam-outline" : "business-outline"} size={18} color={C.purple} /></View>
-                  <View style={st.flex1}>
-                    <Text style={st.sessionTitle} numberOfLines={1}>{item.event.prospect_name ?? "Entrata tour"}</Text>
-                    <Text style={st.sessionMeta}>
-                      {formatEntrataClock(item.event.time_from)} · {item.event.event_type === "virtual" ? "Virtual" : "In person"}
-                    </Text>
-                    {(item.event.prospect_email || item.event.prospect_phone) && (
-                      <Text style={st.calendarContact} numberOfLines={1}>{item.event.prospect_email ?? item.event.prospect_phone}</Text>
+              {dayItems.map((item, index) =>
+                item.source === "session" ? (
+                  <SessionRow
+                    key={item.session.id}
+                    session={item.session}
+                    onPress={() => onSession(item.session.id)}
+                    isLast={index === dayItems.length - 1}
+                  />
+                ) : (
+                  <Pressable
+                    key={item.event.id}
+                    disabled={!item.event.session_id}
+                    onPress={() =>
+                      item.event.session_id && onSession(item.event.session_id)
+                    }
+                    style={({ pressed }) => [
+                      st.calendarEventRow,
+                      index < dayItems.length - 1 && st.rowBorder,
+                      pressed && st.pressed,
+                    ]}
+                  >
+                    <View style={st.entrataEventIcon}>
+                      <Ionicons
+                        name={
+                          item.event.event_type === "virtual"
+                            ? "videocam-outline"
+                            : "business-outline"
+                        }
+                        size={18}
+                        color={C.purple}
+                      />
+                    </View>
+                    <View style={st.flex1}>
+                      <Text style={st.sessionTitle} numberOfLines={1}>
+                        {item.event.prospect_name ?? "Entrata tour"}
+                      </Text>
+                      <Text style={st.sessionMeta}>
+                        {formatEntrataClock(item.event.time_from)} ·{" "}
+                        {item.event.event_type === "virtual"
+                          ? "Virtual"
+                          : "In person"}
+                      </Text>
+                      {(item.event.prospect_email ||
+                        item.event.prospect_phone) && (
+                        <Text style={st.calendarContact} numberOfLines={1}>
+                          {item.event.prospect_email ??
+                            item.event.prospect_phone}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={[st.badge, { backgroundColor: C.purpleBg }]}>
+                      <Text style={[st.badgeText, { color: C.purple }]}>
+                        {item.event.status.replaceAll("_", " ")}
+                      </Text>
+                    </View>
+                    {item.event.session_id && (
+                      <Ionicons
+                        name="chevron-forward"
+                        size={17}
+                        color={C.textMuted}
+                      />
                     )}
-                  </View>
-                  <View style={[st.badge, { backgroundColor: C.purpleBg }]}><Text style={[st.badgeText, { color: C.purple }]}>{item.event.status.replaceAll("_", " ")}</Text></View>
-                  {item.event.session_id && <Ionicons name="chevron-forward" size={17} color={C.textMuted} />}
-                </Pressable>
-              ))}
+                  </Pressable>
+                ),
+              )}
             </View>
           )}
         </View>
@@ -3185,11 +5099,17 @@ function CalendarScreen({
         <View style={homeSt.sectionHeader}>
           <Text style={homeSt.sectionTitle}>Tours in the Next 5 Days</Text>
           <View style={calSt.upcomingHeaderCount}>
-            <Text style={calSt.upcomingHeaderCountText}>{upcomingFiveDaySessions.length}</Text>
+            <Text style={calSt.upcomingHeaderCountText}>
+              {upcomingFiveDaySessions.length}
+            </Text>
           </View>
         </View>
         {upcomingFiveDaySessions.length === 0 ? (
-          <EmptyState icon="calendar-outline" title="No scheduled tours in the next 5 days" subtitle="Newly scheduled tours will appear here" />
+          <EmptyState
+            icon="calendar-outline"
+            title="No scheduled tours in the next 5 days"
+            subtitle="Newly scheduled tours will appear here"
+          />
         ) : (
           <View style={calSt.upcomingGroups}>
             {upcomingGroups.map((group) => (
@@ -3198,17 +5118,28 @@ function CalendarScreen({
                   <View style={calSt.upcomingGroupMarker} />
                   <View style={st.flex1}>
                     <Text style={calSt.upcomingGroupLabel}>{group.label}</Text>
-                    <Text style={calSt.upcomingGroupDate}>{group.dateLabel}</Text>
+                    <Text style={calSt.upcomingGroupDate}>
+                      {group.dateLabel}
+                    </Text>
                   </View>
                   <View style={calSt.upcomingGroupCount}>
-                    <Text style={calSt.upcomingGroupCountText}>{group.sessions.length}</Text>
+                    <Text style={calSt.upcomingGroupCountText}>
+                      {group.sessions.length}
+                    </Text>
                   </View>
                 </View>
                 <View style={homeSt.focusStack}>
                   {group.sessions.map((session) => (
-                    <MotionPressable key={session.id} onPress={() => onSession(session.id)} haptic="selection" style={homeSt.tourCard}>
+                    <MotionPressable
+                      key={session.id}
+                      onPress={() => onSession(session.id)}
+                      haptic="selection"
+                      style={homeSt.tourCard}
+                    >
                       <View style={st.flex1}>
-                        <Text style={homeSt.tourTitle} numberOfLines={1}>{session.title}</Text>
+                        <Text style={homeSt.tourTitle} numberOfLines={1}>
+                          {session.title}
+                        </Text>
                         <View style={homeSt.tourMetaRow}>
                           <Text style={homeSt.timePill}>
                             {session.status === "in_progress"
@@ -3217,13 +5148,21 @@ function CalendarScreen({
                                 ? fmtTime(session.scheduledAt)
                                 : "Scheduled"}
                           </Text>
-                          <Text style={homeSt.tourMeta} numberOfLines={1}>{session.prospectName ?? "Prospect details pending"}</Text>
+                          <Text style={homeSt.tourMeta} numberOfLines={1}>
+                            {session.prospectName ?? "Prospect details pending"}
+                          </Text>
                         </View>
                         {formatSessionCardDescription(session) ? (
-                          <Text style={homeSt.tourMeta} numberOfLines={2}>{formatSessionCardDescription(session)}</Text>
+                          <Text style={homeSt.tourMeta} numberOfLines={2}>
+                            {formatSessionCardDescription(session)}
+                          </Text>
                         ) : null}
                       </View>
-                      <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color={C.textMuted}
+                      />
                     </MotionPressable>
                   ))}
                 </View>
@@ -3240,7 +5179,8 @@ function CalendarScreen({
         <View style={st.flex1}>
           <Text style={calSt.connectionTitle}>Entrata connected</Text>
           <Text style={calSt.connectionMeta}>
-            {entrataEvents.length} synced {entrataEvents.length === 1 ? "tour" : "tours"}
+            {entrataEvents.length} synced{" "}
+            {entrataEvents.length === 1 ? "tour" : "tours"}
           </Text>
         </View>
         <View style={calSt.liveStatus}>
@@ -3257,7 +5197,10 @@ function formatEntrataClock(value: string | null) {
   const match = value.match(/^(\d{1,2}):(\d{2})/);
   if (!match) return value;
   const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
-  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 // ═══════════════════════════════════════
@@ -3268,49 +5211,220 @@ const assetSt = StyleSheet.create({
   header: { gap: 14 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   titleText: { flex: 1, minWidth: 0 },
-  iconBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: SMALL_CORNER, backgroundColor: CARD },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   cardWrap: { width: (Dimensions.get("window").width - 40) / 2 },
-  card: { overflow: "hidden", borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: BACKGROUND },
-  thumb: { aspectRatio: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", backgroundColor: BACKGROUND },
-  thumbImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  captionFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 72 },
+  card: {
+    overflow: "hidden",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+  },
+  thumb: {
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: BACKGROUND,
+  },
+  thumbImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+  },
+  captionFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 72,
+  },
   caption: { position: "absolute", left: 10, right: 10, bottom: 9, gap: 1 },
   captionTitle: { color: CARD },
   captionMeta: { color: "rgba(255,255,255,0.78)", fontSize: 10 },
-  playBadge: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", borderRadius: 15, backgroundColor: "rgba(15,23,42,0.86)" },
-  playWrap: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
-  panoramaBadge: { position: "absolute", top: 8, left: 8, minHeight: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 12, backgroundColor: "rgba(5,150,105,0.72)" },
+  playBadge: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.9)",
+    borderRadius: 15,
+    backgroundColor: "rgba(15,23,42,0.86)",
+  },
+  playWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  panoramaBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    minHeight: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(5,150,105,0.72)",
+  },
   panoramaBadgeText: { color: CARD },
-  fallbackIcon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: SMALL_CORNER, backgroundColor: CARD },
-  modalScrim: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.42)" },
-  modalSheet: { maxHeight: "88%", gap: 14, padding: 18, paddingBottom: Platform.OS === "ios" ? 34 : 20, borderTopLeftRadius: LARGE_CORNER, borderTopRightRadius: LARGE_CORNER, backgroundColor: CARD },
-  modalHandle: { alignSelf: "center", width: 42, height: 5, borderRadius: 3, backgroundColor: "#d1d5db" },
-  modalHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  fallbackIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: SMALL_CORNER,
+    backgroundColor: CARD,
+  },
+  previewRoot: { flex: 1, overflow: "visible", backgroundColor: BACKGROUND },
+  previewBody: { flex: 1, paddingHorizontal: 16 },
+  previewHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    overflow: "visible",
+    backgroundColor: "transparent",
+  },
+  previewTitleRow: {
+    minHeight: 56,
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    overflow: "visible",
+  },
+  previewTitle: { flex: 1, minWidth: 0, color: TEXT },
+  previewFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    overflow: "visible",
+    paddingHorizontal: 16,
+  },
+  previewFooterFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: -56,
+    height: 56,
+  },
   modalMeta: { color: C.textSec, marginTop: 2, textTransform: "capitalize" },
-  modalPreview: { minHeight: 250, overflow: "hidden", borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: BACKGROUND },
-  modalImage: { width: "100%", height: 250 },
-  modalPanorama: { width: "100%", height: 250 },
-  modalPanoramaStatus: { position: "absolute", left: 12, bottom: 12, minHeight: 28, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, borderRadius: 14, backgroundColor: "rgba(15,23,42,0.78)" },
+  modalPreview: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    overflow: "hidden",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: "#000",
+  },
+  modalImage: { width: "100%", height: "100%" },
+  modalPanorama: { width: "100%", height: "100%" },
+  modalPanoramaStatus: {
+    position: "absolute",
+    left: 12,
+    bottom: 12,
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(15,23,42,0.78)",
+  },
   modalPanoramaStatusText: { color: CARD },
-  modalFallback: { height: 250, alignItems: "center", justifyContent: "center" },
-  modalActions: { flexDirection: "row", gap: 10 },
-  modalPrimary: { flex: 1, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: SMALL_CORNER, backgroundColor: ACCENT },
-  modalPrimaryText: { color: CARD },
-  modalSecondary: { minWidth: 98, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderRadius: SMALL_CORNER, backgroundColor: BACKGROUND },
-  modalDesc: { color: C.textSec },
-  websiteLink: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
-  websiteLinkIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: BACKGROUND },
+  modalFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalDesc: { color: C.textSec, marginTop: 10 },
+  websiteLink: {
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  websiteLinkIcon: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    backgroundColor: BACKGROUND,
+  },
   websiteLinkMeta: { color: C.textSec, marginTop: 2 },
-  tourLibraryFooter: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
-  tourLibraryFooterIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: BACKGROUND },
+  tourLibraryFooter: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 12,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  tourLibraryFooterIcon: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: BACKGROUND,
+  },
   tourLibraryFooterMeta: { color: C.textSec, marginTop: 2 },
-  assetMenuScrim: { flex: 1, backgroundColor: "rgba(15,23,42,0.28)" },
-  assetMenuCard: { position: "absolute", top: Platform.OS === "ios" ? 114 : 64, right: 16, width: 286, overflow: "hidden", padding: 8, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD, shadowColor: TEXT, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 26, elevation: 12 },
-  assetMenuHeading: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 7, color: C.textMuted, letterSpacing: 1.2 },
-  assetMenuItem: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 10, borderRadius: 14 },
+  addSheet: {
+    overflow: "visible",
+    paddingTop: 10,
+    paddingHorizontal: 0,
+    borderTopLeftRadius: LARGE_CORNER,
+    borderTopRightRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+  },
+  addTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 18,
+    overflow: "visible",
+  },
+  addHeaderCopy: { flex: 1, minWidth: 0 },
+  addOptions: {
+    marginTop: 14,
+    marginHorizontal: 18,
+    overflow: "hidden",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  assetMenuItem: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 12,
+  },
   assetMenuItemPressed: { backgroundColor: BACKGROUND },
-  assetMenuIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: BACKGROUND },
+  assetMenuIcon: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    backgroundColor: BACKGROUND,
+  },
   assetMenuIconCamera: { backgroundColor: "#fff7ed" },
   assetMenuIconVideo: { backgroundColor: "#f3e8ff" },
   assetMenuIcon360: { backgroundColor: "#ecfdf5" },
@@ -3332,46 +5446,63 @@ function AssetTypeMenu({
   onVideo: () => void;
   onPanorama: () => void;
 }) {
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetHeight = Math.min(430, Math.round(windowHeight * 0.52));
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable accessibilityLabel="Close add asset menu" onPress={onClose} style={assetSt.assetMenuScrim}>
-        <Pressable onPress={(event) => event.stopPropagation()} style={assetSt.assetMenuCard}>
-          <CustomText textStyle="micro" style={assetSt.assetMenuHeading}>ADD NEW ASSET</CustomText>
-          <AssetTypeMenuItem
-            icon="image-outline"
-            iconStyle={assetSt.assetMenuIcon}
-            iconColor={ACCENT}
-            title="Photo library"
-            meta="Choose an existing photo"
-            onPress={onPhoto}
+    <BottomSheetModal
+      visible={visible}
+      onClose={onClose}
+      sheetHeight={sheetHeight}
+      sheetStyle={assetSt.addSheet}
+      dragHeader={
+        <View style={assetSt.addTitleRow}>
+          <View style={assetSt.addHeaderCopy}>
+            <CustomText textStyle="hero">Add New Asset</CustomText>
+          </View>
+          <LiquidGlassIconButton
+            icon="close"
+            accessibilityLabel="Close add asset"
+            onPress={onClose}
           />
-          <AssetTypeMenuItem
-            icon="camera-outline"
-            iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconCamera]}
-            iconColor="#ea580c"
-            title="Camera"
-            meta="Take a new photo"
-            onPress={onCamera}
-          />
-          <AssetTypeMenuItem
-            icon="videocam-outline"
-            iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconVideo]}
-            iconColor={C.purple}
-            title="Video"
-            meta="Record a new video asset"
-            onPress={onVideo}
-          />
-          <AssetTypeMenuItem
-            icon="scan-outline"
-            iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIcon360]}
-            iconColor="#059669"
-            title="360° photo"
-            meta="Choose 1× detail or 0.5× fast capture"
-            onPress={onPanorama}
-          />
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+      }
+    >
+      <View style={assetSt.addOptions}>
+        <AssetTypeMenuItem
+          icon="image-outline"
+          iconStyle={assetSt.assetMenuIcon}
+          iconColor={ACCENT}
+          title="Photo library"
+          meta="Choose an existing photo"
+          onPress={onPhoto}
+        />
+        <AssetTypeMenuItem
+          icon="camera-outline"
+          iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconCamera]}
+          iconColor="#ea580c"
+          title="Camera"
+          meta="Take a new photo"
+          onPress={onCamera}
+        />
+        <AssetTypeMenuItem
+          icon="videocam-outline"
+          iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconVideo]}
+          iconColor={C.purple}
+          title="Video"
+          meta="Record a new video asset"
+          onPress={onVideo}
+        />
+        <AssetTypeMenuItem
+          icon="scan-outline"
+          iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIcon360]}
+          iconColor="#059669"
+          title="360° photo"
+          meta="Choose 1× detail or 0.5× fast capture"
+          onPress={onPanorama}
+        />
+      </View>
+    </BottomSheetModal>
   );
 }
 
@@ -3391,20 +5522,44 @@ function AssetTypeMenuItem({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [assetSt.assetMenuItem, pressed && assetSt.assetMenuItemPressed]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        assetSt.assetMenuItem,
+        pressed && assetSt.assetMenuItemPressed,
+      ]}
+    >
       <View style={iconStyle}>
         <Ionicons name={icon} size={21} color={iconColor} />
       </View>
       <View style={st.flex1}>
         <CustomText textStyle="title">{title}</CustomText>
-        <CustomText textStyle="micro" style={assetSt.assetMenuItemMeta}>{meta}</CustomText>
+        <CustomText textStyle="micro" style={assetSt.assetMenuItemMeta}>
+          {meta}
+        </CustomText>
       </View>
       <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
     </Pressable>
   );
 }
 
-function MaterialsScreen({ materials, tourLibrary, loading, refreshing, onRefresh, onReload, property }: { materials: Material[]; tourLibrary: TourLibraryLink | null; loading: boolean; refreshing: boolean; onRefresh: () => Promise<void>; onReload: () => Promise<void>; property: string }) {
+function MaterialsScreen({
+  materials,
+  tourLibrary,
+  loading,
+  refreshing,
+  onRefresh,
+  onReload,
+  property,
+}: {
+  materials: Material[];
+  tourLibrary: TourLibraryLink | null;
+  loading: boolean;
+  refreshing: boolean;
+  onRefresh: () => Promise<void>;
+  onReload: () => Promise<void>;
+  property: string;
+}) {
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler({
@@ -3420,23 +5575,31 @@ function MaterialsScreen({ materials, tourLibrary, loading, refreshing, onRefres
   const [panoramaRecorderOpen, setPanoramaRecorderOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const tourLibraryAssetCount = materials.filter((material) => material.id.startsWith("tour-api-")).length;
+  const tourLibraryAssetCount = materials.filter((material) =>
+    material.id.startsWith("tour-api-"),
+  ).length;
   const visibleMaterials = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return materials;
-    return materials.filter((material) => material.name.toLowerCase().includes(query));
+    return materials.filter((material) =>
+      material.name.toLowerCase().includes(query),
+    );
   }, [materials, searchQuery]);
 
   async function addLibraryPhoto() {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         Alert.alert(
           "Photo access is off",
           "Allow Tour to access your photo library in Settings, then try again.",
           [
             { text: "Not now", style: "cancel" },
-            { text: "Open Settings", onPress: () => void Linking.openSettings() },
+            {
+              text: "Open Settings",
+              onPress: () => void Linking.openSettings(),
+            },
           ],
         );
         return;
@@ -3451,15 +5614,20 @@ function MaterialsScreen({ materials, tourLibrary, loading, refreshing, onRefres
       const photo = result.assets?.[0];
       if (result.canceled || !photo) return;
       const mimeType = photo.mimeType ?? "image/jpeg";
-      const mimeExtension = mimeType.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
-      const fileName = photo.fileName ?? `tour-photo-${Date.now()}.${mimeExtension}`;
+      const mimeExtension =
+        mimeType.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+      const fileName =
+        photo.fileName ?? `tour-photo-${Date.now()}.${mimeExtension}`;
 
       setUploading(true);
       await uploadMaterial(photo.uri, mimeType, fileName);
       await onReload();
       showToast("Photo added to this community", "success");
     } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Could not upload photo", "error");
+      showToast(
+        caught instanceof Error ? caught.message : "Could not upload photo",
+        "error",
+      );
     } finally {
       setUploading(false);
     }
@@ -3518,90 +5686,155 @@ function MaterialsScreen({ materials, tourLibrary, loading, refreshing, onRefres
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={[st.mainScroll, { paddingTop: largeTitleContentInset(insets.top), gap: 18 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={ACCENT} />}
+        contentContainerStyle={[
+          st.mainScroll,
+          { paddingTop: largeTitleContentInset(insets.top), gap: 18 },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={ACCENT}
+          />
+        }
       >
-      <View style={assetSt.header}>
-        <LargeTitleCopy
-          title="Assets"
-          subtitle={`${property} · ${materials.length} ${materials.length === 1 ? "asset" : "assets"}`}
-          scrollY={scrollY}
-        />
-      </View>
+        <View style={assetSt.header}>
+          <LargeTitleCopy
+            title="Assets"
+            subtitle={`${property} · ${materials.length} ${materials.length === 1 ? "asset" : "assets"}`}
+            scrollY={scrollY}
+          />
+        </View>
 
-      {loading ? <LoadingBox /> : visibleMaterials.length === 0 ? (
-        <EmptyState
-          icon={searchQuery.trim() ? "search-outline" : "folder-open-outline"}
-          title={searchQuery.trim() ? "No matches" : "No materials"}
-          subtitle={searchQuery.trim() ? "No assets match that title." : "Tour videos and community resources will appear here"}
-        />
-      ) : (
-        <View style={assetSt.grid}>
-          {visibleMaterials.map((material) => {
-            const previewUrl = materialPreviewUrl(material);
-            const assetUrl = materialUrl(material);
-            const panorama = isPanoramaMaterial(material);
-            const canPlay = Boolean(!panorama && assetUrl && isVideoLikeUrl(assetUrl));
-            const canOpen = Boolean(assetUrl);
-            return (
-              <View key={material.id} style={assetSt.cardWrap}>
-              <Pressable onPress={() => setSelected(material)} style={({ pressed }) => [assetSt.card, pressed && st.pressed]}>
-                <View style={assetSt.thumb}>
-                  {previewUrl ? (
-                    <Image source={{ uri: previewUrl }} style={assetSt.thumbImage} resizeMode="cover" />
-                  ) : (
-                    <View style={assetSt.fallbackIcon}>
-                      <Ionicons name={canPlay ? "play" : canOpen ? "image-outline" : "document-outline"} size={22} color={ACCENT} />
-                    </View>
-                  )}
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.58)"]}
-                    style={assetSt.captionFade}
-                  />
-                  {panorama ? (
-                    <View style={assetSt.panoramaBadge}>
-                      <Ionicons name="globe-outline" size={12} color={CARD} />
-                      <CustomText textStyle="micro" style={assetSt.panoramaBadgeText}>360°</CustomText>
-                    </View>
-                  ) : canPlay ? (
-                    <View pointerEvents="none" style={assetSt.playWrap}>
-                      <View style={assetSt.playBadge}>
-                        <Ionicons name="play" size={13} color={CARD} />
+        {loading ? (
+          <LoadingBox />
+        ) : visibleMaterials.length === 0 ? (
+          <EmptyState
+            icon={searchQuery.trim() ? "search-outline" : "folder-open-outline"}
+            title={searchQuery.trim() ? "No matches" : "No materials"}
+            subtitle={
+              searchQuery.trim()
+                ? "No assets match that title."
+                : "Tour videos and community resources will appear here"
+            }
+          />
+        ) : (
+          <View style={assetSt.grid}>
+            {visibleMaterials.map((material) => {
+              const previewUrl = materialPreviewUrl(material);
+              const assetUrl = materialUrl(material);
+              const panorama = isPanoramaMaterial(material);
+              const canPlay = Boolean(
+                !panorama && assetUrl && isVideoLikeUrl(assetUrl),
+              );
+              const canOpen = Boolean(assetUrl);
+              return (
+                <View key={material.id} style={assetSt.cardWrap}>
+                  <Pressable
+                    onPress={() => setSelected(material)}
+                    style={({ pressed }) => [
+                      assetSt.card,
+                      pressed && st.pressed,
+                    ]}
+                  >
+                    <View style={assetSt.thumb}>
+                      {previewUrl ? (
+                        <Image
+                          source={{ uri: previewUrl }}
+                          style={assetSt.thumbImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={assetSt.fallbackIcon}>
+                          <Ionicons
+                            name={
+                              canPlay
+                                ? "play"
+                                : canOpen
+                                  ? "image-outline"
+                                  : "document-outline"
+                            }
+                            size={22}
+                            color={ACCENT}
+                          />
+                        </View>
+                      )}
+                      <LinearGradient
+                        pointerEvents="none"
+                        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.58)"]}
+                        style={assetSt.captionFade}
+                      />
+                      {panorama ? (
+                        <View style={assetSt.panoramaBadge}>
+                          <Ionicons
+                            name="globe-outline"
+                            size={12}
+                            color={CARD}
+                          />
+                          <CustomText
+                            textStyle="micro"
+                            style={assetSt.panoramaBadgeText}
+                          >
+                            360°
+                          </CustomText>
+                        </View>
+                      ) : canPlay ? (
+                        <View pointerEvents="none" style={assetSt.playWrap}>
+                          <View style={assetSt.playBadge}>
+                            <Ionicons name="play" size={13} color={CARD} />
+                          </View>
+                        </View>
+                      ) : null}
+                      <View pointerEvents="none" style={assetSt.caption}>
+                        <CustomText
+                          textStyle="title"
+                          numberOfLines={1}
+                          style={assetSt.captionTitle}
+                        >
+                          {material.name}
+                        </CustomText>
+                        <CustomText
+                          textStyle="micro"
+                          numberOfLines={1}
+                          style={assetSt.captionMeta}
+                        >
+                          {material.type} · {fmtDate(material.createdAt)}
+                        </CustomText>
                       </View>
                     </View>
-                  ) : null}
-                  <View pointerEvents="none" style={assetSt.caption}>
-                    <CustomText textStyle="title" numberOfLines={1} style={assetSt.captionTitle}>{material.name}</CustomText>
-                    <CustomText textStyle="micro" numberOfLines={1} style={assetSt.captionMeta}>{material.type} · {fmtDate(material.createdAt)}</CustomText>
-                  </View>
+                  </Pressable>
                 </View>
-              </Pressable>
-              </View>
-            );
-          })}
-        </View>
-      )}
+              );
+            })}
+          </View>
+        )}
 
-      {tourLibrary ? (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel="Open the connected Tour Library"
-          onPress={() => void Linking.openURL(tourLibrary.url)}
-          style={({ pressed }) => [assetSt.tourLibraryFooter, pressed && st.pressed]}
-        >
-          <View style={assetSt.tourLibraryFooterIcon}>
-            <Ionicons name="checkmark" size={15} color={ACCENT} />
-          </View>
-          <View style={st.flex1}>
-            <CustomText textStyle="title">Connected Tour Library</CustomText>
-            <CustomText textStyle="micro" style={assetSt.tourLibraryFooterMeta}>
-              {tourLibraryAssetCount} synced {tourLibraryAssetCount === 1 ? "asset" : "assets"}
-            </CustomText>
-          </View>
-          <Ionicons name="open-outline" size={17} color={C.textMuted} />
-        </Pressable>
-      ) : null}
+        {tourLibrary ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Open the connected Tour Library"
+            onPress={() => void Linking.openURL(tourLibrary.url)}
+            style={({ pressed }) => [
+              assetSt.tourLibraryFooter,
+              pressed && st.pressed,
+            ]}
+          >
+            <View style={assetSt.tourLibraryFooterIcon}>
+              <Ionicons name="checkmark" size={15} color={ACCENT} />
+            </View>
+            <View style={st.flex1}>
+              <CustomText textStyle="title">Connected Tour Library</CustomText>
+              <CustomText
+                textStyle="micro"
+                style={assetSt.tourLibraryFooterMeta}
+              >
+                {tourLibraryAssetCount} synced{" "}
+                {tourLibraryAssetCount === 1 ? "asset" : "assets"}
+              </CustomText>
+            </View>
+            <Ionicons name="open-outline" size={17} color={C.textMuted} />
+          </Pressable>
+        ) : null}
       </Reanimated.ScrollView>
 
       <LargeTitleHeader
@@ -3632,7 +5865,11 @@ function MaterialsScreen({ materials, tourLibrary, loading, refreshing, onRefres
         }
       />
 
-      <MaterialPreviewModal material={selected} onClose={() => setSelected(null)} />
+      <MaterialPreviewModal
+        material={selected}
+        property={property}
+        onClose={() => setSelected(null)}
+      />
       <AssetTypeMenu
         visible={assetMenuOpen}
         onClose={() => setAssetMenuOpen(false)}
@@ -3660,12 +5897,24 @@ function MaterialsScreen({ materials, tourLibrary, loading, refreshing, onRefres
   );
 }
 
-function MaterialPreviewModal({ material, onClose }: { material: Material | null; onClose: () => void }) {
+function MaterialPreviewModal({
+  material,
+  property,
+  onClose,
+}: {
+  material: Material | null;
+  property: string;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
   const url = material ? materialUrl(material) : null;
   const previewUrl = material ? materialPreviewUrl(material) : null;
-  const panoramaUrl = material && url && isPanoramaMaterial(material) ? url : null;
+  const panoramaUrl =
+    material && url && isPanoramaMaterial(material) ? url : null;
   const videoUrl = !panoramaUrl && url && isVideoLikeUrl(url) ? url : null;
   const [panoramaReady, setPanoramaReady] = useState(false);
+  const headerHeight = 6 + 56 + 16;
+  const footerHeight = 58 + 10 + Math.max(insets.bottom, 16);
 
   useEffect(() => {
     setPanoramaReady(false);
@@ -3690,20 +5939,20 @@ function MaterialPreviewModal({ material, onClose }: { material: Material | null
   }
 
   return (
-    <Modal visible={Boolean(material)} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={assetSt.modalScrim} onPress={onClose}>
-        <Pressable onPress={(event) => event.stopPropagation()} style={assetSt.modalSheet}>
-          <View style={assetSt.modalHandle} />
-          <View style={assetSt.modalHeader}>
-            <View style={st.flex1}>
-              <CustomText textStyle="hero" numberOfLines={2}>{material?.name}</CustomText>
-              <CustomText textStyle="caption" style={assetSt.modalMeta}>{material ? `${material.type} · ${fmtDate(material.createdAt)}` : ""}</CustomText>
-            </View>
-            <Pressable accessibilityLabel="Close media preview" onPress={onClose} style={assetSt.iconBtn}>
-              <Ionicons name="close" size={19} color={TEXT} />
-            </Pressable>
-          </View>
-
+    <Modal
+      visible={Boolean(material)}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      allowSwipeDismissal
+      onRequestClose={onClose}
+    >
+      <View style={assetSt.previewRoot}>
+        <View
+          style={[
+            assetSt.previewBody,
+            { paddingTop: headerHeight, paddingBottom: footerHeight + 8 },
+          ]}
+        >
           <View style={assetSt.modalPreview}>
             {panoramaUrl ? (
               <>
@@ -3713,37 +5962,142 @@ function MaterialPreviewModal({ material, onClose }: { material: Material | null
                   style={assetSt.modalPanorama}
                 />
                 <View pointerEvents="none" style={assetSt.modalPanoramaStatus}>
-                  {panoramaReady ? <Ionicons name="hand-left-outline" size={13} color={CARD} /> : <LoadingDots size="small" color={CARD} />}
-                  <CustomText textStyle="micro" style={assetSt.modalPanoramaStatusText}>
-                    {panoramaReady ? "Drag to view your panorama" : "Loading panorama…"}
+                  {panoramaReady ? (
+                    <Ionicons name="hand-left-outline" size={13} color={CARD} />
+                  ) : (
+                    <LoadingDots size="small" color={CARD} />
+                  )}
+                  <CustomText
+                    textStyle="micro"
+                    style={assetSt.modalPanoramaStatusText}
+                  >
+                    {panoramaReady
+                      ? "Drag to view your panorama"
+                      : "Loading panorama…"}
                   </CustomText>
                 </View>
               </>
             ) : videoUrl ? (
               <MaterialVideoPreview source={videoUrl} />
             ) : previewUrl ? (
-              <Image source={{ uri: previewUrl }} style={assetSt.modalImage} resizeMode="cover" />
+              <Image
+                source={{ uri: previewUrl }}
+                style={assetSt.modalImage}
+                resizeMode="cover"
+              />
             ) : (
               <View style={assetSt.modalFallback}>
-                <Ionicons name={url ? "play-circle-outline" : "document-outline"} size={52} color={ACCENT} />
+                <Ionicons
+                  name={url ? "play-circle-outline" : "document-outline"}
+                  size={52}
+                  color={ACCENT}
+                />
               </View>
             )}
           </View>
+          {material ? (
+            <View style={{ marginTop: 14, gap: 2 }}>
+              <CustomText textStyle="title" numberOfLines={2}>
+                {material.name}
+              </CustomText>
+              <CustomText textStyle="caption" style={assetSt.modalMeta}>
+                {material.type} · {fmtDate(material.createdAt)}
+              </CustomText>
+              {material.description ? (
+                <CustomText textStyle="caption" style={assetSt.modalDesc}>
+                  {material.description}
+                </CustomText>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
 
-          <CustomText textStyle="caption" style={assetSt.modalDesc}>{material?.description}</CustomText>
+        <View
+          pointerEvents="box-none"
+          style={[assetSt.previewHeader, { height: headerHeight + 40 }]}
+        >
+          <LinearGradient
+            colors={[
+              BACKGROUND,
+              "rgba(242, 242, 247, 0.62)",
+              "rgba(242, 242, 247, 0)",
+            ]}
+            locations={[0, 0.5, 1]}
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+          />
+          <View pointerEvents="box-none" style={assetSt.previewTitleRow}>
+            <CustomText
+              textStyle="hero"
+              numberOfLines={1}
+              style={assetSt.previewTitle}
+            >
+              {property}
+            </CustomText>
+            <LiquidGlassIconButton
+              icon="close"
+              accessibilityLabel="Close media preview"
+              onPress={onClose}
+            />
+          </View>
+        </View>
 
-          <View style={assetSt.modalActions}>
-            <Pressable onPress={() => void shareSelected()} style={({ pressed }) => [assetSt.modalSecondary, pressed && st.pressed]}>
-              <Ionicons name="share-social-outline" size={16} color={TEXT} />
-              <CustomText textStyle="label">Share</CustomText>
+        <View
+          pointerEvents="box-none"
+          style={[
+            assetSt.previewFooter,
+            { paddingBottom: Math.max(insets.bottom, 16) },
+          ]}
+        >
+          <LinearGradient
+            colors={[
+              "rgba(242, 242, 247, 0)",
+              "rgba(242, 242, 247, 0.62)",
+              BACKGROUND,
+            ]}
+            locations={[0, 0.45, 1]}
+            pointerEvents="none"
+            style={assetSt.previewFooterFade}
+          />
+          <View style={homeSt.actionPillRow}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
+                void shareSelected();
+              }}
+              style={({ pressed }) => [
+                homeSt.checkInPill,
+                pressed && homeSt.actionPillPressed,
+              ]}
+            >
+              <Ionicons name="share-social-outline" size={21} color={CARD} />
+              <CustomText textStyle="title" style={homeSt.checkInPillText}>
+                Share
+              </CustomText>
             </Pressable>
-            <Pressable disabled={!url} onPress={() => void downloadSelected()} style={({ pressed }) => [assetSt.modalSecondary, !url && { opacity: 0.55 }, pressed && st.pressed]}>
-              <Ionicons name="download-outline" size={16} color={TEXT} />
-              <CustomText textStyle="label">Download</CustomText>
+            <Pressable
+              accessibilityRole="button"
+              disabled={!url}
+              onPress={() => {
+                impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
+                void downloadSelected();
+              }}
+              style={({ pressed }) => [
+                homeSt.checkInPill,
+                homeSt.newSessionPill,
+                !url && { opacity: 0.55 },
+                pressed && homeSt.actionPillPressed,
+              ]}
+            >
+              <Ionicons name="download-outline" size={21} color={CARD} />
+              <CustomText textStyle="title" style={homeSt.checkInPillText}>
+                Download
+              </CustomText>
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -3754,7 +6108,11 @@ function isVideoLikeUrl(url: string) {
 }
 
 function materialDownloadName(material: Material, url: string) {
-  const cleanName = material.name.trim().replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "") || "tour-asset";
+  const cleanName =
+    material.name
+      .trim()
+      .replace(/[^a-z0-9._-]+/gi, "-")
+      .replace(/^-+|-+$/g, "") || "tour-asset";
   const path = (() => {
     try {
       return new URL(url).pathname;
@@ -3762,8 +6120,12 @@ function materialDownloadName(material: Material, url: string) {
       return url;
     }
   })();
-  const extension = path.match(/\.([a-z0-9]{2,6})(?:$|[?#])/i)?.[0] ?? (material.media?.videoUrl ? ".mp4" : "");
-  return cleanName.toLowerCase().endsWith(extension.toLowerCase()) ? cleanName : `${cleanName}${extension}`;
+  const extension =
+    path.match(/\.([a-z0-9]{2,6})(?:$|[?#])/i)?.[0] ??
+    (material.media?.videoUrl ? ".mp4" : "");
+  return cleanName.toLowerCase().endsWith(extension.toLowerCase())
+    ? cleanName
+    : `${cleanName}${extension}`;
 }
 
 async function downloadMaterial(material: Material) {
@@ -3781,11 +6143,16 @@ async function downloadMaterial(material: Material) {
 
     const localUri = url.startsWith("file://")
       ? url
-      : (await FileSystem.File.downloadFileAsync(
-          url,
-          new FileSystem.File(FileSystem.Paths.document, `${Date.now()}-${materialDownloadName(material, url)}`),
-          { idempotent: true }
-        )).uri;
+      : (
+          await FileSystem.File.downloadFileAsync(
+            url,
+            new FileSystem.File(
+              FileSystem.Paths.document,
+              `${Date.now()}-${materialDownloadName(material, url)}`,
+            ),
+            { idempotent: true },
+          )
+        ).uri;
 
     await Share.share({
       title: material.name,
@@ -3801,7 +6168,14 @@ function MaterialVideoPreview({ source }: { source: string }) {
   const player = useVideoPlayer(source, (vp) => {
     vp.loop = false;
   });
-  return <VideoView player={player} style={assetSt.modalImage} contentFit="cover" nativeControls />;
+  return (
+    <VideoView
+      player={player}
+      style={assetSt.modalImage}
+      contentFit="contain"
+      nativeControls
+    />
+  );
 }
 
 // ═══════════════════════════════════════
@@ -3824,11 +6198,14 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
     setPlayerLoaded(false);
     setIsPlaying(false);
     try {
-      const subscription = player.addListener("playbackStatusUpdate", (nextStatus) => {
-        setPlayerLoaded(nextStatus.isLoaded);
-        setIsPlaying(nextStatus.playing);
-        if (nextStatus.didJustFinish) setStatus("Playback finished.");
-      });
+      const subscription = player.addListener(
+        "playbackStatusUpdate",
+        (nextStatus) => {
+          setPlayerLoaded(nextStatus.isLoaded);
+          setIsPlaying(nextStatus.playing);
+          if (nextStatus.didJustFinish) setStatus("Playback finished.");
+        },
+      );
       return () => subscription.remove();
     } catch {
       return undefined;
@@ -3838,7 +6215,10 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (!recording) return undefined;
     const startedAt = Date.now();
-    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 250);
+    const timer = setInterval(
+      () => setElapsed(Math.floor((Date.now() - startedAt) / 1000)),
+      250,
+    );
     return () => clearInterval(timer);
   }, [recording]);
 
@@ -3853,7 +6233,9 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
 
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
-        setStatus("Microphone permission was denied. Enable it for Tour in iOS Settings and try again.");
+        setStatus(
+          "Microphone permission was denied. Enable it for Tour in iOS Settings and try again.",
+        );
         return;
       }
 
@@ -3866,10 +6248,16 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
       await recorder.prepareToRecordAsync();
       recorder.record();
       setRecording(true);
-      setStatus("Recording. Speak for a few seconds, then stop and play it back.");
+      setStatus(
+        "Recording. Speak for a few seconds, then stop and play it back.",
+      );
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (caught) {
-      setStatus(caught instanceof Error ? caught.message : "Could not start audio test.");
+      setStatus(
+        caught instanceof Error
+          ? caught.message
+          : "Could not start audio test.",
+      );
     } finally {
       setBusy(false);
     }
@@ -3881,10 +6269,17 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
     setRecording(false);
     try {
       await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
       const nextUri = recorder.uri;
       setUri(nextUri);
-      setStatus(nextUri ? "Recording saved. Play it back below." : "Recording stopped, but no file URI was returned.");
+      setStatus(
+        nextUri
+          ? "Recording saved. Play it back below."
+          : "Recording stopped, but no file URI was returned.",
+      );
 
       if (nextUri) {
         const file = new FileSystem.File(nextUri);
@@ -3892,7 +6287,11 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
       }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (caught) {
-      setStatus(caught instanceof Error ? caught.message : "Could not stop the recording.");
+      setStatus(
+        caught instanceof Error
+          ? caught.message
+          : "Could not stop the recording.",
+      );
     } finally {
       setBusy(false);
     }
@@ -3908,11 +6307,18 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
       player.play();
       setStatus("Playing recorded audio.");
     } catch (caught) {
-      setStatus(caught instanceof Error ? caught.message : "Could not play this recording.");
+      setStatus(
+        caught instanceof Error
+          ? caught.message
+          : "Could not play this recording.",
+      );
     } finally {
       setBusy(false);
     }
@@ -3925,7 +6331,10 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
       setRecording(false);
       await recorder.stop().catch(() => {});
     }
-    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+    await setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+    }).catch(() => {});
     setUri(null);
     setFileSize(null);
     setElapsed(0);
@@ -3938,23 +6347,47 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
       await recorder.stop().catch(() => {});
     }
     if (isPlaying) player.pause();
-    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+    await setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+    }).catch(() => {});
     onBack();
   }
 
   const canPlay = Boolean(uri) && playerLoaded && !recording;
-  const sizeLabel = fileSize === null ? "Not measured" : fileSize < 1024 ? `${fileSize} B` : `${(fileSize / 1024).toFixed(1)} KB`;
+  const sizeLabel =
+    fileSize === null
+      ? "Not measured"
+      : fileSize < 1024
+        ? `${fileSize} B`
+        : `${(fileSize / 1024).toFixed(1)} KB`;
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={st.scroll}
+    >
       <View style={st.page}>
         <BackBtn label="Home" onPress={() => void closeAudioTest()} />
         <Text style={st.pageTitle}>Audio Test</Text>
-        <Text style={st.pageSub}>Check microphone capture and playback before using live transcription.</Text>
+        <Text style={st.pageSub}>
+          Check microphone capture and playback before using live transcription.
+        </Text>
 
         <View style={audioTestSt.hero}>
-          <View style={[audioTestSt.micRing, recording && audioTestSt.micRingRecording]}>
-            <Ionicons name={recording ? "radio" : "mic-outline"} size={42} color={recording ? C.red : C.brand} />
+          <View
+            style={[
+              audioTestSt.micRing,
+              recording && audioTestSt.micRingRecording,
+            ]}
+          >
+            <Ionicons
+              name={recording ? "radio" : "mic-outline"}
+              size={42}
+              color={recording ? C.red : C.brand}
+            />
           </View>
           <Text style={audioTestSt.timer}>{formatElapsed(elapsed)}</Text>
           <Text style={audioTestSt.status}>{status}</Text>
@@ -3962,30 +6395,79 @@ function AudioTestScreen({ onBack }: { onBack: () => void }) {
 
         <View style={audioTestSt.controls}>
           {recording ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Stop test recording" disabled={busy} onPress={stopTestRecording} style={({ pressed }) => [audioTestSt.stopButton, pressed && st.pressed, busy && { opacity: 0.5 }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Stop test recording"
+              disabled={busy}
+              onPress={stopTestRecording}
+              style={({ pressed }) => [
+                audioTestSt.stopButton,
+                pressed && st.pressed,
+                busy && { opacity: 0.5 },
+              ]}
+            >
               <Ionicons name="stop" size={22} color="#fff" />
               <Text style={audioTestSt.primaryText}>Stop</Text>
             </Pressable>
           ) : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Start test recording" disabled={busy} onPress={startTestRecording} style={({ pressed }) => [audioTestSt.recordButton, pressed && st.pressed, busy && { opacity: 0.5 }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Start test recording"
+              disabled={busy}
+              onPress={startTestRecording}
+              style={({ pressed }) => [
+                audioTestSt.recordButton,
+                pressed && st.pressed,
+                busy && { opacity: 0.5 },
+              ]}
+            >
               <Ionicons name="mic" size={22} color="#fff" />
               <Text style={audioTestSt.primaryText}>Record Test Clip</Text>
             </Pressable>
           )}
 
-          <Pressable accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause test playback" : "Play test recording"} disabled={!canPlay || busy} onPress={playOrPause} style={({ pressed }) => [audioTestSt.secondaryButton, (!canPlay || busy) && { opacity: 0.5 }, pressed && st.pressed]}>
-            <Ionicons name={isPlaying ? "pause" : "play"} size={20} color={C.brand} />
-            <Text style={audioTestSt.secondaryText}>{isPlaying ? "Pause" : "Play Back"}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              isPlaying ? "Pause test playback" : "Play test recording"
+            }
+            disabled={!canPlay || busy}
+            onPress={playOrPause}
+            style={({ pressed }) => [
+              audioTestSt.secondaryButton,
+              (!canPlay || busy) && { opacity: 0.5 },
+              pressed && st.pressed,
+            ]}
+          >
+            <Ionicons
+              name={isPlaying ? "pause" : "play"}
+              size={20}
+              color={C.brand}
+            />
+            <Text style={audioTestSt.secondaryText}>
+              {isPlaying ? "Pause" : "Play Back"}
+            </Text>
           </Pressable>
         </View>
 
         <View style={audioTestSt.infoCard}>
-          <AudioTestRow label="Captured file" value={uri ? "Created" : "None yet"} />
+          <AudioTestRow
+            label="Captured file"
+            value={uri ? "Created" : "None yet"}
+          />
           <AudioTestRow label="File size" value={sizeLabel} />
           <AudioTestRow label="URI" value={uri ?? "Record a clip first"} />
         </View>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="Reset audio test" onPress={resetTest} style={({ pressed }) => [audioTestSt.resetButton, pressed && st.pressed]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Reset audio test"
+          onPress={resetTest}
+          style={({ pressed }) => [
+            audioTestSt.resetButton,
+            pressed && st.pressed,
+          ]}
+        >
           <Ionicons name="refresh" size={18} color={C.textSec} />
           <Text style={audioTestSt.resetText}>Reset test</Text>
         </Pressable>
@@ -3998,7 +6480,9 @@ function AudioTestRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={audioTestSt.infoRow}>
       <Text style={audioTestSt.infoLabel}>{label}</Text>
-      <Text style={audioTestSt.infoValue} numberOfLines={2}>{value}</Text>
+      <Text style={audioTestSt.infoValue} numberOfLines={2}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -4028,9 +6512,14 @@ function CreateSessionScreen({
 }) {
   const rec = useRecording();
 
-  const [phase, setPhase] = useState<"choose" | "uploading" | "details">(pendingUpload ? "uploading" : "choose");
-  const [uploadStats, setUploadStats] = useState<UploadStats>(initialUploadStats());
-  const [sessionId, setSessionId] = useState<string | null>(pendingUpload?.sessionId ?? null);
+  const [phase, setPhase] = useState<"choose" | "uploading" | "details">(
+    pendingUpload ? "uploading" : "choose",
+  );
+  const [uploadStats, setUploadStats] =
+    useState<UploadStats>(initialUploadStats());
+  const [sessionId, setSessionId] = useState<string | null>(
+    pendingUpload?.sessionId ?? null,
+  );
   const [fileName, setFileName] = useState(pendingUpload?.name ?? "");
   const [fileSizeMB, setFileSizeMB] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -4041,14 +6530,20 @@ function CreateSessionScreen({
 
   const [title, setTitle] = useState("");
   const [prospect, setProspect] = useState(pendingUpload?.draft.prospect ?? "");
-  const [customerInterests, setCustomerInterests] = useState<SessionCustomerInterest[]>([]);
+  const [customerInterests, setCustomerInterests] = useState<
+    SessionCustomerInterest[]
+  >([]);
   const [location, setLocation] = useState(pendingUpload?.draft.location ?? "");
   const [notes, setNotes] = useState(pendingUpload?.draft.notes ?? "");
   const [rubrics, setRubrics] = useState<Rubric[]>([]);
-  const [rubricId, setRubricId] = useState<string | null>(pendingUpload?.draft.rubricId ?? null);
+  const [rubricId, setRubricId] = useState<string | null>(
+    pendingUpload?.draft.rubricId ?? null,
+  );
   const [rubricOpen, setRubricOpen] = useState(false);
   const [assets, setAssets] = useState<Material[]>([]);
-  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(pendingUpload?.draft.selectedAssetIds ?? []);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(
+    pendingUpload?.draft.selectedAssetIds ?? [],
+  );
   const [uploaderIsAgent, setUploaderIsAgent] = useState(false);
 
   useEffect(() => {
@@ -4058,13 +6553,17 @@ function CreateSessionScreen({
     ])
       .then(([{ rubrics: list }, materialData]) => {
         setRubrics(list);
-        setAssets(materialData.materials.filter((material) => materialUrl(material)));
+        setAssets(
+          materialData.materials.filter((material) => materialUrl(material)),
+        );
         if (list.length > 0) {
           const defaultRubric = list.find((r) => r.isDefault) ?? list[0];
           if (defaultRubric) setRubricId(defaultRubric.id);
         }
       })
-      .catch(() => { /* rubric picker optional */ })
+      .catch(() => {
+        /* rubric picker optional */
+      })
       .finally(() => setCreateOptionsReady(true));
   }, []);
 
@@ -4092,8 +6591,12 @@ function CreateSessionScreen({
     const nextProspect = draftOverrides?.prospect ?? prospect;
     const nextLocation = draftOverrides?.location ?? location;
     const nextNotes = draftOverrides?.notes ?? notes;
-    const nextRubricId = draftOverrides?.rubricId !== undefined ? draftOverrides.rubricId : rubricId;
-    const nextUploaderIsAgent = draftOverrides?.uploaderIsAgent ?? uploaderIsAgent;
+    const nextRubricId =
+      draftOverrides?.rubricId !== undefined
+        ? draftOverrides.rubricId
+        : rubricId;
+    const nextUploaderIsAgent =
+      draftOverrides?.uploaderIsAgent ?? uploaderIsAgent;
     let sid = existingSessionId ?? sessionId;
     let durableUri = uri;
     let directUploadLocalId: string | null = null;
@@ -4102,7 +6605,9 @@ function CreateSessionScreen({
       if (localId) {
         const verifiedUri = await ensureDurableRecording(localId, uri);
         if (!verifiedUri) {
-          throw new Error("Recording file could not be read after it was saved. Please keep this screen open and retry.");
+          throw new Error(
+            "Recording file could not be read after it was saved. Please keep this screen open and retry.",
+          );
         }
         durableUri = verifiedUri;
         beginDirectLocalUpload(localId);
@@ -4154,16 +6659,32 @@ function CreateSessionScreen({
       }
       if (!hasCustomTitle) setTitle(automaticTitle);
       if (draftOverrides?.notes !== undefined) setNotes(draftOverrides.notes);
-      if (draftOverrides?.prospect !== undefined) setProspect(draftOverrides.prospect);
-      if (draftOverrides?.location !== undefined) setLocation(draftOverrides.location);
-      if (draftOverrides?.rubricId !== undefined && draftOverrides.rubricId) setRubricId(draftOverrides.rubricId);
-      if (draftOverrides?.uploaderIsAgent !== undefined) setUploaderIsAgent(draftOverrides.uploaderIsAgent);
+      if (draftOverrides?.prospect !== undefined)
+        setProspect(draftOverrides.prospect);
+      if (draftOverrides?.location !== undefined)
+        setLocation(draftOverrides.location);
+      if (draftOverrides?.rubricId !== undefined && draftOverrides.rubricId)
+        setRubricId(draftOverrides.rubricId);
+      if (draftOverrides?.uploaderIsAgent !== undefined)
+        setUploaderIsAgent(draftOverrides.uploaderIsAgent);
 
-      await uploadRecording(sid, durableUri, mimeType, name, durationSec, (next) => setUploadStats(uploadStatsFromProgress(next)));
+      await uploadRecording(
+        sid,
+        durableUri,
+        mimeType,
+        name,
+        durationSec,
+        (next) => setUploadStats(uploadStatsFromProgress(next)),
+      );
       promoteLocalRecordingToCache(sid, durableUri);
       await clearPendingRecordingUpload(sid, localId);
       void trackAnalyticsEvent("session_upload_complete", { sessionId: sid });
-      setUploadStats((current) => ({ ...current, phase: "finalizing", percent: 100, etaSeconds: 0 }));
+      setUploadStats((current) => ({
+        ...current,
+        phase: "finalizing",
+        percent: 100,
+        etaSeconds: 0,
+      }));
       showToast("Recording uploaded", "success");
       setPhase("details");
     } catch (err) {
@@ -4199,7 +6720,11 @@ function CreateSessionScreen({
       }
       const online = await isOnline();
       showToast(
-        online ? (err instanceof Error ? err.message : "Upload failed") : "Saved on device — will upload when online",
+        online
+          ? err instanceof Error
+            ? err.message
+            : "Upload failed"
+          : "Saved on device — will upload when online",
         online ? "error" : "info",
       );
       recorderOpenedRef.current = false;
@@ -4271,7 +6796,9 @@ function CreateSessionScreen({
         onBack();
       },
       onFinish: async (snapshot) => {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
         const result = await snapshot.stop();
         const meta = snapshot.meta;
         const draft = snapshot.draft;
@@ -4324,7 +6851,10 @@ function CreateSessionScreen({
 
   async function pickFile(uploadDraft?: LiveRecordingDraft) {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: ["video/*", "audio/*"], copyToCacheDirectory: true });
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["video/*", "audio/*"],
+        copyToCacheDirectory: true,
+      });
       if (result.canceled || !result.assets?.[0]) return;
       const file = result.assets[0];
       if (uploadDraft) {
@@ -4362,7 +6892,8 @@ function CreateSessionScreen({
   }
 
   useEffect(() => {
-    if (!createOptionsReady || phase !== "choose" || recorderOpenedRef.current) return;
+    if (!createOptionsReady || phase !== "choose" || recorderOpenedRef.current)
+      return;
     recorderOpenedRef.current = true;
     const frame = requestAnimationFrame(() => startRecordingRef.current());
     return () => cancelAnimationFrame(frame);
@@ -4378,7 +6909,8 @@ function CreateSessionScreen({
     if (location.trim()) patchBody.location = location.trim();
     if (notes.trim()) patchBody.notes = notes.trim();
     if (rubricId) patchBody.rubricId = rubricId;
-    if (customerInterests.length > 0) patchBody.customerInterests = customerInterests;
+    if (customerInterests.length > 0)
+      patchBody.customerInterests = customerInterests;
 
     if (Object.keys(patchBody).length > 0) {
       try {
@@ -4387,7 +6919,9 @@ function CreateSessionScreen({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patchBody),
         });
-      } catch { /* best effort */ }
+      } catch {
+        /* best effort */
+      }
     }
 
     onCreated(sessionId);
@@ -4398,7 +6932,16 @@ function CreateSessionScreen({
     return (
       <View style={[st.flex1, st.center]}>
         <ActivityIndicator color={C.brand} />
-        <Text style={{ marginTop: 10, color: C.textSec, fontSize: 13, fontWeight: "700" }}>Preparing recorder…</Text>
+        <Text
+          style={{
+            marginTop: 10,
+            color: C.textSec,
+            fontSize: 13,
+            fontWeight: "700",
+          }}
+        >
+          Preparing recorder…
+        </Text>
       </View>
     );
   }
@@ -4406,7 +6949,11 @@ function CreateSessionScreen({
   // ── Uploading ──
   if (phase === "uploading") {
     return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={st.scroll}
+      >
         <View style={st.page}>
           <BackBtn label="Sessions" onPress={onBack} />
           <Text style={st.pageTitle}>New Session</Text>
@@ -4422,23 +6969,55 @@ function CreateSessionScreen({
 
   // ── Details form after upload ──
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={st.scroll}
+    >
       <View style={st.page}>
         <BackBtn label="Sessions" onPress={onBack} />
         <Text style={st.pageTitle}>New Session</Text>
 
         <View style={[st.card, { overflow: "hidden" }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14, backgroundColor: C.greenBg, borderBottomWidth: 1, borderBottomColor: "#e2e8f0" }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              padding: 14,
+              backgroundColor: C.greenBg,
+              borderBottomWidth: 1,
+              borderBottomColor: "#e2e8f0",
+            }}
+          >
             <Ionicons name="checkmark-circle" size={20} color={C.green} />
             <View style={st.flex1}>
-              <Text style={{ fontSize: 13, fontWeight: "800", color: C.green }}>Recording uploaded</Text>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: C.textSec }} numberOfLines={1}>{fileName}{fileSizeMB ? ` (${fileSizeMB} MB)` : ""}</Text>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: C.green }}>
+                Recording uploaded
+              </Text>
+              <Text
+                style={{ fontSize: 12, fontWeight: "600", color: C.textSec }}
+                numberOfLines={1}
+              >
+                {fileName}
+                {fileSizeMB ? ` (${fileSizeMB} MB)` : ""}
+              </Text>
             </View>
           </View>
 
           <View style={{ padding: 18, gap: 14 }}>
             <Text style={st.formTitle}>Session Details</Text>
-            <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec, marginTop: -8 }}>Add context to improve your analysis</Text>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: C.textSec,
+                marginTop: -8,
+              }}
+            >
+              Add context to improve your analysis
+            </Text>
             <AgentIdentityToggle
               selected={uploaderIsAgent}
               agentName={agentName}
@@ -4447,19 +7026,63 @@ function CreateSessionScreen({
                 void Haptics.selectionAsync();
               }}
             />
-            <Input placeholder="Session title" value={title} onChangeText={setTitle} icon="text-outline" />
-            <Input placeholder="Prospect name" value={prospect} onChangeText={setProspect} icon="person-outline" />
-            <ProspectInterestPicker interests={customerInterests} onChange={setCustomerInterests} />
-            <Input placeholder="Location / unit" value={location} onChangeText={setLocation} icon="location-outline" />
+            <Input
+              placeholder="Session title"
+              value={title}
+              onChangeText={setTitle}
+              icon="text-outline"
+            />
+            <Input
+              placeholder="Prospect name"
+              value={prospect}
+              onChangeText={setProspect}
+              icon="person-outline"
+            />
+            <ProspectInterestPicker
+              interests={customerInterests}
+              onChange={setCustomerInterests}
+            />
+            <Input
+              placeholder="Location / unit"
+              value={location}
+              onChangeText={setLocation}
+              icon="location-outline"
+            />
             {rubrics.length > 0 && (
               <View>
-                <Text style={{ fontSize: 12, fontWeight: "800", color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Evaluation rubric</Text>
-                <Pressable onPress={() => setRubricOpen((o) => !o)} style={({ pressed }) => [st.inputWrap, pressed && st.pressed]}>
-                  <Ionicons name="clipboard-outline" size={18} color={C.textMuted} />
-                  <Text style={[st.inputField, { flex: 1, paddingVertical: 0 }]} numberOfLines={1}>
-                    {rubrics.find((r) => r.id === rubricId)?.name ?? "Select a rubric"}
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "800",
+                    color: C.textSec,
+                    marginBottom: 8,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  Evaluation rubric
+                </Text>
+                <Pressable
+                  onPress={() => setRubricOpen((o) => !o)}
+                  style={({ pressed }) => [st.inputWrap, pressed && st.pressed]}
+                >
+                  <Ionicons
+                    name="clipboard-outline"
+                    size={18}
+                    color={C.textMuted}
+                  />
+                  <Text
+                    style={[st.inputField, { flex: 1, paddingVertical: 0 }]}
+                    numberOfLines={1}
+                  >
+                    {rubrics.find((r) => r.id === rubricId)?.name ??
+                      "Select a rubric"}
                   </Text>
-                  <Ionicons name={rubricOpen ? "chevron-up" : "chevron-down"} size={16} color={C.textMuted} />
+                  <Ionicons
+                    name={rubricOpen ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={C.textMuted}
+                  />
                 </Pressable>
                 {rubricOpen && (
                   <View style={{ marginTop: 8, gap: 6 }}>
@@ -4470,17 +7093,44 @@ function CreateSessionScreen({
                           setRubricId(rubric.id);
                           setRubricOpen(false);
                         }}
-                        style={({ pressed }) => [{ padding: 12, borderRadius: 12, backgroundColor: rubric.id === rubricId ? C.brand + "12" : C.bg }, pressed && st.pressed]}
+                        style={({ pressed }) => [
+                          {
+                            padding: 12,
+                            borderRadius: 12,
+                            backgroundColor:
+                              rubric.id === rubricId ? C.brand + "12" : C.bg,
+                          },
+                          pressed && st.pressed,
+                        ]}
                       >
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: C.text }}>{rubric.name}</Text>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "700",
+                            color: C.text,
+                          }}
+                        >
+                          {rubric.name}
+                        </Text>
                       </Pressable>
                     ))}
                   </View>
                 )}
               </View>
             )}
-            <Input placeholder="Notes or focus areas" value={notes} onChangeText={setNotes} icon="document-text-outline" multiline />
-            <PrimaryBtn label={submitting ? "Opening..." : "Continue"} onPress={() => void submitAndProcess()} icon="arrow-forward" disabled={submitting} />
+            <Input
+              placeholder="Notes or focus areas"
+              value={notes}
+              onChangeText={setNotes}
+              icon="document-text-outline"
+              multiline
+            />
+            <PrimaryBtn
+              label={submitting ? "Opening..." : "Continue"}
+              onPress={() => void submitAndProcess()}
+              icon="arrow-forward"
+              disabled={submitting}
+            />
           </View>
         </View>
       </View>
@@ -4510,8 +7160,12 @@ function AgentIdentityToggle({
         disabled && { opacity: 0.6 },
       ]}
     >
-      <View style={[st.agentToggleCheck, selected && st.agentToggleCheckSelected]}>
-        {selected ? <Ionicons name="checkmark" size={14} color="white" /> : null}
+      <View
+        style={[st.agentToggleCheck, selected && st.agentToggleCheckSelected]}
+      >
+        {selected ? (
+          <Ionicons name="checkmark" size={14} color="white" />
+        ) : null}
       </View>
       <View style={st.flex1}>
         <Text style={st.agentToggleTitle}>I am the leasing agent</Text>
@@ -4525,7 +7179,10 @@ function AgentIdentityToggle({
   );
 }
 
-const MOBILE_INTEREST_CHOICES: Array<{ category: ProspectInterestCategory; detail: string }> = [
+const MOBILE_INTEREST_CHOICES: Array<{
+  category: ProspectInterestCategory;
+  detail: string;
+}> = [
   { category: "floor_plan", detail: "1 bedroom" },
   { category: "floor_plan", detail: "2 bedroom" },
   { category: "budget_specials", detail: "Budget" },
@@ -4544,22 +7201,36 @@ function ProspectInterestPicker({
   onChange: (next: SessionCustomerInterest[]) => void;
 }) {
   const [customInterest, setCustomInterest] = useState("");
-  const selected = new Set(interests.map((interest) => interest.detail.toLowerCase()));
+  const selected = new Set(
+    interests.map((interest) => interest.detail.toLowerCase()),
+  );
 
   function addInterest(category: ProspectInterestCategory, detail: string) {
     const clean = detail.trim().slice(0, 120);
-    if (!clean || selected.has(clean.toLowerCase()) || interests.length >= 8) return;
-    onChange([...interests, { id: `mobile-${Date.now()}-${interests.length}`, category, detail: clean }]);
+    if (!clean || selected.has(clean.toLowerCase()) || interests.length >= 8)
+      return;
+    onChange([
+      ...interests,
+      {
+        id: `mobile-${Date.now()}-${interests.length}`,
+        category,
+        detail: clean,
+      },
+    ]);
     setCustomInterest("");
   }
 
   return (
     <View style={prospectFormSt.wrap}>
       <View style={prospectFormSt.heading}>
-        <View style={prospectFormSt.icon}><Ionicons name="heart-outline" size={16} color={C.brand} /></View>
+        <View style={prospectFormSt.icon}>
+          <Ionicons name="heart-outline" size={16} color={C.brand} />
+        </View>
         <View style={st.flex1}>
           <Text style={prospectFormSt.title}>Prospect interests</Text>
-          <Text style={prospectFormSt.subtitle}>Optional context for a more tailored analysis</Text>
+          <Text style={prospectFormSt.subtitle}>
+            Optional context for a more tailored analysis
+          </Text>
         </View>
       </View>
 
@@ -4570,10 +7241,14 @@ function ProspectInterestPicker({
               key={interest.id}
               accessibilityRole="button"
               accessibilityLabel={`Remove ${interest.detail}`}
-              onPress={() => onChange(interests.filter((item) => item.id !== interest.id))}
+              onPress={() =>
+                onChange(interests.filter((item) => item.id !== interest.id))
+              }
               style={prospectFormSt.selectedChip}
             >
-              <Text style={prospectFormSt.selectedChipText}>{interest.detail}</Text>
+              <Text style={prospectFormSt.selectedChipText}>
+                {interest.detail}
+              </Text>
               <Ionicons name="close" size={14} color={C.brand} />
             </Pressable>
           ))}
@@ -4581,13 +7256,18 @@ function ProspectInterestPicker({
       ) : null}
 
       <View style={prospectFormSt.optionList}>
-        {MOBILE_INTEREST_CHOICES.filter((choice) => !selected.has(choice.detail.toLowerCase())).map((choice) => (
+        {MOBILE_INTEREST_CHOICES.filter(
+          (choice) => !selected.has(choice.detail.toLowerCase()),
+        ).map((choice) => (
           <Pressable
             key={choice.detail}
             accessibilityRole="button"
             accessibilityLabel={`Add ${choice.detail}`}
             onPress={() => addInterest(choice.category, choice.detail)}
-            style={({ pressed }) => [prospectFormSt.option, pressed && st.pressed]}
+            style={({ pressed }) => [
+              prospectFormSt.option,
+              pressed && st.pressed,
+            ]}
           >
             <Text style={prospectFormSt.optionText}>{choice.detail}</Text>
             <Ionicons name="add" size={14} color={C.textMuted} />
@@ -4611,7 +7291,11 @@ function ProspectInterestPicker({
             accessibilityLabel="Add custom prospect interest"
             disabled={!customInterest.trim()}
             onPress={() => addInterest("other", customInterest)}
-            style={({ pressed }) => [prospectFormSt.addButton, !customInterest.trim() && prospectFormSt.addButtonDisabled, pressed && st.pressed]}
+            style={({ pressed }) => [
+              prospectFormSt.addButton,
+              !customInterest.trim() && prospectFormSt.addButtonDisabled,
+              pressed && st.pressed,
+            ]}
           >
             <Ionicons name="add" size={18} color="#fff" />
           </Pressable>
@@ -4622,20 +7306,82 @@ function ProspectInterestPicker({
 }
 
 const prospectFormSt = StyleSheet.create({
-  wrap: { gap: 10, padding: 13, borderWidth: 1, borderColor: "#dbeafe", borderRadius: 14, backgroundColor: "#f8fbff" },
+  wrap: {
+    gap: 10,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 14,
+    backgroundColor: "#f8fbff",
+  },
   heading: { flexDirection: "row", alignItems: "center", gap: 9 },
-  icon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#eaf2ff" },
+  icon: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: "#eaf2ff",
+  },
   title: { color: C.text, fontSize: 13, fontWeight: "900" },
-  subtitle: { marginTop: 1, color: C.textSec, fontSize: 11, lineHeight: 15, fontWeight: "600" },
+  subtitle: {
+    marginTop: 1,
+    color: C.textSec,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "600",
+  },
   selectedList: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  selectedChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: "#eaf2ff" },
+  selectedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#eaf2ff",
+  },
   selectedChipText: { color: C.brand, fontSize: 12, fontWeight: "800" },
   optionList: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  option: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 999, backgroundColor: "#fff" },
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#d7dee8",
+    borderRadius: 999,
+    backgroundColor: "#fff",
+  },
   optionText: { color: C.textSec, fontSize: 11, fontWeight: "700" },
-  customRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingLeft: 10, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 11, backgroundColor: "#fff" },
-  customInput: { flex: 1, minWidth: 0, color: C.text, fontSize: 13, fontWeight: "700", paddingVertical: 9 },
-  addButton: { width: 36, alignSelf: "stretch", alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: C.brand },
+  customRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 40,
+    paddingLeft: 10,
+    borderWidth: 1,
+    borderColor: "#d7dee8",
+    borderRadius: 11,
+    backgroundColor: "#fff",
+  },
+  customInput: {
+    flex: 1,
+    minWidth: 0,
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+    paddingVertical: 9,
+  },
+  addButton: {
+    width: 36,
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: C.brand,
+  },
   addButtonDisabled: { opacity: 0.4 },
 });
 
@@ -4659,7 +7405,9 @@ function transcriptAnnotationChipLabel(kind: TranscriptAnnotation["kind"]) {
   return "Comments";
 }
 
-function transcriptAnnotationChipIcon(kind: TranscriptAnnotation["kind"]): keyof typeof Ionicons.glyphMap {
+function transcriptAnnotationChipIcon(
+  kind: TranscriptAnnotation["kind"],
+): keyof typeof Ionicons.glyphMap {
   if (kind === "ai_note") return "sparkles";
   if (kind === "key_moment") return "film-outline";
   return "chatbubble-outline";
@@ -4669,17 +7417,26 @@ function transcriptAnnotationChipColor(kind: TranscriptAnnotation["kind"]) {
   return kind === "ai_note" ? C.purple : C.brand;
 }
 
-function SampleSessionDetailScreen({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
+function SampleSessionDetailScreen({
+  sessionId,
+  onBack,
+}: {
+  sessionId: string;
+  onBack: () => void;
+}) {
   const sampleQuery = useSampleSessionQuery(sessionId);
   const sample = sampleQuery.data;
 
-  if (sampleQuery.isLoading && !sample) return <SessionReviewSkeleton onBack={onBack} />;
+  if (sampleQuery.isLoading && !sample)
+    return <SessionReviewSkeleton onBack={onBack} />;
   if (!sample) {
     return (
       <View style={[st.flex1, st.center, { gap: 12, padding: 24 }]}>
         <Ionicons name="alert-circle-outline" size={48} color={C.red} />
         <Text style={[st.emptyTitle, { textAlign: "center" }]}>
-          {sampleQuery.error instanceof Error ? sampleQuery.error.message : "Sample session not found"}
+          {sampleQuery.error instanceof Error
+            ? sampleQuery.error.message
+            : "Sample session not found"}
         </Text>
         <BackBtn label="Sample sessions" onPress={onBack} />
       </View>
@@ -4725,14 +7482,21 @@ function CheckedInVisitorsCard({
         </View>
       </View>
       {leads.map((lead) => (
-        <View key={`${lead.createdAt}-${lead.email ?? ""}-${lead.phone ?? ""}`} style={st.checkedInPerson}>
+        <View
+          key={`${lead.createdAt}-${lead.email ?? ""}-${lead.phone ?? ""}`}
+          style={st.checkedInPerson}
+        >
           <View style={st.checkedInAvatar}>
-            <Text style={st.checkedInAvatarText}>{lead.name.slice(0, 1).toUpperCase()}</Text>
+            <Text style={st.checkedInAvatarText}>
+              {lead.name.slice(0, 1).toUpperCase()}
+            </Text>
           </View>
           <View style={st.flex1}>
             <Text style={st.checkedInName}>{lead.name}</Text>
             <Text style={st.checkedInContact} numberOfLines={1}>
-              {[lead.email, lead.phone].filter(Boolean).join(" · ") || lead.reason || "Contact details pending"}
+              {[lead.email, lead.phone].filter(Boolean).join(" · ") ||
+                lead.reason ||
+                "Contact details pending"}
             </Text>
           </View>
         </View>
@@ -4754,7 +7518,11 @@ function SessionDetailScreen({
   autoStartRecording?: boolean;
   onBack: () => void;
   onOpenComments: (meta: { sessionId: string; sessionTitle?: string }) => void;
-  onOpenAiChat: (meta: { sessionId: string; sessionTitle?: string; prospectName?: string }) => void;
+  onOpenAiChat: (meta: {
+    sessionId: string;
+    sessionTitle?: string;
+    prospectName?: string;
+  }) => void;
   onOpenReport: (sessionId: string) => void;
   onOpenAudioInsights: (meta: {
     sessionId: string;
@@ -4776,9 +7544,17 @@ function SessionDetailScreen({
   const transcript = transcriptQuery.data?.transcript ?? [];
   const phases = sessionQuery.data?.phases ?? null;
   const comments = commentsQuery.data?.comments ?? [];
-  const shouldFetchAudioInsights = session?.audioInsightsStatus === "ready" || session?.audioInsightsStatus === "processing";
-  const audioInsightsQuery = useAudioInsightsQuery(sessionId, shouldFetchAudioInsights);
-  const audioInsightsStatus = audioInsightsQuery.data?.status ?? session?.audioInsightsStatus ?? "pending";
+  const shouldFetchAudioInsights =
+    session?.audioInsightsStatus === "ready" ||
+    session?.audioInsightsStatus === "processing";
+  const audioInsightsQuery = useAudioInsightsQuery(
+    sessionId,
+    shouldFetchAudioInsights,
+  );
+  const audioInsightsStatus =
+    audioInsightsQuery.data?.status ??
+    session?.audioInsightsStatus ??
+    "pending";
   const audioInsights = audioInsightsQuery.data?.insights ?? null;
   const loading = sessionQuery.isLoading;
   const error =
@@ -4800,12 +7576,23 @@ function SessionDetailScreen({
       actionsQuery.refetch(),
       transcriptQuery.refetch(),
       commentsQuery.refetch(),
-      shouldFetchAudioInsights ? audioInsightsQuery.refetch() : Promise.resolve(),
+      shouldFetchAudioInsights
+        ? audioInsightsQuery.refetch()
+        : Promise.resolve(),
     ]);
-  }, [actionsQuery, analysisQuery, audioInsightsQuery, commentsQuery, sessionQuery, shouldFetchAudioInsights, transcriptQuery]);
+  }, [
+    actionsQuery,
+    analysisQuery,
+    audioInsightsQuery,
+    commentsQuery,
+    sessionQuery,
+    shouldFetchAudioInsights,
+    transcriptQuery,
+  ]);
 
   useEffect(() => {
-    if (!session || analysis || !PROCESSING_STATUSES.has(session.status)) return;
+    if (!session || analysis || !PROCESSING_STATUSES.has(session.status))
+      return;
     const poll = setInterval(() => {
       if (AppState.currentState === "active") {
         void sessionQuery.refetch();
@@ -4814,17 +7601,24 @@ function SessionDetailScreen({
     }, 4000);
     return () => clearInterval(poll);
   }, [analysis, analysisQuery, session, sessionQuery]);
-  const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   if (loading && !session) return <SessionReviewSkeleton onBack={onBack} />;
 
-  if (!session) return (
-    <View style={[st.flex1, st.center, { gap: 12 }]}>
-      <Ionicons name="alert-circle-outline" size={48} color={C.red} />
-      <Text style={st.emptyTitle}>{error instanceof Error ? error.message : "Session not found"}</Text>
-      <BackBtn label="Sessions" onPress={onBack} />
-    </View>
-  );
+  if (!session)
+    return (
+      <View style={[st.flex1, st.center, { gap: 12 }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={C.red} />
+        <Text style={st.emptyTitle}>
+          {error instanceof Error ? error.message : "Session not found"}
+        </Text>
+        <BackBtn label="Sessions" onPress={onBack} />
+      </View>
+    );
 
   const hasAnalysis = !!analysis;
   const sc = STATUS_COLORS[session.status] ?? { bg: "#eaf4ff", text: C.brand };
@@ -4870,20 +7664,49 @@ function SessionDetailScreen({
   }
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={[st.scroll, st.sessionDetailScroll]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={[st.scroll, st.sessionDetailScroll]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={C.brand}
+        />
+      }
+    >
       <View style={st.page}>
-        {error && <ErrorBanner message={error instanceof Error ? error.message : "Failed to load session"} onRetry={load} />}
+        {error && (
+          <ErrorBanner
+            message={
+              error instanceof Error ? error.message : "Failed to load session"
+            }
+            onRetry={load}
+          />
+        )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <BackBtn label="Sessions" onPress={onBack} />
           <View style={st.flex1} />
-          <View style={[st.badge, { backgroundColor: sc.bg }]}><Text style={[st.badgeText, { color: sc.text }]}>{sl}</Text></View>
+          <View style={[st.badge, { backgroundColor: sc.bg }]}>
+            <Text style={[st.badgeText, { color: sc.text }]}>{sl}</Text>
+          </View>
         </View>
 
         <Text style={st.detailTitle}>{session.title}</Text>
         <View style={{ gap: 3 }}>
-          {session.scheduledAt && <DetailMeta icon="calendar-outline" text={`${fmtDate(session.scheduledAt)} ${fmtTime(session.scheduledAt)}`} />}
-          {session.prospectName && <DetailMeta icon="person-outline" text={session.prospectName} />}
-          {session.location && <DetailMeta icon="location-outline" text={session.location} />}
+          {session.scheduledAt && (
+            <DetailMeta
+              icon="calendar-outline"
+              text={`${fmtDate(session.scheduledAt)} ${fmtTime(session.scheduledAt)}`}
+            />
+          )}
+          {session.prospectName && (
+            <DetailMeta icon="person-outline" text={session.prospectName} />
+          )}
+          {session.location && (
+            <DetailMeta icon="location-outline" text={session.location} />
+          )}
         </View>
 
         {(session.leads?.length ?? 0) > 0 ? (
@@ -4915,26 +7738,77 @@ function SessionDetailScreen({
 
         {hasAnalysis && (
           <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.tabsRow} contentContainerStyle={{ gap: 2 }}>
-              {([["transcript", "Transcript", "chatbubble-outline"], ["overview", "Overview", "grid-outline"], ["rubric", "Rubric", "clipboard-outline"], ["actions", "Actions", "rocket-outline"], ["comments", "Comments", "chatbubbles-outline"]] as const).map(([id, label, icon]) => (
-                <Pressable key={id} onPress={() => setTab(id as DTab)} style={[st.tabPill, tab === id && st.tabPillActive]}>
-                  <Ionicons name={icon as any} size={14} color={tab === id ? C.brand : C.textMuted} />
-                  <Text style={[st.tabPillText, tab === id && st.tabPillTextActive]}>{label}</Text>
-                  {id === "actions" && actions.filter((a) => a.status === "open").length > 0 && (
-                    <View style={st.tabBadge}><Text style={st.tabBadgeText}>{actions.filter((a) => a.status === "open").length}</Text></View>
-                  )}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={st.tabsRow}
+              contentContainerStyle={{ gap: 2 }}
+            >
+              {(
+                [
+                  ["transcript", "Transcript", "chatbubble-outline"],
+                  ["overview", "Overview", "grid-outline"],
+                  ["rubric", "Rubric", "clipboard-outline"],
+                  ["actions", "Actions", "rocket-outline"],
+                  ["comments", "Comments", "chatbubbles-outline"],
+                ] as const
+              ).map(([id, label, icon]) => (
+                <Pressable
+                  key={id}
+                  onPress={() => setTab(id as DTab)}
+                  style={[st.tabPill, tab === id && st.tabPillActive]}
+                >
+                  <Ionicons
+                    name={icon as any}
+                    size={14}
+                    color={tab === id ? C.brand : C.textMuted}
+                  />
+                  <Text
+                    style={[st.tabPillText, tab === id && st.tabPillTextActive]}
+                  >
+                    {label}
+                  </Text>
+                  {id === "actions" &&
+                    actions.filter((a) => a.status === "open").length > 0 && (
+                      <View style={st.tabBadge}>
+                        <Text style={st.tabBadgeText}>
+                          {actions.filter((a) => a.status === "open").length}
+                        </Text>
+                      </View>
+                    )}
                   {id === "comments" && comments.length > 0 && (
-                    <View style={[st.tabBadge, { backgroundColor: C.brand }]}><Text style={st.tabBadgeText}>{comments.length}</Text></View>
+                    <View style={[st.tabBadge, { backgroundColor: C.brand }]}>
+                      <Text style={st.tabBadgeText}>{comments.length}</Text>
+                    </View>
                   )}
                 </Pressable>
               ))}
             </ScrollView>
 
-            {tab === "overview" && <OverviewTab analysis={analysis} transcript={transcript} sessionId={sessionId} hasRecording={session.status !== "scheduled"} />}
+            {tab === "overview" && (
+              <OverviewTab
+                analysis={analysis}
+                transcript={transcript}
+                sessionId={sessionId}
+                hasRecording={session.status !== "scheduled"}
+              />
+            )}
             {tab === "rubric" && <RubricTab analysis={analysis} />}
             {tab === "transcript" && <TranscriptTab transcript={transcript} />}
-            {tab === "actions" && <ActionsTab actions={actions} sessionId={sessionId} onUpdate={load} />}
-            {tab === "comments" && <CommentsTab comments={comments} sessionId={sessionId} onUpdate={load} />}
+            {tab === "actions" && (
+              <ActionsTab
+                actions={actions}
+                sessionId={sessionId}
+                onUpdate={load}
+              />
+            )}
+            {tab === "comments" && (
+              <CommentsTab
+                comments={comments}
+                sessionId={sessionId}
+                onUpdate={load}
+              />
+            )}
           </>
         )}
       </View>
@@ -4979,11 +7853,15 @@ function SessionReviewExperience({
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState(1);
-  const [activeSegmentId, setActiveSegmentId] = useState<string | null>(transcript[0]?.id ?? null);
+  const [activeSegmentId, setActiveSegmentId] = useState<string | null>(
+    transcript[0]?.id ?? null,
+  );
   const [reviewMode, setReviewMode] = useState<SessionReviewMode>("transcript");
   const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([]);
   const [commentComposerOpen, setCommentComposerOpen] = useState(false);
-  const [selectionAnnotationKind, setSelectionAnnotationKind] = useState<"comment" | "key_moment">("comment");
+  const [selectionAnnotationKind, setSelectionAnnotationKind] = useState<
+    "comment" | "key_moment"
+  >("comment");
   const [selectionComment, setSelectionComment] = useState("");
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -5004,15 +7882,22 @@ function SessionReviewExperience({
   const longPressedSegmentRef = useRef<string | null>(null);
   const lastTranscriptTapRef = useRef<{ id: string; at: number } | null>(null);
 
-  useEffect(() => { setLocalActions(actions); }, [actions]);
-  useEffect(() => { reviewModeRef.current = reviewMode; }, [reviewMode]);
-  useEffect(() => { followPlaybackRef.current = followPlayback; }, [followPlayback]);
+  useEffect(() => {
+    setLocalActions(actions);
+  }, [actions]);
+  useEffect(() => {
+    reviewModeRef.current = reviewMode;
+  }, [reviewMode]);
+  useEffect(() => {
+    followPlaybackRef.current = followPlayback;
+  }, [followPlayback]);
 
   const scrollToSegment = useCallback((segment: any, animated = true) => {
     if (!segment) return;
     setActiveSegmentId(segment.id);
     const y = segmentY.current[segment.id];
-    if (typeof y === "number") scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated });
+    if (typeof y === "number")
+      scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated });
   }, []);
 
   useEffect(() => {
@@ -5031,28 +7916,34 @@ function SessionReviewExperience({
         loadedSound = player;
         setSound(player);
         setDuration(player.duration || 0);
-        const subscription = player.addListener("playbackStatusUpdate", (status: ExpoAudioStatus) => {
-          if (!mounted) return;
-          const nextPosition = status.currentTime;
-          setPosition(nextPosition);
-          if (status.duration) setDuration(status.duration);
-          setPlaying(status.playing);
-          const segment = transcript.find((item) => nextPosition >= item.startTime && nextPosition < item.endTime);
-          if (segment) {
-            setActiveSegmentId(segment.id);
-            if (
-              status.playing &&
-              reviewModeRef.current === "transcript" &&
-              followPlaybackRef.current &&
-              !userDragging.current &&
-              lastAutoSegment.current !== segment.id
-            ) {
-              lastAutoSegment.current = segment.id;
-              scrollToSegment(segment);
+        const subscription = player.addListener(
+          "playbackStatusUpdate",
+          (status: ExpoAudioStatus) => {
+            if (!mounted) return;
+            const nextPosition = status.currentTime;
+            setPosition(nextPosition);
+            if (status.duration) setDuration(status.duration);
+            setPlaying(status.playing);
+            const segment = transcript.find(
+              (item) =>
+                nextPosition >= item.startTime && nextPosition < item.endTime,
+            );
+            if (segment) {
+              setActiveSegmentId(segment.id);
+              if (
+                status.playing &&
+                reviewModeRef.current === "transcript" &&
+                followPlaybackRef.current &&
+                !userDragging.current &&
+                lastAutoSegment.current !== segment.id
+              ) {
+                lastAutoSegment.current = segment.id;
+                scrollToSegment(segment);
+              }
             }
-          }
-          if (status.didJustFinish) setPlaying(false);
-        });
+            if (status.didJustFinish) setPlaying(false);
+          },
+        );
         removeStatusListener = () => subscription.remove();
       } catch {
         showToast("Audio is unavailable for this session", "error");
@@ -5065,15 +7956,22 @@ function SessionReviewExperience({
     };
   }, [sessionId, scrollToSegment, transcript]);
 
-  const seekToSeconds = useCallback(async (seconds: number, shouldPlay = false) => {
-    if (!sound) return;
-    const next = Math.max(0, Math.min(duration || seconds, seconds));
-    await sound.seekTo(next);
-    setPosition(next);
-    if (shouldPlay) sound.play();
-    const segment = transcript.find((item) => next >= item.startTime && next < item.endTime) ?? transcript[0];
-    if (reviewModeRef.current === "transcript" && followPlaybackRef.current) scrollToSegment(segment);
-  }, [duration, scrollToSegment, sound, transcript]);
+  const seekToSeconds = useCallback(
+    async (seconds: number, shouldPlay = false) => {
+      if (!sound) return;
+      const next = Math.max(0, Math.min(duration || seconds, seconds));
+      await sound.seekTo(next);
+      setPosition(next);
+      if (shouldPlay) sound.play();
+      const segment =
+        transcript.find(
+          (item) => next >= item.startTime && next < item.endTime,
+        ) ?? transcript[0];
+      if (reviewModeRef.current === "transcript" && followPlaybackRef.current)
+        scrollToSegment(segment);
+    },
+    [duration, scrollToSegment, sound, transcript],
+  );
 
   function setPlaybackFollowing(next: boolean) {
     followPlaybackRef.current = next;
@@ -5082,7 +7980,10 @@ function SessionReviewExperience({
 
   function returnToPlayingTranscript() {
     setPlaybackFollowing(true);
-    const segment = transcript.find((item) => position >= item.startTime && position < item.endTime) ?? transcript[0];
+    const segment =
+      transcript.find(
+        (item) => position >= item.startTime && position < item.endTime,
+      ) ?? transcript[0];
     if (segment) scrollToSegment(segment);
   }
 
@@ -5097,7 +7998,8 @@ function SessionReviewExperience({
 
   async function changeSpeed() {
     if (!sound) return;
-    const next = speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1;
+    const next =
+      speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1;
     sound.setPlaybackRate(next);
     setSpeed(next);
   }
@@ -5106,7 +8008,8 @@ function SessionReviewExperience({
   const focusSection = useMemo(() => {
     const sections = analysis.sectionScores;
     if (!sections.length) return null;
-    return sections.reduce((min, sec) => (sec.score < min.score ? sec : min)).section;
+    return sections.reduce((min, sec) => (sec.score < min.score ? sec : min))
+      .section;
   }, [analysis.sectionScores]);
   const coachingMoments = useMemo(() => {
     return analysis.exactMoments
@@ -5121,32 +8024,44 @@ function SessionReviewExperience({
   const commentsBySegment = useMemo(() => {
     const mapped = new Map<string, SessionComment[]>();
     for (const comment of comments) {
-      if (comment.timestampSec == null || comment.parentId || transcript.length === 0) continue;
-      const nearest = transcript.reduce((best, segment) =>
-        Math.abs(segment.startTime - comment.timestampSec!) < Math.abs(best.startTime - comment.timestampSec!)
-          ? segment
-          : best
-      , transcript[0]);
+      if (
+        comment.timestampSec == null ||
+        comment.parentId ||
+        transcript.length === 0
+      )
+        continue;
+      const nearest = transcript.reduce(
+        (best, segment) =>
+          Math.abs(segment.startTime - comment.timestampSec!) <
+          Math.abs(best.startTime - comment.timestampSec!)
+            ? segment
+            : best,
+        transcript[0],
+      );
       mapped.set(nearest.id, [...(mapped.get(nearest.id) ?? []), comment]);
     }
     return mapped;
   }, [comments, transcript]);
   const selectedSegments = useMemo(
-    () => transcript.filter((segment) => selectedSegmentIds.includes(segment.id)),
-    [selectedSegmentIds, transcript]
+    () =>
+      transcript.filter((segment) => selectedSegmentIds.includes(segment.id)),
+    [selectedSegmentIds, transcript],
   );
   const selectionRange = useMemo(() => {
     if (selectedSegments.length === 0) return null;
-    const start = Math.min(...selectedSegments.map((segment) => segment.startTime));
+    const start = Math.min(
+      ...selectedSegments.map((segment) => segment.startTime),
+    );
     const end = Math.max(...selectedSegments.map((segment) => segment.endTime));
     return { start, end };
   }, [selectedSegments]);
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return [];
-    return transcript.filter((segment) =>
-      segment.text?.toLowerCase().includes(query) ||
-      segment.speaker?.toLowerCase().includes(query)
+    return transcript.filter(
+      (segment) =>
+        segment.text?.toLowerCase().includes(query) ||
+        segment.speaker?.toLowerCase().includes(query),
     );
   }, [searchQuery, transcript]);
   function beginSegmentSelection(segmentId: string) {
@@ -5195,7 +8110,7 @@ function SessionReviewExperience({
     setSelectedSegmentIds((current) =>
       current.includes(segmentId)
         ? current.filter((id) => id !== segmentId)
-        : [...current, segmentId]
+        : [...current, segmentId],
     );
   }
 
@@ -5209,8 +8124,15 @@ function SessionReviewExperience({
 
   async function saveSelectionAnnotation() {
     const note = selectionComment.trim();
-    if (!selectionRange || selectedSegments.length === 0 || (selectionAnnotationKind === "comment" && !note)) return;
-    const excerpt = selectedSegments.map((segment) => `${segment.speaker}: ${segment.text}`).join("\n");
+    if (
+      !selectionRange ||
+      selectedSegments.length === 0 ||
+      (selectionAnnotationKind === "comment" && !note)
+    )
+      return;
+    const excerpt = selectedSegments
+      .map((segment) => `${segment.speaker}: ${segment.text}`)
+      .join("\n");
     setSelectionBusy(true);
     try {
       await postCommentMutation.mutateAsync({
@@ -5223,14 +8145,18 @@ function SessionReviewExperience({
       setSelectionComment("");
       setSelectedSegmentIds([]);
       showToast(
-        selectionAnnotationKind === "key_moment" ? "Key moment saved" : "Comment added to transcript",
-        "success"
+        selectionAnnotationKind === "key_moment"
+          ? "Key moment saved"
+          : "Comment added to transcript",
+        "success",
       );
       onReload();
     } catch {
       showToast(
-        selectionAnnotationKind === "key_moment" ? "Could not save key moment" : "Could not add comment",
-        "error"
+        selectionAnnotationKind === "key_moment"
+          ? "Could not save key moment"
+          : "Could not add comment",
+        "error",
       );
     } finally {
       setSelectionBusy(false);
@@ -5240,7 +8166,9 @@ function SessionReviewExperience({
   async function createSelectionClip() {
     if (!selectionRange || selectedSegments.length === 0) return;
     setSelectionBusy(true);
-    const excerpt = selectedSegments.map((segment) => `${segment.speaker}: ${segment.text}`).join("\n");
+    const excerpt = selectedSegments
+      .map((segment) => `${segment.speaker}: ${segment.text}`)
+      .join("\n");
     const rangeLabel = `${fmtSec(selectionRange.start)}–${fmtSec(selectionRange.end)}`;
     const clipUrl = `${getApiBaseUrl()}/api/sessions/${sessionId}/recording#t=${Math.floor(selectionRange.start)},${Math.ceil(selectionRange.end)}`;
     try {
@@ -5266,20 +8194,43 @@ function SessionReviewExperience({
 
   function openSessionMoreMenu() {
     Alert.alert("Session options", undefined, [
-      { text: comments.length > 0 ? `Comments (${comments.length})` : "Comments", onPress: onOpenComments },
+      {
+        text:
+          comments.length > 0 ? `Comments (${comments.length})` : "Comments",
+        onPress: onOpenComments,
+      },
       { text: "Audio insights", onPress: onOpenAudioInsights },
       { text: "Cancel", style: "cancel" },
     ]);
   }
 
   const transcriptGroups = useMemo(() => {
-    if (!transcript.length) return [] as Array<{ id: string; label: string; startTime: number; color: string; segments: any[] }>;
+    if (!transcript.length)
+      return [] as Array<{
+        id: string;
+        label: string;
+        startTime: number;
+        color: string;
+        segments: any[];
+      }>;
     if (!phases?.spans.length) {
-      return [{ id: "all", label: "Transcript", startTime: transcript[0]?.startTime ?? 0, color: C.brand, segments: transcript }];
+      return [
+        {
+          id: "all",
+          label: "Transcript",
+          startTime: transcript[0]?.startTime ?? 0,
+          color: C.brand,
+          segments: transcript,
+        },
+      ];
     }
     return phases.spans
       .map((span, index) => {
-        const segments = transcript.filter((segment) => segment.startTime >= span.startTime && segment.startTime < span.endTime);
+        const segments = transcript.filter(
+          (segment) =>
+            segment.startTime >= span.startTime &&
+            segment.startTime < span.endTime,
+        );
         return {
           id: span.id,
           label: shortPhaseLabel(span.label),
@@ -5309,8 +8260,12 @@ function SessionReviewExperience({
             setPlaybackFollowing(false);
           }
         }}
-        onMomentumScrollEnd={() => { userDragging.current = false; }}
-        onScrollEndDrag={() => { userDragging.current = false; }}
+        onMomentumScrollEnd={() => {
+          userDragging.current = false;
+        }}
+        onScrollEndDrag={() => {
+          userDragging.current = false;
+        }}
       >
         <View>
           <TourScreenHeader
@@ -5331,12 +8286,23 @@ function SessionReviewExperience({
               accessibilityRole="button"
               accessibilityLabel="Open PDF report"
               onPress={onOpenReport}
-              style={({ pressed }) => [reviewSt.reportCta, pressed && st.pressed]}
+              style={({ pressed }) => [
+                reviewSt.reportCta,
+                pressed && st.pressed,
+              ]}
             >
-              <View style={reviewSt.reportCtaIcon}><Ionicons name="document-text-outline" size={20} color={C.brand} /></View>
+              <View style={reviewSt.reportCtaIcon}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={20}
+                  color={C.brand}
+                />
+              </View>
               <View style={st.flex1}>
                 <Text style={reviewSt.reportCtaTitle}>PDF report</Text>
-                <Text style={reviewSt.reportCtaSub}>Preview, share, save, or choose an analysis version</Text>
+                <Text style={reviewSt.reportCtaSub}>
+                  Preview, share, save, or choose an analysis version
+                </Text>
               </View>
               <Ionicons name="arrow-forward" size={18} color={C.brand} />
             </Pressable>
@@ -5346,8 +8312,14 @@ function SessionReviewExperience({
         <View style={reviewSt.tabSticky}>
           <SessionModeTabs
             value={reviewMode}
-            modes={readOnly ? ["rubric", "prospect", "transcript", "search", "coaching"] : undefined}
-            commentCount={comments.filter((comment) => !comment.parentId).length}
+            modes={
+              readOnly
+                ? ["rubric", "prospect", "transcript", "search", "coaching"]
+                : undefined
+            }
+            commentCount={
+              comments.filter((comment) => !comment.parentId).length
+            }
             onChange={(mode) => {
               if (mode === "ai") {
                 onOpenAiChat();
@@ -5360,355 +8332,595 @@ function SessionReviewExperience({
 
         <View
           style={reviewSt.tabBody}
-          onLayout={(event) => { tabBodyY.current = event.nativeEvent.layout.y; }}
+          onLayout={(event) => {
+            tabBodyY.current = event.nativeEvent.layout.y;
+          }}
         >
-        {readOnly ? (
-          <View style={reviewSt.sampleReadOnlyBanner}>
-            <View style={reviewSt.sampleReadOnlyIcon}><Ionicons name="sparkles" size={16} color={C.purple} /></View>
-            <View style={st.flex1}>
-              <Text style={reviewSt.sampleReadOnlyTitle}>40Fifty Lofts sample</Text>
-              <Text style={reviewSt.sampleReadOnlySub}>Read only · Explore the scoring, coaching, audio, and transcript.</Text>
-            </View>
-          </View>
-        ) : null}
-        {!readOnly && session.leads?.length > 0 ? (
-          <CheckedInVisitorsCard
-            leads={session.leads}
-            description={`${session.leads.length} ${session.leads.length === 1 ? "visitor" : "visitors"} joined this session`}
-          />
-        ) : null}
-        {reviewMode === "rubric" && (
-          <AnimatedTabContent tabKey="rubric">
-            <View style={{ gap: 12 }}>
-              {focusSection ? (
-                <View style={reviewSt.focusBanner}>
-                  <Text style={reviewSt.focusBannerLabel}>Focus area</Text>
-                  <Text style={reviewSt.focusBannerValue}>{focusSection}</Text>
-                </View>
-              ) : null}
-              <RubricTab analysis={analysis} />
-              <CollapsibleSection title="Analysis summary">
-                <Text style={{ fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 21 }}>
-                  {analysis.summary}
+          {readOnly ? (
+            <View style={reviewSt.sampleReadOnlyBanner}>
+              <View style={reviewSt.sampleReadOnlyIcon}>
+                <Ionicons name="sparkles" size={16} color={C.purple} />
+              </View>
+              <View style={st.flex1}>
+                <Text style={reviewSt.sampleReadOnlyTitle}>
+                  40Fifty Lofts sample
                 </Text>
-              </CollapsibleSection>
-              {analysis.strengths.length > 0 ? (
-                <CollapsibleSection
-                  title="Strengths"
-                  defaultOpen={analysis.overallScore >= 70}
-                >
-                  {analysis.strengths.map((strength, index) => (
-                    <BulletItem key={index} text={strength} color={C.textSec} />
-                  ))}
-                </CollapsibleSection>
-              ) : null}
+                <Text style={reviewSt.sampleReadOnlySub}>
+                  Read only · Explore the scoring, coaching, audio, and
+                  transcript.
+                </Text>
+              </View>
             </View>
-          </AnimatedTabContent>
-        )}
-        {reviewMode === "prospect" && (
-          <AnimatedTabContent tabKey="prospect">
-            <ProspectInsightsCard
-              analysis={analysis}
-              providedInterests={session.customerInterests ?? []}
+          ) : null}
+          {!readOnly && session.leads?.length > 0 ? (
+            <CheckedInVisitorsCard
+              leads={session.leads}
+              description={`${session.leads.length} ${session.leads.length === 1 ? "visitor" : "visitors"} joined this session`}
             />
-          </AnimatedTabContent>
-        )}
-        {reviewMode === "search" && (
-          <AnimatedTabContent tabKey="search">
-            <View style={reviewSt.searchPanel}>
-              <View style={reviewSt.searchInputWrap}>
-                <Ionicons name="search" size={18} color={C.textMuted} />
-                <TextInput
-                  autoFocus
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Search transcript or speaker"
-                  placeholderTextColor={C.textMuted}
-                  returnKeyType="search"
-                  style={reviewSt.searchInput}
-                />
-                {searchQuery ? (
-                  <Pressable onPress={() => setSearchQuery("")} hitSlop={10}>
-                    <Ionicons name="close-circle" size={18} color={C.textMuted} />
-                  </Pressable>
+          ) : null}
+          {reviewMode === "rubric" && (
+            <AnimatedTabContent tabKey="rubric">
+              <View style={{ gap: 12 }}>
+                {focusSection ? (
+                  <View style={reviewSt.focusBanner}>
+                    <Text style={reviewSt.focusBannerLabel}>Focus area</Text>
+                    <Text style={reviewSt.focusBannerValue}>
+                      {focusSection}
+                    </Text>
+                  </View>
+                ) : null}
+                <RubricTab analysis={analysis} />
+                <CollapsibleSection title="Analysis summary">
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: C.textSec,
+                      lineHeight: 21,
+                    }}
+                  >
+                    {analysis.summary}
+                  </Text>
+                </CollapsibleSection>
+                {analysis.strengths.length > 0 ? (
+                  <CollapsibleSection
+                    title="Strengths"
+                    defaultOpen={analysis.overallScore >= 70}
+                  >
+                    {analysis.strengths.map((strength, index) => (
+                      <BulletItem
+                        key={index}
+                        text={strength}
+                        color={C.textSec}
+                      />
+                    ))}
+                  </CollapsibleSection>
                 ) : null}
               </View>
-              {!searchQuery.trim() ? (
-                <Text style={reviewSt.searchHint}>Search names, phrases, questions, or moments from this session.</Text>
-              ) : searchResults.length === 0 ? (
-                <EmptyState icon="search-outline" title="No matches" subtitle="Try another word or phrase." />
-              ) : (
-                <View style={reviewSt.searchResults}>
-                  <Text style={reviewSt.searchCount}>{searchResults.length} result{searchResults.length === 1 ? "" : "s"}</Text>
-                  {searchResults.map((segment) => (
-                    <Pressable
-                      key={segment.id}
-                      onPress={() => openTranscriptAtSegment(segment)}
-                      style={reviewSt.searchResult}
-                    >
-                      <View style={reviewSt.searchResultIcon}>
-                        <Ionicons name="play" size={13} color={C.brand} />
-                      </View>
-                      <View style={st.flex1}>
-                        <View style={reviewSt.searchResultMeta}>
-                          <Text style={reviewSt.searchResultSpeaker}>{segment.speaker}</Text>
-                          <Text style={reviewSt.searchResultTime}>{fmtSec(segment.startTime)}</Text>
-                        </View>
-                        <Text style={reviewSt.searchResultText} numberOfLines={3}>{segment.text}</Text>
-                      </View>
+            </AnimatedTabContent>
+          )}
+          {reviewMode === "prospect" && (
+            <AnimatedTabContent tabKey="prospect">
+              <ProspectInsightsCard
+                analysis={analysis}
+                providedInterests={session.customerInterests ?? []}
+              />
+            </AnimatedTabContent>
+          )}
+          {reviewMode === "search" && (
+            <AnimatedTabContent tabKey="search">
+              <View style={reviewSt.searchPanel}>
+                <View style={reviewSt.searchInputWrap}>
+                  <Ionicons name="search" size={18} color={C.textMuted} />
+                  <TextInput
+                    autoFocus
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search transcript or speaker"
+                    placeholderTextColor={C.textMuted}
+                    returnKeyType="search"
+                    style={reviewSt.searchInput}
+                  />
+                  {searchQuery ? (
+                    <Pressable onPress={() => setSearchQuery("")} hitSlop={10}>
+                      <Ionicons
+                        name="close-circle"
+                        size={18}
+                        color={C.textMuted}
+                      />
                     </Pressable>
-                  ))}
+                  ) : null}
                 </View>
-              )}
-            </View>
-          </AnimatedTabContent>
-        )}
-        {reviewMode === "coaching" && (
-          <AnimatedTabContent tabKey="coaching">
-            <ActionsTab
-              actions={localActions}
-              sessionId={sessionId}
-              onUpdate={onReload}
-              onActionsChange={setLocalActions}
-              readOnly={readOnly}
-            />
-          </AnimatedTabContent>
-        )}
-        {reviewMode === "comments" && (
-          <AnimatedTabContent tabKey="comments">
-            <CommentsTab comments={comments} sessionId={sessionId} onUpdate={onReload} />
-          </AnimatedTabContent>
-        )}
-        {reviewMode === "transcript" && transcript.length === 0 && (
-          <AnimatedTabContent tabKey="transcript-empty">
-            <EmptyState icon="chatbubble-outline" title="No transcript yet" subtitle="The transcript will appear after processing." />
-          </AnimatedTabContent>
-        )}
-        {reviewMode === "transcript" && transcript.length > 0 && (
-          <View style={reviewSt.commentHint}>
-            <Ionicons name="hand-left-outline" size={14} color={C.brand} />
-            <Text style={reviewSt.commentHintText}>
-              Long-press to select lines, or double-tap a line to comment at that timestamp.
-            </Text>
-          </View>
-        )}
-        {reviewMode === "transcript" && transcriptGroups.map((group) => (
-          <View
-            key={group.id}
-            style={reviewSt.phaseSection}
-            onLayout={(event) => { phaseY.current[group.id] = event.nativeEvent.layout.y; }}
-          >
-            <View style={reviewSt.phaseDivider}>
-              <View style={[reviewSt.phaseDividerLine, { backgroundColor: group.color }]} />
-              <Text style={[reviewSt.phaseDividerTitle, { color: group.color }]}>{group.label}</Text>
-              <Text style={reviewSt.phaseDividerTime}>{fmtSec(group.startTime)}</Text>
-            </View>
-            {group.segments.map((segment, index) => {
-              const active = segment.id === activeSegmentId;
-              const selected = selectedSegmentIds.includes(segment.id);
-              const isAgent = segment.speaker?.toLowerCase().includes("agent");
-              const prev = group.segments[index - 1];
-              const showInitial = !prev || prev.speaker !== segment.speaker;
-              const moments = coachingMoments.filter((moment) =>
-                moment.seconds !== null &&
-                moment.seconds >= segment.startTime &&
-                moment.seconds < segment.endTime
-              );
-              const segmentComments = commentsBySegment.get(segment.id) ?? [];
-              return (
-                <Reanimated.View
-                  key={segment.id || index}
-                  entering={FadeInDown.delay(Math.min(index * 18, 180)).duration(240)}
-                  onLayout={(event) => {
-                    segmentY.current[segment.id] =
-                      tabBodyY.current +
-                      (phaseY.current[group.id] ?? 0) +
-                      event.nativeEvent.layout.y;
-                  }}
-                  style={[
-                    reviewSt.turnRow,
-                    active && reviewSt.turnRowActive,
-                    selected && reviewSt.turnRowSelected,
-                  ]}
-                >
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    accessibilityHint={readOnly ? "Tap to play from this timestamp." : "Tap to play from this timestamp. Long press to select transcript segments."}
-                    onLongPress={readOnly ? undefined : () => beginSegmentSelection(segment.id)}
-                    delayLongPress={360}
-                    onPress={() => handleTranscriptPress(segment)}
-                    style={reviewSt.turnMain}
-                  >
-                    <View style={reviewSt.turnInitialSlot}>
-                      {showInitial && (
-                        <Text style={[reviewSt.turnInitial, { color: isAgent ? tourColors.agent : tourColors.prospect }]}>
-                          {isAgent ? "A" : "P"}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={st.flex1}>
-                      <View style={reviewSt.turnMeta}>
-                        <Text style={[reviewSt.turnSpeaker, { color: isAgent ? tourColors.agent : tourColors.prospect }]}>
-                          {segment.speaker || (isAgent ? "Agent" : "Prospect")}
-                        </Text>
-                        <Text style={reviewSt.segmentTime}>{fmtSec(segment.startTime)}</Text>
-                      </View>
-                      <Text style={reviewSt.turnText}>{segment.text}</Text>
-                    </View>
-                  </Pressable>
-                  {(() => {
-                    const allGroups: Array<{ kind: TranscriptAnnotation["kind"]; items: TranscriptAnnotation[] }> = [
-                      {
-                        kind: "ai_note",
-                        items: moments.map((moment) => ({
-                          id: moment.id,
-                          kind: "ai_note" as const,
-                          title: "AI coaching note",
-                          body: [
-                            moment.explanation,
-                            moment.suggestedImprovement ? `Try: ${moment.suggestedImprovement}` : null,
-                          ].filter(Boolean).join("\n\n"),
-                          timestampSec: moment.seconds,
-                        })),
-                      },
-                      {
-                        kind: "comment",
-                        items: segmentComments
-                          .filter((comment) => comment.kind !== "key_moment")
-                          .map((comment) => ({
-                            id: comment.id,
-                            kind: "comment" as const,
-                            title: comment.authorName || "Comment",
-                            body: comment.body,
-                            timestampSec: comment.timestampSec,
-                          })),
-                      },
-                      {
-                        kind: "key_moment",
-                        items: segmentComments
-                          .filter((comment) => comment.kind === "key_moment")
-                          .map((comment) => ({
-                            id: comment.id,
-                            kind: "key_moment" as const,
-                            title: "Key moment",
-                            body: comment.body,
-                            timestampSec: comment.timestampSec,
-                        })),
-                      },
-                    ];
-                    const groups = allGroups.filter((group) => group.items.length > 0);
-                    if (groups.length === 0) return null;
-                    const currentExpandedAnnotation = expandedAnnotation;
-                    const expandedKind = currentExpandedAnnotation && currentExpandedAnnotation.segmentId === segment.id
-                      ? currentExpandedAnnotation.kind
-                      : null;
-                    const inlineGroup = expandedKind
-                      ? groups.find((group) => group.kind === expandedKind) ?? null
-                      : null;
-                    return (
-                      <>
-                        <View style={[reviewSt.annotationRow, { marginLeft: 36 }]}>
-                          {groups.map((group) => {
-                            const color = transcriptAnnotationChipColor(group.kind);
-                            const label = transcriptAnnotationChipLabel(group.kind);
-                            const count = group.items.length;
-                            const isExpanded = expandedKind === group.kind;
-                            return (
-                              <Pressable
-                                key={group.kind}
-                                accessibilityRole="button"
-                                accessibilityLabel={`${count} ${label}`}
-                                accessibilityState={{ expanded: isExpanded }}
-                                onPress={() => setExpandedAnnotation((current) => (
-                                  current && current.segmentId === segment.id && current.kind === group.kind
-                                    ? null
-                                    : { segmentId: segment.id, kind: group.kind }
-                                ))}
-                                style={[
-                                  reviewSt.annotationChip,
-                                  isExpanded && reviewSt.annotationChipExpanded,
-                                  isExpanded && { borderColor: color + "44", backgroundColor: color + "0d" },
-                                ]}
-                              >
-                                <Ionicons
-                                  name={transcriptAnnotationChipIcon(group.kind)}
-                                  size={12}
-                                  color={color}
-                                />
-                                <Text style={[reviewSt.annotationText, { color }]}>{label}</Text>
-                                <View style={[reviewSt.annotationCountBadge, { backgroundColor: color }]}>
-                                  <Text style={reviewSt.annotationCountText}>{count > 99 ? "99+" : String(count)}</Text>
-                                </View>
-                                <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={12} color={color} />
-                              </Pressable>
-                            );
-                          })}
+                {!searchQuery.trim() ? (
+                  <Text style={reviewSt.searchHint}>
+                    Search names, phrases, questions, or moments from this
+                    session.
+                  </Text>
+                ) : searchResults.length === 0 ? (
+                  <EmptyState
+                    icon="search-outline"
+                    title="No matches"
+                    subtitle="Try another word or phrase."
+                  />
+                ) : (
+                  <View style={reviewSt.searchResults}>
+                    <Text style={reviewSt.searchCount}>
+                      {searchResults.length} result
+                      {searchResults.length === 1 ? "" : "s"}
+                    </Text>
+                    {searchResults.map((segment) => (
+                      <Pressable
+                        key={segment.id}
+                        onPress={() => openTranscriptAtSegment(segment)}
+                        style={reviewSt.searchResult}
+                      >
+                        <View style={reviewSt.searchResultIcon}>
+                          <Ionicons name="play" size={13} color={C.brand} />
                         </View>
-                        {inlineGroup ? (() => {
-                          const color = transcriptAnnotationChipColor(inlineGroup.kind);
-                          const isAi = inlineGroup.kind === "ai_note";
-                          return (
-                            <Reanimated.View entering={FadeInDown.duration(180)} style={reviewSt.inlineAnnotationStack}>
-                              {inlineGroup.items.map((item, itemIndex) => (
-                                <View
-                                  key={item.id}
-                                  style={[
-                                    reviewSt.inlineAnnotationCard,
-                                    {
-                                      borderColor: isAi ? "#e9d5ff" : "#bfdbfe",
-                                      backgroundColor: isAi ? "#faf5ff" : "#eff6ff",
-                                    },
-                                  ]}
-                                >
-                                  <View style={reviewSt.inlineAnnotationHeader}>
-                                    <View style={[reviewSt.inlineAnnotationIcon, { backgroundColor: color + "14" }]}>
-                                      <Ionicons name={transcriptAnnotationChipIcon(inlineGroup.kind)} size={14} color={color} />
-                                    </View>
-                                    <Text style={[reviewSt.inlineAnnotationTitle, { color }]}>
-                                      {isAi && inlineGroup.items.length > 1
-                                        ? `AI coaching note ${itemIndex + 1}`
-                                        : item.title}
-                                    </Text>
-                                    <Text style={[reviewSt.inlineAnnotationTime, { color }]}>
-                                      {item.timestampSec != null ? fmtSec(item.timestampSec) : ""}
-                                    </Text>
-                                  </View>
-                                  <Text style={reviewSt.inlineAnnotationBody}>{item.body}</Text>
-                                  {item.timestampSec != null ? (
-                                    <Pressable
-                                      accessibilityRole="button"
-                                      accessibilityLabel={`Play from this ${transcriptAnnotationChipLabel(item.kind).toLowerCase()}`}
-                                      onPress={() => void seekToSeconds(item.timestampSec!, true)}
-                                      style={({ pressed }) => [
-                                        reviewSt.inlineAnnotationPlay,
-                                        { backgroundColor: color + "14" },
-                                        pressed && st.pressed,
+                        <View style={st.flex1}>
+                          <View style={reviewSt.searchResultMeta}>
+                            <Text style={reviewSt.searchResultSpeaker}>
+                              {segment.speaker}
+                            </Text>
+                            <Text style={reviewSt.searchResultTime}>
+                              {fmtSec(segment.startTime)}
+                            </Text>
+                          </View>
+                          <Text
+                            style={reviewSt.searchResultText}
+                            numberOfLines={3}
+                          >
+                            {segment.text}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </AnimatedTabContent>
+          )}
+          {reviewMode === "coaching" && (
+            <AnimatedTabContent tabKey="coaching">
+              <ActionsTab
+                actions={localActions}
+                sessionId={sessionId}
+                onUpdate={onReload}
+                onActionsChange={setLocalActions}
+                readOnly={readOnly}
+              />
+            </AnimatedTabContent>
+          )}
+          {reviewMode === "comments" && (
+            <AnimatedTabContent tabKey="comments">
+              <CommentsTab
+                comments={comments}
+                sessionId={sessionId}
+                onUpdate={onReload}
+              />
+            </AnimatedTabContent>
+          )}
+          {reviewMode === "transcript" && transcript.length === 0 && (
+            <AnimatedTabContent tabKey="transcript-empty">
+              <EmptyState
+                icon="chatbubble-outline"
+                title="No transcript yet"
+                subtitle="The transcript will appear after processing."
+              />
+            </AnimatedTabContent>
+          )}
+          {reviewMode === "transcript" && transcript.length > 0 && (
+            <View style={reviewSt.commentHint}>
+              <Ionicons name="hand-left-outline" size={14} color={C.brand} />
+              <Text style={reviewSt.commentHintText}>
+                Long-press to select lines, or double-tap a line to comment at
+                that timestamp.
+              </Text>
+            </View>
+          )}
+          {reviewMode === "transcript" &&
+            transcriptGroups.map((group) => (
+              <View
+                key={group.id}
+                style={reviewSt.phaseSection}
+                onLayout={(event) => {
+                  phaseY.current[group.id] = event.nativeEvent.layout.y;
+                }}
+              >
+                <View style={reviewSt.phaseDivider}>
+                  <View
+                    style={[
+                      reviewSt.phaseDividerLine,
+                      { backgroundColor: group.color },
+                    ]}
+                  />
+                  <Text
+                    style={[reviewSt.phaseDividerTitle, { color: group.color }]}
+                  >
+                    {group.label}
+                  </Text>
+                  <Text style={reviewSt.phaseDividerTime}>
+                    {fmtSec(group.startTime)}
+                  </Text>
+                </View>
+                {group.segments.map((segment, index) => {
+                  const active = segment.id === activeSegmentId;
+                  const selected = selectedSegmentIds.includes(segment.id);
+                  const isAgent = segment.speaker
+                    ?.toLowerCase()
+                    .includes("agent");
+                  const prev = group.segments[index - 1];
+                  const showInitial = !prev || prev.speaker !== segment.speaker;
+                  const moments = coachingMoments.filter(
+                    (moment) =>
+                      moment.seconds !== null &&
+                      moment.seconds >= segment.startTime &&
+                      moment.seconds < segment.endTime,
+                  );
+                  const segmentComments =
+                    commentsBySegment.get(segment.id) ?? [];
+                  return (
+                    <Reanimated.View
+                      key={segment.id || index}
+                      entering={FadeInDown.delay(
+                        Math.min(index * 18, 180),
+                      ).duration(240)}
+                      onLayout={(event) => {
+                        segmentY.current[segment.id] =
+                          tabBodyY.current +
+                          (phaseY.current[group.id] ?? 0) +
+                          event.nativeEvent.layout.y;
+                      }}
+                      style={[
+                        reviewSt.turnRow,
+                        active && reviewSt.turnRowActive,
+                        selected && reviewSt.turnRowSelected,
+                      ]}
+                    >
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityHint={
+                          readOnly
+                            ? "Tap to play from this timestamp."
+                            : "Tap to play from this timestamp. Long press to select transcript segments."
+                        }
+                        onLongPress={
+                          readOnly
+                            ? undefined
+                            : () => beginSegmentSelection(segment.id)
+                        }
+                        delayLongPress={360}
+                        onPress={() => handleTranscriptPress(segment)}
+                        style={reviewSt.turnMain}
+                      >
+                        <View style={reviewSt.turnInitialSlot}>
+                          {showInitial && (
+                            <Text
+                              style={[
+                                reviewSt.turnInitial,
+                                {
+                                  color: isAgent
+                                    ? tourColors.agent
+                                    : tourColors.prospect,
+                                },
+                              ]}
+                            >
+                              {isAgent ? "A" : "P"}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={st.flex1}>
+                          <View style={reviewSt.turnMeta}>
+                            <Text
+                              style={[
+                                reviewSt.turnSpeaker,
+                                {
+                                  color: isAgent
+                                    ? tourColors.agent
+                                    : tourColors.prospect,
+                                },
+                              ]}
+                            >
+                              {segment.speaker ||
+                                (isAgent ? "Agent" : "Prospect")}
+                            </Text>
+                            <Text style={reviewSt.segmentTime}>
+                              {fmtSec(segment.startTime)}
+                            </Text>
+                          </View>
+                          <Text style={reviewSt.turnText}>{segment.text}</Text>
+                        </View>
+                      </Pressable>
+                      {(() => {
+                        const allGroups: Array<{
+                          kind: TranscriptAnnotation["kind"];
+                          items: TranscriptAnnotation[];
+                        }> = [
+                          {
+                            kind: "ai_note",
+                            items: moments.map((moment) => ({
+                              id: moment.id,
+                              kind: "ai_note" as const,
+                              title: "AI coaching note",
+                              body: [
+                                moment.explanation,
+                                moment.suggestedImprovement
+                                  ? `Try: ${moment.suggestedImprovement}`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join("\n\n"),
+                              timestampSec: moment.seconds,
+                            })),
+                          },
+                          {
+                            kind: "comment",
+                            items: segmentComments
+                              .filter(
+                                (comment) => comment.kind !== "key_moment",
+                              )
+                              .map((comment) => ({
+                                id: comment.id,
+                                kind: "comment" as const,
+                                title: comment.authorName || "Comment",
+                                body: comment.body,
+                                timestampSec: comment.timestampSec,
+                              })),
+                          },
+                          {
+                            kind: "key_moment",
+                            items: segmentComments
+                              .filter(
+                                (comment) => comment.kind === "key_moment",
+                              )
+                              .map((comment) => ({
+                                id: comment.id,
+                                kind: "key_moment" as const,
+                                title: "Key moment",
+                                body: comment.body,
+                                timestampSec: comment.timestampSec,
+                              })),
+                          },
+                        ];
+                        const groups = allGroups.filter(
+                          (group) => group.items.length > 0,
+                        );
+                        if (groups.length === 0) return null;
+                        const currentExpandedAnnotation = expandedAnnotation;
+                        const expandedKind =
+                          currentExpandedAnnotation &&
+                          currentExpandedAnnotation.segmentId === segment.id
+                            ? currentExpandedAnnotation.kind
+                            : null;
+                        const inlineGroup = expandedKind
+                          ? (groups.find(
+                              (group) => group.kind === expandedKind,
+                            ) ?? null)
+                          : null;
+                        return (
+                          <>
+                            <View
+                              style={[
+                                reviewSt.annotationRow,
+                                { marginLeft: 36 },
+                              ]}
+                            >
+                              {groups.map((group) => {
+                                const color = transcriptAnnotationChipColor(
+                                  group.kind,
+                                );
+                                const label = transcriptAnnotationChipLabel(
+                                  group.kind,
+                                );
+                                const count = group.items.length;
+                                const isExpanded = expandedKind === group.kind;
+                                return (
+                                  <Pressable
+                                    key={group.kind}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${count} ${label}`}
+                                    accessibilityState={{
+                                      expanded: isExpanded,
+                                    }}
+                                    onPress={() =>
+                                      setExpandedAnnotation((current) =>
+                                        current &&
+                                        current.segmentId === segment.id &&
+                                        current.kind === group.kind
+                                          ? null
+                                          : {
+                                              segmentId: segment.id,
+                                              kind: group.kind,
+                                            },
+                                      )
+                                    }
+                                    style={[
+                                      reviewSt.annotationChip,
+                                      isExpanded &&
+                                        reviewSt.annotationChipExpanded,
+                                      isExpanded && {
+                                        borderColor: color + "44",
+                                        backgroundColor: color + "0d",
+                                      },
+                                    ]}
+                                  >
+                                    <Ionicons
+                                      name={transcriptAnnotationChipIcon(
+                                        group.kind,
+                                      )}
+                                      size={12}
+                                      color={color}
+                                    />
+                                    <Text
+                                      style={[
+                                        reviewSt.annotationText,
+                                        { color },
                                       ]}
                                     >
-                                      <Ionicons name="play" size={12} color={color} />
-                                      <Text style={[reviewSt.inlineAnnotationPlayText, { color }]}>Play from here</Text>
-                                    </Pressable>
-                                  ) : null}
-                                </View>
-                              ))}
-                            </Reanimated.View>
-                          );
-                        })() : null}
-                      </>
-                    );
-                  })()}
-                </Reanimated.View>
-              );
-            })}
-          </View>
-        ))}
+                                      {label}
+                                    </Text>
+                                    <View
+                                      style={[
+                                        reviewSt.annotationCountBadge,
+                                        { backgroundColor: color },
+                                      ]}
+                                    >
+                                      <Text
+                                        style={reviewSt.annotationCountText}
+                                      >
+                                        {count > 99 ? "99+" : String(count)}
+                                      </Text>
+                                    </View>
+                                    <Ionicons
+                                      name={
+                                        isExpanded
+                                          ? "chevron-up"
+                                          : "chevron-down"
+                                      }
+                                      size={12}
+                                      color={color}
+                                    />
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                            {inlineGroup
+                              ? (() => {
+                                  const color = transcriptAnnotationChipColor(
+                                    inlineGroup.kind,
+                                  );
+                                  const isAi = inlineGroup.kind === "ai_note";
+                                  return (
+                                    <Reanimated.View
+                                      entering={FadeInDown.duration(180)}
+                                      style={reviewSt.inlineAnnotationStack}
+                                    >
+                                      {inlineGroup.items.map(
+                                        (item, itemIndex) => (
+                                          <View
+                                            key={item.id}
+                                            style={[
+                                              reviewSt.inlineAnnotationCard,
+                                              {
+                                                borderColor: isAi
+                                                  ? "#e9d5ff"
+                                                  : "#bfdbfe",
+                                                backgroundColor: isAi
+                                                  ? "#faf5ff"
+                                                  : "#eff6ff",
+                                              },
+                                            ]}
+                                          >
+                                            <View
+                                              style={
+                                                reviewSt.inlineAnnotationHeader
+                                              }
+                                            >
+                                              <View
+                                                style={[
+                                                  reviewSt.inlineAnnotationIcon,
+                                                  {
+                                                    backgroundColor:
+                                                      color + "14",
+                                                  },
+                                                ]}
+                                              >
+                                                <Ionicons
+                                                  name={transcriptAnnotationChipIcon(
+                                                    inlineGroup.kind,
+                                                  )}
+                                                  size={14}
+                                                  color={color}
+                                                />
+                                              </View>
+                                              <Text
+                                                style={[
+                                                  reviewSt.inlineAnnotationTitle,
+                                                  { color },
+                                                ]}
+                                              >
+                                                {isAi &&
+                                                inlineGroup.items.length > 1
+                                                  ? `AI coaching note ${itemIndex + 1}`
+                                                  : item.title}
+                                              </Text>
+                                              <Text
+                                                style={[
+                                                  reviewSt.inlineAnnotationTime,
+                                                  { color },
+                                                ]}
+                                              >
+                                                {item.timestampSec != null
+                                                  ? fmtSec(item.timestampSec)
+                                                  : ""}
+                                              </Text>
+                                            </View>
+                                            <Text
+                                              style={
+                                                reviewSt.inlineAnnotationBody
+                                              }
+                                            >
+                                              {item.body}
+                                            </Text>
+                                            {item.timestampSec != null ? (
+                                              <Pressable
+                                                accessibilityRole="button"
+                                                accessibilityLabel={`Play from this ${transcriptAnnotationChipLabel(item.kind).toLowerCase()}`}
+                                                onPress={() =>
+                                                  void seekToSeconds(
+                                                    item.timestampSec!,
+                                                    true,
+                                                  )
+                                                }
+                                                style={({ pressed }) => [
+                                                  reviewSt.inlineAnnotationPlay,
+                                                  {
+                                                    backgroundColor:
+                                                      color + "14",
+                                                  },
+                                                  pressed && st.pressed,
+                                                ]}
+                                              >
+                                                <Ionicons
+                                                  name="play"
+                                                  size={12}
+                                                  color={color}
+                                                />
+                                                <Text
+                                                  style={[
+                                                    reviewSt.inlineAnnotationPlayText,
+                                                    { color },
+                                                  ]}
+                                                >
+                                                  Play from here
+                                                </Text>
+                                              </Pressable>
+                                            ) : null}
+                                          </View>
+                                        ),
+                                      )}
+                                    </Reanimated.View>
+                                  );
+                                })()
+                              : null}
+                          </>
+                        );
+                      })()}
+                    </Reanimated.View>
+                  );
+                })}
+              </View>
+            ))}
         </View>
       </ScrollView>
 
       {!readOnly && selectedSegmentIds.length > 0 && selectionRange ? (
         <View style={reviewSt.selectionBar}>
-          <Pressable onPress={() => setSelectedSegmentIds([])} style={reviewSt.selectionClose}>
+          <Pressable
+            onPress={() => setSelectedSegmentIds([])}
+            style={reviewSt.selectionClose}
+          >
             <Ionicons name="close" size={18} color={C.textSec} />
           </Pressable>
           <View style={st.flex1}>
@@ -5732,12 +8944,19 @@ function SessionReviewExperience({
             onPress={() => void createSelectionClip()}
             style={reviewSt.selectionAction}
           >
-            {selectionBusy ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="film-outline" size={17} color={C.brand} />}
+            {selectionBusy ? (
+              <LoadingDots size="small" color={C.brand} />
+            ) : (
+              <Ionicons name="film-outline" size={17} color={C.brand} />
+            )}
             <Text style={reviewSt.selectionActionText}>Create clip</Text>
           </Pressable>
         </View>
       ) : !readOnly ? (
-        <SessionAiFab onPress={onOpenAiChat} bottomOffset={Platform.OS === "ios" ? 118 : 104} />
+        <SessionAiFab
+          onPress={onOpenAiChat}
+          bottomOffset={Platform.OS === "ios" ? 118 : 104}
+        />
       ) : null}
       <SessionPlayer
         position={position}
@@ -5759,25 +8978,42 @@ function SessionReviewExperience({
         animationType="slide"
         onRequestClose={() => setCommentComposerOpen(false)}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={reviewSt.commentDrawerBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setCommentComposerOpen(false)} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={reviewSt.commentDrawerBackdrop}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setCommentComposerOpen(false)}
+          />
           <View style={reviewSt.commentDrawerCard}>
             <View style={reviewSt.commentDrawerHandle} />
             <View style={reviewSt.commentModalHeader}>
               <View style={reviewSt.commentModalIcon}>
                 <Ionicons
-                  name={selectionAnnotationKind === "key_moment" ? "bookmark-outline" : "chatbubble-outline"}
+                  name={
+                    selectionAnnotationKind === "key_moment"
+                      ? "bookmark-outline"
+                      : "chatbubble-outline"
+                  }
                   size={18}
                   color={C.brand}
                 />
               </View>
               <View style={st.flex1}>
-                <Text style={reviewSt.commentModalTitle}>Add to transcript</Text>
+                <Text style={reviewSt.commentModalTitle}>
+                  Add to transcript
+                </Text>
                 <Text style={reviewSt.commentModalTime}>
-                  {selectionRange ? `${fmtSec(selectionRange.start)}–${fmtSec(selectionRange.end)}` : ""}
+                  {selectionRange
+                    ? `${fmtSec(selectionRange.start)}–${fmtSec(selectionRange.end)}`
+                    : ""}
                 </Text>
               </View>
-              <Pressable onPress={() => setCommentComposerOpen(false)} hitSlop={10}>
+              <Pressable
+                onPress={() => setCommentComposerOpen(false)}
+                hitSlop={10}
+              >
                 <Ionicons name="close" size={21} color={C.textMuted} />
               </Pressable>
             </View>
@@ -5791,14 +9027,26 @@ function SessionReviewExperience({
                     accessibilityRole="tab"
                     accessibilityState={{ selected: active }}
                     onPress={() => setSelectionAnnotationKind(kind)}
-                    style={[reviewSt.commentKindOption, active && reviewSt.commentKindOptionActive]}
+                    style={[
+                      reviewSt.commentKindOption,
+                      active && reviewSt.commentKindOptionActive,
+                    ]}
                   >
                     <Ionicons
-                      name={kind === "key_moment" ? "bookmark-outline" : "chatbubble-outline"}
+                      name={
+                        kind === "key_moment"
+                          ? "bookmark-outline"
+                          : "chatbubble-outline"
+                      }
                       size={14}
                       color={active ? C.brand : C.textMuted}
                     />
-                    <Text style={[reviewSt.commentKindOptionText, active && reviewSt.commentKindOptionTextActive]}>
+                    <Text
+                      style={[
+                        reviewSt.commentKindOptionText,
+                        active && reviewSt.commentKindOptionTextActive,
+                      ]}
+                    >
                       {kind === "key_moment" ? "Key moment" : "Comment"}
                     </Text>
                   </Pressable>
@@ -5808,14 +9056,28 @@ function SessionReviewExperience({
 
             <View style={reviewSt.commentSelectionPreview}>
               <View style={reviewSt.commentSelectionPreviewHeader}>
-                <Text style={reviewSt.commentSelectionPreviewLabel}>Selected transcript</Text>
-                <Text style={reviewSt.commentSelectionPreviewCount}>{selectedSegments.length} selected</Text>
+                <Text style={reviewSt.commentSelectionPreviewLabel}>
+                  Selected transcript
+                </Text>
+                <Text style={reviewSt.commentSelectionPreviewCount}>
+                  {selectedSegments.length} selected
+                </Text>
               </View>
-              <ScrollView style={reviewSt.commentSelectionPreviewScroll} nestedScrollEnabled>
+              <ScrollView
+                style={reviewSt.commentSelectionPreviewScroll}
+                nestedScrollEnabled
+              >
                 {selectedSegments.map((segment) => (
-                  <View key={segment.id} style={reviewSt.commentSelectionPreviewTurn}>
-                    <Text style={reviewSt.commentSelectionPreviewSpeaker}>{segment.speaker}</Text>
-                    <Text style={reviewSt.commentSelectionPreviewText}>{segment.text}</Text>
+                  <View
+                    key={segment.id}
+                    style={reviewSt.commentSelectionPreviewTurn}
+                  >
+                    <Text style={reviewSt.commentSelectionPreviewSpeaker}>
+                      {segment.speaker}
+                    </Text>
+                    <Text style={reviewSt.commentSelectionPreviewText}>
+                      {segment.text}
+                    </Text>
                   </View>
                 ))}
               </ScrollView>
@@ -5826,25 +9088,45 @@ function SessionReviewExperience({
               multiline
               value={selectionComment}
               onChangeText={setSelectionComment}
-              placeholder={selectionAnnotationKind === "key_moment" ? "Why is this moment important? (optional)" : "Add a comment..."}
+              placeholder={
+                selectionAnnotationKind === "key_moment"
+                  ? "Why is this moment important? (optional)"
+                  : "Add a comment..."
+              }
               placeholderTextColor={C.textMuted}
               style={reviewSt.commentModalInput}
             />
             <Pressable
-              disabled={(selectionAnnotationKind === "comment" && !selectionComment.trim()) || selectionBusy}
+              disabled={
+                (selectionAnnotationKind === "comment" &&
+                  !selectionComment.trim()) ||
+                selectionBusy
+              }
               onPress={() => void saveSelectionAnnotation()}
               style={[
                 reviewSt.commentModalSubmit,
-                ((selectionAnnotationKind === "comment" && !selectionComment.trim()) || selectionBusy) && { opacity: 0.5 },
+                ((selectionAnnotationKind === "comment" &&
+                  !selectionComment.trim()) ||
+                  selectionBusy) && { opacity: 0.5 },
               ]}
             >
               {selectionBusy ? (
                 <LoadingDots size="small" color="#fff" />
               ) : (
-                <Ionicons name={selectionAnnotationKind === "key_moment" ? "bookmark" : "send"} size={16} color="#fff" />
+                <Ionicons
+                  name={
+                    selectionAnnotationKind === "key_moment"
+                      ? "bookmark"
+                      : "send"
+                  }
+                  size={16}
+                  color="#fff"
+                />
               )}
               <Text style={reviewSt.commentModalSubmitText}>
-                {selectionAnnotationKind === "key_moment" ? "Save key moment" : "Add comment"}
+                {selectionAnnotationKind === "key_moment"
+                  ? "Save key moment"
+                  : "Add comment"}
               </Text>
             </Pressable>
           </View>
@@ -5854,11 +9136,19 @@ function SessionReviewExperience({
   );
 }
 
-function DetailMeta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+function DetailMeta({
+  icon,
+  text,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+}) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
       <Ionicons name={icon} size={14} color={C.textSec} />
-      <Text style={{ fontSize: 13, fontWeight: "700", color: C.textSec }}>{text}</Text>
+      <Text style={{ fontSize: 13, fontWeight: "700", color: C.textSec }}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -5879,9 +9169,19 @@ function CoachingMomentCard({
   compact?: boolean;
 }) {
   return (
-    <MotionPressable onPress={onSeek} haptic="selection" entering={FadeInDown.duration(260).springify()} style={[reviewSt.coachingMoment, compact && reviewSt.coachingMomentCompact]}>
+    <MotionPressable
+      onPress={onSeek}
+      haptic="selection"
+      entering={FadeInDown.duration(260).springify()}
+      style={[
+        reviewSt.coachingMoment,
+        compact && reviewSt.coachingMomentCompact,
+      ]}
+    >
       <View style={reviewSt.coachingMomentHeader}>
-        <View style={reviewSt.coachingMomentIcon}><Ionicons name="flash" size={13} color={C.purple} /></View>
+        <View style={reviewSt.coachingMomentIcon}>
+          <Ionicons name="flash" size={13} color={C.purple} />
+        </View>
         <Text style={reviewSt.coachingMomentKicker}>Coachable Moment</Text>
         <Text style={reviewSt.coachingMomentTime}>{moment.timestamp}</Text>
       </View>
@@ -5889,11 +9189,15 @@ function CoachingMomentCard({
       {moment.suggestedImprovement ? (
         <View style={reviewSt.coachingSuggestion}>
           <Text style={reviewSt.coachingSuggestionLabel}>Try</Text>
-          <Text style={reviewSt.coachingSuggestionText}>{moment.suggestedImprovement}</Text>
+          <Text style={reviewSt.coachingSuggestionText}>
+            {moment.suggestedImprovement}
+          </Text>
         </View>
       ) : null}
       {!compact && moment.transcriptQuote ? (
-        <Text style={reviewSt.coachingQuote} numberOfLines={2}>"{moment.transcriptQuote}"</Text>
+        <Text style={reviewSt.coachingQuote} numberOfLines={2}>
+          "{moment.transcriptQuote}"
+        </Text>
       ) : null}
     </MotionPressable>
   );
@@ -5916,17 +9220,27 @@ function RubricPicker({
   return (
     <View>
       <Text style={st.fieldLabel}>Evaluation rubric</Text>
-      <Pressable onPress={onToggle} style={({ pressed }) => [st.inputWrap, pressed && st.pressed]}>
+      <Pressable
+        onPress={onToggle}
+        style={({ pressed }) => [st.inputWrap, pressed && st.pressed]}
+      >
         <Ionicons name="clipboard-outline" size={18} color={C.textMuted} />
         <View style={st.flex1}>
-          <Text style={st.pickerValue} numberOfLines={1}>{selected?.name ?? "Select rubric"}</Text>
+          <Text style={st.pickerValue} numberOfLines={1}>
+            {selected?.name ?? "Select rubric"}
+          </Text>
           {selected && (
             <Text style={st.pickerMeta}>
-              {rubricTotalPoints(selected.definition)} pts · {rubricItemCount(selected.definition)} items
+              {rubricTotalPoints(selected.definition)} pts ·{" "}
+              {rubricItemCount(selected.definition)} items
             </Text>
           )}
         </View>
-        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
+        <Ionicons
+          name={open ? "chevron-up" : "chevron-down"}
+          size={18}
+          color={C.textMuted}
+        />
       </Pressable>
       {open && (
         <View style={st.pickerMenu}>
@@ -5944,11 +9258,18 @@ function RubricPicker({
               <View style={st.flex1}>
                 <Text style={st.pickerOptionTitle}>{rubric.name}</Text>
                 <Text style={st.pickerMeta}>
-                  {rubric.definition.sections.length} sections · {rubricItemCount(rubric.definition)} items
+                  {rubric.definition.sections.length} sections ·{" "}
+                  {rubricItemCount(rubric.definition)} items
                 </Text>
               </View>
-              {rubric.isDefault && <View style={st.defaultBadge}><Text style={st.defaultBadgeText}>Default</Text></View>}
-              {value === rubric.id && <Ionicons name="checkmark-circle" size={19} color={C.brand} />}
+              {rubric.isDefault && (
+                <View style={st.defaultBadge}>
+                  <Text style={st.defaultBadgeText}>Default</Text>
+                </View>
+              )}
+              {value === rubric.id && (
+                <Ionicons name="checkmark-circle" size={19} color={C.brand} />
+              )}
             </Pressable>
           ))}
         </View>
@@ -5958,7 +9279,10 @@ function RubricPicker({
 }
 
 function ProcessingTimeline({ status }: { status: string }) {
-  const activeIndex = Math.max(0, SESSION_PROCESS_STEPS.findIndex((step) => step.id === status));
+  const activeIndex = Math.max(
+    0,
+    SESSION_PROCESS_STEPS.findIndex((step) => step.id === status),
+  );
   const isComplete = status === "analysis_ready" || status === "reviewed";
 
   return (
@@ -5969,10 +9293,31 @@ function ProcessingTimeline({ status }: { status: string }) {
         const color = done ? C.green : active ? C.brand : C.textMuted;
         return (
           <View key={step.id} style={reviewSt.processingStep}>
-            <View style={[reviewSt.processingStepIcon, active && reviewSt.processingStepIconActive, done && reviewSt.processingStepIconDone]}>
-              {active ? <PulseDot color={C.brand} /> : <Ionicons name={(done ? "checkmark" : step.icon) as any} size={16} color={color} />}
+            <View
+              style={[
+                reviewSt.processingStepIcon,
+                active && reviewSt.processingStepIconActive,
+                done && reviewSt.processingStepIconDone,
+              ]}
+            >
+              {active ? (
+                <PulseDot color={C.brand} />
+              ) : (
+                <Ionicons
+                  name={(done ? "checkmark" : step.icon) as any}
+                  size={16}
+                  color={color}
+                />
+              )}
             </View>
-            <Text style={[reviewSt.processingStepText, (active || done) && { color }]}>{step.label}</Text>
+            <Text
+              style={[
+                reviewSt.processingStepText,
+                (active || done) && { color },
+              ]}
+            >
+              {step.label}
+            </Text>
           </View>
         );
       })}
@@ -6027,13 +9372,18 @@ function UploadProcessCard({
   onDone: () => void;
 }) {
   const rec = useRecording();
-  const [phase, setPhase] = useState<"idle" | "uploading" | "details" | "processing" | "done" | "error">(
-    PROCESSING_STATUSES.has(status) ? "processing" : "idle"
-  );
-  const [uploadStats, setUploadStats] = useState<UploadStats>(initialUploadStats());
+  const [phase, setPhase] = useState<
+    "idle" | "uploading" | "details" | "processing" | "done" | "error"
+  >(PROCESSING_STATUSES.has(status) ? "processing" : "idle");
+  const [uploadStats, setUploadStats] =
+    useState<UploadStats>(initialUploadStats());
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  const [errorKind, setErrorKind] = useState<"upload" | "processing" | null>(null);
-  const [pickedFile, setPickedFile] = useState<RecordingUploadFile | null>(null);
+  const [errorKind, setErrorKind] = useState<"upload" | "processing" | null>(
+    null,
+  );
+  const [pickedFile, setPickedFile] = useState<RecordingUploadFile | null>(
+    null,
+  );
   const [pendingLocalId, setPendingLocalId] = useState<string | null>(null);
   const [pendingUploadChecked, setPendingUploadChecked] = useState(false);
 
@@ -6044,7 +9394,9 @@ function UploadProcessCard({
   const [dNotes, setDNotes] = useState(initialNotes ?? "");
   const [assets, setAssets] = useState<Material[]>([]);
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(
-    initialAttachments.map((attachment) => attachment.materialId).filter((id): id is string => Boolean(id)),
+    initialAttachments
+      .map((attachment) => attachment.materialId)
+      .filter((id): id is string => Boolean(id)),
   );
   const [rubrics, setRubrics] = useState<Rubric[]>([]);
   const [rubricsLoaded, setRubricsLoaded] = useState(false);
@@ -6060,12 +9412,17 @@ function UploadProcessCard({
     ])
       .then(([{ rubrics: list }, materialData]) => {
         setRubrics(list);
-        setAssets(materialData.materials.filter((material) => materialUrl(material)));
+        setAssets(
+          materialData.materials.filter((material) => materialUrl(material)),
+        );
         if (!initialRubricId) {
-          const fallbackRubricId = list.find((rubric) => rubric.isDefault)?.id ?? list[0]?.id ?? null;
+          const fallbackRubricId =
+            list.find((rubric) => rubric.isDefault)?.id ?? list[0]?.id ?? null;
           setRubricId(fallbackRubricId);
           if (fallbackRubricId) {
-            void applyRubricToSession(sessionId, fallbackRubricId).catch(() => {});
+            void applyRubricToSession(sessionId, fallbackRubricId).catch(
+              () => {},
+            );
           }
         }
       })
@@ -6077,7 +9434,9 @@ function UploadProcessCard({
     if (PROCESSING_STATUSES.has(status)) setPhase("processing");
     if (status === "analysis_ready" || status === "reviewed") setPhase("done");
     if (status === "failed") {
-      setErrMsg("Analysis did not complete. Retry when you have a stable connection.");
+      setErrMsg(
+        "Analysis did not complete. Retry when you have a stable connection.",
+      );
       setErrorKind("processing");
       setPhase("error");
     }
@@ -6100,7 +9459,9 @@ function UploadProcessCard({
       });
       setPendingLocalId(pending.localId ?? null);
       setUploadStats(initialUploadStats(pending.size));
-      setErrMsg("Upload did not finish. Retry when you have a stable connection.");
+      setErrMsg(
+        "Upload did not finish. Retry when you have a stable connection.",
+      );
       setErrorKind("upload");
       setPhase("error");
       setPendingUploadChecked(true);
@@ -6125,11 +9486,17 @@ function UploadProcessCard({
       showToast("Rubric applied to this session", "success");
     } catch (caught) {
       setRubricId(previous);
-      showToast(caught instanceof Error ? caught.message : "Could not apply rubric", "error");
+      showToast(
+        caught instanceof Error ? caught.message : "Could not apply rubric",
+        "error",
+      );
     }
   }
 
-  async function uploadPickedFile(file: RecordingUploadFile, localId?: string | null) {
+  async function uploadPickedFile(
+    file: RecordingUploadFile,
+    localId?: string | null,
+  ) {
     setPickedFile(file);
     setPhase("uploading");
     setErrMsg(null);
@@ -6142,7 +9509,9 @@ function UploadProcessCard({
       if (localId) {
         const verifiedUri = await ensureDurableRecording(localId, file.uri);
         if (!verifiedUri) {
-          throw new Error("Recording file could not be read after it was saved. Please keep this screen open and retry.");
+          throw new Error(
+            "Recording file could not be read after it was saved. Please keep this screen open and retry.",
+          );
         }
         durableUri = verifiedUri;
         beginDirectLocalUpload(localId);
@@ -6175,7 +9544,12 @@ function UploadProcessCard({
       promoteLocalRecordingToCache(sessionId, durableUri);
       await clearPendingRecordingUpload(sessionId, localId);
       void trackAnalyticsEvent("session_upload_complete", { sessionId });
-      setUploadStats((current) => ({ ...current, phase: "finalizing", percent: 100, etaSeconds: 0 }));
+      setUploadStats((current) => ({
+        ...current,
+        phase: "finalizing",
+        percent: 100,
+        etaSeconds: 0,
+      }));
       showToast("Recording uploaded", "success");
       setPhase("details");
     } catch (caught) {
@@ -6192,7 +9566,10 @@ function UploadProcessCard({
       setPhase("error");
       setErrorKind("upload");
       setErrMsg(caught instanceof Error ? caught.message : "Upload failed");
-      showToast(caught instanceof Error ? caught.message : "Upload failed", "error");
+      showToast(
+        caught instanceof Error ? caught.message : "Upload failed",
+        "error",
+      );
       shouldDrainOutbox = true;
     } finally {
       if (directUploadLocalId) endDirectLocalUpload(directUploadLocalId);
@@ -6222,12 +9599,16 @@ function UploadProcessCard({
       },
       onBeforeRecordingStart: async () => {
         if (await isOnline()) {
-          const response = await authenticatedFetch(`/api/sessions/${sessionId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "in_progress" }),
-          });
-          if (!response.ok) throw new Error("Could not activate the tour session");
+          const response = await authenticatedFetch(
+            `/api/sessions/${sessionId}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "in_progress" }),
+            },
+          );
+          if (!response.ok)
+            throw new Error("Could not activate the tour session");
         }
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       },
@@ -6238,23 +9619,36 @@ function UploadProcessCard({
           snapshot.clearLiveSession();
           setSelectedAssetIds([]);
           if (await isOnline()) {
-            const response = await authenticatedFetch(`/api/sessions/${sessionId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "scheduled" }),
-            });
+            const response = await authenticatedFetch(
+              `/api/sessions/${sessionId}`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "scheduled" }),
+              },
+            );
             if (!response.ok) throw new Error("Could not reset the session");
           }
-          showToast("Recording cancelled. Session returned to scheduled.", "success");
+          showToast(
+            "Recording cancelled. Session returned to scheduled.",
+            "success",
+          );
           await onDone();
         } catch (caught) {
-          showToast(caught instanceof Error ? caught.message : "Could not cancel the session", "error");
+          showToast(
+            caught instanceof Error
+              ? caught.message
+              : "Could not cancel the session",
+            "error",
+          );
         } finally {
           setCancelling(false);
         }
       },
       onFinish: async (snapshot) => {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
         const result = await snapshot.stop();
         const notes = snapshot.draft.notes;
         const localId = snapshot.localId;
@@ -6284,12 +9678,15 @@ function UploadProcessCard({
         }
         snapshot.clearLiveSession();
         setDNotes(notes);
-        await uploadPickedFile({
-          uri: durableUri,
-          mimeType: "audio/m4a",
-          name: `tour-${Date.now()}.m4a`,
-          durationSec: result.durationSec,
-        }, localId);
+        await uploadPickedFile(
+          {
+            uri: durableUri,
+            mimeType: "audio/m4a",
+            name: `tour-${Date.now()}.m4a`,
+            durationSec: result.durationSec,
+          },
+          localId,
+        );
       },
     });
   }
@@ -6317,10 +9714,18 @@ function UploadProcessCard({
         body: JSON.stringify({ status: "scheduled" }),
       });
       if (!response.ok) throw new Error("Could not reset the session");
-      showToast("Recording cancelled. Session returned to scheduled.", "success");
+      showToast(
+        "Recording cancelled. Session returned to scheduled.",
+        "success",
+      );
       await onDone();
     } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Could not cancel the session", "error");
+      showToast(
+        caught instanceof Error
+          ? caught.message
+          : "Could not cancel the session",
+        "error",
+      );
     } finally {
       setCancelling(false);
     }
@@ -6332,14 +9737,21 @@ function UploadProcessCard({
       "The current recording will be discarded and the session will return to Scheduled.",
       [
         { text: "Keep recording", style: "cancel" },
-        { text: "Cancel recording", style: "destructive", onPress: () => void cancelSessionRecording() },
-      ]
+        {
+          text: "Cancel recording",
+          style: "destructive",
+          onPress: () => void cancelSessionRecording(),
+        },
+      ],
     );
   }
 
   async function pickAndUpload() {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: ["video/*", "audio/*"], copyToCacheDirectory: true });
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["video/*", "audio/*"],
+        copyToCacheDirectory: true,
+      });
       if (result.canceled || !result.assets?.[0]) return;
       const file = result.assets[0];
       await uploadPickedFile({
@@ -6353,7 +9765,10 @@ function UploadProcessCard({
         setPhase("error");
         setErrorKind("upload");
         setErrMsg(err instanceof Error ? err.message : "Upload failed");
-        showToast(err instanceof Error ? err.message : "Upload failed", "error");
+        showToast(
+          err instanceof Error ? err.message : "Upload failed",
+          "error",
+        );
       }
     }
   }
@@ -6373,7 +9788,9 @@ function UploadProcessCard({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patchBody),
         });
-      } catch { /* best effort */ }
+      } catch {
+        /* best effort */
+      }
     }
 
     // Process the already-uploaded recording
@@ -6389,7 +9806,10 @@ function UploadProcessCard({
       setPhase("error");
       setErrorKind("processing");
       setErrMsg(err instanceof Error ? err.message : "Processing failed");
-      showToast(err instanceof Error ? err.message : "Processing failed", "error");
+      showToast(
+        err instanceof Error ? err.message : "Processing failed",
+        "error",
+      );
     }
   }
 
@@ -6406,13 +9826,22 @@ function UploadProcessCard({
       setPhase("error");
       setErrorKind("processing");
       setErrMsg(err instanceof Error ? err.message : "Processing failed");
-      showToast(err instanceof Error ? err.message : "Processing failed", "error");
+      showToast(
+        err instanceof Error ? err.message : "Processing failed",
+        "error",
+      );
     }
   }
 
   // Resume an uploaded session only after its evaluation rubric is resolved.
   useEffect(() => {
-    if (status !== "uploaded" || phase !== "idle" || !rubricsLoaded || !pendingUploadChecked) return;
+    if (
+      status !== "uploaded" ||
+      phase !== "idle" ||
+      !rubricsLoaded ||
+      !pendingUploadChecked
+    )
+      return;
     void (async () => {
       if (rubricId) await applyRubricToSession(sessionId, rubricId);
       await startProcess();
@@ -6424,15 +9853,31 @@ function UploadProcessCard({
   }, [pendingUploadChecked, phase, rubricId, rubricsLoaded, sessionId, status]);
 
   // ── Idle: pick a file ──
-  if (phase === "idle" && (status === "scheduled" || status === "in_progress")) {
+  if (
+    phase === "idle" &&
+    (status === "scheduled" || status === "in_progress")
+  ) {
     return (
       <View style={[st.card, { padding: 20, gap: 14 }]}>
         <View style={{ alignItems: "center", gap: 8 }}>
-        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: C.brand + "10", alignItems: "center", justifyContent: "center" }}>
-          <Ionicons name="mic-outline" size={28} color={C.brand} />
-        </View>
-        <Text style={st.formTitle}>{status === "in_progress" ? "Resume this tour" : "Start this tour"}</Text>
-        <Text style={[st.pageSub, { textAlign: "center" }]}>Record live audio or upload an existing recording.</Text>
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: C.brand + "10",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="mic-outline" size={28} color={C.brand} />
+          </View>
+          <Text style={st.formTitle}>
+            {status === "in_progress" ? "Resume this tour" : "Start this tour"}
+          </Text>
+          <Text style={[st.pageSub, { textAlign: "center" }]}>
+            Record live audio or upload an existing recording.
+          </Text>
         </View>
         {rubrics.length > 0 && (
           <RubricPicker
@@ -6443,15 +9888,39 @@ function UploadProcessCard({
             onSelect={(id) => void selectRubric(id)}
           />
         )}
-        <PrimaryBtn label="Record Audio" onPress={startSessionRecording} icon="mic-outline" />
-        <Pressable onPress={pickAndUpload} style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}>
-          <Ionicons name="document-attach-outline" size={18} color={C.textSec} />
+        <PrimaryBtn
+          label="Record Audio"
+          onPress={startSessionRecording}
+          icon="mic-outline"
+        />
+        <Pressable
+          onPress={pickAndUpload}
+          style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}
+        >
+          <Ionicons
+            name="document-attach-outline"
+            size={18}
+            color={C.textSec}
+          />
           <Text style={st.outlineBtnText}>Upload File</Text>
         </Pressable>
         {status === "in_progress" && (
-          <Pressable disabled={cancelling} onPress={confirmCancelSession} style={({ pressed }) => [st.cancelSessionBtn, pressed && st.pressed]}>
-            {cancelling ? <LoadingDots size="small" color={C.red} /> : <Ionicons name="close-circle-outline" size={18} color={C.red} />}
-            <Text style={st.cancelSessionText}>{cancelling ? "Cancelling..." : "Cancel active session"}</Text>
+          <Pressable
+            disabled={cancelling}
+            onPress={confirmCancelSession}
+            style={({ pressed }) => [
+              st.cancelSessionBtn,
+              pressed && st.pressed,
+            ]}
+          >
+            {cancelling ? (
+              <LoadingDots size="small" color={C.red} />
+            ) : (
+              <Ionicons name="close-circle-outline" size={18} color={C.red} />
+            )}
+            <Text style={st.cancelSessionText}>
+              {cancelling ? "Cancelling..." : "Cancel active session"}
+            </Text>
           </Pressable>
         )}
       </View>
@@ -6460,25 +9929,69 @@ function UploadProcessCard({
 
   // ── Details form after upload ──
   if (phase === "details") {
-    const fileSizeMB = pickedFile?.size ? (pickedFile.size / 1024 / 1024).toFixed(1) : null;
+    const fileSizeMB = pickedFile?.size
+      ? (pickedFile.size / 1024 / 1024).toFixed(1)
+      : null;
     return (
       <View style={[st.card, { overflow: "hidden" }]}>
         {/* Upload success header */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14, backgroundColor: C.greenBg, borderBottomWidth: 1, borderBottomColor: "#e2e8f0" }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            padding: 14,
+            backgroundColor: C.greenBg,
+            borderBottomWidth: 1,
+            borderBottomColor: "#e2e8f0",
+          }}
+        >
           <Ionicons name="checkmark-circle" size={20} color={C.green} />
           <View style={st.flex1}>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: C.green }}>Recording uploaded</Text>
-            <Text style={{ fontSize: 12, fontWeight: "600", color: C.textSec }} numberOfLines={1}>{pickedFile?.name}{fileSizeMB ? ` (${fileSizeMB} MB)` : ""}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: C.green }}>
+              Recording uploaded
+            </Text>
+            <Text
+              style={{ fontSize: 12, fontWeight: "600", color: C.textSec }}
+              numberOfLines={1}
+            >
+              {pickedFile?.name}
+              {fileSizeMB ? ` (${fileSizeMB} MB)` : ""}
+            </Text>
           </View>
         </View>
 
         {/* Session details form */}
         <View style={{ padding: 18, gap: 14 }}>
           <Text style={st.formTitle}>Session Details</Text>
-          <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec, marginTop: -8 }}>Add context before processing (optional)</Text>
-          <Input placeholder="Session title" value={dTitle} onChangeText={setDTitle} icon="text-outline" />
-          <Input placeholder="Prospect name" value={dProspect} onChangeText={setDProspect} icon="person-outline" />
-          <Input placeholder="Location / unit" value={dLocation} onChangeText={setDLocation} icon="location-outline" />
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: "600",
+              color: C.textSec,
+              marginTop: -8,
+            }}
+          >
+            Add context before processing (optional)
+          </Text>
+          <Input
+            placeholder="Session title"
+            value={dTitle}
+            onChangeText={setDTitle}
+            icon="text-outline"
+          />
+          <Input
+            placeholder="Prospect name"
+            value={dProspect}
+            onChangeText={setDProspect}
+            icon="person-outline"
+          />
+          <Input
+            placeholder="Location / unit"
+            value={dLocation}
+            onChangeText={setDLocation}
+            icon="location-outline"
+          />
           {rubrics.length > 0 && (
             <RubricPicker
               rubrics={rubrics}
@@ -6488,10 +10001,33 @@ function UploadProcessCard({
               onSelect={(id) => void selectRubric(id)}
             />
           )}
-          <Input placeholder="Notes or focus areas" value={dNotes} onChangeText={setDNotes} icon="document-text-outline" multiline />
-          <PrimaryBtn label="Start Processing" onPress={submitDetailsAndProcess} icon="analytics-outline" />
-          <Pressable onPress={() => submitDetailsAndProcess()} style={({ pressed }) => [pressed && st.pressed]}>
-            <Text style={{ textAlign: "center", fontSize: 13, fontWeight: "700", color: C.textMuted, paddingVertical: 6 }}>Skip, process now</Text>
+          <Input
+            placeholder="Notes or focus areas"
+            value={dNotes}
+            onChangeText={setDNotes}
+            icon="document-text-outline"
+            multiline
+          />
+          <PrimaryBtn
+            label="Start Processing"
+            onPress={submitDetailsAndProcess}
+            icon="analytics-outline"
+          />
+          <Pressable
+            onPress={() => submitDetailsAndProcess()}
+            style={({ pressed }) => [pressed && st.pressed]}
+          >
+            <Text
+              style={{
+                textAlign: "center",
+                fontSize: 13,
+                fontWeight: "700",
+                color: C.textMuted,
+                paddingVertical: 6,
+              }}
+            >
+              Skip, process now
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -6515,7 +10051,9 @@ function UploadProcessCard({
       <View style={[st.card, { padding: 20, gap: 14, alignItems: "center" }]}>
         <LoadingDots size="large" color={C.brand} />
         <Text style={st.formTitle}>{processingTitle(status)}</Text>
-        <Text style={[st.pageSub, { textAlign: "center" }]}>{processingStatusMessage(status)}</Text>
+        <Text style={[st.pageSub, { textAlign: "center" }]}>
+          {processingStatusMessage(status)}
+        </Text>
         <ProcessingTimeline status={status} />
       </View>
     );
@@ -6535,29 +10073,55 @@ function UploadProcessCard({
   // ── Error ──
   if (phase === "error") {
     const uploadError = errorKind === "upload";
-    return (
-      uploadError ? (
-        <UploadStatusCard
-          fileName={pickedFile?.name}
-          fileSize={pickedFile?.size}
-          stats={uploadStats}
-          error={errMsg ?? "Upload failed"}
-          onRetry={pickedFile ? () => void uploadPickedFile(pickedFile, pendingLocalId) : undefined}
-          onChooseDifferent={() => void pickAndUpload()}
-        />
-      ) : (
-        <View style={[st.card, { padding: 20, gap: 12 }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Ionicons name="alert-circle" size={24} color={C.red} />
-            <Text style={[st.formTitle, { color: C.red }]}>Processing Failed</Text>
-          </View>
-          {errMsg && <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec }}>{errMsg}</Text>}
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable onPress={startProcess} style={({ pressed }) => [st.primaryBtn, { flex: 1 }, pressed && st.pressed]}><Text style={st.primaryBtnText}>Retry Analysis</Text></Pressable>
-            <Pressable onPress={pickAndUpload} style={({ pressed }) => [st.outlineBtn, { flex: 1 }, pressed && st.pressed]}><Text style={st.outlineBtnText}>Upload Different</Text></Pressable>
-          </View>
+    return uploadError ? (
+      <UploadStatusCard
+        fileName={pickedFile?.name}
+        fileSize={pickedFile?.size}
+        stats={uploadStats}
+        error={errMsg ?? "Upload failed"}
+        onRetry={
+          pickedFile
+            ? () => void uploadPickedFile(pickedFile, pendingLocalId)
+            : undefined
+        }
+        onChooseDifferent={() => void pickAndUpload()}
+      />
+    ) : (
+      <View style={[st.card, { padding: 20, gap: 12 }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <Ionicons name="alert-circle" size={24} color={C.red} />
+          <Text style={[st.formTitle, { color: C.red }]}>
+            Processing Failed
+          </Text>
         </View>
-      )
+        {errMsg && (
+          <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec }}>
+            {errMsg}
+          </Text>
+        )}
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Pressable
+            onPress={startProcess}
+            style={({ pressed }) => [
+              st.primaryBtn,
+              { flex: 1 },
+              pressed && st.pressed,
+            ]}
+          >
+            <Text style={st.primaryBtnText}>Retry Analysis</Text>
+          </Pressable>
+          <Pressable
+            onPress={pickAndUpload}
+            style={({ pressed }) => [
+              st.outlineBtn,
+              { flex: 1 },
+              pressed && st.pressed,
+            ]}
+          >
+            <Text style={st.outlineBtnText}>Upload Different</Text>
+          </Pressable>
+        </View>
+      </View>
     );
   }
 
@@ -6566,11 +10130,22 @@ function UploadProcessCard({
     <View style={[st.card, { padding: 20, gap: 12 }]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Ionicons name="checkmark-circle" size={20} color={C.green} />
-        <Text style={{ fontSize: 14, fontWeight: "700", color: C.green }}>Recording uploaded</Text>
+        <Text style={{ fontSize: 14, fontWeight: "700", color: C.green }}>
+          Recording uploaded
+        </Text>
       </View>
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <PrimaryBtn label="Process Now" onPress={startProcess} icon="analytics-outline" />
-        <Pressable onPress={pickAndUpload} style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}><Text style={st.outlineBtnText}>Re-upload</Text></Pressable>
+        <PrimaryBtn
+          label="Process Now"
+          onPress={startProcess}
+          icon="analytics-outline"
+        />
+        <Pressable
+          onPress={pickAndUpload}
+          style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}
+        >
+          <Text style={st.outlineBtnText}>Re-upload</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -6580,12 +10155,26 @@ function UploadProcessCard({
 // Overview Tab + Audio Player
 // ═══════════════════════════════════════
 
-function OverviewTab({ analysis, transcript, sessionId, hasRecording }: { analysis: AnalysisResult; transcript: any[]; sessionId: string; hasRecording: boolean }) {
+function OverviewTab({
+  analysis,
+  transcript,
+  sessionId,
+  hasRecording,
+}: {
+  analysis: AnalysisResult;
+  transcript: any[];
+  sessionId: string;
+  hasRecording: boolean;
+}) {
   return (
     <View style={{ gap: 12 }}>
-      {hasRecording && <AudioPlayer sessionId={sessionId} transcript={transcript} />}
+      {hasRecording && (
+        <AudioPlayer sessionId={sessionId} transcript={transcript} />
+      )}
 
-      <InfoCard title="Executive Summary" icon="document-text-outline">{analysis.summary}</InfoCard>
+      <InfoCard title="Executive Summary" icon="document-text-outline">
+        {analysis.summary}
+      </InfoCard>
 
       <View style={[st.card, { borderLeftWidth: 3, borderLeftColor: C.green }]}>
         <View style={{ padding: 16, gap: 8 }}>
@@ -6593,7 +10182,9 @@ function OverviewTab({ analysis, transcript, sessionId, hasRecording }: { analys
             <Ionicons name="thumbs-up-outline" size={16} color={C.green} />
             <Text style={[st.cardTitle, { color: C.green }]}>Strengths</Text>
           </View>
-          {analysis.strengths.map((s, i) => <BulletItem key={i} text={s} color={C.green} />)}
+          {analysis.strengths.map((s, i) => (
+            <BulletItem key={i} text={s} color={C.green} />
+          ))}
         </View>
       </View>
 
@@ -6601,32 +10192,72 @@ function OverviewTab({ analysis, transcript, sessionId, hasRecording }: { analys
         <View style={{ padding: 16, gap: 8 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Ionicons name="trending-up-outline" size={16} color={C.amber} />
-            <Text style={[st.cardTitle, { color: C.amber }]}>Opportunities</Text>
+            <Text style={[st.cardTitle, { color: C.amber }]}>
+              Opportunities
+            </Text>
           </View>
-          {analysis.opportunities.map((o, i) => <BulletItem key={i} text={o} color={C.amber} />)}
+          {analysis.opportunities.map((o, i) => (
+            <BulletItem key={i} text={o} color={C.amber} />
+          ))}
         </View>
       </View>
 
       {analysis.suggestedRewrite && (
-        <View style={[st.card, { borderLeftWidth: 3, borderLeftColor: C.brand }]}>
+        <View
+          style={[st.card, { borderLeftWidth: 3, borderLeftColor: C.brand }]}
+        >
           <View style={{ padding: 16, gap: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons name="chatbubble-ellipses-outline" size={16} color={C.brand} />
-              <Text style={[st.cardTitle, { color: C.brand }]}>Coaching Script</Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={16}
+                color={C.brand}
+              />
+              <Text style={[st.cardTitle, { color: C.brand }]}>
+                Coaching Script
+              </Text>
             </View>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 21, fontStyle: "italic" }}>"{analysis.suggestedRewrite}"</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: C.textSec,
+                lineHeight: 21,
+                fontStyle: "italic",
+              }}
+            >
+              "{analysis.suggestedRewrite}"
+            </Text>
           </View>
         </View>
       )}
 
       {analysis.fairHousingFlags && analysis.fairHousingFlags.length > 0 && (
-        <View style={[st.card, { backgroundColor: C.redBg, borderColor: C.red + "30" }]}>
+        <View
+          style={[
+            st.card,
+            { backgroundColor: C.redBg, borderColor: C.red + "30" },
+          ]}
+        >
           <View style={{ padding: 16, gap: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <Ionicons name="shield-outline" size={16} color={C.red} />
-              <Text style={[st.cardTitle, { color: C.red }]}>Fair Housing Flags</Text>
+              <Text style={[st.cardTitle, { color: C.red }]}>
+                Fair Housing Flags
+              </Text>
             </View>
-            {analysis.fairHousingFlags.map((f, i) => <Text key={i} style={{ fontSize: 13, fontWeight: "600", color: C.red }}>• {f}</Text>)}
+            {analysis.fairHousingFlags.map((f, i) => (
+              <Text
+                key={i}
+                style={{ fontSize: 13, fontWeight: "600", color: C.red }}
+              >
+                • {f}
+              </Text>
+            ))}
           </View>
         </View>
       )}
@@ -6634,7 +10265,13 @@ function OverviewTab({ analysis, transcript, sessionId, hasRecording }: { analys
   );
 }
 
-function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript: any[] }) {
+function AudioPlayer({
+  sessionId,
+  transcript,
+}: {
+  sessionId: string;
+  transcript: any[];
+}) {
   const [sound, setSound] = useState<ExpoAudioPlayer | null>(null);
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
@@ -6652,18 +10289,27 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
         await setAudioModeAsync({ playsInSilentMode: true });
         const resolved = await resolveSessionPlaybackUri(sessionId);
         const loaded = await createLoadedAudioPlayer(resolved.uri);
-        if (!mounted) { loaded.remove(); return; }
+        if (!mounted) {
+          loaded.remove();
+          return;
+        }
         s = loaded;
         setSound(loaded);
         setLoadError(false);
         setDur(loaded.duration || 0);
-        const subscription = loaded.addListener("playbackStatusUpdate", (st: ExpoAudioStatus) => {
-          if (!mounted) return;
-          setPos(st.currentTime);
-          if (st.duration) setDur(st.duration);
-          setPlaying(st.playing);
-          if (st.didJustFinish) { setPlaying(false); setPos(0); }
-        });
+        const subscription = loaded.addListener(
+          "playbackStatusUpdate",
+          (st: ExpoAudioStatus) => {
+            if (!mounted) return;
+            setPos(st.currentTime);
+            if (st.duration) setDur(st.duration);
+            setPlaying(st.playing);
+            if (st.didJustFinish) {
+              setPlaying(false);
+              setPos(0);
+            }
+          },
+        );
         removeStatusListener = () => subscription.remove();
       } catch {
         if (mounted) setLoadError(true);
@@ -6694,15 +10340,35 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
   }
 
   const pct = dur > 0 ? (pos / dur) * 100 : 0;
-  const activeSeg = transcript.find((s) => pos >= s.startTime && pos < s.endTime);
+  const activeSeg = transcript.find(
+    (s) => pos >= s.startTime && pos < s.endTime,
+  );
 
   if (loadError) {
     return (
-      <View style={[st.card, { padding: 16, flexDirection: "row", alignItems: "center", gap: 10 }]}>
+      <View
+        style={[
+          st.card,
+          { padding: 16, flexDirection: "row", alignItems: "center", gap: 10 },
+        ]}
+      >
         <Ionicons name="alert-circle-outline" size={20} color={C.textMuted} />
-        <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec, flex: 1 }}>Audio unavailable</Text>
-        <Pressable onPress={() => { setLoadError(false); setSound(null); setRetryToken((n) => n + 1); }} style={({ pressed }) => pressed && st.pressed}>
-          <Text style={{ fontSize: 13, fontWeight: "800", color: C.brand }}>Retry</Text>
+        <Text
+          style={{ fontSize: 13, fontWeight: "600", color: C.textSec, flex: 1 }}
+        >
+          Audio unavailable
+        </Text>
+        <Pressable
+          onPress={() => {
+            setLoadError(false);
+            setSound(null);
+            setRetryToken((n) => n + 1);
+          }}
+          style={({ pressed }) => pressed && st.pressed}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "800", color: C.brand }}>
+            Retry
+          </Text>
         </Pressable>
       </View>
     );
@@ -6710,9 +10376,16 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
 
   if (!sound) {
     return (
-      <View style={[st.card, { padding: 16, flexDirection: "row", alignItems: "center", gap: 10 }]}>
+      <View
+        style={[
+          st.card,
+          { padding: 16, flexDirection: "row", alignItems: "center", gap: 10 },
+        ]}
+      >
         <LoadingDots size="small" color={C.brand} />
-        <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec }}>Loading audio...</Text>
+        <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec }}>
+          Loading audio...
+        </Text>
       </View>
     );
   }
@@ -6721,26 +10394,73 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
     <View style={[st.card, { overflow: "hidden" }]}>
       <View style={{ padding: 16, gap: 10 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Pressable onPress={togglePlay} style={({ pressed }) => [st.playBtn, pressed && st.pressed]}>
-            <Ionicons name={playing ? "pause" : "play"} size={22} color="#fff" />
+          <Pressable
+            onPress={togglePlay}
+            style={({ pressed }) => [st.playBtn, pressed && st.pressed]}
+          >
+            <Ionicons
+              name={playing ? "pause" : "play"}
+              size={22}
+              color="#fff"
+            />
           </Pressable>
           <View style={st.flex1}>
-            <Pressable onPress={(e) => { const w = Dimensions.get("window").width - 120; seekTo(Math.max(0, Math.min(1, (e.nativeEvent as any).locationX / w))); }}>
+            <Pressable
+              onPress={(e) => {
+                const w = Dimensions.get("window").width - 120;
+                seekTo(
+                  Math.max(
+                    0,
+                    Math.min(1, (e.nativeEvent as any).locationX / w),
+                  ),
+                );
+              }}
+            >
               <View style={st.timelineTrack}>
                 <View style={[st.timelineFill, { width: `${pct}%` as any }]} />
                 <View style={[st.timelineThumb, { left: `${pct}%` as any }]} />
               </View>
             </Pressable>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginTop: 4,
+              }}
+            >
               <Text style={st.timeText}>{fmtSec(pos)}</Text>
               <Text style={st.timeText}>{fmtSec(dur)}</Text>
             </View>
           </View>
         </View>
         {activeSeg && (
-          <View style={{ backgroundColor: C.brand + "08", borderRadius: 10, padding: 10 }}>
-            <Text style={{ fontSize: 11, fontWeight: "800", color: C.brand, marginBottom: 2 }}>{activeSeg.speaker}</Text>
-            <Text style={{ fontSize: 13, fontWeight: "600", color: C.text, lineHeight: 19 }}>{activeSeg.text}</Text>
+          <View
+            style={{
+              backgroundColor: C.brand + "08",
+              borderRadius: 10,
+              padding: 10,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "800",
+                color: C.brand,
+                marginBottom: 2,
+              }}
+            >
+              {activeSeg.speaker}
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: C.text,
+                lineHeight: 19,
+              }}
+            >
+              {activeSeg.text}
+            </Text>
           </View>
         )}
       </View>
@@ -6748,7 +10468,15 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
   );
 }
 
-function InfoCard({ title, icon, children }: { title: string; icon: keyof typeof Ionicons.glyphMap; children: string }) {
+function InfoCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  children: string;
+}) {
   return (
     <View style={st.card}>
       <View style={{ padding: 16, gap: 8 }}>
@@ -6756,7 +10484,16 @@ function InfoCard({ title, icon, children }: { title: string; icon: keyof typeof
           <Ionicons name={icon} size={16} color={C.text} />
           <Text style={st.cardTitle}>{title}</Text>
         </View>
-        <Text style={{ fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 21 }}>{children}</Text>
+        <Text
+          style={{
+            fontSize: 14,
+            fontWeight: "600",
+            color: C.textSec,
+            lineHeight: 21,
+          }}
+        >
+          {children}
+        </Text>
       </View>
     </View>
   );
@@ -6765,8 +10502,23 @@ function InfoCard({ title, icon, children }: { title: string; icon: keyof typeof
 function BulletItem({ text, color }: { text: string; color: string }) {
   return (
     <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-      <Ionicons name="ellipse" size={6} color={color} style={{ marginTop: 7 }} />
-      <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 21 }}>{text}</Text>
+      <Ionicons
+        name="ellipse"
+        size={6}
+        color={color}
+        style={{ marginTop: 7 }}
+      />
+      <Text
+        style={{
+          flex: 1,
+          fontSize: 14,
+          fontWeight: "600",
+          color: C.textSec,
+          lineHeight: 21,
+        }}
+      >
+        {text}
+      </Text>
     </View>
   );
 }
@@ -6776,21 +10528,63 @@ function BulletItem({ text, color }: { text: string; color: string }) {
 // ═══════════════════════════════════════
 
 function TranscriptTab({ transcript }: { transcript: any[] }) {
-  if (!transcript.length) return <EmptyState icon="chatbubble-outline" title="No transcript" subtitle="Process a recording to generate the transcript" />;
+  if (!transcript.length)
+    return (
+      <EmptyState
+        icon="chatbubble-outline"
+        title="No transcript"
+        subtitle="Process a recording to generate the transcript"
+      />
+    );
   return (
     <View style={st.card}>
       <View style={{ padding: 16 }}>
         {transcript.map((seg, i) => {
           const isAgent = seg.speaker?.toLowerCase().includes("agent");
           return (
-            <View key={seg.id || i} style={[{ paddingVertical: 10 }, i > 0 && { borderTopWidth: 1, borderTopColor: "#f1f5f9" }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <View style={[st.speakerBadge, { backgroundColor: isAgent ? C.brand + "15" : C.purpleBg }]}>
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: isAgent ? C.brand : C.purple }}>{seg.speaker}</Text>
+            <View
+              key={seg.id || i}
+              style={[
+                { paddingVertical: 10 },
+                i > 0 && { borderTopWidth: 1, borderTopColor: "#f1f5f9" },
+              ]}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <View
+                  style={[
+                    st.speakerBadge,
+                    { backgroundColor: isAgent ? C.brand + "15" : C.purpleBg },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "800",
+                      color: isAgent ? C.brand : C.purple,
+                    }}
+                  >
+                    {seg.speaker}
+                  </Text>
                 </View>
                 <Text style={st.timeText}>{fmtSec(seg.startTime)}</Text>
               </View>
-              <Text style={{ fontSize: 14, fontWeight: "600", color: C.text, lineHeight: 21 }}>{seg.text}</Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: C.text,
+                  lineHeight: 21,
+                }}
+              >
+                {seg.text}
+              </Text>
             </View>
           );
         })}
@@ -6813,7 +10607,9 @@ function ActionsTab({
   actions: FollowUpAction[];
   sessionId: string;
   onUpdate: () => void;
-  onActionsChange?: (next: FollowUpAction[] | ((prev: FollowUpAction[]) => FollowUpAction[])) => void;
+  onActionsChange?: (
+    next: FollowUpAction[] | ((prev: FollowUpAction[]) => FollowUpAction[]),
+  ) => void;
   readOnly?: boolean;
 }) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -6821,16 +10617,25 @@ function ActionsTab({
   const priorityRank = { high: 0, medium: 1, low: 2 } as const;
   const open = actions
     .filter((a) => a.status === "open")
-    .sort((left, right) => (priorityRank[left.priority] ?? 1) - (priorityRank[right.priority] ?? 1));
+    .sort(
+      (left, right) =>
+        (priorityRank[left.priority] ?? 1) -
+        (priorityRank[right.priority] ?? 1),
+    );
   const done = actions.filter((a) => a.status !== "open");
 
   async function handleStatus(id: string, status: "completed" | "dismissed") {
     const previous = actions;
-    onActionsChange?.((prev) => prev.map((action) => (action.id === id ? { ...action, status } : action)));
+    onActionsChange?.((prev) =>
+      prev.map((action) => (action.id === id ? { ...action, status } : action)),
+    );
     setUpdatingId(id);
     try {
       await updateActionMutation.mutateAsync({ actionId: id, status });
-      showToast(status === "completed" ? "Marked as done" : "Dismissed", "success");
+      showToast(
+        status === "completed" ? "Marked as done" : "Dismissed",
+        "success",
+      );
       onUpdate();
     } catch {
       onActionsChange?.(previous);
@@ -6840,10 +10645,23 @@ function ActionsTab({
     }
   }
 
-  if (!actions.length) return <EmptyState icon="rocket-outline" title="No actions" subtitle="Follow-up actions will appear after analysis" />;
+  if (!actions.length)
+    return (
+      <EmptyState
+        icon="rocket-outline"
+        title="No actions"
+        subtitle="Follow-up actions will appear after analysis"
+      />
+    );
 
-  const defaultPi = { icon: "remove-circle" as keyof typeof Ionicons.glyphMap, color: C.amber };
-  const priorityIcon: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
+  const defaultPi = {
+    icon: "remove-circle" as keyof typeof Ionicons.glyphMap,
+    color: C.amber,
+  };
+  const priorityIcon: Record<
+    string,
+    { icon: keyof typeof Ionicons.glyphMap; color: string }
+  > = {
     high: { icon: "arrow-up-circle", color: C.red },
     medium: defaultPi,
     low: { icon: "arrow-down-circle", color: C.green },
@@ -6859,42 +10677,185 @@ function ActionsTab({
           </Text>
         </View>
       ) : null}
-      {open.length > 0 && open.map((a) => {
-        const pi = priorityIcon[a.priority] ?? defaultPi;
-        return (
-          <View key={a.id} style={st.card}>
-            <View style={{ padding: 16, gap: 10 }}>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                <Ionicons name={pi.icon} size={20} color={pi.color} style={{ marginTop: 1 }} />
-                <View style={st.flex1}>
-                  <Text style={{ fontSize: 15, fontWeight: "800", color: C.text }} numberOfLines={2}>{a.title}</Text>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec, lineHeight: 20, marginTop: 2 }}>{a.description}</Text>
+      {open.length > 0 &&
+        open.map((a) => {
+          const pi = priorityIcon[a.priority] ?? defaultPi;
+          return (
+            <View key={a.id} style={st.card}>
+              <View style={{ padding: 16, gap: 10 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    gap: 10,
+                  }}
+                >
+                  <Ionicons
+                    name={pi.icon}
+                    size={20}
+                    color={pi.color}
+                    style={{ marginTop: 1 }}
+                  />
+                  <View style={st.flex1}>
+                    <Text
+                      style={{ fontSize: 15, fontWeight: "800", color: C.text }}
+                      numberOfLines={2}
+                    >
+                      {a.title}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "600",
+                        color: C.textSec,
+                        lineHeight: 20,
+                        marginTop: 2,
+                      }}
+                    >
+                      {a.description}
+                    </Text>
+                  </View>
                 </View>
+                {a.suggestedMessage && (
+                  <View
+                    style={{
+                      backgroundColor: "#f8fafc",
+                      borderRadius: 12,
+                      padding: 12,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "800",
+                        color: C.textMuted,
+                        textTransform: "uppercase",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Suggested message
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "600",
+                        color: C.text,
+                        lineHeight: 20,
+                        fontStyle: "italic",
+                      }}
+                    >
+                      {a.suggestedMessage}
+                    </Text>
+                  </View>
+                )}
+                {!readOnly && (
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <Pressable
+                      onPress={() => handleStatus(a.id, "completed")}
+                      disabled={updatingId === a.id}
+                      style={({ pressed }) => [
+                        {
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          backgroundColor: C.green,
+                          borderRadius: 12,
+                          paddingVertical: 10,
+                        },
+                        pressed && st.pressed,
+                      ]}
+                    >
+                      {updatingId === a.id ? (
+                        <LoadingDots size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-circle-outline"
+                            size={16}
+                            color="#fff"
+                          />
+                          <Text
+                            style={{
+                              color: "#fff",
+                              fontSize: 14,
+                              fontWeight: "800",
+                            }}
+                          >
+                            Complete
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleStatus(a.id, "dismissed")}
+                      disabled={updatingId === a.id}
+                      style={({ pressed }) => [
+                        {
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          backgroundColor: "#f1f5f9",
+                          borderRadius: 12,
+                          paddingVertical: 10,
+                        },
+                        pressed && st.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name="close-circle-outline"
+                        size={16}
+                        color={C.textSec}
+                      />
+                      <Text
+                        style={{
+                          color: C.textSec,
+                          fontSize: 14,
+                          fontWeight: "800",
+                        }}
+                      >
+                        Dismiss
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
-              {a.suggestedMessage && (
-                <View style={{ backgroundColor: "#f8fafc", borderRadius: 12, padding: 12 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: C.textMuted, textTransform: "uppercase", marginBottom: 4 }}>Suggested message</Text>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: C.text, lineHeight: 20, fontStyle: "italic" }}>{a.suggestedMessage}</Text>
-                </View>
-              )}
-              {!readOnly && <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable onPress={() => handleStatus(a.id, "completed")} disabled={updatingId === a.id} style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: C.green, borderRadius: 12, paddingVertical: 10 }, pressed && st.pressed]}>
-                  {updatingId === a.id ? <LoadingDots size="small" color="#fff" /> : <><Ionicons name="checkmark-circle-outline" size={16} color="#fff" /><Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>Complete</Text></>}
-                </Pressable>
-                <Pressable onPress={() => handleStatus(a.id, "dismissed")} disabled={updatingId === a.id} style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#f1f5f9", borderRadius: 12, paddingVertical: 10 }, pressed && st.pressed]}>
-                  <Ionicons name="close-circle-outline" size={16} color={C.textSec} /><Text style={{ color: C.textSec, fontSize: 14, fontWeight: "800" }}>Dismiss</Text>
-                </Pressable>
-              </View>}
             </View>
-          </View>
-        );
-      })}
+          );
+        })}
       {done.length > 0 ? (
         <CollapsibleSection title={`Completed (${done.length})`}>
           {done.map((a) => (
-            <View key={a.id} style={{ flexDirection: "row", alignItems: "center", gap: 10, opacity: 0.7 }}>
-              <Ionicons name={a.status === "completed" ? "checkmark-circle" : "close-circle"} size={18} color={a.status === "completed" ? C.green : C.textMuted} />
-              <Text style={{ flex: 1, fontSize: 14, fontWeight: "700", color: C.text }} numberOfLines={1}>{a.title}</Text>
+            <View
+              key={a.id}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                opacity: 0.7,
+              }}
+            >
+              <Ionicons
+                name={
+                  a.status === "completed" ? "checkmark-circle" : "close-circle"
+                }
+                size={18}
+                color={a.status === "completed" ? C.green : C.textMuted}
+              />
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: 14,
+                  fontWeight: "700",
+                  color: C.text,
+                }}
+                numberOfLines={1}
+              >
+                {a.title}
+              </Text>
             </View>
           ))}
         </CollapsibleSection>
@@ -6925,7 +10886,8 @@ function SessionCommentsScreen({
   const error = commentsQuery.error ?? sessionQuery.error ?? null;
 
   useEffect(() => {
-    if (!title && sessionQuery.data?.session?.title) setTitle(sessionQuery.data.session.title);
+    if (!title && sessionQuery.data?.session?.title)
+      setTitle(sessionQuery.data.session.title);
   }, [sessionQuery.data, title]);
 
   const load = useCallback(async () => {
@@ -6951,14 +10913,31 @@ function SessionCommentsScreen({
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={C.brand} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
+            tintColor={C.brand}
+          />
+        }
         contentContainerStyle={reviewSt.commentsPageContent}
       >
-        {error ? <ErrorBanner message={error instanceof Error ? error.message : "Could not load comments"} onRetry={load} /> : null}
+        {error ? (
+          <ErrorBanner
+            message={
+              error instanceof Error ? error.message : "Could not load comments"
+            }
+            onRetry={load}
+          />
+        ) : null}
         {loading ? (
           <LoadingBox />
         ) : (
-          <CommentsTab comments={comments} sessionId={sessionId} onUpdate={load} />
+          <CommentsTab
+            comments={comments}
+            sessionId={sessionId}
+            onUpdate={load}
+          />
         )}
       </ScrollView>
     </View>
@@ -6983,7 +10962,10 @@ function CommentsTab({
   async function handlePost() {
     if (!body.trim()) return;
     try {
-      await postCommentMutation.mutateAsync({ body: body.trim(), parentId: replyToId });
+      await postCommentMutation.mutateAsync({
+        body: body.trim(),
+        parentId: replyToId,
+      });
       setBody("");
       setReplyToId(null);
       showToast("Comment posted", "success");
@@ -7004,7 +10986,8 @@ function CommentsTab({
   }
 
   const topLevel = comments.filter((c) => !c.parentId);
-  const getReplies = (parentId: string) => comments.filter((c) => c.parentId === parentId);
+  const getReplies = (parentId: string) =>
+    comments.filter((c) => c.parentId === parentId);
 
   function relativeTime(iso: string) {
     const diff = Date.now() - new Date(iso).getTime();
@@ -7022,10 +11005,34 @@ function CommentsTab({
       <View style={st.card}>
         <View style={{ padding: 14, gap: 10 }}>
           {replyToId && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.brand + "10", borderRadius: 8, padding: 8 }}>
-              <Ionicons name="return-down-forward-outline" size={14} color={C.brand} />
-              <Text style={{ flex: 1, fontSize: 12, fontWeight: "700", color: C.brand }}>Replying to comment</Text>
-              <Pressable onPress={() => setReplyToId(null)}><Ionicons name="close-circle" size={18} color={C.textMuted} /></Pressable>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: C.brand + "10",
+                borderRadius: 8,
+                padding: 8,
+              }}
+            >
+              <Ionicons
+                name="return-down-forward-outline"
+                size={14}
+                color={C.brand}
+              />
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: C.brand,
+                }}
+              >
+                Replying to comment
+              </Text>
+              <Pressable onPress={() => setReplyToId(null)}>
+                <Ionicons name="close-circle" size={18} color={C.textMuted} />
+              </Pressable>
             </View>
           )}
           <TextInput
@@ -7034,73 +11041,226 @@ function CommentsTab({
             value={body}
             onChangeText={setBody}
             multiline
-            style={{ fontSize: 14, fontWeight: "600", color: C.text, minHeight: 60, textAlignVertical: "top" }}
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: C.text,
+              minHeight: 60,
+              textAlignVertical: "top",
+            }}
           />
           <Pressable
             onPress={handlePost}
             disabled={!body.trim() || submitting}
-            style={({ pressed }) => [st.primaryBtn, { minHeight: 42 }, pressed && st.pressed, (!body.trim() || submitting) && { opacity: 0.5 }]}
+            style={({ pressed }) => [
+              st.primaryBtn,
+              { minHeight: 42 },
+              pressed && st.pressed,
+              (!body.trim() || submitting) && { opacity: 0.5 },
+            ]}
           >
             <Ionicons name="send-outline" size={16} color="#fff" />
-            <Text style={[st.primaryBtnText, { fontSize: 14 }]}>{submitting ? "Posting..." : "Post Comment"}</Text>
+            <Text style={[st.primaryBtnText, { fontSize: 14 }]}>
+              {submitting ? "Posting..." : "Post Comment"}
+            </Text>
           </Pressable>
         </View>
       </View>
 
       {/* Comments list */}
       {topLevel.length === 0 ? (
-        <EmptyState icon="chatbubbles-outline" title="No comments yet" subtitle="Be the first to add feedback on this session" />
+        <EmptyState
+          icon="chatbubbles-outline"
+          title="No comments yet"
+          subtitle="Be the first to add feedback on this session"
+        />
       ) : (
         topLevel.map((c) => (
           <View key={c.id} style={st.card}>
             <View style={{ padding: 14, gap: 8 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: C.brand + "15", alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ fontSize: 12, fontWeight: "900", color: C.brand }}>{c.authorName[0]?.toUpperCase()}</Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <View
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    backgroundColor: C.brand + "15",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text
+                    style={{ fontSize: 12, fontWeight: "900", color: C.brand }}
+                  >
+                    {c.authorName[0]?.toUpperCase()}
+                  </Text>
                 </View>
-                <Text style={{ fontSize: 13, fontWeight: "800", color: C.text }}>{c.authorName}</Text>
+                <Text
+                  style={{ fontSize: 13, fontWeight: "800", color: C.text }}
+                >
+                  {c.authorName}
+                </Text>
                 <View style={reviewSt.commentKindBadge}>
                   <Ionicons
-                    name={c.kind === "key_moment" ? "star" : "chatbubble-outline"}
+                    name={
+                      c.kind === "key_moment" ? "star" : "chatbubble-outline"
+                    }
                     size={10}
                     color={c.kind === "key_moment" ? C.purple : C.brand}
                   />
-                  <Text style={[reviewSt.commentKindText, c.kind === "key_moment" && { color: C.purple }]}>
+                  <Text
+                    style={[
+                      reviewSt.commentKindText,
+                      c.kind === "key_moment" && { color: C.purple },
+                    ]}
+                  >
                     {c.kind === "key_moment" ? "Key moment" : "Manual"}
                   </Text>
                 </View>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: C.textMuted }}>{relativeTime(c.createdAt)}</Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "600",
+                    color: C.textMuted,
+                  }}
+                >
+                  {relativeTime(c.createdAt)}
+                </Text>
                 {c.timestampSec !== null && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: C.brand + "10", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 3,
+                      backgroundColor: C.brand + "10",
+                      borderRadius: 99,
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                    }}
+                  >
                     <Ionicons name="time-outline" size={10} color={C.brand} />
-                    <Text style={{ fontSize: 10, fontWeight: "800", color: C.brand }}>{fmtSec(c.timestampSec)}</Text>
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        fontWeight: "800",
+                        color: C.brand,
+                      }}
+                    >
+                      {fmtSec(c.timestampSec)}
+                    </Text>
                   </View>
                 )}
                 <View style={{ flex: 1 }} />
-                <Pressable onPress={() => setReplyToId(c.id)} style={{ padding: 4 }}>
-                  <Ionicons name="return-down-forward-outline" size={16} color={C.textMuted} />
+                <Pressable
+                  onPress={() => setReplyToId(c.id)}
+                  style={{ padding: 4 }}
+                >
+                  <Ionicons
+                    name="return-down-forward-outline"
+                    size={16}
+                    color={C.textMuted}
+                  />
                 </Pressable>
-                <Pressable onPress={() => handleDelete(c.id)} style={{ padding: 4 }}>
-                  <Ionicons name="trash-outline" size={16} color={C.textMuted} />
+                <Pressable
+                  onPress={() => handleDelete(c.id)}
+                  style={{ padding: 4 }}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={16}
+                    color={C.textMuted}
+                  />
                 </Pressable>
               </View>
-              <Text style={{ fontSize: 14, fontWeight: "600", color: C.textSec, lineHeight: 21 }}>{c.body}</Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: C.textSec,
+                  lineHeight: 21,
+                }}
+              >
+                {c.body}
+              </Text>
 
               {/* Replies */}
               {getReplies(c.id).map((r) => (
-                <View key={r.id} style={{ marginLeft: 28, marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: C.brand + "20", gap: 6 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.brand + "10", alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ fontSize: 9, fontWeight: "900", color: C.brand }}>{r.authorName[0]?.toUpperCase()}</Text>
+                <View
+                  key={r.id}
+                  style={{
+                    marginLeft: 28,
+                    marginTop: 8,
+                    paddingLeft: 10,
+                    borderLeftWidth: 2,
+                    borderLeftColor: C.brand + "20",
+                    gap: 6,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        backgroundColor: C.brand + "10",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          fontWeight: "900",
+                          color: C.brand,
+                        }}
+                      >
+                        {r.authorName[0]?.toUpperCase()}
+                      </Text>
                     </View>
-                    <Text style={{ fontSize: 12, fontWeight: "800", color: C.text }}>{r.authorName}</Text>
-                    <Text style={{ fontSize: 10, fontWeight: "600", color: C.textMuted }}>{relativeTime(r.createdAt)}</Text>
+                    <Text
+                      style={{ fontSize: 12, fontWeight: "800", color: C.text }}
+                    >
+                      {r.authorName}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        fontWeight: "600",
+                        color: C.textMuted,
+                      }}
+                    >
+                      {relativeTime(r.createdAt)}
+                    </Text>
                     <View style={{ flex: 1 }} />
-                    <Pressable onPress={() => handleDelete(r.id)} style={{ padding: 4 }}>
-                      <Ionicons name="trash-outline" size={14} color={C.textMuted} />
+                    <Pressable
+                      onPress={() => handleDelete(r.id)}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={14}
+                        color={C.textMuted}
+                      />
                     </Pressable>
                   </View>
-                  <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec, lineHeight: 20 }}>{r.body}</Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "600",
+                      color: C.textSec,
+                      lineHeight: 20,
+                    }}
+                  >
+                    {r.body}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -7153,7 +11313,10 @@ function RubricsScreen({
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert("Could not open Tour.you", `Open ${url} in your browser to manage rubric settings.`);
+      Alert.alert(
+        "Could not open Tour.you",
+        `Open ${url} in your browser to manage rubric settings.`,
+      );
     }
   }
 
@@ -7161,8 +11324,11 @@ function RubricsScreen({
     return sessions.filter((item) => item.rubricId === rubricId);
   }
 
-  const defaultRubric = rubrics.find((rubric) => rubric.isDefault) ?? rubrics[0] ?? null;
-  const otherRubrics = defaultRubric ? rubrics.filter((rubric) => rubric.id !== defaultRubric.id) : rubrics;
+  const defaultRubric =
+    rubrics.find((rubric) => rubric.isDefault) ?? rubrics[0] ?? null;
+  const otherRubrics = defaultRubric
+    ? rubrics.filter((rubric) => rubric.id !== defaultRubric.id)
+    : rubrics;
 
   return (
     <View style={st.flex1}>
@@ -7170,134 +11336,246 @@ function RubricsScreen({
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={st.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={C.brand} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
+            tintColor={C.brand}
+          />
+        }
       >
-          <View style={st.page}>
-            <View style={st.pageHeadingRow}>
-              <BackBtn label="Settings" onPress={onBack} />
-              <View style={st.flex1} />
-            </View>
-            <View>
-              <Text style={st.pageTitle}>Rubrics</Text>
-              <Text style={st.pageHeadingSub}>{session.workspace.community.name}</Text>
-            </View>
-            {error && <ErrorBanner message={error instanceof Error ? error.message : "Could not load rubrics"} onRetry={load} />}
-            <MotionPressable
-              onPress={() => void openRubricSettings()}
-              haptic="selection"
-              style={st.defaultRubricCard}
+        <View style={st.page}>
+          <View style={st.pageHeadingRow}>
+            <BackBtn label="Settings" onPress={onBack} />
+            <View style={st.flex1} />
+          </View>
+          <View>
+            <Text style={st.pageTitle}>Rubrics</Text>
+            <Text style={st.pageHeadingSub}>
+              {session.workspace.community.name}
+            </Text>
+          </View>
+          {error && (
+            <ErrorBanner
+              message={
+                error instanceof Error
+                  ? error.message
+                  : "Could not load rubrics"
+              }
+              onRetry={load}
+            />
+          )}
+          <MotionPressable
+            onPress={() => void openRubricSettings()}
+            haptic="selection"
+            style={st.defaultRubricCard}
+          >
+            <View
+              style={[
+                st.defaultRubricIcon,
+                { backgroundColor: C.brand + "10" },
+              ]}
             >
-              <View style={[st.defaultRubricIcon, { backgroundColor: C.brand + "10" }]}>
-                <Ionicons name="open-outline" size={22} color={C.brand} />
-              </View>
-              <View style={st.flex1}>
-                <Text style={st.defaultRubricTitle}>Manage rubric settings on Tour.you</Text>
-                <Text style={st.materialMeta}>Clone frozen templates, edit criteria, and manage this property’s rubrics on the web.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-            </MotionPressable>
-          {loading ? <LoadingBox /> : rubrics.length === 0 ? (
-            <EmptyState icon="clipboard-outline" title="No rubrics" subtitle="Evaluation templates will appear here" />
+              <Ionicons name="open-outline" size={22} color={C.brand} />
+            </View>
+            <View style={st.flex1}>
+              <Text style={st.defaultRubricTitle}>
+                Manage rubric settings on Tour.you
+              </Text>
+              <Text style={st.materialMeta}>
+                Clone frozen templates, edit criteria, and manage this
+                property’s rubrics on the web.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+          </MotionPressable>
+          {loading ? (
+            <LoadingBox />
+          ) : rubrics.length === 0 ? (
+            <EmptyState
+              icon="clipboard-outline"
+              title="No rubrics"
+              subtitle="Evaluation templates will appear here"
+            />
           ) : (
             <>
               {defaultRubric && (
-                <MotionPressable onPress={() => setSelected(defaultRubric)} haptic="selection" style={st.defaultRubricCard}>
+                <MotionPressable
+                  onPress={() => setSelected(defaultRubric)}
+                  haptic="selection"
+                  style={st.defaultRubricCard}
+                >
                   <View style={st.defaultRubricIcon}>
-                    <Ionicons name="clipboard-outline" size={23} color={C.purple} />
+                    <Ionicons
+                      name="clipboard-outline"
+                      size={23}
+                      color={C.purple}
+                    />
                   </View>
                   <View style={st.flex1}>
                     <View style={st.rubricTitleRow}>
-                      <Text style={st.defaultRubricTitle} numberOfLines={2}>{defaultRubric.name}</Text>
-                      <View style={st.defaultBadge}><Text style={st.defaultBadgeText}>Default</Text></View>
+                      <Text style={st.defaultRubricTitle} numberOfLines={2}>
+                        {defaultRubric.name}
+                      </Text>
+                      <View style={st.defaultBadge}>
+                        <Text style={st.defaultBadgeText}>Default</Text>
+                      </View>
                     </View>
                     <Text style={st.materialMeta}>
-                      {defaultRubric.definition.sections.length} sections · {rubricItemCount(defaultRubric.definition)} items · {rubricTotalPoints(defaultRubric.definition)} pts
+                      {defaultRubric.definition.sections.length} sections ·{" "}
+                      {rubricItemCount(defaultRubric.definition)} items ·{" "}
+                      {rubricTotalPoints(defaultRubric.definition)} pts
                     </Text>
-                    <Text style={st.rubricAppliedText}>{applicationsFor(defaultRubric.id).length} session{applicationsFor(defaultRubric.id).length === 1 ? "" : "s"}</Text>
+                    <Text style={st.rubricAppliedText}>
+                      {applicationsFor(defaultRubric.id).length} session
+                      {applicationsFor(defaultRubric.id).length === 1
+                        ? ""
+                        : "s"}
+                    </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={C.textMuted}
+                  />
                 </MotionPressable>
               )}
 
               <Text style={st.sectionTitle}>All rubrics</Text>
               <View style={st.rubricGrid}>
-              {otherRubrics.map((rubric) => {
-                const applications = applicationsFor(rubric.id);
-                return (
-                  <MotionPressable
-                    key={rubric.id}
-                    onPress={() => setSelected(rubric)}
-                    haptic="selection"
-                    style={st.rubricCard}
-                  >
-                    <View style={st.rubricListIcon}><Ionicons name="clipboard-outline" size={19} color={C.purple} /></View>
-                    <View style={st.rubricCardBody}>
-                      <Text style={st.rubricCardTitle} numberOfLines={2}>{rubric.name}</Text>
-                      <Text style={st.materialMeta} numberOfLines={1}>
-                        {rubric.definition.sections.length} sections · {rubricItemCount(rubric.definition)} items
-                      </Text>
-                      <Text style={st.rubricAppliedText}>{applications.length} session{applications.length === 1 ? "" : "s"}</Text>
-                    </View>
-                  </MotionPressable>
-                );
-              })}
+                {otherRubrics.map((rubric) => {
+                  const applications = applicationsFor(rubric.id);
+                  return (
+                    <MotionPressable
+                      key={rubric.id}
+                      onPress={() => setSelected(rubric)}
+                      haptic="selection"
+                      style={st.rubricCard}
+                    >
+                      <View style={st.rubricListIcon}>
+                        <Ionicons
+                          name="clipboard-outline"
+                          size={19}
+                          color={C.purple}
+                        />
+                      </View>
+                      <View style={st.rubricCardBody}>
+                        <Text style={st.rubricCardTitle} numberOfLines={2}>
+                          {rubric.name}
+                        </Text>
+                        <Text style={st.materialMeta} numberOfLines={1}>
+                          {rubric.definition.sections.length} sections ·{" "}
+                          {rubricItemCount(rubric.definition)} items
+                        </Text>
+                        <Text style={st.rubricAppliedText}>
+                          {applications.length} session
+                          {applications.length === 1 ? "" : "s"}
+                        </Text>
+                      </View>
+                    </MotionPressable>
+                  );
+                })}
               </View>
             </>
           )}
         </View>
       </ScrollView>
 
-      <Modal visible={Boolean(selected)} animationType="slide" onRequestClose={() => setSelected(null)}>
+      <Modal
+        visible={Boolean(selected)}
+        animationType="slide"
+        onRequestClose={() => setSelected(null)}
+      >
         {selected && (
-          <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
+          <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={st.scroll}
+          >
             <View style={st.page}>
               <View style={st.pageHeadingRow}>
                 <BackBtn label="Rubrics" onPress={() => setSelected(null)} />
                 <View style={st.flex1} />
-                {selected.isDefault && <View style={st.defaultBadge}><Text style={st.defaultBadgeText}>Default</Text></View>}
+                {selected.isDefault && (
+                  <View style={st.defaultBadge}>
+                    <Text style={st.defaultBadgeText}>Default</Text>
+                  </View>
+                )}
               </View>
               <Text style={st.detailTitle}>{selected.name}</Text>
               <Text style={st.pageHeadingSub}>
-                {rubricItemCount(selected.definition)} criteria · {rubricTotalPoints(selected.definition)} points
+                {rubricItemCount(selected.definition)} criteria ·{" "}
+                {rubricTotalPoints(selected.definition)} points
               </Text>
               {selected.definition.sections.map((section) => (
                 <View key={section.name} style={st.card}>
                   <View style={st.rubricSectionHeader}>
                     <View style={st.flex1}>
                       <Text style={st.cardTitle}>{section.name}</Text>
-                      <Text style={st.materialMeta}>{section.items.length} items</Text>
+                      <Text style={st.materialMeta}>
+                        {section.items.length} items
+                      </Text>
                     </View>
-                    <Text style={st.rubricPoints}>{section.items.reduce((sum, item) => sum + item.points, 0)} pts</Text>
+                    <Text style={st.rubricPoints}>
+                      {section.items.reduce(
+                        (sum, item) => sum + item.points,
+                        0,
+                      )}{" "}
+                      pts
+                    </Text>
                   </View>
                   {section.items.map((item, index) => (
-                    <View key={item.id} style={[st.rubricItem, index > 0 && st.rowBorder]}>
-                      <View style={st.rubricItemNumber}><Text style={st.rubricItemNumberText}>{index + 1}</Text></View>
+                    <View
+                      key={item.id}
+                      style={[st.rubricItem, index > 0 && st.rowBorder]}
+                    >
+                      <View style={st.rubricItemNumber}>
+                        <Text style={st.rubricItemNumberText}>{index + 1}</Text>
+                      </View>
                       <View style={st.flex1}>
                         <Text style={st.rubricItemText}>{item.text}</Text>
-                        {item.note && <Text style={st.rubricItemNote}>{item.note}</Text>}
+                        {item.note && (
+                          <Text style={st.rubricItemNote}>{item.note}</Text>
+                        )}
                       </View>
                       <Text style={st.rubricPoints}>{item.points}</Text>
                     </View>
                   ))}
                 </View>
               ))}
-              {selected.definition.compliance && selected.definition.compliance.length > 0 && (
-                <View style={st.card}>
-                  <View style={st.rubricSectionHeader}><Text style={st.cardTitle}>Compliance</Text></View>
-                  {selected.definition.compliance.map((item, index) => (
-                    <View key={item.id} style={[st.rubricItem, index > 0 && st.rowBorder]}>
-                      <Ionicons name="shield-checkmark-outline" size={18} color={C.green} />
-                      <View style={st.flex1}>
-                        <Text style={st.rubricItemText}>{item.text}</Text>
-                        {item.note && <Text style={st.rubricItemNote}>{item.note}</Text>}
-                      </View>
+              {selected.definition.compliance &&
+                selected.definition.compliance.length > 0 && (
+                  <View style={st.card}>
+                    <View style={st.rubricSectionHeader}>
+                      <Text style={st.cardTitle}>Compliance</Text>
                     </View>
-                  ))}
-                </View>
-              )}
+                    {selected.definition.compliance.map((item, index) => (
+                      <View
+                        key={item.id}
+                        style={[st.rubricItem, index > 0 && st.rowBorder]}
+                      >
+                        <Ionicons
+                          name="shield-checkmark-outline"
+                          size={18}
+                          color={C.green}
+                        />
+                        <View style={st.flex1}>
+                          <Text style={st.rubricItemText}>{item.text}</Text>
+                          {item.note && (
+                            <Text style={st.rubricItemNote}>{item.note}</Text>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
               <Text style={st.sectionTitle}>Applied sessions</Text>
               {applicationsFor(selected.id).length === 0 ? (
-                <EmptyState icon="albums-outline" title="No applications yet" subtitle="Choose this rubric when starting or opening a scheduled session" />
+                <EmptyState
+                  icon="albums-outline"
+                  title="No applications yet"
+                  subtitle="Choose this rubric when starting or opening a scheduled session"
+                />
               ) : (
                 <View style={st.card}>
                   {applicationsFor(selected.id).map((item, index, list) => (
@@ -7325,7 +11603,16 @@ function RubricsScreen({
 // Settings
 // ═══════════════════════════════════════
 
-function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSignOut, aiTrainingDataFeedback, onAiTrainingDataFeedback, propertyWebsite }: {
+function SettingsScreen({
+  session,
+  onSessionChange,
+  onProfile,
+  onRubrics,
+  onSignOut,
+  aiTrainingDataFeedback,
+  onAiTrainingDataFeedback,
+  propertyWebsite,
+}: {
   session: MobileAuthSession;
   onSessionChange: (session: MobileAuthSession) => void;
   onProfile: () => void;
@@ -7343,11 +11630,14 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
   const [feedbackText, setFeedbackText] = useState("");
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const teamRole = session.workspace.teamMember?.role || "Property Team";
-  const authorizedPropertyCount = authorizedCommunitiesForSession(session).length;
+  const authorizedPropertyCount =
+    authorizedCommunitiesForSession(session).length;
   const accent = resolveCardAccent(session.workspace.user.cardAccent);
   const propertyName = session.workspace.community.name;
   const propertyWebsiteUrl = propertyWebsite
-    ? (/^https?:\/\//i.test(propertyWebsite) ? propertyWebsite : `https://${propertyWebsite}`)
+    ? /^https?:\/\//i.test(propertyWebsite)
+      ? propertyWebsite
+      : `https://${propertyWebsite}`
     : null;
   const propertyWebsiteDisplay = propertyWebsite
     ?.replace(/^https?:\/\//i, "")
@@ -7365,7 +11655,10 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
       setCommunityQuery("");
       showToast("Property switched", "success");
     } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Could not switch property", "error");
+      showToast(
+        caught instanceof Error ? caught.message : "Could not switch property",
+        "error",
+      );
     } finally {
       setSwitchingId(null);
     }
@@ -7396,9 +11689,19 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
     setSavingPrivacy(true);
     try {
       await onAiTrainingDataFeedback(!aiTrainingDataFeedback);
-      showToast(!aiTrainingDataFeedback ? "AI training data feedback enabled" : "AI training data feedback disabled", "success");
+      showToast(
+        !aiTrainingDataFeedback
+          ? "AI training data feedback enabled"
+          : "AI training data feedback disabled",
+        "success",
+      );
     } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "Could not save privacy setting", "error");
+      showToast(
+        caught instanceof Error
+          ? caught.message
+          : "Could not save privacy setting",
+        "error",
+      );
     } finally {
       setSavingPrivacy(false);
     }
@@ -7407,14 +11710,20 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
   return (
     <View style={st.page}>
       <Text style={st.pageTitle}>Settings</Text>
-      <Pressable onPress={onProfile} style={({ pressed }) => [st.settingsIdentity, pressed && st.pressed]}>
+      <Pressable
+        onPress={onProfile}
+        style={({ pressed }) => [st.settingsIdentity, pressed && st.pressed]}
+      >
         <View style={[st.avatar48, { backgroundColor: accent }]}>
           <Text style={[st.avatar48Text, { color: "#fff" }]}>
-            {(session.workspace.user.fullName ?? session.workspace.user.email)[0]?.toUpperCase()}
+            {(session.workspace.user.fullName ??
+              session.workspace.user.email)[0]?.toUpperCase()}
           </Text>
         </View>
         <View style={st.flex1}>
-          <Text style={st.cardRowTitle}>{session.workspace.user.fullName ?? "Team member"}</Text>
+          <Text style={st.cardRowTitle}>
+            {session.workspace.user.fullName ?? "Team member"}
+          </Text>
           <Text style={st.cardRowSub}>
             {session.workspace.user.title ?? teamRole} · Tap to edit card
           </Text>
@@ -7425,18 +11734,28 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
       <Text style={st.settingsSectionLabel}>ACTIVE PROPERTY</Text>
       <View style={st.settingsIdentity}>
         <View style={st.settingsCommunityRow}>
-          <View style={[st.communitySettingIcon, { backgroundColor: C.greenBg }]}>
+          <View
+            style={[st.communitySettingIcon, { backgroundColor: C.greenBg }]}
+          >
             <Ionicons name="business-outline" size={18} color={C.green} />
           </View>
           <View style={st.flex1}>
-            <Text style={st.communitySettingName}>{session.workspace.community.name}</Text>
-            <Text style={st.cardRowSub}>{authorizedPropertyCount} available {authorizedPropertyCount === 1 ? "property" : "properties"}</Text>
+            <Text style={st.communitySettingName}>
+              {session.workspace.community.name}
+            </Text>
+            <Text style={st.cardRowSub}>
+              {authorizedPropertyCount} available{" "}
+              {authorizedPropertyCount === 1 ? "property" : "properties"}
+            </Text>
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Switch active property"
             onPress={() => setCommunityPickerOpen(true)}
-            style={({ pressed }) => [st.settingsSwitchButton, pressed && st.pressed]}
+            style={({ pressed }) => [
+              st.settingsSwitchButton,
+              pressed && st.pressed,
+            ]}
           >
             <Text style={st.settingsChangeText}>Switch</Text>
           </Pressable>
@@ -7454,30 +11773,87 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
           </View>
           <View style={st.flex1}>
             <CustomText textStyle="title">Property website</CustomText>
-            <CustomText textStyle="micro" style={assetSt.websiteLinkMeta} numberOfLines={1}>{propertyWebsiteDisplay}</CustomText>
+            <CustomText
+              textStyle="micro"
+              style={assetSt.websiteLinkMeta}
+              numberOfLines={1}
+            >
+              {propertyWebsiteDisplay}
+            </CustomText>
           </View>
           <Ionicons name="open-outline" size={18} color={ACCENT} />
         </Pressable>
       ) : null}
 
       <Text style={st.settingsSectionLabel}>EVALUATION</Text>
-      <CardRow icon="clipboard-outline" title="Rubrics" sub="Templates, criteria, and session applications" onPress={onRubrics} />
+      <CardRow
+        icon="clipboard-outline"
+        title="Rubrics"
+        sub="Templates, criteria, and session applications"
+        onPress={onRubrics}
+      />
       <Text style={st.settingsSectionLabel}>SUPPORT</Text>
-      <CardRow icon="chatbubble-ellipses-outline" title="Share feedback" sub="Help us make the next Tour better" onPress={() => setFeedbackOpen(true)} />
+      <CardRow
+        icon="chatbubble-ellipses-outline"
+        title="Share feedback"
+        sub="Help us make the next Tour better"
+        onPress={() => setFeedbackOpen(true)}
+      />
       <Text style={st.settingsSectionLabel}>PRIVACY</Text>
-      <Pressable accessibilityRole="switch" accessibilityState={{ checked: aiTrainingDataFeedback }} onPress={() => void toggleAiTrainingDataFeedback()} style={({ pressed }) => pressed && st.pressed}>
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityState={{ checked: aiTrainingDataFeedback }}
+        onPress={() => void toggleAiTrainingDataFeedback()}
+        style={({ pressed }) => pressed && st.pressed}
+      >
         <Card style={cardRowSt.card}>
           <CardContent style={cardRowSt.content}>
-            <View style={cardRowSt.iconWrap}><Ionicons name="sparkles-outline" size={22} color={C.brand} /></View>
-            <View style={st.flex1}><UiText style={cardRowSt.title}>AI Training Data feedback</UiText><UiText style={cardRowSt.sub}>{aiTrainingDataFeedback ? "On · helps improve AI features" : "Off · your eligible feedback is not used for training"}</UiText></View>
-            <View style={[privacyToggleSt.track, aiTrainingDataFeedback && privacyToggleSt.trackOn]}><View style={[privacyToggleSt.thumb, aiTrainingDataFeedback && privacyToggleSt.thumbOn]} /></View>
+            <View style={cardRowSt.iconWrap}>
+              <Ionicons name="sparkles-outline" size={22} color={C.brand} />
+            </View>
+            <View style={st.flex1}>
+              <UiText style={cardRowSt.title}>AI Training Data feedback</UiText>
+              <UiText style={cardRowSt.sub}>
+                {aiTrainingDataFeedback
+                  ? "On · helps improve AI features"
+                  : "Off · your eligible feedback is not used for training"}
+              </UiText>
+            </View>
+            <View
+              style={[
+                privacyToggleSt.track,
+                aiTrainingDataFeedback && privacyToggleSt.trackOn,
+              ]}
+            >
+              <View
+                style={[
+                  privacyToggleSt.thumb,
+                  aiTrainingDataFeedback && privacyToggleSt.thumbOn,
+                ]}
+              />
+            </View>
           </CardContent>
         </Card>
       </Pressable>
-      <CardRow icon="hand-left-outline" title="Privacy Policy" sub="How Tour.you handles your data" onPress={() => void Linking.openURL(`${getSiteBaseUrl()}/privacy-policy`)} />
+      <CardRow
+        icon="hand-left-outline"
+        title="Privacy Policy"
+        sub="How Tour.you handles your data"
+        onPress={() =>
+          void Linking.openURL(`${getSiteBaseUrl()}/privacy-policy`)
+        }
+      />
       <Text style={st.settingsSectionLabel}>ACCOUNT</Text>
-      <CardRow icon="log-out-outline" title="Log out" sub="Remove this account from this device" onPress={() => setLogoutOpen(true)} destructive />
-      <Text style={st.settingsVersion}>Tour mobile 0.1.0 · Host Your Voice</Text>
+      <CardRow
+        icon="log-out-outline"
+        title="Log out"
+        sub="Remove this account from this device"
+        onPress={() => setLogoutOpen(true)}
+        destructive
+      />
+      <Text style={st.settingsVersion}>
+        Tour mobile 0.1.0 · Host Your Voice
+      </Text>
 
       <CommunityPickerModal
         visible={communityPickerOpen}
@@ -7507,11 +11883,17 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
         dragHeader={
           <View style={feedbackSheetSt.header}>
             <View style={feedbackSheetSt.icon}>
-              <Ionicons name="chatbubble-ellipses-outline" size={21} color={C.brand} />
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={21}
+                color={C.brand}
+              />
             </View>
             <View style={st.flex1}>
               <Text style={feedbackSheetSt.title}>Share Feedback</Text>
-              <Text style={feedbackSheetSt.subtitle}>Tell us what would make the next Tour better.</Text>
+              <Text style={feedbackSheetSt.subtitle}>
+                Tell us what would make the next Tour better.
+              </Text>
             </View>
           </View>
         }
@@ -7528,11 +11910,16 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
             style={feedbackSheetSt.input}
             textAlignVertical="top"
           />
-          <Text style={feedbackSheetSt.counter}>{feedbackText.length}/4000</Text>
+          <Text style={feedbackSheetSt.counter}>
+            {feedbackText.length}/4000
+          </Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => void sendFeedback()}
-            style={({ pressed }) => [feedbackSheetSt.sendButton, pressed && st.pressed]}
+            style={({ pressed }) => [
+              feedbackSheetSt.sendButton,
+              pressed && st.pressed,
+            ]}
           >
             <Ionicons name="send-outline" size={17} color="#fff" />
             <Text style={feedbackSheetSt.sendText}>Send feedback</Text>
@@ -7540,7 +11927,10 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
           <Pressable
             accessibilityRole="button"
             onPress={() => setFeedbackOpen(false)}
-            style={({ pressed }) => [feedbackSheetSt.cancelButton, pressed && st.pressed]}
+            style={({ pressed }) => [
+              feedbackSheetSt.cancelButton,
+              pressed && st.pressed,
+            ]}
           >
             <Text style={feedbackSheetSt.cancelText}>Not now</Text>
           </Pressable>
@@ -7557,7 +11947,9 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
             </View>
             <View style={st.flex1}>
               <Text style={logoutSheetSt.title}>Log out of Tour?</Text>
-              <Text style={logoutSheetSt.subtitle}>Your account will be removed from this device.</Text>
+              <Text style={logoutSheetSt.subtitle}>
+                Your account will be removed from this device.
+              </Text>
             </View>
           </View>
         }
@@ -7569,14 +11961,20 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
           <Pressable
             accessibilityRole="button"
             onPress={onSignOut}
-            style={({ pressed }) => [logoutSheetSt.logoutButton, pressed && st.pressed]}
+            style={({ pressed }) => [
+              logoutSheetSt.logoutButton,
+              pressed && st.pressed,
+            ]}
           >
             <Text style={logoutSheetSt.logoutText}>Log out</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             onPress={() => setLogoutOpen(false)}
-            style={({ pressed }) => [logoutSheetSt.cancelButton, pressed && st.pressed]}
+            style={({ pressed }) => [
+              logoutSheetSt.cancelButton,
+              pressed && st.pressed,
+            ]}
           >
             <Text style={logoutSheetSt.cancelText}>Cancel</Text>
           </Pressable>
@@ -7588,36 +11986,113 @@ function SettingsScreen({ session, onSessionChange, onProfile, onRubrics, onSign
 
 const feedbackSheetSt = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12 },
-  icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: "#eaf4ff" },
+  icon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: "#eaf4ff",
+  },
   title: { color: C.text, fontSize: 20, lineHeight: 25, fontWeight: "900" },
   subtitle: { marginTop: 2, color: C.textSec, fontSize: 12, lineHeight: 17 },
   body: { flex: 1, gap: 8, paddingTop: 16 },
   prompt: { color: C.text, fontSize: 14, fontWeight: "900" },
-  input: { flex: 1, minHeight: 120, padding: 13, borderWidth: 1, borderColor: "#d7dee8", borderRadius: 14, backgroundColor: "#f8fafc", color: C.text, fontSize: 14, lineHeight: 20 },
-  counter: { alignSelf: "flex-end", color: C.textMuted, fontSize: 11, fontWeight: "700" },
-  sendButton: { minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, backgroundColor: C.brand },
+  input: {
+    flex: 1,
+    minHeight: 120,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: "#d7dee8",
+    borderRadius: 14,
+    backgroundColor: "#f8fafc",
+    color: C.text,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  counter: {
+    alignSelf: "flex-end",
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  sendButton: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: C.brand,
+  },
   sendText: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  cancelButton: { minHeight: 44, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  cancelButton: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    backgroundColor: C.card,
+  },
   cancelText: { color: C.textSec, fontSize: 14, fontWeight: "800" },
 });
 
 const privacyToggleSt = StyleSheet.create({
-  track: { width: 50, height: 30, justifyContent: "center", paddingHorizontal: 3, borderRadius: 15, backgroundColor: "#c7ced8" },
+  track: {
+    width: 50,
+    height: 30,
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderRadius: 15,
+    backgroundColor: "#c7ced8",
+  },
   trackOn: { backgroundColor: C.brand },
-  thumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  thumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
   thumbOn: { alignSelf: "flex-end" },
 });
 
 const logoutSheetSt = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12 },
-  icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: C.redBg },
+  icon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: C.redBg,
+  },
   title: { color: C.text, fontSize: 20, lineHeight: 25, fontWeight: "900" },
   subtitle: { marginTop: 2, color: C.textSec, fontSize: 12, lineHeight: 17 },
   body: { flex: 1, gap: 10, paddingTop: 16 },
   note: { color: C.textSec, fontSize: 13, lineHeight: 19 },
-  logoutButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.red },
+  logoutButton: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: C.red,
+  },
   logoutText: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  cancelButton: { minHeight: 46, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  cancelButton: {
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    backgroundColor: C.card,
+  },
   cancelText: { color: C.textSec, fontSize: 14, fontWeight: "800" },
 });
 
@@ -7625,25 +12100,69 @@ const logoutSheetSt = StyleSheet.create({
 // Profile & Tour (preserved)
 // ═══════════════════════════════════════
 
-function TourStepper({ session, idx, prospect, step, onBack, onChange, onStep }: {
-  session: MobileAuthSession; idx: number; prospect: ProspectData; step: TourStep; onBack: () => void; onChange: (k: keyof ProspectData, v: string) => void; onStep: (s: TourStep) => void;
+function TourStepper({
+  session,
+  idx,
+  prospect,
+  step,
+  onBack,
+  onChange,
+  onStep,
+}: {
+  session: MobileAuthSession;
+  idx: number;
+  prospect: ProspectData;
+  step: TourStep;
+  onBack: () => void;
+  onChange: (k: keyof ProspectData, v: string) => void;
+  onStep: (s: TourStep) => void;
 }) {
   const name = session.workspace.user.fullName ?? "Team member";
   return (
     <View style={st.page}>
       <BackBtn label="Profile" onPress={onBack} />
-      <View style={[st.card, { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }]}>
-        <View style={st.avatar36}><Text style={{ color: C.brand, fontSize: 13, fontWeight: "900" }}>{name[0]?.toUpperCase()}</Text></View>
+      <View
+        style={[
+          st.card,
+          { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+        ]}
+      >
+        <View style={st.avatar36}>
+          <Text style={{ color: C.brand, fontSize: 13, fontWeight: "900" }}>
+            {name[0]?.toUpperCase()}
+          </Text>
+        </View>
         <View style={st.flex1}>
-          <Text style={{ fontSize: 17, fontWeight: "900", color: C.text }}>{name}</Text>
-          <Text style={{ fontSize: 12, fontWeight: "700", color: C.textSec }}>{session.workspace.user.email}</Text>
+          <Text style={{ fontSize: 17, fontWeight: "900", color: C.text }}>
+            {name}
+          </Text>
+          <Text style={{ fontSize: 12, fontWeight: "700", color: C.textSec }}>
+            {session.workspace.user.email}
+          </Text>
         </View>
       </View>
       <View style={[st.card, { flexDirection: "row", padding: 14, gap: 10 }]}>
         {tourSteps.map((s, i) => (
           <View key={s.id} style={{ flex: 1, alignItems: "center", gap: 8 }}>
-            <View style={[st.stepDot, i === idx && st.stepDotActive, i < idx && st.stepDotDone]}><Text style={[st.stepDotText, (i === idx || i < idx) && { color: "#fff" }]}>{i + 1}</Text></View>
-            <Text style={[st.stepLabel, i === idx && { color: C.text }]}>{s.label}</Text>
+            <View
+              style={[
+                st.stepDot,
+                i === idx && st.stepDotActive,
+                i < idx && st.stepDotDone,
+              ]}
+            >
+              <Text
+                style={[
+                  st.stepDotText,
+                  (i === idx || i < idx) && { color: "#fff" },
+                ]}
+              >
+                {i + 1}
+              </Text>
+            </View>
+            <Text style={[st.stepLabel, i === idx && { color: C.text }]}>
+              {s.label}
+            </Text>
           </View>
         ))}
       </View>
@@ -7651,31 +12170,90 @@ function TourStepper({ session, idx, prospect, step, onBack, onChange, onStep }:
         {step === "contact" && (
           <View style={{ gap: 14 }}>
             <Text style={st.formTitle}>Your contact information</Text>
-            <Input placeholder="Full name" value={prospect.name} onChangeText={(v) => onChange("name", v)} icon="person-outline" />
-            <Input placeholder="Email" value={prospect.email} onChangeText={(v) => onChange("email", v)} icon="mail-outline" keyboardType="email-address" autoCapitalize="none" />
-            <Input placeholder="Phone" value={prospect.phone} onChangeText={(v) => onChange("phone", v)} icon="call-outline" keyboardType="phone-pad" />
-            <PrimaryBtn label="Continue to preferences" onPress={() => onStep("preferences")} icon="arrow-forward" />
+            <Input
+              placeholder="Full name"
+              value={prospect.name}
+              onChangeText={(v) => onChange("name", v)}
+              icon="person-outline"
+            />
+            <Input
+              placeholder="Email"
+              value={prospect.email}
+              onChangeText={(v) => onChange("email", v)}
+              icon="mail-outline"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <Input
+              placeholder="Phone"
+              value={prospect.phone}
+              onChangeText={(v) => onChange("phone", v)}
+              icon="call-outline"
+              keyboardType="phone-pad"
+            />
+            <PrimaryBtn
+              label="Continue to preferences"
+              onPress={() => onStep("preferences")}
+              icon="arrow-forward"
+            />
           </View>
         )}
         {step === "preferences" && (
           <View style={{ gap: 14 }}>
             <Text style={st.formTitle}>What should the tour focus on?</Text>
-            <Input placeholder="Target move-in date" value={prospect.moveIn} onChangeText={(v) => onChange("moveIn", v)} icon="calendar-outline" />
-            <SegPicker label="Bedrooms" options={["Studio", "1 bed", "2 bed", "3 bed"]} value={prospect.bedrooms} onChange={(v) => onChange("bedrooms", v)} />
-            <SegPicker label="Budget" options={["<$2,000", "$2,200 - $2,600", "$2,600+"]} value={prospect.budget} onChange={(v) => onChange("budget", v)} />
-            <PrimaryBtn label="Review and start tour" onPress={() => onStep("ready")} icon="arrow-forward" />
+            <Input
+              placeholder="Target move-in date"
+              value={prospect.moveIn}
+              onChangeText={(v) => onChange("moveIn", v)}
+              icon="calendar-outline"
+            />
+            <SegPicker
+              label="Bedrooms"
+              options={["Studio", "1 bed", "2 bed", "3 bed"]}
+              value={prospect.bedrooms}
+              onChange={(v) => onChange("bedrooms", v)}
+            />
+            <SegPicker
+              label="Budget"
+              options={["<$2,000", "$2,200 - $2,600", "$2,600+"]}
+              value={prospect.budget}
+              onChange={(v) => onChange("budget", v)}
+            />
+            <PrimaryBtn
+              label="Review and start tour"
+              onPress={() => onStep("ready")}
+              icon="arrow-forward"
+            />
           </View>
         )}
         {step === "ready" && (
           <View style={{ gap: 14 }}>
             <Text style={st.formTitle}>Ready to start</Text>
-            <View style={{ backgroundColor: "#f8fafc", borderRadius: 22, padding: 16, gap: 12 }}>
+            <View
+              style={{
+                backgroundColor: "#f8fafc",
+                borderRadius: 22,
+                padding: 16,
+                gap: 12,
+              }}
+            >
               <SRow label="Prospect" value={prospect.name || "Guest"} />
-              <SRow label="Contact" value={prospect.email || prospect.phone || "—"} />
-              <SRow label="Focus" value={`${prospect.bedrooms} \u00B7 ${prospect.budget}`} />
+              <SRow
+                label="Contact"
+                value={prospect.email || prospect.phone || "—"}
+              />
+              <SRow
+                label="Focus"
+                value={`${prospect.bedrooms} \u00B7 ${prospect.budget}`}
+              />
               <SRow label="Move-in" value={prospect.moveIn || "Flexible"} />
             </View>
-            <Pressable style={({ pressed }) => [st.darkBtn, pressed && st.pressed]}><Ionicons name="flag-outline" size={18} color="#fff" /><Text style={st.darkBtnText}>Start tour</Text></Pressable>
+            <Pressable
+              style={({ pressed }) => [st.darkBtn, pressed && st.pressed]}
+            >
+              <Ionicons name="flag-outline" size={18} color="#fff" />
+              <Text style={st.darkBtnText}>Start tour</Text>
+            </Pressable>
           </View>
         )}
       </View>
@@ -7684,7 +12262,16 @@ function TourStepper({ session, idx, prospect, step, onBack, onChange, onStep }:
 }
 
 function SRow({ label, value }: { label: string; value: string }) {
-  return <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ fontSize: 13, fontWeight: "800", color: C.textSec }}>{label}</Text><Text style={{ fontSize: 13, fontWeight: "900", color: C.text }}>{value}</Text></View>;
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+      <Text style={{ fontSize: 13, fontWeight: "800", color: C.textSec }}>
+        {label}
+      </Text>
+      <Text style={{ fontSize: 13, fontWeight: "900", color: C.text }}>
+        {value}
+      </Text>
+    </View>
+  );
 }
 
 // ═══════════════════════════════════════
@@ -7694,137 +12281,645 @@ function SRow({ label, value }: { label: string; value: string }) {
 const W = Dimensions.get("window").width;
 
 const audioTestSt = StyleSheet.create({
-  hero: { alignItems: "center", gap: 12, padding: 22, borderWidth: 1, borderColor: C.border, borderRadius: 20, backgroundColor: "#fff" },
-  micRing: { width: 104, height: 104, borderRadius: 52, alignItems: "center", justifyContent: "center", backgroundColor: C.brand + "10" },
+  hero: {
+    alignItems: "center",
+    gap: 12,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+  },
+  micRing: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.brand + "10",
+  },
   micRingRecording: { backgroundColor: C.red + "12" },
-  timer: { color: C.text, fontSize: 42, lineHeight: 48, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  status: { color: C.textSec, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" },
+  timer: {
+    color: C.text,
+    fontSize: 42,
+    lineHeight: 48,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  status: {
+    color: C.textSec,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   controls: { gap: 10 },
-  recordButton: { minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 18, borderRadius: 29, backgroundColor: C.red },
-  stopButton: { minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 18, borderRadius: 29, backgroundColor: C.red },
+  recordButton: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    paddingHorizontal: 18,
+    borderRadius: 29,
+    backgroundColor: C.red,
+  },
+  stopButton: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    paddingHorizontal: 18,
+    borderRadius: 29,
+    backgroundColor: C.red,
+  },
   primaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  secondaryButton: { minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 16, borderWidth: 1, borderColor: "#dbeafe", borderRadius: 27, backgroundColor: "#f5f9ff" },
+  secondaryButton: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 27,
+    backgroundColor: "#f5f9ff",
+  },
   secondaryText: { color: C.brand, fontSize: 15, fontWeight: "900" },
-  infoCard: { borderWidth: 1, borderColor: C.border, borderRadius: 16, backgroundColor: "#fff", overflow: "hidden" },
-  infoRow: { minHeight: 58, gap: 5, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
-  infoLabel: { color: C.textMuted, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  infoCard: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  infoRow: {
+    minHeight: 58,
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  infoLabel: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
   infoValue: { color: C.text, fontSize: 13, lineHeight: 18, fontWeight: "700" },
-  resetButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 23 },
+  resetButton: {
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 23,
+  },
   resetText: { color: C.textSec, fontSize: 13, fontWeight: "800" },
 });
 
 const homeSt = StyleSheet.create({
   pageBg: { backgroundColor: BACKGROUND },
-  card: { backgroundColor: CARD, borderWidth: 0, borderRadius: SMALL_CORNER, borderCurve: "continuous", alignItems: "center" },
+  card: {
+    backgroundColor: CARD,
+    borderWidth: 0,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    alignItems: "center",
+  },
   topBar: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 },
-  topBarSide: { minWidth: 44, flexShrink: 0, alignItems: "flex-start", justifyContent: "center" },
+  topBarSide: {
+    minWidth: 44,
+    flexShrink: 0,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
   topBarSideEnd: { alignItems: "flex-end" },
-  topBarCenter: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" },
+  topBarCenter: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   topBarCenterEnd: { alignItems: "flex-end" },
-  propertyPicker: { maxWidth: "100%", minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 16, borderRadius: 999, backgroundColor: CARD },
-  propertyPickerText: { flexShrink: 1, color: TEXT, lineHeight: 19, textAlign: "center" },
-  headerIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#e2e2e2", borderRadius: 8, backgroundColor: "#fff" },
-  profileCard: { overflow: "hidden", borderRadius: LARGE_CORNER, borderCurve: "continuous", backgroundColor: CARD, shadowColor: "#101828", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 4 },
+  propertyPicker: {
+    maxWidth: "100%",
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: CARD,
+  },
+  propertyPickerText: {
+    flexShrink: 1,
+    color: TEXT,
+    lineHeight: 19,
+    textAlign: "center",
+  },
+  headerIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e2e2e2",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+  },
+  profileCard: {
+    overflow: "hidden",
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 4,
+  },
   profileHeader: { height: 112, backgroundColor: "#111" },
-  profileBody: { alignItems: "center", gap: 5, paddingHorizontal: 24, paddingTop: 0, paddingBottom: 24 },
-  profileAvatarLarge: { width: 88, height: 88, marginTop: -44, borderWidth: 4, borderColor: CARD, borderRadius: 44, alignItems: "center", justifyContent: "center", backgroundColor: "#d1d5db" },
+  profileBody: {
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 24,
+    paddingTop: 0,
+    paddingBottom: 24,
+  },
+  profileAvatarLarge: {
+    width: 88,
+    height: 88,
+    marginTop: -44,
+    borderWidth: 4,
+    borderColor: CARD,
+    borderRadius: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#d1d5db",
+  },
   profileAvatarLargeText: { color: CARD, fontSize: 30 },
   profileNameLarge: { color: TEXT, marginTop: 12, textAlign: "center" },
   profileRoleLarge: { color: "#5f6673" },
   profileProperty: { color: "#7b8496" },
   editProfileHint: { marginTop: 10, color: "#98A2B3" },
   contactList: { alignSelf: "stretch", gap: 14, marginTop: 22 },
-  profileContactRow: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 14 },
-  profileContactIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: BACKGROUND },
+  profileContactRow: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  profileContactIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: BACKGROUND,
+  },
   profileContactText: { flex: 1, color: TEXT },
   actionPillRow: { flexDirection: "row", gap: 10 },
-  checkInPill: { flex: 1, minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingHorizontal: 14, borderRadius: 29, backgroundColor: "#2f343c", boxShadow: "0 6px 14px rgba(47, 52, 60, 0.28)" },
-  newSessionPill: { backgroundColor: ACCENT, boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)" },
+  checkInPill: {
+    flex: 1,
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: "#2f343c",
+    boxShadow: "0 6px 14px rgba(47, 52, 60, 0.28)",
+  },
+  newSessionPill: {
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+  },
   actionPillPressed: { boxShadow: "none", transform: [{ scale: 0.975 }] },
   checkInPillText: { color: CARD },
-  practiceCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: 13, padding: 14, borderWidth: 1, borderColor: "#c7d7fe", borderRadius: 18, backgroundColor: "#f8fbff" },
-  practiceIcon: { width: 45, height: 45, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: C.brand },
+  practiceCard: {
+    minHeight: 78,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#c7d7fe",
+    borderRadius: 18,
+    backgroundColor: "#f8fbff",
+  },
+  practiceIcon: {
+    width: 45,
+    height: 45,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: C.brand,
+  },
   practiceTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
-  practiceMeta: { marginTop: 3, color: C.textSec, fontSize: 11, lineHeight: 16, fontWeight: "700" },
-  audioTestCard: { minHeight: 68, flexDirection: "row", alignItems: "center", gap: 12, padding: 13, borderWidth: 1, borderColor: "#dbeafe", borderRadius: 18, backgroundColor: "#f5f9ff" },
-  audioTestIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#eaf2ff" },
+  practiceMeta: {
+    marginTop: 3,
+    color: C.textSec,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "700",
+  },
+  audioTestCard: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 18,
+    backgroundColor: "#f5f9ff",
+  },
+  audioTestIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eaf2ff",
+  },
   audioTestTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
-  audioTestSub: { color: C.textSec, fontSize: 12, fontWeight: "700", marginTop: 2 },
-  businessCard: { padding: 16, gap: 14, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 20, backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 2 },
+  audioTestSub: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  businessCard: {
+    padding: 16,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    elevation: 2,
+  },
   profileRow: { flexDirection: "row", alignItems: "center", gap: 11 },
-  profileAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: C.brand },
+  profileAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.brand,
+  },
   profileAvatarText: { color: "#fff", fontSize: 14, fontWeight: "900" },
   profileName: { color: "#000", fontSize: 14, fontWeight: "800" },
   profileRole: { color: C.textSec, fontSize: 11, marginTop: 3 },
-  contactRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   contactText: { flex: 1, color: C.textSec, fontSize: 11 },
-  smsButton: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: C.brand },
+  smsButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: C.brand,
+  },
   smsButtonText: { color: "#fff", fontSize: 10, fontWeight: "800" },
   metricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
   metricCard: { width: (W - 47) / 2 },
   commandGrid: { flexDirection: "row", gap: 9 },
-  commandButton: { flex: 1, minHeight: 92, justifyContent: "space-between", padding: 12, borderWidth: 1, borderColor: C.border, borderRadius: 16, backgroundColor: "#fff" },
-  commandIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 10 },
+  commandButton: {
+    flex: 1,
+    minHeight: 92,
+    justifyContent: "space-between",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+  },
+  commandIcon: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+  },
   commandTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  commandSub: { color: C.textSec, fontSize: 10, fontWeight: "700", marginTop: 2 },
+  commandSub: {
+    color: C.textSec,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+  },
   focusStack: { gap: 9 },
-  focusCard: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 10, padding: 11, borderWidth: 1, borderColor: C.border, borderRadius: 14, backgroundColor: "#fff" },
-  focusIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12 },
+  focusCard: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 11,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 14,
+    backgroundColor: "#fff",
+  },
+  focusIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+  },
   focusTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  focusMeta: { color: C.textSec, fontSize: 11, fontWeight: "700", marginTop: 3 },
-  focusScore: { fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  focusMeta: {
+    color: C.textSec,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  focusScore: {
+    fontSize: 18,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
   sectionStack: { gap: 32, marginTop: 28 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 7 },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 7,
+  },
   sectionHeading: { gap: 2 },
-  sectionTitle: { flex: 1, color: TEXT, fontSize: 17, fontFamily: FONT.extrabold },
+  sectionTitle: {
+    flex: 1,
+    color: TEXT,
+    fontSize: 17,
+    fontFamily: FONT.extrabold,
+  },
   sectionSubtitle: { color: C.textSec },
   sectionAction: { color: ACCENT },
-  tourCard: { minHeight: 70, flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderWidth: 1, borderColor: C.border, borderRadius: SMALL_CORNER, backgroundColor: CARD },
+  tourCard: {
+    minHeight: 70,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: SMALL_CORNER,
+    backgroundColor: CARD,
+  },
   tourTitle: { color: TEXT, fontSize: 15, fontFamily: FONT.extrabold },
-  tourMetaRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
-  timePill: { color: ACCENT, fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4, backgroundColor: "rgba(0,108,229,0.07)" },
+  tourMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 8,
+  },
+  timePill: {
+    color: ACCENT,
+    fontSize: 11,
+    fontWeight: "800",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: "rgba(0,108,229,0.07)",
+  },
   tourMeta: { flex: 1, color: C.textSec, fontSize: 12, fontWeight: "600" },
   assetPreviewStack: { gap: 12 },
-  assetPreviewLoading: { minHeight: 132, alignItems: "center", justifyContent: "center", gap: 9, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
+  assetPreviewLoading: {
+    minHeight: 132,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
   mediaRowBleed: { marginHorizontal: -16 },
   mediaRow: { gap: 6, paddingHorizontal: 16 },
-  mediaTile: { minHeight: 132, justifyContent: "space-between", gap: 8, padding: 8, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
-  mediaThumb: { flex: 1, minHeight: 82, alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", borderRadius: 10, borderCurve: "continuous", backgroundColor: BACKGROUND },
-  mediaPreviewImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  mediaFallbackIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19, backgroundColor: CARD },
-  mediaPlayBadge: { position: "absolute", right: 7, bottom: 7, width: 24, height: 24, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.86)", borderRadius: 12, backgroundColor: "rgba(15,23,42,0.88)" },
+  mediaTile: {
+    minHeight: 132,
+    justifyContent: "space-between",
+    gap: 8,
+    padding: 8,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  mediaThumb: {
+    flex: 1,
+    minHeight: 82,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 10,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+  },
+  mediaPreviewImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+  },
+  mediaFallbackIcon: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 19,
+    backgroundColor: CARD,
+  },
+  mediaPlayBadge: {
+    position: "absolute",
+    right: 7,
+    bottom: 7,
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.86)",
+    borderRadius: 12,
+    backgroundColor: "rgba(15,23,42,0.88)",
+  },
   mediaLabel: { color: TEXT },
   emptyInline: { color: C.textSec },
-  assetLinkCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: 13, padding: 14, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
-  assetLinkIcon: { width: 46, height: 46, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#eef4ff" },
+  assetLinkCard: {
+    minHeight: 78,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    padding: 14,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  assetLinkIcon: {
+    width: 46,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: "#eef4ff",
+  },
   assetLinkIconConnected: { backgroundColor: ACCENT },
   assetLinkTitle: { color: TEXT, fontSize: 14, fontFamily: FONT.extrabold },
   assetLinkMeta: { color: C.textSec, lineHeight: 16, marginTop: 3 },
   statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
   statusText: { fontSize: 9, fontWeight: "900" },
-  actionCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderWidth: 1, borderColor: "#e5e5e5", borderRadius: 12, backgroundColor: "#fff" },
-  actionIcon: { width: 48, height: 48, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
-  qrBrandCenter: { position: "absolute", width: 18, height: 18, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
+  actionCard: {
+    minHeight: 78,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+  },
+  actionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  qrBrandCenter: {
+    position: "absolute",
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
   actionTitle: { color: "#000", fontSize: 14, fontWeight: "900" },
   actionSub: { color: C.textSec, fontSize: 12, marginTop: 3 },
-  createButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: C.brand },
+  createButton: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: C.brand,
+  },
   createButtonText: { color: "#fff", fontSize: 14, fontWeight: "800" },
-  insightCard: { minHeight: 105, flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderWidth: 1, borderLeftWidth: 4, borderColor: C.brand, borderRadius: 16, backgroundColor: "#fff" },
-  insightText: { color: C.text, fontSize: 14, lineHeight: 20, fontWeight: "600" },
-  insightLink: { color: C.brand, fontSize: 12, fontWeight: "800", marginTop: 10 },
-  sheetScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
+  insightCard: {
+    minHeight: 105,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderColor: C.brand,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+  },
+  insightText: {
+    color: C.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  insightLink: {
+    color: C.brand,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+  sheetScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.42)",
+  },
   sheetKeyboard: { flex: 1, justifyContent: "flex-end" },
-  checkInSheet: { position: "relative", maxHeight: "88%", gap: 8, paddingHorizontal: 18, paddingTop: 4, paddingBottom: Platform.OS === "ios" ? 16 : 12, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: "#fff" },
-  sheet: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 34 : 20, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: "#fff" },
-  sheetHandleHitbox: { alignSelf: "stretch", alignItems: "center", justifyContent: "center", minHeight: 28, marginBottom: 6 },
-  sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: "#d1d5db" },
-  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  checkInSheet: {
+    position: "relative",
+    maxHeight: "88%",
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingTop: 4,
+    paddingBottom: Platform.OS === "ios" ? 16 : 12,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    backgroundColor: "#fff",
+  },
+  sheet: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: "#fff",
+  },
+  sheetHandleHitbox: {
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 28,
+    marginBottom: 6,
+  },
+  sheetHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#d1d5db",
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
   sheetTitle: { color: "#111827", fontSize: 24, fontWeight: "900" },
   sheetSub: { color: "#7b8496", fontSize: 13, fontWeight: "700", marginTop: 2 },
-  sheetClose: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 20, backgroundColor: "#fff" },
-  sheetTabs: { flexDirection: "row", gap: 6, padding: 4, borderRadius: 17, backgroundColor: "#f3f4f6", marginBottom: 10 },
-  sheetTab: { flex: 1, minHeight: 39, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13 },
-  sheetTabActive: { backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 1 },
+  sheetClose: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 20,
+    backgroundColor: "#fff",
+  },
+  sheetTabs: {
+    flexDirection: "row",
+    gap: 6,
+    padding: 4,
+    borderRadius: 17,
+    backgroundColor: "#f3f4f6",
+    marginBottom: 10,
+  },
+  sheetTab: {
+    flex: 1,
+    minHeight: 39,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 13,
+  },
+  sheetTabActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 1,
+  },
   sheetTabText: { color: C.textMuted, fontSize: 13, fontWeight: "900" },
   sheetTabTextActive: { color: C.brand },
   checkInSheetBody: { flex: 1, minHeight: 0, gap: 8, overflow: "hidden" },
@@ -7832,104 +12927,480 @@ const homeSt = StyleSheet.create({
   checkInScroll: { flex: 1, minHeight: 0 },
   checkInForm: { gap: 10, paddingBottom: 14 },
   checkInFormKeyboard: { paddingBottom: 110 },
-  skipButton: { alignSelf: "flex-end", paddingHorizontal: 8, paddingVertical: 2 },
+  skipButton: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   skipText: { color: "#0b0b0c", fontSize: 21, fontWeight: "900" },
-  checkInHead: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 2 },
-  formHeadAvatar: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "#111827" },
-  formHeadText: { flex: 1, color: "#111318", fontSize: 17, lineHeight: 22, fontWeight: "900" },
+  checkInHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 2,
+  },
+  formHeadAvatar: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+    backgroundColor: "#111827",
+  },
+  formHeadText: {
+    flex: 1,
+    color: "#111318",
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "900",
+  },
   formRow2: { flexDirection: "row", gap: 9 },
-  floatingField: { flex: 1, minHeight: 56, justifyContent: "center", paddingHorizontal: 14, borderWidth: 1, borderColor: "#d7dae3", borderRadius: 14, backgroundColor: "#fff" },
-  floatingFieldHighlighted: { borderColor: C.brand, borderWidth: 2, shadowColor: C.brand, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 2 },
-  floatingLabel: { position: "absolute", left: 12, top: -8, paddingHorizontal: 5, color: "#4b5563", fontSize: 11, fontWeight: "900", backgroundColor: "#fff" },
-  floatingInput: { color: "#111318", fontSize: 16, fontWeight: "600", paddingVertical: 0 },
+  floatingField: {
+    flex: 1,
+    minHeight: 56,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#d7dae3",
+    borderRadius: 14,
+    backgroundColor: "#fff",
+  },
+  floatingFieldHighlighted: {
+    borderColor: C.brand,
+    borderWidth: 2,
+    shadowColor: C.brand,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  floatingLabel: {
+    position: "absolute",
+    left: 12,
+    top: -8,
+    paddingHorizontal: 5,
+    color: "#4b5563",
+    fontSize: 11,
+    fontWeight: "900",
+    backgroundColor: "#fff",
+  },
+  floatingInput: {
+    color: "#111318",
+    fontSize: 16,
+    fontWeight: "600",
+    paddingVertical: 0,
+  },
   phoneRow: { flexDirection: "row", gap: 9 },
-  phoneCc: { width: 84, minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 10, borderWidth: 1, borderColor: "#d7dae3", borderRadius: 14, backgroundColor: "#fff" },
+  phoneCc: {
+    width: 84,
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#d7dae3",
+    borderRadius: 14,
+    backgroundColor: "#fff",
+  },
   phoneFlag: { fontSize: 15 },
-  phoneCcInput: { flex: 1, minWidth: 34, color: "#111318", fontSize: 15, fontWeight: "800", paddingVertical: 0 },
+  phoneCcInput: {
+    flex: 1,
+    minWidth: 34,
+    color: "#111318",
+    fontSize: 15,
+    fontWeight: "800",
+    paddingVertical: 0,
+  },
   phoneCcText: { color: "#111318", fontSize: 19, fontWeight: "800" },
-  addJobButton: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: "#d7d7d7", borderRadius: 999, backgroundColor: "#fff" },
+  addJobButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#d7d7d7",
+    borderRadius: 999,
+    backgroundColor: "#fff",
+  },
   addJobText: { color: "#111318", fontSize: 13, fontWeight: "900" },
-  nextButton: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, borderRadius: 999, backgroundColor: "#111" },
+  nextButton: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    borderRadius: 999,
+    backgroundColor: "#111",
+  },
   nextButtonText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  checkInDestination: { color: C.textMuted, fontSize: 9, fontWeight: "700", textAlign: "center" },
+  checkInDestination: {
+    color: C.textMuted,
+    fontSize: 9,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   stepHeader: { gap: 2, marginBottom: 2 },
-  stepKicker: { color: C.brand, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
-  questionTitle: { color: C.text, fontSize: 18, lineHeight: 23, fontWeight: "900" },
+  stepKicker: {
+    color: C.brand,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  questionTitle: {
+    color: C.text,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "900",
+  },
   questionField: { gap: 8 },
   questionLabel: { color: C.text, fontSize: 13, fontWeight: "900" },
-  questionHint: { color: C.textMuted, fontSize: 11, fontWeight: "700", marginTop: -4 },
+  questionHint: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: -4,
+  },
   questionOptions: { gap: 8, paddingRight: 8 },
-  questionOption: { minHeight: 36, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: "#d7dae3", borderRadius: 999, backgroundColor: "#fff" },
+  questionOption: {
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#d7dae3",
+    borderRadius: 999,
+    backgroundColor: "#fff",
+  },
   questionOptionActive: { borderColor: C.brand, backgroundColor: "#eff6ff" },
   questionOptionText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
   questionOptionTextActive: { color: C.brand },
-  toggleRow: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
+  toggleRow: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 2,
+  },
   toggleText: { flex: 1, color: C.text, fontSize: 12, fontWeight: "800" },
   fieldError: { color: C.red, fontSize: 12, fontWeight: "800" },
   buttonRow: { flexDirection: "row", gap: 10 },
-  backBtn: { minWidth: 96, minHeight: 56, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#d7dae3", borderRadius: 13, backgroundColor: "#fff" },
+  backBtn: {
+    minWidth: 96,
+    minHeight: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#d7dae3",
+    borderRadius: 13,
+    backgroundColor: "#fff",
+  },
   backBtnText: { color: C.text, fontSize: 15, fontWeight: "900" },
   questionProgress: { alignItems: "center", paddingTop: 2 },
   questionProgressText: { color: C.textMuted, fontSize: 11, fontWeight: "900" },
-  floatingActionWrap: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 10, paddingBottom: 2, backgroundColor: "#fff" },
-  floatingBackButton: { width: 50, minHeight: 50, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#d7dae3", borderRadius: 999, backgroundColor: "#fff" },
-  floatingNextButton: { flex: 1, minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, backgroundColor: "#111" },
+  floatingActionWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingTop: 10,
+    paddingBottom: 2,
+    backgroundColor: "#fff",
+  },
+  floatingBackButton: {
+    width: 50,
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#d7dae3",
+    borderRadius: 999,
+    backgroundColor: "#fff",
+  },
+  floatingNextButton: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: "#111",
+  },
   donePanel: { alignItems: "center", gap: 13, paddingVertical: 10 },
-  doneIcon: { width: 68, height: 68, alignItems: "center", justifyContent: "center", borderRadius: 34, backgroundColor: C.green },
+  doneIcon: {
+    width: 68,
+    height: 68,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 34,
+    backgroundColor: C.green,
+  },
   manualForm: { gap: 10 },
-  sheetField: { minHeight: 50, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 13, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 14, backgroundColor: "#fff" },
-  sheetFieldMultiline: { minHeight: 82, alignItems: "flex-start", paddingTop: 14 },
-  sheetInput: { flex: 1, color: C.text, fontSize: 14, fontWeight: "700", paddingVertical: 0 },
+  sheetField: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 13,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 14,
+    backgroundColor: "#fff",
+  },
+  sheetFieldMultiline: {
+    minHeight: 82,
+    alignItems: "flex-start",
+    paddingTop: 14,
+  },
+  sheetInput: {
+    flex: 1,
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "700",
+    paddingVertical: 0,
+  },
   sheetInputMultiline: { minHeight: 52, textAlignVertical: "top" },
-  sheetPrimary: { alignSelf: "stretch", width: "100%", minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, marginTop: 4, paddingHorizontal: 24, borderRadius: 16, backgroundColor: "#111" },
+  sheetPrimary: {
+    alignSelf: "stretch",
+    width: "100%",
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    marginTop: 4,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    backgroundColor: "#111",
+  },
   sheetPrimaryText: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  qrPanel: { alignSelf: "stretch", alignItems: "center", gap: 12, paddingTop: 6 },
-  qrCard: { width: 210, height: 210, alignItems: "center", justifyContent: "center", padding: 12, borderRadius: 24, backgroundColor: "#f8fafc" },
+  qrPanel: {
+    alignSelf: "stretch",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 6,
+  },
+  qrCard: {
+    width: 210,
+    height: 210,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 24,
+    backgroundColor: "#f8fafc",
+  },
   qrImage: { width: "100%", height: "100%" },
   qrTitle: { color: C.text, fontSize: 18, fontWeight: "900" },
-  qrSub: { maxWidth: 300, color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600", textAlign: "center" },
-  qrShareGrid: { alignSelf: "stretch", width: "100%", flexDirection: "row", gap: 8, paddingTop: 4 },
-  qrShareButton: { flex: 1, minWidth: 0, minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 14, backgroundColor: "#fff" },
+  qrSub: {
+    maxWidth: 300,
+    color: C.textSec,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  qrShareGrid: {
+    alignSelf: "stretch",
+    width: "100%",
+    flexDirection: "row",
+    gap: 8,
+    paddingTop: 4,
+  },
+  qrShareButton: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 14,
+    backgroundColor: "#fff",
+  },
   qrShareButtonPrimary: { borderColor: C.brand, backgroundColor: C.brand },
   qrShareButtonText: { color: C.text, fontSize: 12, fontWeight: "900" },
   qrShareButtonPrimaryText: { color: "#fff", fontSize: 12, fontWeight: "900" },
 });
 
 const communitySt = StyleSheet.create({
-  sheet: { minHeight: "70%", maxHeight: "84%", borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: "#fff", paddingHorizontal: 14, paddingBottom: Platform.OS === "ios" ? 32 : 18 },
-  handle: { width: 40, height: 4, alignSelf: "center", borderRadius: 2, backgroundColor: "#d0d5dd", marginTop: 11, marginBottom: 16 },
-  header: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+  sheet: {
+    minHeight: "70%",
+    maxHeight: "84%",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+    paddingBottom: Platform.OS === "ios" ? 32 : 18,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    alignSelf: "center",
+    borderRadius: 2,
+    backgroundColor: "#d0d5dd",
+    marginTop: 11,
+    marginBottom: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
   headerText: { flex: 1, minWidth: 0 },
   title: { color: C.text, fontSize: 21, lineHeight: 26, fontWeight: "900" },
-  subtitle: { color: C.textSec, fontSize: 13, lineHeight: 18, fontWeight: "600", marginTop: 3 },
-  closeButton: { width: 46, height: 46, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
-  searchBar: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: C.border, borderRadius: 10, backgroundColor: C.card },
-  searchInput: { flex: 1, minWidth: 0, color: C.text, fontSize: 16, fontWeight: "700", paddingVertical: 0 },
+  subtitle: {
+    color: C.textSec,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+    marginTop: 3,
+  },
+  closeButton: {
+    width: 46,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    backgroundColor: C.card,
+  },
+  searchBar: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 10,
+    backgroundColor: C.card,
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    color: C.text,
+    fontSize: 16,
+    fontWeight: "700",
+    paddingVertical: 0,
+  },
   list: { flex: 1, marginTop: 10 },
   listContent: { paddingBottom: 20 },
-  row: { minHeight: 62, width: "100%", flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 0, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
-  iconBox: { width: 42, height: 42, flexShrink: 0, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#eef2ff" },
+  row: {
+    minHeight: 62,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 0,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  iconBox: {
+    width: 42,
+    height: 42,
+    flexShrink: 0,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef2ff",
+  },
   rowText: { flex: 1, minWidth: 0, justifyContent: "center" },
   rowTitle: { color: C.text, fontSize: 15, lineHeight: 19, fontWeight: "900" },
-  rowSub: { color: C.textSec, fontSize: 13, lineHeight: 17, fontWeight: "700", marginTop: 1 },
-  rowAction: { width: 28, flexShrink: 0, alignItems: "flex-end", justifyContent: "center" },
+  rowSub: {
+    color: C.textSec,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "700",
+    marginTop: 1,
+  },
+  rowAction: {
+    width: 28,
+    flexShrink: 0,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
 });
 
 const reviewSt = StyleSheet.create({
-  root: { flex: 1, backgroundColor: tourColors.bg, paddingTop: Platform.OS === "ios" ? 50 : 18 },
+  root: {
+    flex: 1,
+    backgroundColor: tourColors.bg,
+    paddingTop: Platform.OS === "ios" ? 50 : 18,
+  },
   scrollBody: { flex: 1 },
   scrollContent: { paddingBottom: 150 },
-  commentsPageContent: { gap: 12, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 12, paddingBottom: 130 },
+  commentsPageContent: {
+    gap: 12,
+    paddingHorizontal: SESSION_PAGE_PADDING,
+    paddingTop: 12,
+    paddingBottom: 130,
+  },
   tabSticky: { backgroundColor: tourColors.bg, zIndex: 2 },
   tabBody: { gap: 13, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 8 },
-  reportCta: { minHeight: 62, marginHorizontal: SESSION_PAGE_PADDING, marginTop: 8, marginBottom: 10, paddingHorizontal: 13, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 11, borderWidth: 1, borderColor: "#dbeafe", backgroundColor: "#f7fbff" },
-  reportCtaIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#eaf4ff" },
+  reportCta: {
+    minHeight: 62,
+    marginHorizontal: SESSION_PAGE_PADDING,
+    marginTop: 8,
+    marginBottom: 10,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    backgroundColor: "#f7fbff",
+  },
+  reportCtaIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eaf4ff",
+  },
   reportCtaTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  reportCtaSub: { marginTop: 2, color: C.textSec, fontSize: 10, lineHeight: 14, fontWeight: "700" },
-  sampleReadOnlyBanner: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 14, backgroundColor: "#faf7ff" },
-  sampleReadOnlyIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.purpleBg },
+  reportCtaSub: {
+    marginTop: 2,
+    color: C.textSec,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "700",
+  },
+  sampleReadOnlyBanner: {
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+    borderRadius: 14,
+    backgroundColor: "#faf7ff",
+  },
+  sampleReadOnlyIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    backgroundColor: C.purpleBg,
+  },
   sampleReadOnlyTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  sampleReadOnlySub: { marginTop: 2, color: C.textSec, fontSize: 11, lineHeight: 15, fontWeight: "600" },
+  sampleReadOnlySub: {
+    marginTop: 2,
+    color: C.textSec,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "600",
+  },
   focusBanner: {
     gap: 2,
     paddingHorizontal: 14,
@@ -7951,60 +13422,291 @@ const reviewSt = StyleSheet.create({
     color: "#101828",
   },
   searchPanel: { gap: 12, paddingTop: 4 },
-  searchInputWrap: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 13, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 14, backgroundColor: "#fff" },
+  searchInputWrap: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingHorizontal: 13,
+    borderWidth: 1,
+    borderColor: "#dbe3ef",
+    borderRadius: 14,
+    backgroundColor: "#fff",
+  },
   searchInput: { flex: 1, color: C.text, fontSize: 15, fontWeight: "600" },
-  searchHint: { paddingHorizontal: 4, color: C.textMuted, fontSize: 12, lineHeight: 18, fontWeight: "600" },
+  searchHint: {
+    paddingHorizontal: 4,
+    color: C.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
   searchResults: { gap: 8 },
-  searchCount: { color: C.textMuted, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
-  searchResult: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 14, backgroundColor: "#fff" },
-  searchResultIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#eff6ff" },
-  searchResultMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 3 },
-  searchResultSpeaker: { flex: 1, color: C.brand, fontSize: 11, fontWeight: "900" },
-  searchResultTime: { color: C.textMuted, fontSize: 10, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  searchResultText: { color: C.textSec, fontSize: 13, lineHeight: 18, fontWeight: "600" },
-  header: { minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16 },
-  headerButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#e6eaf0", borderRadius: 12, backgroundColor: "#fff" },
-  propertyPicker: { maxWidth: 210, minHeight: 36, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 14, borderRadius: 999, backgroundColor: "#eef2f7" },
-  propertyText: { flexShrink: 1, color: "#647084", fontSize: 14, fontWeight: "800" },
+  searchCount: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  searchResult: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+    backgroundColor: "#fff",
+  },
+  searchResultIcon: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: "#eff6ff",
+  },
+  searchResultMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 3,
+  },
+  searchResultSpeaker: {
+    flex: 1,
+    color: C.brand,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  searchResultTime: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  searchResultText: {
+    color: C.textSec,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  header: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e6eaf0",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+  },
+  propertyPicker: {
+    maxWidth: 210,
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#eef2f7",
+  },
+  propertyText: {
+    flexShrink: 1,
+    color: "#647084",
+    fontSize: 14,
+    fontWeight: "800",
+  },
   titleRow: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 },
   title: { color: C.text, fontSize: 24, fontWeight: "900", letterSpacing: 0 },
   subtitle: { color: "#7b8496", fontSize: 13, fontWeight: "700", marginTop: 4 },
-  reviewSummary: { flexDirection: "row", alignItems: "stretch", gap: 10, paddingHorizontal: 16, paddingBottom: 12 },
-  scoreCompact: { width: 108, minHeight: 70, justifyContent: "center", paddingHorizontal: 14, borderWidth: 1, borderRadius: 16 },
-  scoreCompactValue: { fontSize: 26, fontWeight: "900", lineHeight: 30, fontVariant: ["tabular-nums"] },
-  scoreCompactLabel: { color: "#667085", fontSize: 10, fontWeight: "900", textTransform: "uppercase", marginTop: 2 },
-  scorePill: { minWidth: 40, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, alignItems: "center", borderCurve: "continuous" },
-  scorePillText: { fontSize: 13, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  actionsCta: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderWidth: 1, borderColor: "#dbeafe", borderRadius: 16, backgroundColor: "#fff" },
-  actionsCtaIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#eff6ff" },
+  reviewSummary: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  scoreCompact: {
+    width: 108,
+    minHeight: 70,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderRadius: 16,
+  },
+  scoreCompactValue: {
+    fontSize: 26,
+    fontWeight: "900",
+    lineHeight: 30,
+    fontVariant: ["tabular-nums"],
+  },
+  scoreCompactLabel: {
+    color: "#667085",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    marginTop: 2,
+  },
+  scorePill: {
+    minWidth: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    borderCurve: "continuous",
+  },
+  scorePillText: {
+    fontSize: 13,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  actionsCta: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 16,
+    backgroundColor: "#fff",
+  },
+  actionsCtaIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#eff6ff",
+  },
   actionsCtaTitle: { color: C.text, fontSize: 14, fontWeight: "900" },
-  actionsCtaSub: { color: C.brand, fontSize: 11, fontWeight: "800", marginTop: 2 },
-  actionCount: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 12, backgroundColor: "#eef2ff" },
+  actionsCtaSub: {
+    color: C.brand,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  actionCount: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: "#eef2ff",
+  },
   actionCountText: { color: "#4338ca", fontSize: 10, fontWeight: "800" },
-  modeRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
-  modeButton: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 999, backgroundColor: "#fff" },
+  modeRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  modeButton: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 999,
+    backgroundColor: "#fff",
+  },
   modeButtonActive: { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
   modeText: { color: "#667085", fontSize: 12, fontWeight: "900" },
   modeTextActive: { color: C.brand },
-  transcriptContent: { gap: 13, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 8, paddingBottom: 150 },
+  transcriptContent: {
+    gap: 13,
+    paddingHorizontal: SESSION_PAGE_PADDING,
+    paddingTop: 8,
+    paddingBottom: 150,
+  },
   phaseSection: { gap: 4 },
-  phaseDivider: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 10, paddingBottom: 7 },
+  phaseDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 10,
+    paddingBottom: 7,
+  },
   phaseDividerLine: { width: 4, height: 18, borderRadius: 2 },
-  phaseDividerTitle: { flex: 1, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  phaseDividerTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
   phaseDividerTime: { color: "#98a2b3", fontSize: 11, fontWeight: "800" },
   turnRow: { borderRadius: 12, backgroundColor: "transparent" },
-  turnRowActive: { backgroundColor: "#eaf4ff", borderLeftWidth: 3, borderLeftColor: C.brand },
-  turnRowSelected: { backgroundColor: "#e0efff", borderWidth: 1, borderColor: "#60a5fa" },
-  turnMain: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 8, paddingHorizontal: 8 },
+  turnRowActive: {
+    backgroundColor: "#eaf4ff",
+    borderLeftWidth: 3,
+    borderLeftColor: C.brand,
+  },
+  turnRowSelected: {
+    backgroundColor: "#e0efff",
+    borderWidth: 1,
+    borderColor: "#60a5fa",
+  },
+  turnMain: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
   turnInitialSlot: { width: 20, alignItems: "center", paddingTop: 1 },
   turnInitial: { fontSize: 12, fontWeight: "900" },
-  turnMeta: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 3 },
+  turnMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 3,
+  },
   turnSpeaker: { fontSize: 12, fontWeight: "900" },
-  segmentTime: { color: "#98a2b3", fontSize: 11, fontWeight: "800", marginLeft: "auto" },
-  turnText: { color: "#344054", fontSize: 14, lineHeight: 20, fontWeight: "600" },
-  annotationRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
-  annotationChip: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 8, paddingRight: 4, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: "#dbeafe", backgroundColor: "#fff" },
-  annotationChipExpanded: { borderColor: "#ddd6fe", backgroundColor: "#faf5ff" },
+  segmentTime: {
+    color: "#98a2b3",
+    fontSize: 11,
+    fontWeight: "800",
+    marginLeft: "auto",
+  },
+  turnText: {
+    color: "#344054",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  annotationRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+  },
+  annotationChip: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingLeft: 8,
+    paddingRight: 4,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    backgroundColor: "#fff",
+  },
+  annotationChipExpanded: {
+    borderColor: "#ddd6fe",
+    backgroundColor: "#faf5ff",
+  },
   annotationText: { color: C.brand, fontSize: 10, fontWeight: "900" },
   annotationCountBadge: {
     minWidth: 20,
@@ -8014,15 +13716,57 @@ const reviewSt = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  annotationCountText: { color: "#fff", fontSize: 10, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  inlineAnnotationStack: { gap: 7, marginLeft: 36, marginTop: 7, marginRight: 8 },
-  inlineAnnotationCard: { gap: 8, padding: 11, borderWidth: 1, borderRadius: 12 },
-  inlineAnnotationHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
-  inlineAnnotationIcon: { width: 25, height: 25, alignItems: "center", justifyContent: "center", borderRadius: 8 },
+  annotationCountText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  inlineAnnotationStack: {
+    gap: 7,
+    marginLeft: 36,
+    marginTop: 7,
+    marginRight: 8,
+  },
+  inlineAnnotationCard: {
+    gap: 8,
+    padding: 11,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  inlineAnnotationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  inlineAnnotationIcon: {
+    width: 25,
+    height: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
   inlineAnnotationTitle: { flex: 1, fontSize: 11, fontWeight: "900" },
-  inlineAnnotationTime: { fontSize: 10, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  inlineAnnotationBody: { color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600" },
-  inlineAnnotationPlay: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, minHeight: 28, paddingHorizontal: 9, borderRadius: 999 },
+  inlineAnnotationTime: {
+    fontSize: 10,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  inlineAnnotationBody: {
+    color: C.textSec,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
+  inlineAnnotationPlay: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    minHeight: 28,
+    paddingHorizontal: 9,
+    borderRadius: 999,
+  },
   inlineAnnotationPlayText: { fontSize: 10, fontWeight: "900" },
   commentHint: {
     flexDirection: "row",
@@ -8036,20 +13780,85 @@ const reviewSt = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#BFDBFE",
   },
-  commentHintText: { flex: 1, color: "#1D4ED8", fontSize: 12, fontWeight: "700", lineHeight: 17 },
-  commentKindBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 999, backgroundColor: "#f4f7fb" },
-  commentKindText: { color: C.brand, fontSize: 8, fontWeight: "900", textTransform: "uppercase" },
-  coachingMoment: { gap: 9, marginVertical: 6, padding: 12, borderWidth: 1, borderColor: "#e9d5ff", borderRadius: 14, backgroundColor: "#fbf7ff" },
+  commentHintText: {
+    flex: 1,
+    color: "#1D4ED8",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17,
+  },
+  commentKindBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: "#f4f7fb",
+  },
+  commentKindText: {
+    color: C.brand,
+    fontSize: 8,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  coachingMoment: {
+    gap: 9,
+    marginVertical: 6,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e9d5ff",
+    borderRadius: 14,
+    backgroundColor: "#fbf7ff",
+  },
   coachingMomentCompact: { marginLeft: 36, marginRight: 8, marginTop: 2 },
   coachingMomentHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
-  coachingMomentIcon: { width: 22, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: C.purpleBg },
-  coachingMomentKicker: { flex: 1, color: C.purple, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  coachingMomentIcon: {
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: C.purpleBg,
+  },
+  coachingMomentKicker: {
+    flex: 1,
+    color: C.purple,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
   coachingMomentTime: { color: "#8b5cf6", fontSize: 11, fontWeight: "900" },
-  coachingMomentBody: { color: C.text, fontSize: 13, fontWeight: "700", lineHeight: 19 },
-  coachingSuggestion: { gap: 3, padding: 10, borderRadius: 10, backgroundColor: "#fff" },
-  coachingSuggestionLabel: { color: C.purple, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
-  coachingSuggestionText: { color: "#344054", fontSize: 13, fontWeight: "700", lineHeight: 18 },
-  coachingQuote: { color: "#7b8496", fontSize: 12, lineHeight: 17, fontStyle: "italic" },
+  coachingMomentBody: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+  },
+  coachingSuggestion: {
+    gap: 3,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+  },
+  coachingSuggestionLabel: {
+    color: C.purple,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  coachingSuggestionText: {
+    color: "#344054",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  coachingQuote: {
+    color: "#7b8496",
+    fontSize: 12,
+    lineHeight: 17,
+    fontStyle: "italic",
+  },
   coachingMomentActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   coachingMomentAction: { color: C.purple, fontSize: 11, fontWeight: "900" },
   selectionBar: {
@@ -8073,12 +13882,36 @@ const reviewSt = StyleSheet.create({
     elevation: 10,
     zIndex: 12,
   },
-  selectionClose: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#f1f5f9" },
+  selectionClose: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: "#f1f5f9",
+  },
   selectionTitle: { color: C.text, fontSize: 12, fontWeight: "900" },
-  selectionTime: { color: C.textMuted, fontSize: 10, fontWeight: "800", marginTop: 1 },
-  selectionAction: { minHeight: 38, alignItems: "center", justifyContent: "center", gap: 2, paddingHorizontal: 7, borderRadius: 10, backgroundColor: "#eff6ff" },
+  selectionTime: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "800",
+    marginTop: 1,
+  },
+  selectionAction: {
+    minHeight: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+    backgroundColor: "#eff6ff",
+  },
   selectionActionText: { color: C.brand, fontSize: 9, fontWeight: "900" },
-  commentDrawerBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.18)" },
+  commentDrawerBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(15,23,42,0.18)",
+  },
   commentDrawerCard: {
     gap: 13,
     maxHeight: "78%",
@@ -8094,33 +13927,156 @@ const reviewSt = StyleSheet.create({
     shadowRadius: 24,
     elevation: 18,
   },
-  commentDrawerHandle: { alignSelf: "center", width: 38, height: 4, marginBottom: 2, borderRadius: 999, backgroundColor: "#d0d5dd" },
+  commentDrawerHandle: {
+    alignSelf: "center",
+    width: 38,
+    height: 4,
+    marginBottom: 2,
+    borderRadius: 999,
+    backgroundColor: "#d0d5dd",
+  },
   commentModalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  commentModalIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "#eff6ff" },
+  commentModalIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#eff6ff",
+  },
   commentModalTitle: { color: C.text, fontSize: 16, fontWeight: "900" },
-  commentModalTime: { color: C.textMuted, fontSize: 11, fontWeight: "800", marginTop: 2 },
-  commentKindSwitcher: { flexDirection: "row", gap: 4, padding: 4, borderRadius: 14, backgroundColor: "#f2f4f7" },
-  commentKindOption: { flex: 1, minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 11 },
-  commentKindOptionActive: { backgroundColor: "#fff", shadowColor: "#101828", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 },
-  commentKindOptionText: { color: C.textMuted, fontSize: 12, fontWeight: "800" },
+  commentModalTime: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  commentKindSwitcher: {
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+    borderRadius: 14,
+    backgroundColor: "#f2f4f7",
+  },
+  commentKindOption: {
+    flex: 1,
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 11,
+  },
+  commentKindOptionActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  commentKindOptionText: {
+    color: C.textMuted,
+    fontSize: 12,
+    fontWeight: "800",
+  },
   commentKindOptionTextActive: { color: C.brand },
-  commentSelectionPreview: { gap: 8, padding: 11, borderWidth: 1, borderColor: "#dbeafe", borderRadius: 14, backgroundColor: "#f8fbff" },
-  commentSelectionPreviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  commentSelectionPreviewLabel: { color: C.brand, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 },
-  commentSelectionPreviewCount: { color: C.textMuted, fontSize: 10, fontWeight: "800" },
+  commentSelectionPreview: {
+    gap: 8,
+    padding: 11,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 14,
+    backgroundColor: "#f8fbff",
+  },
+  commentSelectionPreviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  commentSelectionPreviewLabel: {
+    color: C.brand,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  commentSelectionPreviewCount: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "800",
+  },
   commentSelectionPreviewScroll: { maxHeight: 112 },
   commentSelectionPreviewTurn: { gap: 2, marginBottom: 8 },
-  commentSelectionPreviewSpeaker: { color: C.text, fontSize: 11, fontWeight: "900" },
-  commentSelectionPreviewText: { color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600" },
-  commentModalInput: { minHeight: 92, maxHeight: 132, padding: 12, borderWidth: 1, borderColor: "#dbe3ef", borderRadius: 14, color: C.text, fontSize: 15, fontWeight: "600", textAlignVertical: "top", backgroundColor: "#f8fafc" },
-  commentModalSubmit: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13, backgroundColor: C.brand },
+  commentSelectionPreviewSpeaker: {
+    color: C.text,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  commentSelectionPreviewText: {
+    color: C.textSec,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
+  },
+  commentModalInput: {
+    minHeight: 92,
+    maxHeight: 132,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#dbe3ef",
+    borderRadius: 14,
+    color: C.text,
+    fontSize: 15,
+    fontWeight: "600",
+    textAlignVertical: "top",
+    backgroundColor: "#f8fafc",
+  },
+  commentModalSubmit: {
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 13,
+    backgroundColor: C.brand,
+  },
   commentModalSubmitText: { color: "#fff", fontSize: 14, fontWeight: "900" },
-  processingTimeline: { alignSelf: "stretch", flexDirection: "row", justifyContent: "space-between", gap: 8, marginTop: 2, paddingTop: 8 },
+  processingTimeline: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+    marginTop: 2,
+    paddingTop: 8,
+  },
   processingStep: { flex: 1, alignItems: "center", gap: 6, minWidth: 58 },
-  processingStepIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "#fff" },
-  processingStepIconActive: { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
-  processingStepIconDone: { borderColor: "#bbf7d0", backgroundColor: C.greenBg },
-  processingStepText: { color: C.textMuted, fontSize: 10, lineHeight: 13, fontWeight: "800", textAlign: "center" },
+  processingStepIcon: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#fff",
+  },
+  processingStepIconActive: {
+    borderColor: "#bfdbfe",
+    backgroundColor: "#eff6ff",
+  },
+  processingStepIconDone: {
+    borderColor: "#bbf7d0",
+    backgroundColor: C.greenBg,
+  },
+  processingStepText: {
+    color: C.textMuted,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: "800",
+    textAlign: "center",
+  },
   playerDock: {
     position: "absolute",
     left: 0,
@@ -8141,17 +14097,67 @@ const reviewSt = StyleSheet.create({
     shadowRadius: 12,
     elevation: 12,
   },
-  phaseTrack: { height: 5, borderRadius: 4, backgroundColor: "#f3f4f6", position: "relative", overflow: "hidden" },
-  phaseSegment: { position: "absolute", top: 0, bottom: 0, borderRadius: 2, opacity: 0.92 },
-  phasePlayhead: { position: "absolute", top: -2, bottom: -2, width: 2, backgroundColor: "#111827" },
-  waveformTrack: { height: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
+  phaseTrack: {
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: "#f3f4f6",
+    position: "relative",
+    overflow: "hidden",
+  },
+  phaseSegment: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    borderRadius: 2,
+    opacity: 0.92,
+  },
+  phasePlayhead: {
+    position: "absolute",
+    top: -2,
+    bottom: -2,
+    width: 2,
+    backgroundColor: "#111827",
+  },
+  waveformTrack: {
+    height: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
   waveformBar: { width: 3, borderRadius: 2, backgroundColor: C.brand },
-  time: { color: "#667085", fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  playbackRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  playbackMeta: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1 },
+  time: {
+    color: "#667085",
+    fontSize: 12,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  playbackRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  playbackMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 1,
+  },
   playbackControls: { flexDirection: "row", alignItems: "center", gap: 14 },
   speed: { minWidth: 28, color: C.text, fontSize: 13, fontWeight: "900" },
-  playButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 8 },
+  playButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+    backgroundColor: C.brand,
+    shadowColor: C.brand,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
 });
 
 const st = StyleSheet.create({
@@ -8161,69 +14167,261 @@ const st = StyleSheet.create({
   screenTransition: { flex: 1 },
   scroll: { gap: 14, paddingHorizontal: 18, paddingTop: 56, paddingBottom: 32 },
   sessionDetailScroll: { paddingTop: 14 },
-  mainScroll: { gap: 14, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 120 },
+  mainScroll: {
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 120,
+  },
   pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
   page: { gap: 14 },
   pulseDot: { width: 10, height: 10, borderRadius: 5 },
-  shimmerCard: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.card },
+  shimmerCard: {
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    backgroundColor: C.card,
+  },
   shimmerBar: { height: 12, borderRadius: 999, backgroundColor: "#e8eef7" },
-  sessionSkeletonAvatar: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#e8eef7" },
+  sessionSkeletonAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "#e8eef7",
+  },
   sessionSkeletonBody: { flex: 1, gap: 9 },
-  sessionSkeletonChevron: { width: 8, height: 8, borderTopWidth: 2, borderRightWidth: 2, borderColor: "#dbe3ef", transform: [{ rotate: "45deg" }] },
+  sessionSkeletonChevron: {
+    width: 8,
+    height: 8,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    borderColor: "#dbe3ef",
+    transform: [{ rotate: "45deg" }],
+  },
 
   // Toast
-  toast: { position: "absolute", left: 14, right: 14, zIndex: 999, borderRadius: 20, shadowColor: "#0f172a", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 22, elevation: 14 },
-  toastGlass: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 10, overflow: "hidden", padding: 11, borderWidth: 1, borderColor: "rgba(255,255,255,0.82)", borderRadius: 20 },
-  toastIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
-  toastText: { flex: 1, color: C.text, fontSize: 13, lineHeight: 18, fontWeight: "800" },
-  toastClose: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "rgba(255,255,255,0.56)" },
+  toast: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    zIndex: 999,
+    borderRadius: 20,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 22,
+    elevation: 14,
+  },
+  toastGlass: {
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    overflow: "hidden",
+    padding: 11,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.82)",
+    borderRadius: 20,
+  },
+  toastIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
+  },
+  toastText: {
+    flex: 1,
+    color: C.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "800",
+  },
+  toastClose: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.56)",
+  },
 
   // Tab Bar
-  tabBar: { position: "relative", flexDirection: "row", backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.border, paddingBottom: Platform.OS === "web" ? 12 : 28, paddingTop: 9, overflow: "hidden" },
-  tabBarIndicator: { position: "absolute", top: 4, height: 47, alignItems: "center", justifyContent: "center" },
-  tabBarIndicatorPill: { width: "82%", height: 43, borderRadius: 16, backgroundColor: C.brand + "0D" },
-  tabBarItem: { zIndex: 1, flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", gap: 2 },
+  tabBar: {
+    position: "relative",
+    flexDirection: "row",
+    backgroundColor: C.card,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingBottom: Platform.OS === "web" ? 12 : 28,
+    paddingTop: 9,
+    overflow: "hidden",
+  },
+  tabBarIndicator: {
+    position: "absolute",
+    top: 4,
+    height: 47,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabBarIndicatorPill: {
+    width: "82%",
+    height: 43,
+    borderRadius: 16,
+    backgroundColor: C.brand + "0D",
+  },
+  tabBarItem: {
+    zIndex: 1,
+    flex: 1,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
   tabBarLabel: { fontSize: 10, fontWeight: "700", color: C.textMuted },
   tabBarLabelActive: { color: C.brand },
 
   // FAB
-  fab: { position: "absolute", bottom: 96, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: C.brand, alignItems: "center", justifyContent: "center", shadowColor: C.brand, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 },
+  fab: {
+    position: "absolute",
+    bottom: 96,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: C.brand,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: C.brand,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
 
   // Error
-  errorBanner: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: C.redBg, borderRadius: 8, borderWidth: 1, borderColor: C.red + "20" },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    backgroundColor: C.redBg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.red + "20",
+  },
   errorBannerText: { flex: 1, fontSize: 13, fontWeight: "700", color: C.red },
-  errorRetryBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  errorRetryBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   // Dashboard
   dashGreet: { flexDirection: "row", alignItems: "center", gap: 14 },
   dashGreetText: { fontSize: 24, fontWeight: "900", color: C.text },
-  dashProperty: { fontSize: 14, fontWeight: "700", color: C.textSec, marginTop: 2 },
-  avatar48: { width: 48, height: 48, borderRadius: 8, backgroundColor: "#e9f2ff", alignItems: "center", justifyContent: "center" },
+  dashProperty: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: C.textSec,
+    marginTop: 2,
+  },
+  avatar48: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#e9f2ff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatar48Text: { color: C.brand, fontSize: 16, fontWeight: "900" },
   metricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  metricCard: { width: "48.5%", backgroundColor: C.card, borderRadius: 8, borderWidth: 1, borderColor: C.border, padding: 15, gap: 6 },
+  metricCard: {
+    width: "48.5%",
+    backgroundColor: C.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 15,
+    gap: 6,
+  },
   metricValue: { fontSize: 28, fontWeight: "900", color: C.text },
-  metricLabel: { fontSize: 12, fontWeight: "800", color: C.textSec, textTransform: "uppercase" },
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: C.textSec,
+    textTransform: "uppercase",
+  },
 
   // Card
-  card: { backgroundColor: C.card, borderRadius: 8, borderWidth: 1, borderColor: C.border, overflow: "hidden" },
+  card: {
+    backgroundColor: C.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: "hidden",
+  },
   cardTitle: { fontSize: 15, fontWeight: "800", color: C.text },
-  cardRow: { backgroundColor: C.card, borderRadius: 8, borderWidth: 1, borderColor: C.border, flexDirection: "row", alignItems: "center", gap: 14, padding: 15 },
-  cardRowIcon: { width: 40, height: 40, borderRadius: 8, backgroundColor: C.brand + "10", alignItems: "center", justifyContent: "center" },
+  cardRow: {
+    backgroundColor: C.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 15,
+  },
+  cardRowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: C.brand + "10",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   cardRowTitle: { fontSize: 15, fontWeight: "800", color: C.text },
-  cardRowSub: { fontSize: 12, fontWeight: "600", color: C.textSec, marginTop: 1 },
+  cardRowSub: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: C.textSec,
+    marginTop: 1,
+  },
 
   // Session Row
-  sessionRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
+  sessionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+  },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
   sessionTitle: { fontSize: 15, fontWeight: "800", color: C.text },
-  sessionMeta: { fontSize: 12, fontWeight: "600", color: C.textSec, marginTop: 2 },
+  sessionMeta: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: C.textSec,
+    marginTop: 2,
+  },
   badge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 },
   badgeText: { fontSize: 11, fontWeight: "800" },
   scoreNum: { fontSize: 15, fontWeight: "900", marginLeft: 4 },
 
   // Section title
-  sectionTitle: { fontSize: 17, fontWeight: "900", color: C.text, marginTop: 4 },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: C.text,
+    marginTop: 4,
+  },
 
   // Page
   pageTitle: { fontSize: 27, fontWeight: "900", color: C.text },
@@ -8231,53 +14429,194 @@ const st = StyleSheet.create({
   emptyTitle: { fontSize: 15, fontWeight: "800", color: C.text },
 
   // Search
-  searchBar: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.card, borderRadius: 8, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, minHeight: 48 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: C.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    minHeight: 48,
+  },
   searchInput: { flex: 1, fontSize: 15, fontWeight: "600", color: C.text },
 
   // Detail
   detailTitle: { fontSize: 28, fontWeight: "900", color: C.text },
-  checkedInCard: { gap: 10, padding: 14, borderWidth: 1, borderColor: "#bbf7d0", borderRadius: 16, backgroundColor: "#f0fdf4" },
+  checkedInCard: {
+    gap: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    borderRadius: 16,
+    backgroundColor: "#f0fdf4",
+  },
   checkedInHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  checkedInIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: "#dcfce7" },
+  checkedInIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    backgroundColor: "#dcfce7",
+  },
   checkedInTitle: { color: C.text, fontSize: 15, fontWeight: "900" },
-  checkedInSubtitle: { marginTop: 2, color: C.textSec, fontSize: 11, fontWeight: "600" },
-  checkedInPerson: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#fff" },
-  checkedInAvatar: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "#e0f2fe" },
+  checkedInSubtitle: {
+    marginTop: 2,
+    color: C.textSec,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  checkedInPerson: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+  },
+  checkedInAvatar: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+    backgroundColor: "#e0f2fe",
+  },
   checkedInAvatarText: { color: C.brand, fontSize: 13, fontWeight: "900" },
   checkedInName: { color: C.text, fontSize: 13, fontWeight: "800" },
-  checkedInContact: { marginTop: 2, color: C.textSec, fontSize: 11, fontWeight: "600" },
+  checkedInContact: {
+    marginTop: 2,
+    color: C.textSec,
+    fontSize: 11,
+    fontWeight: "600",
+  },
 
   // Score Hero
-  scoreHero: { backgroundColor: C.card, borderRadius: 8, borderWidth: 1, borderColor: C.border, padding: 18, gap: 18 },
-  scoreRing: { width: 120, height: 120, borderRadius: 60, borderWidth: 8, alignItems: "center", justifyContent: "center" },
-  scoreRingFill: { position: "absolute", width: 120, height: 120, borderRadius: 60, borderWidth: 8, transform: [{ rotate: "-90deg" }] },
+  scoreHero: {
+    backgroundColor: C.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 18,
+    gap: 18,
+  },
+  scoreRing: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scoreRingFill: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 8,
+    transform: [{ rotate: "-90deg" }],
+  },
   scoreRingNum: { fontSize: 36, fontWeight: "900" } as any,
-  trackBg: { height: 6, borderRadius: 99, backgroundColor: "#f1f5f9", overflow: "hidden" },
+  trackBg: {
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: "#f1f5f9",
+    overflow: "hidden",
+  },
   trackFill: { height: "100%", borderRadius: 99 },
 
   // Progress
-  progressTrack: { height: 6, borderRadius: 99, backgroundColor: "#f1f5f9", overflow: "hidden", alignSelf: "stretch" },
+  progressTrack: {
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: "#f1f5f9",
+    overflow: "hidden",
+    alignSelf: "stretch",
+  },
   progressFill: { height: "100%", borderRadius: 99, backgroundColor: C.brand },
-  uploadRing: { width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center", backgroundColor: C.brand + "10" },
-  uploadInfoPanel: { alignSelf: "stretch", gap: 9, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 14, backgroundColor: "#f8fafc" },
-  uploadFileName: { color: C.text, fontSize: 14, lineHeight: 18, fontWeight: "900" },
-  uploadStatsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  uploadRing: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.brand + "10",
+  },
+  uploadInfoPanel: {
+    alignSelf: "stretch",
+    gap: 9,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 14,
+    backgroundColor: "#f8fafc",
+  },
+  uploadFileName: {
+    color: C.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+  uploadStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   uploadStatText: { color: C.text, fontSize: 12, fontWeight: "900" },
   uploadSubStatText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
 
   // Tabs
-  tabsRow: { backgroundColor: C.card, borderRadius: 8, borderWidth: 1, borderColor: C.border, padding: 4, flexGrow: 0 },
-  tabPill: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 6 },
+  tabsRow: {
+    backgroundColor: C.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 4,
+    flexGrow: 0,
+  },
+  tabPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
   tabPillActive: { backgroundColor: C.brand + "10" },
   tabPillText: { fontSize: 11, fontWeight: "800", color: C.textSec },
   tabPillTextActive: { color: C.brand },
-  tabBadge: { backgroundColor: C.red, borderRadius: 10, minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  tabBadge: {
+    backgroundColor: C.red,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
   tabBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
 
   // Rubric
   rubricPctBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  questionRow: { flexDirection: "row", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: "#f8fafc", borderLeftWidth: 3 },
-  qIcon: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  questionRow: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f8fafc",
+    borderLeftWidth: 3,
+  },
+  qIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   qPtsBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
 
   // Speaker badge
@@ -8285,120 +14624,572 @@ const st = StyleSheet.create({
   timeText: { fontSize: 11, fontWeight: "700", color: C.textMuted },
 
   // Audio player
-  playBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.brand, alignItems: "center", justifyContent: "center" },
-  timelineTrack: { height: 6, borderRadius: 99, backgroundColor: "#f1f5f9", overflow: "visible" },
+  playBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.brand,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timelineTrack: {
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: "#f1f5f9",
+    overflow: "visible",
+  },
   timelineFill: { height: "100%", borderRadius: 99, backgroundColor: C.brand },
-  timelineThumb: { position: "absolute", top: -5, width: 16, height: 16, borderRadius: 8, backgroundColor: C.brand, borderWidth: 3, borderColor: "#fff", marginLeft: -8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 3 },
+  timelineThumb: {
+    position: "absolute",
+    top: -5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: C.brand,
+    borderWidth: 3,
+    borderColor: "#fff",
+    marginLeft: -8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
 
   // Materials
   materialRow: { flexDirection: "row", gap: 12, padding: 14 },
-  materialIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  materialIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   materialName: { fontSize: 14, fontWeight: "800", color: C.text },
-  materialDesc: { fontSize: 12, fontWeight: "600", color: C.textSec, marginTop: 2, lineHeight: 17 },
-  materialMeta: { fontSize: 11, fontWeight: "700", color: C.textMuted, marginTop: 4, textTransform: "capitalize" },
-  assetSummary: { flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#dbeafe", borderRadius: 8, backgroundColor: "#f5f9ff" },
-  assetSummaryIcon: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "#eaf2ff" },
+  materialDesc: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: C.textSec,
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  materialMeta: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: C.textMuted,
+    marginTop: 4,
+    textTransform: "capitalize",
+  },
+  assetSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 8,
+    backgroundColor: "#f5f9ff",
+  },
+  assetSummaryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eaf2ff",
+  },
 
   // Rubric library and picker
-  fieldLabel: { color: C.textSec, fontSize: 11, fontWeight: "900", marginBottom: 7, textTransform: "uppercase" },
+  fieldLabel: {
+    color: C.textSec,
+    fontSize: 11,
+    fontWeight: "900",
+    marginBottom: 7,
+    textTransform: "uppercase",
+  },
   pickerValue: { color: C.text, fontSize: 14, fontWeight: "800" },
-  pickerMeta: { color: C.textMuted, fontSize: 10, fontWeight: "700", marginTop: 2 },
-  pickerMenu: { marginTop: 7, overflow: "hidden", borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: C.card },
-  pickerOption: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 12 },
+  pickerMeta: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  pickerMenu: {
+    marginTop: 7,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 8,
+    backgroundColor: C.card,
+  },
+  pickerOption: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingHorizontal: 12,
+  },
   pickerOptionSelected: { backgroundColor: "#f3f7ff" },
   pickerOptionTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
-  defaultBadge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: C.greenBg },
-  defaultBadgeText: { color: C.green, fontSize: 9, fontWeight: "900", textTransform: "uppercase" },
-  defaultRubricCard: { minHeight: 118, flexDirection: "row", alignItems: "center", gap: 13, padding: 16, borderWidth: 1, borderColor: "#e9d5ff", borderRadius: 18, backgroundColor: "#fbf7ff" },
-  defaultRubricIcon: { width: 50, height: 50, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: C.purpleBg },
-  defaultRubricTitle: { flex: 1, color: C.text, fontSize: 17, fontWeight: "900" },
+  defaultBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    backgroundColor: C.greenBg,
+  },
+  defaultBadgeText: {
+    color: C.green,
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  defaultRubricCard: {
+    minHeight: 118,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#e9d5ff",
+    borderRadius: 18,
+    backgroundColor: "#fbf7ff",
+  },
+  defaultRubricIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.purpleBg,
+  },
+  defaultRubricTitle: {
+    flex: 1,
+    color: C.text,
+    fontSize: 17,
+    fontWeight: "900",
+  },
   rubricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  rubricCard: { width: "48%", minHeight: 146, justifyContent: "space-between", gap: 12, padding: 13, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 16, backgroundColor: "#fff" },
+  rubricCard: {
+    width: "48%",
+    minHeight: 146,
+    justifyContent: "space-between",
+    gap: 12,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 16,
+    backgroundColor: "#fff",
+  },
   rubricCardBody: { gap: 4 },
-  rubricCardTitle: { color: C.text, fontSize: 13, lineHeight: 17, fontWeight: "900" },
-  rubricRow: { minHeight: 82, flexDirection: "row", alignItems: "center", gap: 11, padding: 13 },
-  rubricListIcon: { width: 40, height: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: C.purpleBg },
+  rubricCardTitle: {
+    color: C.text,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "900",
+  },
+  rubricRow: {
+    minHeight: 82,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    padding: 13,
+  },
+  rubricListIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.purpleBg,
+  },
   rubricTitleRow: { flexDirection: "row", alignItems: "center", gap: 7 },
-  rubricAppliedText: { color: C.brand, fontSize: 10, fontWeight: "800", marginTop: 4 },
-  rubricSectionHeader: { minHeight: 60, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, backgroundColor: "#f8fafc" },
+  rubricAppliedText: {
+    color: C.brand,
+    fontSize: 10,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  rubricSectionHeader: {
+    minHeight: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "#f8fafc",
+  },
   rubricPoints: { color: C.brand, fontSize: 12, fontWeight: "900" },
-  rubricItem: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 13 },
-  rubricItemNumber: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#eef4ff" },
+  rubricItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 13,
+  },
+  rubricItemNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef4ff",
+  },
   rubricItemNumberText: { color: C.brand, fontSize: 10, fontWeight: "900" },
-  rubricItemText: { color: C.text, fontSize: 13, fontWeight: "700", lineHeight: 19 },
-  rubricItemNote: { color: C.textSec, fontSize: 11, fontWeight: "500", lineHeight: 16, marginTop: 4 },
+  rubricItemText: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+  },
+  rubricItemNote: {
+    color: C.textSec,
+    fontSize: 11,
+    fontWeight: "500",
+    lineHeight: 16,
+    marginTop: 4,
+  },
 
   // Call recorder
-  callRecorder: { flex: 1, backgroundColor: "#fff", paddingHorizontal: 22, paddingTop: Platform.OS === "ios" ? 56 : 24, paddingBottom: Platform.OS === "ios" ? 30 : 20 },
-  callTopBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  callTopButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "#f2f2f7" },
+  callRecorder: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingHorizontal: 22,
+    paddingTop: Platform.OS === "ios" ? 56 : 24,
+    paddingBottom: Platform.OS === "ios" ? 30 : 20,
+  },
+  callTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  callTopButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f2f2f7",
+  },
   callTopSpacer: { width: 42 },
-  callLiveBadge: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 100, backgroundColor: C.brand + "12" },
-  callLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.brand },
+  callLiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 100,
+    backgroundColor: C.brand + "12",
+  },
+  callLiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: C.brand,
+  },
   callLiveText: { color: C.brand, fontSize: 10, fontWeight: "900" },
-  callCenter: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 12 },
-  callMicHalo: { width: 128, height: 128, borderRadius: 64, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(79,70,229,0.17)", marginBottom: 24 },
-  callMicCore: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center", backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.38, shadowRadius: 24, elevation: 8 },
-  callTitle: { color: "#636366", fontSize: 20, fontWeight: "800", textTransform: "uppercase" },
-  callTimer: { color: "#111", fontSize: 36, fontWeight: "800", fontVariant: ["tabular-nums"], marginTop: 18, textAlign: "center" },
-  waveform: { height: 54, flexDirection: "row", alignItems: "center", gap: 5, marginTop: 22 },
+  callCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: 12,
+  },
+  callMicHalo: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(79,70,229,0.17)",
+    marginBottom: 24,
+  },
+  callMicCore: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.brand,
+    shadowColor: C.brand,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.38,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  callTitle: {
+    color: "#636366",
+    fontSize: 20,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  callTimer: {
+    color: "#111",
+    fontSize: 36,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+    marginTop: 18,
+    textAlign: "center",
+  },
+  waveform: {
+    height: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 22,
+  },
   waveBar: { width: 3, borderRadius: 2, backgroundColor: C.brand },
-  callCaption: { color: "#98a2b3", fontSize: 12, fontWeight: "600", marginTop: 7 },
-  callControls: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-around" },
+  callCaption: {
+    color: "#98a2b3",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 7,
+  },
+  callControls: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-around",
+  },
   callAction: { width: 82, alignItems: "center", gap: 8 },
-  callActionButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(25,23,23,0.06)" },
-  callActionCount: { position: "absolute", top: -3, right: -2, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.brand, borderWidth: 2, borderColor: "#111318" },
+  callActionButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(25,23,23,0.06)",
+  },
+  callActionCount: {
+    position: "absolute",
+    top: -3,
+    right: -2,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.brand,
+    borderWidth: 2,
+    borderColor: "#111318",
+  },
   callActionCountText: { color: "#fff", fontSize: 10, fontWeight: "900" },
-  callStopButton: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 9 },
-  callStopSquare: { width: 23, height: 23, borderRadius: 4, backgroundColor: "#fff" },
+  callStopButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.brand,
+    shadowColor: C.brand,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 9,
+  },
+  callStopSquare: {
+    width: 23,
+    height: 23,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
   callActionLabel: { color: C.text, fontSize: 10, fontWeight: "700" },
-  recordingAssetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 46 },
-  recordingAssetCard: { width: "48.5%", minHeight: 112, justifyContent: "flex-end", gap: 5, padding: 12, borderRadius: 16, backgroundColor: "#f2f2f7", shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.06, shadowRadius: 8 },
+  recordingAssetGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 46,
+  },
+  recordingAssetCard: {
+    width: "48.5%",
+    minHeight: 112,
+    justifyContent: "flex-end",
+    gap: 5,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#f2f2f7",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+  },
   recordingAssetTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
   recordingAssetSub: { color: "#636366", fontSize: 11, lineHeight: 15 },
   recordingAssetCheck: { position: "absolute", right: 9, top: 9 },
   recordingWaveRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  finishRecording: { alignSelf: "center", marginTop: 10, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: "#eef2ff" },
+  finishRecording: {
+    alignSelf: "center",
+    marginTop: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#eef2ff",
+  },
   finishRecordingText: { color: C.brand, fontSize: 12, fontWeight: "900" },
-  cancelSessionBtn: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 8, backgroundColor: C.redBg },
+  cancelSessionBtn: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 8,
+    backgroundColor: C.redBg,
+  },
   cancelSessionText: { color: C.red, fontSize: 13, fontWeight: "800" },
-  sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(16,24,40,0.52)" },
-  assetSheet: { maxHeight: "78%", minHeight: "52%", borderTopLeftRadius: 18, borderTopRightRadius: 18, backgroundColor: "#fff", paddingHorizontal: 18, paddingBottom: Platform.OS === "ios" ? 32 : 18 },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(16,24,40,0.52)",
+  },
+  assetSheet: {
+    maxHeight: "78%",
+    minHeight: "52%",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    backgroundColor: "#fff",
+    paddingHorizontal: 18,
+    paddingBottom: Platform.OS === "ios" ? 32 : 18,
+  },
   communitySheet: { minHeight: "70%", overflow: "hidden" },
   communitySheetList: { paddingTop: 10, paddingBottom: 20 },
   communityEmpty: { alignItems: "center", gap: 8, paddingVertical: 32 },
-  sheetHandle: { width: 40, height: 4, alignSelf: "center", borderRadius: 2, backgroundColor: "#d0d5dd", marginTop: 9, marginBottom: 14 },
-  sheetHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    alignSelf: "center",
+    borderRadius: 2,
+    backgroundColor: "#d0d5dd",
+    marginTop: 9,
+    marginBottom: 14,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+  },
   sheetTitle: { color: C.text, fontSize: 20, fontWeight: "900" },
   sheetSubtitle: { color: C.textSec, fontSize: 12, marginTop: 2 },
   assetSheetList: { flexGrow: 0, marginBottom: 12 },
-  assetPickRow: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 11, borderWidth: 1, borderColor: "#e4e7ec", borderRadius: 8, backgroundColor: "#fff" },
+  assetPickRow: {
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 11,
+    borderWidth: 1,
+    borderColor: "#e4e7ec",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+  },
   assetPickRowSelected: { borderColor: "#abefc6", backgroundColor: "#ecfdf3" },
   assetPickTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
   assetPickMeta: { color: C.textSec, fontSize: 11, marginTop: 2 },
   assetPickAction: { color: C.brand, fontSize: 11, fontWeight: "900" },
-  assetNotesInput: { minHeight: 74, maxHeight: 120, borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, padding: 11, color: C.text, fontSize: 13, textAlignVertical: "top" },
+  assetNotesInput: {
+    minHeight: 74,
+    maxHeight: 120,
+    borderWidth: 1,
+    borderColor: "#d0d5dd",
+    borderRadius: 8,
+    padding: 11,
+    color: C.text,
+    fontSize: 13,
+    textAlignVertical: "top",
+  },
 
   // Calendar
   pageHeadingRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  pageHeadingSub: { color: C.textSec, fontSize: 12, fontWeight: "600", marginTop: 2 },
-  iconButton: { width: 42, height: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
-  integrationStrip: { flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#d1fadf", borderRadius: 8, backgroundColor: "#f6fef9" },
-  integrationIcon: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "#dcfae6" },
+  pageHeadingSub: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  iconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  integrationStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#d1fadf",
+    borderRadius: 8,
+    backgroundColor: "#f6fef9",
+  },
+  integrationIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#dcfae6",
+  },
   integrationTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
   integrationSub: { color: C.textSec, fontSize: 10, marginTop: 2 },
-  connectedBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 7, backgroundColor: "#dcfae6" },
-  connectedBadgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green },
+  connectedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 7,
+    backgroundColor: "#dcfae6",
+  },
+  connectedBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.green,
+  },
   connectedBadgeText: { color: C.green, fontSize: 10, fontWeight: "900" },
-  calendarEventRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 13 },
-  entrataEventIcon: { width: 38, height: 38, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: C.purpleBg },
-  calendarContact: { color: C.purple, fontSize: 10, fontWeight: "700", marginTop: 3 },
-  calNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  calendarEventRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 13,
+  },
+  entrataEventIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.purpleBg,
+  },
+  calendarContact: {
+    color: C.purple,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  calNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
   calMonth: { fontSize: 17, fontWeight: "800", color: C.text },
   calDowRow: { flexDirection: "row", marginBottom: 6 },
-  calDow: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: "800", color: C.textMuted },
+  calDow: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "800",
+    color: C.textMuted,
+  },
   calWeek: { flexDirection: "row" },
-  calDayCell: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 8, borderRadius: 12, gap: 3 },
+  calDayCell: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 3,
+  },
   calDayText: { fontSize: 14, fontWeight: "700", color: C.text },
   calDayToday: { backgroundColor: C.brand + "10" },
   calDayTextToday: { color: C.brand, fontWeight: "900" },
@@ -8408,56 +15199,209 @@ const st = StyleSheet.create({
   calDots: { height: 5, flexDirection: "row", gap: 3 },
 
   // Settings
-  settingsIdentity: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: C.card },
-  settingsCommunityRow: { flexDirection: "row", alignItems: "center", gap: 12, width: "100%" },
-  settingsSwitchButton: { minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderRadius: 10, backgroundColor: "#eef4ff" },
-  settingsSectionLabel: { color: C.textMuted, fontSize: 10, fontWeight: "900", marginTop: 4 },
-  communitySettingRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12 },
-  communitySettingIcon: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "#eef2ff" },
+  settingsIdentity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 8,
+    backgroundColor: C.card,
+  },
+  settingsCommunityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    width: "100%",
+  },
+  settingsSwitchButton: {
+    minHeight: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "#eef4ff",
+  },
+  settingsSectionLabel: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  communitySettingRow: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 12,
+  },
+  communitySettingIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef2ff",
+  },
   communityRowBody: { flex: 1, minWidth: 0, gap: 2 },
   communitySettingName: { color: C.text, fontSize: 13, fontWeight: "800" },
   settingsChangeText: { color: C.brand, fontSize: 12, fontWeight: "900" },
-  settingsVersion: { color: C.textMuted, fontSize: 11, textAlign: "center", marginTop: 4 },
+  settingsVersion: {
+    color: C.textMuted,
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 4,
+  },
 
   // Buttons
-  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.brand, borderRadius: 8, minHeight: 52, paddingHorizontal: 16 },
+  primaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: C.brand,
+    borderRadius: 8,
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
   primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  outlineBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.card, borderRadius: 8, minHeight: 52, paddingHorizontal: 16, borderWidth: 1, borderColor: C.border },
+  outlineBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: C.card,
+    borderRadius: 8,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
   outlineBtnText: { color: C.textSec, fontSize: 15, fontWeight: "800" },
-  darkBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.text, borderRadius: 8, minHeight: 52, paddingHorizontal: 16 },
+  darkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: C.text,
+    borderRadius: 8,
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
   darkBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  agentToggle: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#f8fafc", padding: 12 },
-  agentToggleSelected: { borderColor: C.brand, backgroundColor: C.brand + "10" },
-  agentToggleCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, alignItems: "center", justifyContent: "center" },
+  agentToggle: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: "#f8fafc",
+    padding: 12,
+  },
+  agentToggleSelected: {
+    borderColor: C.brand,
+    backgroundColor: C.brand + "10",
+  },
+  agentToggleCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   agentToggleCheckSelected: { borderColor: C.brand, backgroundColor: C.brand },
   agentToggleTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  agentToggleCopy: { color: C.textSec, fontSize: 12, fontWeight: "600", lineHeight: 17, marginTop: 2 },
+  agentToggleCopy: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 17,
+    marginTop: 2,
+  },
 
   // Form
   formTitle: { color: C.text, fontSize: 23, fontWeight: "900", lineHeight: 29 },
-  inputWrap: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#f8fafc", borderColor: "#d7dee8", borderRadius: 8, borderWidth: 1, minHeight: 52, paddingHorizontal: 14 },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#f8fafc",
+    borderColor: "#d7dee8",
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 52,
+    paddingHorizontal: 14,
+  },
   inputField: { flex: 1, fontSize: 16, color: C.text, fontWeight: "600" },
-  labelSmall: { fontSize: 11, fontWeight: "800", color: C.textMuted, textTransform: "uppercase" },
+  labelSmall: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: C.textMuted,
+    textTransform: "uppercase",
+  },
 
   // Segment picker
-  segPill: { backgroundColor: "#f5f7fb", borderColor: "#d7dee8", borderRadius: 999, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 9 },
+  segPill: {
+    backgroundColor: "#f5f7fb",
+    borderColor: "#d7dee8",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+  },
   segPillActive: { backgroundColor: "#eaf4ff", borderColor: C.brand },
   segText: { color: C.textSec, fontSize: 13, fontWeight: "800" },
   segTextActive: { color: C.brand },
 
   // Step dots
-  stepDot: { alignItems: "center", backgroundColor: "#eef2f7", borderRadius: 999, height: 34, justifyContent: "center", width: 34 },
+  stepDot: {
+    alignItems: "center",
+    backgroundColor: "#eef2f7",
+    borderRadius: 999,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
   stepDotActive: { backgroundColor: C.brand },
   stepDotDone: { backgroundColor: C.green },
   stepDotText: { color: C.textSec, fontSize: 13, fontWeight: "900" },
   stepLabel: { color: C.textSec, fontSize: 12, fontWeight: "800" },
 
   // Back
-  backBtn: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.card, borderColor: C.border, borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
+  backBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
 
   // Avatars
-  avatarLg: { alignItems: "center", backgroundColor: "#e9f2ff", borderRadius: 30, height: 84, justifyContent: "center", width: 84 },
+  avatarLg: {
+    alignItems: "center",
+    backgroundColor: "#e9f2ff",
+    borderRadius: 30,
+    height: 84,
+    justifyContent: "center",
+    width: 84,
+  },
   avatarLgText: { color: C.brand, fontSize: 26, fontWeight: "900" },
-  avatar36: { alignItems: "center", backgroundColor: "#e9f2ff", borderRadius: 14, height: 42, justifyContent: "center", width: 42 },
-
+  avatar36: {
+    alignItems: "center",
+    backgroundColor: "#e9f2ff",
+    borderRadius: 14,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
 });
