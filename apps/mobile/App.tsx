@@ -1294,7 +1294,7 @@ function CommunityTopBar({
   return (
     <View style={homeSt.topBar}>
       {left ? <View style={homeSt.topBarSide}>{left}</View> : null}
-      <View style={homeSt.topBarCenter}>
+      <View style={[homeSt.topBarCenter, !right && homeSt.topBarCenterEnd]}>
         <Pressable
           accessibilityLabel="Switch property"
           onPress={onCommunityPress}
@@ -7631,6 +7631,7 @@ const homeSt = StyleSheet.create({
   topBarSide: { minWidth: 44, flexShrink: 0, alignItems: "flex-start", justifyContent: "center" },
   topBarSideEnd: { alignItems: "flex-end" },
   topBarCenter: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" },
+  topBarCenterEnd: { alignItems: "flex-end" },
   propertyPicker: { maxWidth: "100%", minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 16, borderRadius: 999, backgroundColor: CARD },
   propertyPickerText: { flexShrink: 1, color: TEXT, lineHeight: 19, textAlign: "center" },
   headerIcon: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#e2e2e2", borderRadius: 8, backgroundColor: "#fff" },
