@@ -41,9 +41,11 @@ const NativePracticeSession = Platform.OS !== "web" && !isExpoGo()
 
 export function PracticeSessionsScreen({
   onBack,
+  onLiveChange,
   initialScenarioId,
 }: {
-  onBack: () => void;
+  onBack?: () => void;
+  onLiveChange?: (live: boolean) => void;
   initialScenarioId?: string;
 }) {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -54,6 +56,14 @@ export function PracticeSessionsScreen({
   const [livePractice, setLivePractice] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const initialScenarioOpenedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    onLiveChange?.(livePractice);
+  }, [livePractice, onLiveChange]);
+
+  useEffect(() => {
+    return () => onLiveChange?.(false);
+  }, [onLiveChange]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -121,6 +131,7 @@ export function PracticeSessionsScreen({
           setLivePractice(false);
           setSelectedScenario(null);
           void load();
+          if (initialScenarioId) onBack?.();
         }}
       />
     );
@@ -128,13 +139,14 @@ export function PracticeSessionsScreen({
 
   return (
     <ScrollView
+      style={styles.scrollView}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.scroll}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={C.brand} />}
     >
       <View style={styles.page}>
-        <BackBtn label="Sessions" onPress={onBack} />
+        {onBack ? <BackBtn label="Practice" onPress={onBack} /> : null}
         <View style={styles.hero}>
           <View style={styles.heroIcon}><Ionicons name="sparkles" size={24} color="#fff" /></View>
           <Text style={styles.title}>Practice sessions</Text>
@@ -199,6 +211,7 @@ function AttemptRow({ attempt }: { attempt: Attempt }) {
 }
 
 const styles = StyleSheet.create({
+  scrollView: { flex: 1 },
   scroll: { paddingBottom: 38 }, page: { gap: 14, padding: 20 }, flex: { flex: 1, minWidth: 0 },
   hero: { gap: 8, paddingTop: 4 }, heroIcon: { width: 46, height: 46, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: C.brand },
   title: { color: C.text, fontSize: 27, fontWeight: "900", lineHeight: 33 }, subtitle: { color: C.textSec, fontSize: 14, fontWeight: "600", lineHeight: 21 },

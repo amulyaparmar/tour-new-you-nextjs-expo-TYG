@@ -35,7 +35,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -274,7 +273,6 @@ import {
   useInfiniteSessionsQuery,
   useMaterialsQuery,
   usePostCommentMutation,
-  usePracticeScenarioPreviewsQuery,
   useProfileQuery,
   useActionsQuery,
   useAnalysisQuery,
@@ -311,7 +309,7 @@ type ProspectData = {
   bedrooms: string;
   budget: string;
 };
-type MainTab = "home" | "sessions" | "calendar" | "materials" | "settings";
+type MainTab = "home" | "sessions" | "calendar" | "materials" | "settings" | "practice";
 type Screen =
   | { type: "main"; tab: MainTab }
   | {
@@ -1309,7 +1307,12 @@ export default function App() {
   const lastMainTabRef = useRef<MainTab>("home");
 
   screenRef.current = screen;
-  if (screen.type === "main") lastMainTabRef.current = screen.tab;
+  if (
+    screen.type === "main" &&
+    TAB_ITEMS.some((item) => item.id === screen.tab)
+  ) {
+    lastMainTabRef.current = screen.tab;
+  }
 
   useEffect(() => {
     restoreSession()
@@ -1419,7 +1422,6 @@ export default function App() {
         nav({ type: "session-detail", sessionId: id, sample: true })
       }
       onCreate={() => nav({ type: "create-session" })}
-      onPractice={(scenarioId) => nav({ type: "practice", scenarioId })}
       onAudioTest={() => nav({ type: "audio-test" })}
       onGuestRegistration={() => {
         setTourStep("contact");
@@ -1601,7 +1603,7 @@ export default function App() {
                 {screen.type === "practice" && (
                   <PracticeSessionsScreen
                     initialScenarioId={screen.scenarioId}
-                    onBack={() => nav({ type: "main", tab: "sessions" })}
+                    onBack={() => nav({ type: "main", tab: "practice" })}
                   />
                 )}
                 {screen.type === "audio-test" && (
@@ -1702,22 +1704,16 @@ const TAB_ITEMS: Array<{
     iconActive: "list",
   },
   {
-    id: "calendar",
-    label: "Calendar",
-    icon: "calendar-outline",
-    iconActive: "calendar",
-  },
-  {
     id: "materials",
     label: "Assets",
     icon: "folder-outline",
     iconActive: "folder",
   },
   {
-    id: "settings",
-    label: "Settings",
-    icon: "settings-outline",
-    iconActive: "settings",
+    id: "practice",
+    label: "Practice",
+    icon: "sparkles-outline",
+    iconActive: "sparkles",
   },
 ];
 
@@ -1727,7 +1723,6 @@ function MainTabs({
   onSession,
   onSampleSession,
   onCreate,
-  onPractice,
   onAudioTest,
   onGuestRegistration,
   onProfile,
@@ -1743,7 +1738,6 @@ function MainTabs({
   onSession: (id: string, opts?: { autoStartRecording?: boolean }) => void;
   onSampleSession: (id: string) => void;
   onCreate: () => void;
-  onPractice: (scenarioId?: string) => void;
   onAudioTest: () => void;
   onGuestRegistration: () => void;
   onProfile: () => void;
@@ -1800,6 +1794,7 @@ function MainTabs({
     useState<SlideDirection>("forward");
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [practiceLive, setPracticeLive] = useState(false);
   const checkInStartingRef = useRef(false);
   const [checkInBinding, setCheckInBinding] = useState<{
     sessionId: string | null;
@@ -1826,15 +1821,17 @@ function MainTabs({
   }));
 
   useEffect(() => {
-    const activeIndex = Math.max(
-      0,
-      TAB_ITEMS.findIndex((item) => item.id === tab),
-    );
+    const activeIndex = TAB_ITEMS.findIndex((item) => item.id === tab);
+    if (activeIndex < 0) return;
     tabIndicatorX.value = withTiming(
       (tabBarWidth / TAB_ITEMS.length) * activeIndex,
       { duration: 220, easing: Easing.out(Easing.cubic) },
     );
   }, [tab, tabBarWidth, tabIndicatorX]);
+
+  useEffect(() => {
+    if (tab !== "practice") setPracticeLive(false);
+  }, [tab]);
 
   useEffect(() => {
     if (!profile) return;
@@ -1900,7 +1897,11 @@ function MainTabs({
     ],
   );
 
-  const showScrollView = tab !== "home" && tab !== "sessions" && tab !== "materials";
+  const showScrollView =
+    tab !== "home" &&
+    tab !== "sessions" &&
+    tab !== "materials" &&
+    tab !== "practice";
   const handleTabPress = useCallback(
     (nextTab: MainTab) => {
       const currentIndex = TAB_ITEMS.findIndex((item) => item.id === tab);
@@ -1933,7 +1934,11 @@ function MainTabs({
     <View
       style={[
         st.flex1,
-        (tab === "home" || tab === "materials") && homeSt.pageBg,
+        (tab === "home" ||
+          tab === "materials" ||
+          tab === "sessions" ||
+          tab === "practice") &&
+          homeSt.pageBg,
       ]}
     >
       {showScrollView && (
@@ -2068,7 +2073,6 @@ function MainTabs({
             onSession={onSession}
             onSampleSession={onSampleSession}
             onCreate={onCreate}
-            onPractice={onPractice}
             initialSessions={sessions}
             property={property}
           />
@@ -2094,37 +2098,48 @@ function MainTabs({
         </ScreenTransition>
       )}
 
-      <View style={st.tabBar}>
-        <Reanimated.View
-          pointerEvents="none"
-          style={[st.tabBarIndicator, tabIndicatorStyle]}
+      {tab === "practice" && (
+        <ScreenTransition
+          transitionKey="tab:practice"
+          direction={tabTransitionDirection}
         >
-          <View style={st.tabBarIndicatorPill} />
-        </Reanimated.View>
-        {TAB_ITEMS.map((t) => (
-          <Pressable
-            key={t.id}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === t.id }}
-            onPress={() => {
-              selectionHaptic();
-              handleTabPress(t.id);
-            }}
-            style={st.tabBarItem}
+          <PracticeSessionsScreen onLiveChange={setPracticeLive} />
+        </ScreenTransition>
+      )}
+
+      {!practiceLive ? (
+        <View style={st.tabBar}>
+          <Reanimated.View
+            pointerEvents="none"
+            style={[st.tabBarIndicator, tabIndicatorStyle]}
           >
-            <Ionicons
-              name={tab === t.id ? t.iconActive : t.icon}
-              size={22}
-              color={tab === t.id ? C.brand : C.textMuted}
-            />
-            <Text
-              style={[st.tabBarLabel, tab === t.id && st.tabBarLabelActive]}
+            <View style={st.tabBarIndicatorPill} />
+          </Reanimated.View>
+          {TAB_ITEMS.map((t) => (
+            <Pressable
+              key={t.id}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === t.id }}
+              onPress={() => {
+                selectionHaptic();
+                handleTabPress(t.id);
+              }}
+              style={st.tabBarItem}
             >
-              {t.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+              <Ionicons
+                name={tab === t.id ? t.iconActive : t.icon}
+                size={22}
+                color={tab === t.id ? C.brand : C.textMuted}
+              />
+              <Text
+                style={[st.tabBarLabel, tab === t.id && st.tabBarLabelActive]}
+              >
+                {t.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <ProfileEditorModal
         visible={profileEditorOpen}
         session={authSession}
@@ -2759,11 +2774,15 @@ function HomeSection({
               onPress={onAction}
               disabled={!onAction}
               hitSlop={8}
-              style={({ pressed }) => (pressed ? st.pressed : undefined)}
+              style={({ pressed }) => [
+                homeSt.sectionActionHit,
+                pressed && st.pressed,
+              ]}
             >
               <CustomText textStyle="label" style={homeSt.sectionAction}>
                 {action}
               </CustomText>
+              <Ionicons name="arrow-forward" size={14} color={ACCENT} />
             </Pressable>
           )}
         </View>
@@ -3051,11 +3070,13 @@ function SessionListSwipeRow({
             ]}
           >
             {isDeleting ? (
-              <LoadingDots color="#fff" size="small" />
+              <LoadingDots color={CARD} size="small" />
             ) : (
               <>
-                <Ionicons name="trash-outline" size={20} color="#fff" />
-                <Text style={slst.deleteActionText}>Delete</Text>
+                <Ionicons name="trash-outline" size={20} color={CARD} />
+                <CustomText textStyle="micro" style={slst.deleteActionText}>
+                  Delete
+                </CustomText>
               </>
             )}
           </Pressable>
@@ -3077,27 +3098,32 @@ function SessionListSwipeRow({
         <View style={st.flex1}>
           <View style={slst.sessionNameRow}>
             {session.status === "in_progress" && <PulseDot color="#f04438" />}
-            <Text style={slst.sessionName} numberOfLines={1}>
+            <CustomText textStyle="title" style={slst.sessionName} numberOfLines={1}>
               {session.title}
-            </Text>
+            </CustomText>
           </View>
-          <Text style={slst.sessionMeta} numberOfLines={1}>
+          <CustomText textStyle="caption" style={slst.sessionMeta} numberOfLines={1}>
             {checkedInSummary || formatSessionCardMeta(session)}
-          </Text>
+          </CustomText>
           {formatSessionCardDescription(session) ? (
-            <Text style={slst.sessionDescription} numberOfLines={2}>
+            <CustomText textStyle="caption" numberOfLines={2} style={slst.sessionDescription}>
               {formatSessionCardDescription(session)}
-            </Text>
+            </CustomText>
           ) : null}
         </View>
         <View style={slst.sessionRight}>
           <View style={[slst.syncBadge, badgeReviewStyle && slst.reviewBadge]}>
-            <Text style={[slst.syncText, badgeReviewStyle && slst.reviewText]}>
+            <CustomText
+              textStyle="micro"
+              style={[slst.syncText, badgeReviewStyle && slst.reviewText]}
+            >
               {badgeLabel}
-            </Text>
+            </CustomText>
           </View>
           {session.overallScore !== null && (
-            <Text style={slst.sessionScore}>{session.overallScore}</Text>
+            <CustomText textStyle="title" style={slst.sessionScore}>
+              {session.overallScore}
+            </CustomText>
           )}
         </View>
       </MotionPressable>
@@ -3122,21 +3148,25 @@ function SampleSessionListRow({
         <Ionicons name="sparkles" size={18} color={C.purple} />
       </View>
       <View style={st.flex1}>
-        <Text style={slst.sessionName} numberOfLines={1}>
+        <CustomText textStyle="title" style={slst.sessionName} numberOfLines={1}>
           {session.title}
-        </Text>
-        <Text style={slst.sessionMeta} numberOfLines={1}>
+        </CustomText>
+        <CustomText textStyle="caption" style={slst.sessionMeta} numberOfLines={1}>
           {[session.location, session.prospectName]
             .filter(Boolean)
             .join(" · ") || "40Fifty Lofts example"}
-        </Text>
+        </CustomText>
       </View>
       <View style={slst.sessionRight}>
         <View style={slst.sampleBadge}>
-          <Text style={slst.sampleBadgeText}>SAMPLE</Text>
+          <CustomText textStyle="micro" style={slst.sampleBadgeText}>
+            SAMPLE
+          </CustomText>
         </View>
         {session.overallScore !== null && (
-          <Text style={slst.sessionScore}>{session.overallScore}</Text>
+          <CustomText textStyle="title" style={slst.sessionScore}>
+            {session.overallScore}
+          </CustomText>
         )}
       </View>
       <Ionicons name="chevron-forward" size={17} color={C.textMuted} />
@@ -3146,12 +3176,9 @@ function SampleSessionListRow({
 
 function SessionsListScreen({
   authSession,
-  onBack,
-  onCommunityPress,
   onSession,
   onSampleSession,
   onCreate,
-  onPractice,
   initialSessions,
   property,
 }: {
@@ -3161,16 +3188,21 @@ function SessionsListScreen({
   onSession: (id: string) => void;
   onSampleSession: (id: string) => void;
   onCreate: () => void;
-  onPractice: (scenarioId?: string) => void;
   initialSessions: SessionSummary[];
   property: string;
 }) {
+  const insets = useSafeAreaInsets();
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showSamples, setShowSamples] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [practicePreviewEnabled, setPracticePreviewEnabled] = useState(false);
 
   const search = useAppStore((state) => state.sessionsSearch);
   const statusFilter = useAppStore((state) => state.sessionsStatusFilter);
@@ -3267,37 +3299,19 @@ function SessionsListScreen({
   const sampleSessions = sampleSessionsQuery.data?.sessions ?? [];
   const samplePropertyName =
     sampleSessionsQuery.data?.propertyName ?? "1540 Place Apartments";
-  const samplesAvailable =
-    sampleSessionsQuery.isSuccess && sampleSessions.length > 0;
   const visibleSessions = showSamples ? sampleSessions : sessions;
   const hasMore = sessionsQuery.hasNextPage;
   const loading = sessionsQuery.isLoading && sessions.length === 0;
   const loadingMore = sessionsQuery.isFetchingNextPage;
-  const practiceScenariosQuery = usePracticeScenarioPreviewsQuery(
-    practicePreviewEnabled,
-  );
-  const practiceScenarios = practiceScenariosQuery.data ?? [];
-  const practiceLoading =
-    !practiceScenariosQuery.data && !practiceScenariosQuery.error;
-
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      setPracticePreviewEnabled(true);
-    });
-    return () => task.cancel();
-  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await drainSyncOutbox();
-    const requests: Promise<unknown>[] = [
-      sessionsQuery.refetch(),
-      practiceScenariosQuery.refetch(),
-    ];
+    const requests: Promise<unknown>[] = [sessionsQuery.refetch()];
     if (showSamples) requests.push(sampleSessionsQuery.refetch());
     await Promise.all(requests);
     setRefreshing(false);
-  }, [practiceScenariosQuery, sampleSessionsQuery, sessionsQuery, showSamples]);
+  }, [sampleSessionsQuery, sessionsQuery, showSamples]);
 
   const onEndReached = useCallback(() => {
     if (hasMore && !loadingMore && !loading) void sessionsQuery.fetchNextPage();
@@ -3366,12 +3380,8 @@ function SessionsListScreen({
     [onSession],
   );
 
-  type SessionListItem =
-    | { kind: "header"; id: string; label: string; count: number }
-    | { kind: "session"; id: string; session: SessionSummary };
-
-  const groupedRows = useMemo<SessionListItem[]>(() => {
-    const filteredSessions = visibleSessions.filter((session) => {
+  const listSessions = useMemo(() => {
+    return visibleSessions.filter((session) => {
       if (showSamples) return true;
       if (statusFilter === "all") return true;
       if (statusFilter === "needs_review")
@@ -3385,31 +3395,7 @@ function SessionsListScreen({
         );
       return true;
     });
-
-    const label = showSamples
-      ? `${samplePropertyName} samples`
-      : statusFilter === "needs_review"
-        ? "Needs Review"
-        : statusFilter === "feedback"
-          ? "Feedback Received"
-          : "Recent Sessions";
-
-    return filteredSessions.length
-      ? [
-          {
-            kind: "header" as const,
-            id: `header-${showSamples ? "samples" : statusFilter}`,
-            label,
-            count: filteredSessions.length,
-          },
-          ...filteredSessions.map((session) => ({
-            kind: "session" as const,
-            id: session.id,
-            session,
-          })),
-        ]
-      : [];
-  }, [samplePropertyName, showSamples, statusFilter, visibleSessions]);
+  }, [showSamples, statusFilter, visibleSessions]);
 
   const sessionMetrics = useMemo(
     () => computeDashboardMetrics(visibleSessions),
@@ -3421,18 +3407,7 @@ function SessionsListScreen({
       : "--";
 
   const renderItem = useCallback(
-    ({ item }: { item: SessionListItem }) => {
-      if (item.kind === "header") {
-        return (
-          <View style={slst.groupHeader}>
-            <Text style={slst.groupLabel}>{item.label}</Text>
-            <View style={slst.groupCount}>
-              <Text style={slst.groupCountText}>{item.count}</Text>
-            </View>
-          </View>
-        );
-      }
-      const session = item.session;
+    ({ item: session }: { item: SessionSummary }) => {
       if (showSamples) {
         return (
           <SampleSessionListRow
@@ -3467,7 +3442,7 @@ function SessionsListScreen({
     ],
   );
 
-  const keyExtractor = useCallback((item: SessionListItem) => item.id, []);
+  const keyExtractor = useCallback((item: SessionSummary) => item.id, []);
   const activeFilterCount =
     Number(selectedAgentId !== null || showSamples) +
     Number(statusFilter !== "all") +
@@ -3485,54 +3460,17 @@ function SessionsListScreen({
   const ListHeader = useMemo(
     () => (
       <View style={slst.header}>
-        <CommunityTopBar
-          property={property}
-          onCommunityPress={onCommunityPress}
-          left={
-            <Pressable
-              accessibilityLabel="Back to home"
-              onPress={onBack}
-              style={({ pressed }) => [
-                homeSt.headerIcon,
-                pressed && st.pressed,
-              ]}
-            >
-              <Ionicons name="arrow-back" size={22} color={C.text} />
-            </Pressable>
-          }
-          right={
-            showSamples ? (
-              <Pressable
-                accessibilityLabel="Close sample sessions"
-                onPress={() => setShowSamples(false)}
-                style={homeSt.headerIcon}
-              >
-                <Ionicons name="close" size={20} color={C.text} />
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => setShowSearch((value) => !value)}
-                style={homeSt.headerIcon}
-              >
-                <Ionicons
-                  name={showSearch ? "close" : "search"}
-                  size={19}
-                  color={C.text}
-                />
-              </Pressable>
-            )
-          }
-        />
         <View style={slst.titleRow}>
-          <View>
-            <Text style={st.pageTitle}>
-              {showSamples ? "Sample sessions" : "Sessions"}
-            </Text>
-            <Text style={slst.sampleHeadingSub}>
-              {showSamples
-                ? `Curated from ${samplePropertyName} · Read only`
-                : sessionViewLabel}
-            </Text>
+          <View style={st.flex1}>
+            <LargeTitleCopy
+              title={showSamples ? "Sample sessions" : "Sessions"}
+              subtitle={
+                showSamples
+                  ? `Curated from ${samplePropertyName} · Read only`
+                  : `${property} · ${sessionViewLabel}`
+              }
+              scrollY={scrollY}
+            />
           </View>
           {loading ? (
             <View style={slst.avgPill}>
@@ -3548,11 +3486,15 @@ function SessionsListScreen({
                 color={
                   sessionMetrics.averageScore !== null
                     ? scoreColor(sessionMetrics.averageScore)
-                    : C.brand
+                    : ACCENT
                 }
               />
-              <Text style={slst.avgPillValue}>{averageScore}</Text>
-              <Text style={slst.avgPillLabel}>Avg</Text>
+              <CustomText textStyle="title" style={slst.avgPillValue}>
+                {averageScore}
+              </CustomText>
+              <CustomText textStyle="micro" style={slst.avgPillLabel}>
+                Avg
+              </CustomText>
             </View>
           )}
         </View>
@@ -3567,195 +3509,44 @@ function SessionsListScreen({
               <Ionicons name="sparkles" size={16} color={C.purple} />
             </View>
             <View style={st.flex1}>
-              <Text style={slst.sampleModeTitle}>Exploring real examples</Text>
-              <Text style={slst.sampleModeSub}>
+              <CustomText textStyle="title" style={slst.sampleModeTitle}>
+                Exploring real examples
+              </CustomText>
+              <CustomText textStyle="caption" style={slst.sampleModeSub}>
                 These never affect {property}’s sessions or scores.
-              </Text>
+              </CustomText>
             </View>
-            <Text style={slst.sampleModeAction}>Back</Text>
+            <CustomText textStyle="label" style={slst.sampleModeAction}>
+              Back
+            </CustomText>
           </Pressable>
-        ) : (
-          showSearch && (
-            <Reanimated.View
-              entering={FadeInDown.duration(220)}
-              style={st.searchBar}
-            >
-              <Ionicons name="search-outline" size={18} color={C.textMuted} />
-              <TextInput
-                autoFocus
-                placeholder="Search sessions..."
-                placeholderTextColor={C.textMuted}
-                value={search}
-                onChangeText={setSearch}
-                style={st.searchInput}
-                returnKeyType="search"
-              />
-            </Reanimated.View>
-          )
-        )}
-
-        {!showSamples && (
-          <View style={slst.practiceSection}>
-            <View style={slst.practiceHeading}>
-              <View style={st.flex1}>
-                <Text style={slst.practiceTitle}>Practice sessions</Text>
-                <Text style={slst.practiceSubtitle}>
-                  Train with an AI prospect
-                </Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => onPractice()}
-                style={({ pressed }) => [
-                  slst.practiceOpen,
-                  pressed && st.pressed,
-                ]}
-              >
-                <Text style={slst.practiceOpenText}>Open</Text>
-                <Ionicons name="arrow-forward" size={14} color={C.brand} />
-              </Pressable>
-            </View>
-
-            {practiceLoading ? (
-              <View style={slst.practiceLoadingRow}>
-                {[0, 1, 2].map((index) => (
-                  <View key={index} style={slst.practiceSkeleton} />
-                ))}
-              </View>
-            ) : practiceScenarios.length ? (
-              <ScrollView
-                horizontal
-                nestedScrollEnabled
-                directionalLockEnabled
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={slst.practiceCards}
-              >
-                {practiceScenarios.map((scenario, index) => {
-                  const colors = [C.brand, C.purple, C.green];
-                  const accent = colors[index % colors.length] ?? C.brand;
-                  return (
-                    <MotionPressable
-                      key={scenario.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Start ${scenario.name} practice`}
-                      onPress={() => onPractice(scenario.id)}
-                      haptic="selection"
-                      style={[
-                        slst.practiceCard,
-                        { borderColor: `${accent}28` },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          slst.practiceIcon,
-                          { backgroundColor: `${accent}14` },
-                        ]}
-                      >
-                        <Ionicons
-                          name="chatbubbles-outline"
-                          size={20}
-                          color={accent}
-                        />
-                      </View>
-                      <Text style={slst.practiceCardTitle} numberOfLines={2}>
-                        {scenario.name}
-                      </Text>
-                      <View style={slst.practiceCardFooter}>
-                        <Text
-                          style={[slst.practiceDifficulty, { color: accent }]}
-                        >
-                          {scenario.difficulty ?? "Practice"}
-                        </Text>
-                        <Ionicons name="play-circle" size={19} color={accent} />
-                      </View>
-                    </MotionPressable>
-                  );
-                })}
-              </ScrollView>
-            ) : (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => onPractice()}
-                style={({ pressed }) => [
-                  slst.practiceEmpty,
-                  pressed && st.pressed,
-                ]}
-              >
-                <View style={slst.practiceEmptyIcon}>
-                  <Ionicons name="sparkles" size={19} color={C.brand} />
-                </View>
-                <View style={st.flex1}>
-                  <Text style={slst.practiceEmptyTitle}>
-                    Open practice training
-                  </Text>
-                  <Text style={slst.practiceEmptySubtitle}>
-                    View available scenarios and recent attempts.
-                  </Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={17}
-                  color={C.textMuted}
-                />
-              </Pressable>
-            )}
-          </View>
-        )}
-
-        {!showSamples && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open session filters"
-            onPress={() => setFiltersOpen(true)}
-            style={({ pressed }) => [slst.filterButton, pressed && st.pressed]}
-          >
-            <Ionicons name="options-outline" size={17} color={C.brand} />
-            <Text style={slst.filterButtonText}>Filter</Text>
-            <View style={st.flex1} />
-            {activeFilterCount > 0 && (
-              <View style={slst.filterCount}>
-                <Text style={slst.filterCountText}>{activeFilterCount}</Text>
-              </View>
-            )}
-            <Ionicons name="chevron-down" size={15} color={C.textMuted} />
-          </Pressable>
-        )}
-        {!showSamples && loading ? (
-          <View style={slst.loadingGroupHeader}>
-            <View style={slst.loadingGroupLabel} />
-            <View style={st.flex1} />
-            <View style={slst.loadingGroupCount} />
-          </View>
         ) : null}
       </View>
     ),
     [
-      activeFilterCount,
       averageScore,
       loading,
-      onBack,
-      onCommunityPress,
-      onPractice,
-      practiceLoading,
-      practiceScenarios,
       property,
       samplePropertyName,
-      search,
+      scrollY,
       sessionMetrics.averageScore,
       sessionViewLabel,
       showSamples,
-      sort,
-      showSearch,
-      statusFilter,
     ],
   );
 
   const ListFooter = useMemo(() => {
     if (showSamples) return null;
     if (loadingMore)
-      return <LoadingDots style={{ paddingVertical: 20 }} color={C.brand} />;
+      return (
+        <LoadingDots style={{ paddingVertical: 20 }} color={ACCENT} />
+      );
     if (!hasMore && sessions.length > 0)
-      return <Text style={slst.endText}>All sessions loaded</Text>;
+      return (
+        <CustomText textStyle="caption" style={slst.endText}>
+          All sessions loaded
+        </CustomText>
+      );
     return null;
   }, [hasMore, loadingMore, sessions.length, showSamples]);
 
@@ -3803,28 +3594,34 @@ function SessionsListScreen({
           <View style={slst.sampleEmptyIcon}>
             <Ionicons name="sparkles" size={25} color={C.purple} />
           </View>
-          <Text style={slst.sampleEmptyTitle}>No sessions yet</Text>
-          <Text style={slst.sampleEmptySub}>
+          <CustomText textStyle="hero" style={slst.sampleEmptyTitle}>
+            No sessions yet
+          </CustomText>
+          <CustomText textStyle="body" style={slst.sampleEmptySub}>
             Record a new session to get started.
-          </Text>
+          </CustomText>
           <View style={slst.emptyActions}>
             <MotionPressable
               onPress={() => setShowSamples(true)}
               haptic="selection"
               style={slst.samplePrimaryButton}
             >
-              <Ionicons name="play-circle-outline" size={20} color="#fff" />
-              <Text style={slst.samplePrimaryText}>View sample sessions</Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
+              <Ionicons name="play-circle-outline" size={20} color={CARD} />
+              <CustomText textStyle="title" style={slst.samplePrimaryText}>
+                View sample sessions
+              </CustomText>
+              <Ionicons name="arrow-forward" size={18} color={CARD} />
             </MotionPressable>
             <MotionPressable
               onPress={onCreate}
               haptic="medium"
               style={slst.emptySecondaryButton}
             >
-              <Ionicons name="mic-outline" size={20} color={C.brand} />
-              <Text style={slst.emptySecondaryText}>Record new session</Text>
-              <Ionicons name="arrow-forward" size={18} color={C.brand} />
+              <Ionicons name="mic-outline" size={20} color={ACCENT} />
+              <CustomText textStyle="title" style={slst.emptySecondaryText}>
+                Record new session
+              </CustomText>
+              <Ionicons name="arrow-forward" size={18} color={ACCENT} />
             </MotionPressable>
           </View>
         </Reanimated.View>
@@ -3854,13 +3651,16 @@ function SessionsListScreen({
   ]);
 
   return (
-    <>
-      <FlatList
+    <View style={[st.flex1, homeSt.pageBg]}>
+      <Reanimated.FlatList
+        style={st.flex1}
         scrollEnabled
         nestedScrollEnabled
-        data={groupedRows}
+        data={listSessions}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         ListHeaderComponent={
           <View style={{ gap: 12 }}>
             {ListHeader}
@@ -3879,43 +3679,76 @@ function SessionsListScreen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={C.brand}
+            tintColor={ACCENT}
           />
         }
-        contentContainerStyle={slst.list}
+        contentContainerStyle={[
+          slst.list,
+          { paddingTop: largeTitleContentInset(insets.top) },
+        ]}
         showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior="never"
         keyboardShouldPersistTaps="handled"
       />
-      <BottomSheetModal
-        visible={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
-        sheetHeight={Math.min(620, Dimensions.get("window").height * 0.78)}
-        header={
-          <View style={slst.filterSheetHeader}>
-            <View>
-              <Text style={slst.filterSheetTitle}>Filter</Text>
-              <Text style={slst.filterSheetSubtitle}>
-                Choose whose sessions to view
-              </Text>
+      <LargeTitleHeader
+        title={showSamples ? "Sample sessions" : "Sessions"}
+        scrollY={scrollY}
+        hideCompactTitle={showSearch}
+        trailing={
+          <>
+            <LiquidGlassSearch
+              expanded={showSearch}
+              value={search}
+              onChangeText={setSearch}
+              onExpand={() => setShowSearch(true)}
+              onCollapse={() => {
+                setShowSearch(false);
+                Keyboard.dismiss();
+              }}
+              placeholder="Search sessions"
+            />
+            <View style={slst.filterHeaderSlot}>
+              <LiquidGlassIconButton
+                icon="options-outline"
+                accessibilityLabel="Open session filters"
+                onPress={() => setFiltersOpen(true)}
+              />
+              {activeFilterCount > 0 ? (
+                <View pointerEvents="none" style={slst.filterHeaderBadge}>
+                  <CustomText
+                    textStyle="micro"
+                    style={slst.filterHeaderBadgeText}
+                  >
+                    {activeFilterCount}
+                  </CustomText>
+                </View>
+              ) : null}
             </View>
-            <Pressable
-              accessibilityLabel="Close filters"
-              onPress={() => setFiltersOpen(false)}
-              style={slst.filterSheetClose}
-            >
-              <Ionicons name="close" size={19} color={C.text} />
-            </Pressable>
-          </View>
+          </>
         }
-        contentStyle={slst.filterSheetBody}
+      />
+      <Modal
+        visible={filtersOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        allowSwipeDismissal
+        onRequestClose={() => setFiltersOpen(false)}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={slst.filterSheetContent}
-        >
+        <View style={slst.filterModalRoot}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              slst.filterModalContent,
+              {
+                paddingTop: 6 + 56 + 8,
+                paddingBottom: Math.max(insets.bottom, 16) + 24,
+              },
+            ]}
+          >
           <View style={slst.filterSheetSection}>
-            <Text style={slst.filterSheetLabel}>Sessions</Text>
+            <CustomText textStyle="micro" style={slst.filterSheetLabel}>
+              Sessions
+            </CustomText>
             <Pressable
               accessibilityRole="radio"
               accessibilityState={{
@@ -3942,19 +3775,21 @@ function SessionsListScreen({
                   size={18}
                   color={
                     !showSamples && selectedAgentId === null
-                      ? C.brand
+                      ? ACCENT
                       : C.textSec
                   }
                 />
               </View>
               <View style={st.flex1}>
-                <Text style={slst.filterViewTitle}>Your Team</Text>
-                <Text style={slst.filterViewSubtitle}>
+                <CustomText textStyle="title" style={slst.filterViewTitle}>
+                  Your Team
+                </CustomText>
+                <CustomText textStyle="caption" style={slst.filterViewSubtitle}>
                   Sessions from everyone at this property
-                </Text>
+                </CustomText>
               </View>
               {!showSamples && selectedAgentId === null ? (
-                <Ionicons name="checkmark-circle" size={20} color={C.brand} />
+                <Ionicons name="checkmark-circle" size={20} color={ACCENT} />
               ) : null}
             </Pressable>
             <Pressable
@@ -3983,28 +3818,32 @@ function SessionsListScreen({
                   size={18}
                   color={
                     !showSamples && selectedAgentId === currentAgentId
-                      ? C.brand
+                      ? ACCENT
                       : C.textSec
                   }
                 />
               </View>
               <View style={st.flex1}>
-                <Text style={slst.filterViewTitle}>You</Text>
-                <Text style={slst.filterViewSubtitle}>
+                <CustomText textStyle="title" style={slst.filterViewTitle}>
+                  You
+                </CustomText>
+                <CustomText textStyle="caption" style={slst.filterViewSubtitle}>
                   {currentTeamMember?.name ||
                     authSession.workspace.user.fullName ||
                     authSession.workspace.user.email}
-                </Text>
+                </CustomText>
               </View>
               {!showSamples && selectedAgentId === currentAgentId ? (
-                <Ionicons name="checkmark-circle" size={20} color={C.brand} />
+                <Ionicons name="checkmark-circle" size={20} color={ACCENT} />
               ) : null}
             </Pressable>
           </View>
 
           {teamMembers.some((member) => member.agentId !== currentAgentId) ? (
             <View style={slst.filterSheetSection}>
-              <Text style={slst.filterSheetLabel}>Team members</Text>
+              <CustomText textStyle="micro" style={slst.filterSheetLabel}>
+                Team members
+              </CustomText>
               {teamMembers
                 .filter((member) => member.agentId !== currentAgentId)
                 .map((member) => {
@@ -4034,26 +3873,35 @@ function SessionsListScreen({
                           active && slst.filterViewIconActive,
                         ]}
                       >
-                        <Text
+                        <CustomText
+                          textStyle="title"
                           style={[
                             slst.filterMemberInitials,
                             active && slst.filterMemberInitialsActive,
                           ]}
                         >
                           {initials}
-                        </Text>
+                        </CustomText>
                       </View>
                       <View style={st.flex1}>
-                        <Text style={slst.filterViewTitle}>{member.name}</Text>
-                        <Text style={slst.filterViewSubtitle}>
+                        <CustomText
+                          textStyle="title"
+                          style={slst.filterViewTitle}
+                        >
+                          {member.name}
+                        </CustomText>
+                        <CustomText
+                          textStyle="caption"
+                          style={slst.filterViewSubtitle}
+                        >
                           {member.title || member.role || member.email}
-                        </Text>
+                        </CustomText>
                       </View>
                       {active ? (
                         <Ionicons
                           name="checkmark-circle"
                           size={20}
-                          color={C.brand}
+                          color={ACCENT}
                         />
                       ) : null}
                     </Pressable>
@@ -4063,51 +3911,9 @@ function SessionsListScreen({
           ) : null}
 
           <View style={slst.filterSheetSection}>
-            <Text style={slst.filterSheetLabel}>Examples</Text>
-            <Pressable
-              accessibilityRole="radio"
-              accessibilityState={{ checked: showSamples }}
-              onPress={() => selectSessionView(null, true)}
-              style={[
-                slst.filterViewRow,
-                showSamples && slst.filterViewRowActive,
-              ]}
-            >
-              <View
-                style={[
-                  slst.filterViewIcon,
-                  slst.filterSampleIcon,
-                  showSamples && slst.filterViewIconActive,
-                ]}
-              >
-                <Ionicons
-                  name="sparkles"
-                  size={18}
-                  color={showSamples ? C.brand : C.purple}
-                />
-              </View>
-              <View style={st.flex1}>
-                <Text style={slst.filterViewTitle}>Samples</Text>
-                <Text style={slst.filterViewSubtitle}>
-                  {samplesAvailable
-                    ? `${sampleSessions.length} analyzed sessions to explore`
-                    : "View curated example sessions"}
-                </Text>
-              </View>
-              {showSamples ? (
-                <Ionicons name="checkmark-circle" size={20} color={C.brand} />
-              ) : (
-                <Ionicons
-                  name="chevron-forward"
-                  size={17}
-                  color={C.textMuted}
-                />
-              )}
-            </Pressable>
-          </View>
-
-          <View style={slst.filterSheetSection}>
-            <Text style={slst.filterSheetLabel}>Status</Text>
+            <CustomText textStyle="micro" style={slst.filterSheetLabel}>
+              Status
+            </CustomText>
             <View style={slst.filterOptions}>
               {FILTER_CHIPS.map((chip) => {
                 const active = statusFilter === chip.value;
@@ -4123,21 +3929,24 @@ function SessionsListScreen({
                       active && slst.filterOptionActive,
                     ]}
                   >
-                    <Text
+                    <CustomText
+                      textStyle="label"
                       style={[
                         slst.filterOptionText,
                         active && slst.filterOptionTextActive,
                       ]}
                     >
                       {chip.label}
-                    </Text>
+                    </CustomText>
                   </Pressable>
                 );
               })}
             </View>
           </View>
           <View style={slst.filterSheetSection}>
-            <Text style={slst.filterSheetLabel}>Sort by</Text>
+            <CustomText textStyle="micro" style={slst.filterSheetLabel}>
+              Sort by
+            </CustomText>
             <View style={slst.filterOptions}>
               {SORT_OPTS.map((option) => {
                 const active = sort === option.value;
@@ -4156,158 +3965,75 @@ function SessionsListScreen({
                     <Ionicons
                       name={option.icon}
                       size={15}
-                      color={active ? C.brand : C.textMuted}
+                      color={active ? ACCENT : C.textMuted}
                     />
-                    <Text
+                    <CustomText
+                      textStyle="label"
                       style={[
                         slst.filterOptionText,
                         active && slst.filterOptionTextActive,
                       ]}
                     >
                       {option.label}
-                    </Text>
+                    </CustomText>
                   </Pressable>
                 );
               })}
             </View>
           </View>
         </ScrollView>
-      </BottomSheetModal>
-    </>
+          <View pointerEvents="box-none" style={slst.filterModalHeaderWrap}>
+            <LinearGradient
+              colors={[
+                BACKGROUND,
+                "rgba(242, 242, 247, 0.62)",
+                "rgba(242, 242, 247, 0)",
+              ]}
+              locations={[0, 0.5, 1]}
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+            />
+            <View pointerEvents="box-none" style={slst.filterModalHeader}>
+              <CustomText textStyle="hero" style={st.flex1}>
+                Filter
+              </CustomText>
+              <LiquidGlassIconButton
+                icon="close"
+                accessibilityLabel="Close filters"
+                onPress={() => setFiltersOpen(false)}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const slst = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 120 },
-  header: { gap: 12, marginBottom: 8 },
-  practiceSection: { gap: 10, paddingVertical: 3 },
-  practiceHeading: { flexDirection: "row", alignItems: "center", gap: 12 },
-  practiceTitle: { color: C.text, fontSize: 16, fontWeight: "900" },
-  practiceSubtitle: {
-    marginTop: 2,
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  practiceOpen: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  practiceOpenText: { color: C.brand, fontSize: 12, fontWeight: "900" },
-  practiceCards: { gap: 9, paddingRight: 2 },
-  practiceCard: {
-    width: 142,
-    minHeight: 126,
-    justifyContent: "space-between",
-    gap: 9,
-    padding: 13,
-    borderWidth: 1,
-    borderRadius: 16,
-    backgroundColor: C.card,
-  },
-  practiceIcon: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-  },
-  practiceCardTitle: {
-    color: C.text,
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: "900",
-  },
-  practiceCardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  practiceDifficulty: {
-    flex: 1,
-    fontSize: 10,
-    fontWeight: "900",
-    textTransform: "capitalize",
-  },
-  practiceLoadingRow: { flexDirection: "row", gap: 9 },
-  practiceSkeleton: {
-    width: 142,
-    height: 126,
-    borderRadius: 16,
-    backgroundColor: "#eef2f7",
-  },
-  practiceEmpty: {
-    minHeight: 70,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 15,
-    backgroundColor: C.card,
-  },
-  practiceEmptyIcon: {
-    width: 39,
-    height: 39,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: C.brand + "10",
-  },
-  practiceEmptyTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  practiceEmptySubtitle: {
-    marginTop: 3,
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: "600",
-  },
+  header: { gap: 28, marginBottom: 20 },
   sampleHeadingSub: {
     marginTop: 3,
     color: C.textMuted,
-    fontSize: 11,
-    fontWeight: "700",
   },
   metricSkeletonIcon: {
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: "#e8eef7",
+    backgroundColor: BACKGROUND,
   },
   metricSkeletonValue: {
     width: 22,
     height: 15,
     borderRadius: 5,
-    backgroundColor: "#e8eef7",
+    backgroundColor: BACKGROUND,
   },
   metricSkeletonLabel: {
     width: 18,
     height: 9,
     borderRadius: 4,
-    backgroundColor: "#eef2f7",
-  },
-  loadingGroupHeader: {
-    minHeight: 34,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 4,
-  },
-  loadingGroupLabel: {
-    width: 112,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: "#e8eef7",
-  },
-  loadingGroupCount: {
-    width: 24,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#eef2f7",
+    backgroundColor: BACKGROUND,
   },
   sampleModeBanner: {
     minHeight: 64,
@@ -4315,10 +4041,9 @@ const slst = StyleSheet.create({
     alignItems: "center",
     gap: 11,
     padding: 12,
-    borderWidth: 1,
-    borderColor: "#ddd6fe",
-    borderRadius: 14,
-    backgroundColor: "#faf7ff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   sampleModeIcon: {
     width: 36,
@@ -4328,25 +4053,22 @@ const slst = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: C.purpleBg,
   },
-  sampleModeTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  sampleModeTitle: {},
   sampleModeSub: {
     marginTop: 2,
     color: C.textSec,
-    fontSize: 11,
     lineHeight: 15,
-    fontWeight: "600",
   },
-  sampleModeAction: { color: C.brand, fontSize: 12, fontWeight: "900" },
+  sampleModeAction: { color: ACCENT },
   sampleEmptyCard: {
     alignItems: "center",
     gap: 12,
     marginTop: 12,
     paddingHorizontal: 20,
     paddingVertical: 24,
-    borderWidth: 1,
-    borderColor: "#ddd6fe",
-    borderRadius: 20,
-    backgroundColor: "#fff",
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   sampleEmptyIcon: {
     width: 54,
@@ -4357,17 +4079,11 @@ const slst = StyleSheet.create({
     backgroundColor: C.purpleBg,
   },
   sampleEmptyTitle: {
-    color: C.text,
-    fontSize: 21,
-    fontWeight: "900",
     letterSpacing: -0.25,
   },
   sampleEmptySub: {
     maxWidth: 330,
     color: C.textSec,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "600",
     textAlign: "center",
   },
   emptyActions: { alignSelf: "stretch", gap: 9, marginTop: 3 },
@@ -4380,14 +4096,12 @@ const slst = StyleSheet.create({
     gap: 9,
     marginTop: 2,
     paddingHorizontal: 16,
-    borderRadius: 14,
-    backgroundColor: C.brand,
+    borderRadius: 25,
+    backgroundColor: ACCENT,
   },
   samplePrimaryText: {
     flex: 1,
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "900",
+    color: CARD,
     textAlign: "center",
   },
   emptySecondaryButton: {
@@ -4398,30 +4112,32 @@ const slst = StyleSheet.create({
     justifyContent: "center",
     gap: 9,
     paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-    borderRadius: 14,
-    backgroundColor: "#eff6ff",
+    borderRadius: 25,
+    backgroundColor: BACKGROUND,
   },
   emptySecondaryText: {
     flex: 1,
-    color: C.brand,
-    fontSize: 14,
-    fontWeight: "900",
+    color: ACCENT,
     textAlign: "center",
   },
-  filterButton: {
-    minHeight: 42,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 13,
-    borderWidth: 1,
-    borderColor: "#dbe3ef",
-    borderRadius: 13,
-    backgroundColor: "#fff",
+  filterHeaderSlot: {
+    width: 42,
+    height: 42,
+    overflow: "visible",
   },
-  filterButtonText: { color: C.text, fontSize: 13, fontWeight: "900" },
+  filterHeaderBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: ACCENT,
+  },
+  filterHeaderBadgeText: { color: CARD, fontSize: 10 },
   filterCount: {
     minWidth: 20,
     height: 20,
@@ -4429,54 +4145,53 @@ const slst = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 5,
     borderRadius: 10,
-    backgroundColor: C.brand,
+    backgroundColor: ACCENT,
   },
-  filterCountText: { color: "#fff", fontSize: 10, fontWeight: "900" },
-  sep: { height: 1, backgroundColor: "#f1f5f9" },
+  filterCountText: { color: CARD, fontSize: 10 },
+  sep: { height: 1, backgroundColor: BACKGROUND },
   endText: {
     textAlign: "center",
     paddingVertical: 20,
-    fontSize: 12,
-    fontWeight: "600",
     color: C.textMuted,
   },
   skeleton: {
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
   },
-  skelBar: { height: 12, borderRadius: 6, backgroundColor: "#f1f5f9" },
-  filterSheetHeader: {
+  skelBar: { height: 12, borderRadius: 6, backgroundColor: BACKGROUND },
+  filterModalRoot: {
+    flex: 1,
+    overflow: "visible",
+    backgroundColor: BACKGROUND,
+  },
+  filterModalHeaderWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6 + 56 + 56,
+    zIndex: 20,
+    overflow: "visible",
+    backgroundColor: "transparent",
+  },
+  filterModalHeader: {
+    minHeight: 56,
+    marginTop: 6,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingBottom: 10,
+    gap: 12,
+    paddingHorizontal: 16,
+    overflow: "visible",
+    zIndex: 2,
   },
-  filterSheetTitle: { color: C.text, fontSize: 19, fontWeight: "900" },
-  filterSheetSubtitle: {
-    marginTop: 2,
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: "600",
+  filterModalContent: {
+    gap: 18,
+    paddingHorizontal: 16,
   },
-  filterSheetClose: {
-    width: 34,
-    height: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 17,
-    backgroundColor: "#f2f4f7",
-  },
-  filterSheetBody: { paddingTop: 4 },
-  filterSheetContent: { gap: 18, paddingBottom: 28 },
   filterSheetSection: { gap: 8 },
   filterSheetLabel: {
     color: C.textMuted,
-    fontSize: 10,
-    fontWeight: "900",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
@@ -4487,29 +4202,25 @@ const slst = StyleSheet.create({
     gap: 11,
     paddingHorizontal: 11,
     paddingVertical: 9,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 13,
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
-  filterViewRowActive: { borderColor: "#93c5fd", backgroundColor: "#eff6ff" },
+  filterViewRowActive: { backgroundColor: "#eff6ff" },
   filterViewIcon: {
     width: 38,
     height: 38,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 12,
-    backgroundColor: "#f2f4f7",
+    backgroundColor: BACKGROUND,
   },
   filterViewIconActive: { backgroundColor: "#dbeafe" },
-  filterSampleIcon: { backgroundColor: C.purpleBg },
-  filterViewTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  filterViewTitle: {},
   filterViewSubtitle: {
     marginTop: 2,
     color: C.textMuted,
-    fontSize: 10,
     lineHeight: 14,
-    fontWeight: "600",
   },
   filterMemberAvatar: {
     width: 38,
@@ -4517,10 +4228,10 @@ const slst = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 19,
-    backgroundColor: "#f2f4f7",
+    backgroundColor: BACKGROUND,
   },
-  filterMemberInitials: { color: C.textSec, fontSize: 12, fontWeight: "900" },
-  filterMemberInitialsActive: { color: C.brand },
+  filterMemberInitials: { color: C.textSec, fontSize: 12 },
+  filterMemberInitialsActive: { color: ACCENT },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   filterOption: {
     minHeight: 36,
@@ -4528,14 +4239,12 @@ const slst = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 11,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 10,
-    backgroundColor: "#fff",
+    borderRadius: 18,
+    backgroundColor: CARD,
   },
-  filterOptionActive: { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
-  filterOptionText: { color: C.textSec, fontSize: 11, fontWeight: "800" },
-  filterOptionTextActive: { color: C.brand },
+  filterOptionActive: { backgroundColor: "#eff6ff" },
+  filterOptionText: { color: C.textSec },
+  filterOptionTextActive: { color: ACCENT },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -4548,34 +4257,25 @@ const slst = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 11,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
     borderRadius: 999,
-    backgroundColor: "#fff",
+    backgroundColor: CARD,
   },
   avgPillValue: {
-    color: C.text,
-    fontSize: 15,
-    fontWeight: "900",
     fontVariant: ["tabular-nums"],
   },
   avgPillLabel: {
     color: C.textMuted,
-    fontSize: 10,
-    fontWeight: "900",
     textTransform: "uppercase",
   },
   filterChip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#fff",
+    backgroundColor: CARD,
   },
-  filterChipActive: { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" },
-  filterChipText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
-  filterChipTextActive: { color: C.brand },
+  filterChipActive: { backgroundColor: "#eff6ff" },
+  filterChipText: { color: C.textSec },
+  filterChipTextActive: { color: ACCENT },
   attentionChip: {
     alignSelf: "flex-start",
     flexDirection: "row",
@@ -4583,35 +4283,15 @@ const slst = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: "#f59e0b",
     borderRadius: 18,
+    backgroundColor: CARD,
   },
-  attentionText: { color: "#f59e0b", fontSize: 12, fontWeight: "800" },
-  groupHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingTop: 8,
-    paddingBottom: 7,
+  attentionText: { color: "#f59e0b" },
+  swipeContainer: {
+    marginBottom: 10,
+    borderRadius: SMALL_CORNER,
+    overflow: "hidden",
   },
-  groupLabel: {
-    color: "#9ca3af",
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  groupCount: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: "#e5e7eb",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 5,
-  },
-  groupCountText: { color: C.textSec, fontSize: 10, fontWeight: "900" },
-  swipeContainer: { marginBottom: 10, borderRadius: 12, overflow: "hidden" },
   swipeActions: { width: SESSION_SWIPE_DELETE_WIDTH },
   deleteAction: {
     flex: 1,
@@ -4622,22 +4302,20 @@ const slst = StyleSheet.create({
     backgroundColor: "#ef4444",
   },
   deleteActionPressed: { backgroundColor: "#dc2626", opacity: 0.92 },
-  deleteActionText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  deleteActionText: { color: CARD },
   sessionCard: {
     minHeight: 74,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     padding: 15,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   sampleSessionCard: {
     marginBottom: 10,
-    borderColor: "#ddd6fe",
-    backgroundColor: "#fefcff",
+    backgroundColor: CARD,
   },
   sampleSessionIcon: {
     width: 38,
@@ -4653,14 +4331,13 @@ const slst = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: C.purpleBg,
   },
-  sampleBadgeText: { color: C.purple, fontSize: 8, fontWeight: "900" },
+  sampleBadgeText: { color: C.purple, fontSize: 8 },
   sessionCardDeleting: { opacity: 0.55 },
   sessionNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  sessionName: { flex: 1, color: "#1a1a1a", fontSize: 15, fontWeight: "900" },
-  sessionMeta: { color: "#666", fontSize: 12, marginTop: 5 },
+  sessionName: { flex: 1, fontSize: 15 },
+  sessionMeta: { color: C.textSec, marginTop: 5 },
   sessionDescription: {
-    color: "#667085",
-    fontSize: 12,
+    color: C.textSec,
     marginTop: 4,
     lineHeight: 16,
   },
@@ -4671,10 +4348,10 @@ const slst = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#ebf5ff",
   },
-  syncText: { color: C.brand, fontSize: 9, fontWeight: "900" },
+  syncText: { color: ACCENT, fontSize: 9 },
   reviewBadge: { backgroundColor: "#fffbeb" },
   reviewText: { color: "#f59e0b" },
-  sessionScore: { color: "#1a1a1a", fontSize: 16, fontWeight: "900" },
+  sessionScore: { fontVariant: ["tabular-nums"] },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#f04438" },
 });
 
@@ -12738,6 +12415,11 @@ const homeSt = StyleSheet.create({
   },
   sectionSubtitle: { color: C.textSec },
   sectionAction: { color: ACCENT },
+  sectionActionHit: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   tourCard: {
     minHeight: 70,
     flexDirection: "row",
