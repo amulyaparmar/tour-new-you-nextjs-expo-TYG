@@ -1,4 +1,4 @@
-import { ClipboardList, GraduationCap, HeartHandshake, MessageCircle, MessageSquare, Search, Sparkles } from "lucide-react-native";
+import { ClipboardList, GraduationCap, HeartHandshake, MessageCircle, MessageSquare, Search } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -22,7 +22,6 @@ const MODES: Array<{
   { id: "search", label: "Search", icon: Search },
   { id: "coaching", label: "Coaching", icon: GraduationCap },
   { id: "comments", label: "Comments", icon: MessageCircle },
-  { id: "ai", label: "AI Chat", icon: Sparkles },
 ];
 
 export function SessionModeTabs({

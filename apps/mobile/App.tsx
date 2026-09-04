@@ -4970,6 +4970,7 @@ function SessionReviewExperience({
         const resolved = await resolveSessionPlaybackUri(sessionId);
         const player = await createLoadedAudioPlayer(resolved.uri);
         if (!mounted) {
+          player.pause();
           player.remove();
           return;
         }
@@ -5006,6 +5007,7 @@ function SessionReviewExperience({
     return () => {
       mounted = false;
       removeStatusListener?.();
+      loadedSound?.pause();
       loadedSound?.remove();
     };
   }, [sessionId, scrollToSegment, transcript]);
@@ -5045,6 +5047,12 @@ function SessionReviewExperience({
     const next = speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1;
     sound.setPlaybackRate(next);
     setSpeed(next);
+  }
+
+  function closeSessionReview() {
+    sound?.pause();
+    setPlaying(false);
+    onBack();
   }
 
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
@@ -5213,6 +5221,7 @@ function SessionReviewExperience({
     Alert.alert("Session options", undefined, [
       { text: comments.length > 0 ? `Comments (${comments.length})` : "Comments", onPress: onOpenComments },
       { text: "Audio insights", onPress: onOpenAudioInsights },
+      { text: "Export to PDF", onPress: onOpenReport },
       { text: "Cancel", style: "cancel" },
     ]);
   }
@@ -5259,7 +5268,7 @@ function SessionReviewExperience({
       >
         <View>
           <TourScreenHeader
-            onBack={onBack}
+            onBack={closeSessionReview}
             title={session.title}
             subtitle={[
               session.prospectName || "Recorded tour",
@@ -5271,21 +5280,6 @@ function SessionReviewExperience({
             onMorePress={readOnly ? undefined : openSessionMoreMenu}
             moreAccessibilityLabel="Session options"
           />
-          {!readOnly ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open PDF report"
-              onPress={onOpenReport}
-              style={({ pressed }) => [reviewSt.reportCta, pressed && st.pressed]}
-            >
-              <View style={reviewSt.reportCtaIcon}><Ionicons name="document-text-outline" size={20} color={C.brand} /></View>
-              <View style={st.flex1}>
-                <Text style={reviewSt.reportCtaTitle}>PDF report</Text>
-                <Text style={reviewSt.reportCtaSub}>Preview, share, save, or choose an analysis version</Text>
-              </View>
-              <Ionicons name="arrow-forward" size={18} color={C.brand} />
-            </Pressable>
-          ) : null}
         </View>
 
         <View style={reviewSt.tabSticky}>
@@ -6597,7 +6591,11 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
         await setAudioModeAsync({ playsInSilentMode: true });
         const resolved = await resolveSessionPlaybackUri(sessionId);
         const loaded = await createLoadedAudioPlayer(resolved.uri);
-        if (!mounted) { loaded.remove(); return; }
+        if (!mounted) {
+          loaded.pause();
+          loaded.remove();
+          return;
+        }
         s = loaded;
         setSound(loaded);
         setLoadError(false);
@@ -6617,6 +6615,7 @@ function AudioPlayer({ sessionId, transcript }: { sessionId: string; transcript:
     return () => {
       mounted = false;
       removeStatusListener?.();
+      s?.pause();
       s?.remove();
     };
   }, [sessionId, retryToken]);
@@ -7835,10 +7834,6 @@ const reviewSt = StyleSheet.create({
   commentsPageContent: { gap: 12, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 12, paddingBottom: 130 },
   tabSticky: { backgroundColor: tourColors.bg, zIndex: 2 },
   tabBody: { gap: 13, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 8 },
-  reportCta: { minHeight: 62, marginHorizontal: SESSION_PAGE_PADDING, marginTop: 8, marginBottom: 10, paddingHorizontal: 13, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 11, borderWidth: 1, borderColor: "#dbeafe", backgroundColor: "#f7fbff" },
-  reportCtaIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#eaf4ff" },
-  reportCtaTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  reportCtaSub: { marginTop: 2, color: C.textSec, fontSize: 10, lineHeight: 14, fontWeight: "700" },
   sampleReadOnlyBanner: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 14, backgroundColor: "#faf7ff" },
   sampleReadOnlyIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.purpleBg },
   sampleReadOnlyTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
