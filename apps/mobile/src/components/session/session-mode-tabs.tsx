@@ -1,4 +1,4 @@
-import { ClipboardList, GraduationCap, HeartHandshake, MessageCircle, MessageSquare, Search } from "lucide-react-native";
+import { ClipboardList, GraduationCap, HeartHandshake, MessageCircle, MessageSquare, Search, Sparkles } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -17,6 +17,7 @@ const MODES: Array<{
   icon: LucideIcon;
 }> = [
   { id: "transcript", label: "Transcript", icon: MessageSquare },
+  { id: "ai", label: "AI Chat", icon: Sparkles },
   { id: "rubric", label: "Rubric", icon: ClipboardList },
   { id: "prospect", label: "Prospect", icon: HeartHandshake },
   { id: "search", label: "Search", icon: Search },

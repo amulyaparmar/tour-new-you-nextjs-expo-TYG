@@ -168,12 +168,11 @@ import {
 } from "./src/offline/sync-outbox";
 import { promoteLocalRecordingToCache, resolveSessionPlaybackUri } from "./src/session-audio-cache";
 import { MotionPressable, AnimatedTabContent } from "./src/components/ui/motion";
+import { SessionAiChat } from "./src/components/SessionAiChat";
 import {
   CollapsibleSection,
   RubricTab,
   ScoreHero,
-  SessionAiChatScreen,
-  SessionAiFab,
   SessionAudioInsightsScreen,
   ProspectInsightsCard,
   SessionModeTabs,
@@ -242,7 +241,6 @@ type Screen =
   | { type: "main"; tab: MainTab }
   | { type: "session-detail"; sessionId: string; sample?: boolean; autoStartRecording?: boolean }
   | { type: "session-comments"; sessionId: string; sessionTitle?: string }
-  | { type: "session-ai-chat"; sessionId: string; sessionTitle?: string; prospectName?: string }
   | { type: "session-audio-insights"; sessionId: string; sessionTitle?: string; initialStatus?: AudioInsightsStatus; initialInsights?: AudioInsights | null }
   | { type: "session-report"; sessionId: string }
   | { type: "bulk-upload"; batchId?: string }
@@ -629,7 +627,6 @@ function screenKey(screen: Screen) {
   if (screen.type === "main") return `main:${screen.tab}`;
   if (screen.type === "session-detail") return `session:${screen.sessionId}`;
   if (screen.type === "session-comments") return `session-comments:${screen.sessionId}`;
-  if (screen.type === "session-ai-chat") return `session-ai:${screen.sessionId}`;
   if (screen.type === "session-audio-insights") return `session-audio:${screen.sessionId}`;
   if (screen.type === "session-report") return `session-report:${screen.sessionId}`;
   if (screen.type === "bulk-upload") return `bulk-upload:${screen.batchId ?? "new"}`;
@@ -649,7 +646,6 @@ function screenRank(screen: Screen) {
   if (screen.type === "profile") return 12;
   if (screen.type === "session-detail") return 13;
   if (screen.type === "session-comments") return 14;
-  if (screen.type === "session-ai-chat") return 14;
   if (screen.type === "session-audio-insights") return 14;
   if (screen.type === "session-report") return 14;
   if (screen.type === "bulk-upload") return 13;
@@ -952,7 +948,6 @@ function SessionNavigation({
   onClose,
   children,
   onOpenComments,
-  onOpenAiChat,
   onOpenAudioInsights,
   onOpenReport,
 }: {
@@ -963,7 +958,6 @@ function SessionNavigation({
   onClose: () => void;
   children: React.ReactNode;
   onOpenComments: (meta: { sessionId: string; sessionTitle?: string }) => void;
-  onOpenAiChat: (meta: { sessionId: string; sessionTitle?: string; prospectName?: string }) => void;
   onOpenAudioInsights: (meta: { sessionId: string; sessionTitle?: string; initialStatus?: AudioInsightsStatus; initialInsights?: AudioInsights | null }) => void;
   onOpenReport: (sessionId: string) => void;
 }) {
@@ -1017,7 +1011,6 @@ function SessionNavigation({
                 autoStartRecording={Boolean(autoStartRecording)}
                 onBack={back}
                 onOpenComments={onOpenComments}
-                onOpenAiChat={onOpenAiChat}
                 onOpenAudioInsights={onOpenAudioInsights}
                 onOpenReport={onOpenReport}
               />
@@ -1194,7 +1187,6 @@ export default function App() {
                   sample={screen.type === "session-detail" ? screen.sample : false}
                   onClose={() => nav({ type: "main", tab: "sessions" })}
                   onOpenComments={(meta) => nav({ type: "session-comments", ...meta })}
-                  onOpenAiChat={(meta) => nav({ type: "session-ai-chat", ...meta })}
                   onOpenAudioInsights={(meta) => nav({ type: "session-audio-insights", ...meta })}
                   onOpenReport={(sessionId) => nav({ type: "session-report", sessionId })}
                 >
@@ -1205,14 +1197,6 @@ export default function App() {
                 <SessionCommentsScreen
                   sessionId={screen.sessionId}
                   sessionTitle={screen.sessionTitle}
-                  onBack={() => nav({ type: "session-detail", sessionId: screen.sessionId })}
-                />
-              )}
-              {screen.type === "session-ai-chat" && (
-                <SessionAiChatScreen
-                  sessionId={screen.sessionId}
-                  sessionTitle={screen.sessionTitle}
-                  prospectName={screen.prospectName}
                   onBack={() => nav({ type: "session-detail", sessionId: screen.sessionId })}
                 />
               )}
@@ -4645,7 +4629,6 @@ function SampleSessionDetailScreen({ sessionId, onBack }: { sessionId: string; o
       onBack={onBack}
       onReload={() => void sampleQuery.refetch()}
       onOpenComments={() => undefined}
-      onOpenAiChat={() => undefined}
       onOpenAudioInsights={() => undefined}
       onOpenReport={() => undefined}
       readOnly
@@ -4693,7 +4676,6 @@ function SessionDetailScreen({
   autoStartRecording = false,
   onBack,
   onOpenComments,
-  onOpenAiChat,
   onOpenAudioInsights,
   onOpenReport,
 }: {
@@ -4701,7 +4683,6 @@ function SessionDetailScreen({
   autoStartRecording?: boolean;
   onBack: () => void;
   onOpenComments: (meta: { sessionId: string; sessionTitle?: string }) => void;
-  onOpenAiChat: (meta: { sessionId: string; sessionTitle?: string; prospectName?: string }) => void;
   onOpenReport: (sessionId: string) => void;
   onOpenAudioInsights: (meta: {
     sessionId: string;
@@ -4794,13 +4775,6 @@ function SessionDetailScreen({
           onOpenComments({
             sessionId,
             sessionTitle: session.title,
-          })
-        }
-        onOpenAiChat={() =>
-          onOpenAiChat({
-            sessionId,
-            sessionTitle: session.title,
-            prospectName: session.prospectName ?? undefined,
           })
         }
         onOpenAudioInsights={() =>
@@ -4900,7 +4874,6 @@ function SessionReviewExperience({
   onBack,
   onReload,
   onOpenComments,
-  onOpenAiChat,
   onOpenAudioInsights,
   onOpenReport,
   readOnly = false,
@@ -4915,7 +4888,6 @@ function SessionReviewExperience({
   onBack: () => void;
   onReload: () => void;
   onOpenComments: () => void;
-  onOpenAiChat: () => void;
   onOpenAudioInsights: () => void;
   onOpenReport: () => void;
   readOnly?: boolean;
@@ -5289,13 +5261,7 @@ function SessionReviewExperience({
             value={reviewMode}
             modes={readOnly ? ["rubric", "prospect", "transcript", "search", "coaching"] : undefined}
             commentCount={comments.filter((comment) => !comment.parentId).length}
-            onChange={(mode) => {
-              if (mode === "ai") {
-                onOpenAiChat();
-                return;
-              }
-              setReviewMode(mode);
-            }}
+            onChange={setReviewMode}
           />
         </View>
 
@@ -5413,6 +5379,19 @@ function SessionReviewExperience({
               onActionsChange={setLocalActions}
               readOnly={readOnly}
             />
+          </AnimatedTabContent>
+        )}
+        {reviewMode === "ai" && !readOnly && (
+          <AnimatedTabContent tabKey="ai">
+            <View style={reviewSt.aiChatPanel}>
+              <SessionAiChat
+                sessionId={sessionId}
+                analysis={analysis}
+                showHeader={false}
+                bottomInset={Platform.OS === "ios" ? 116 : 100}
+                onSeek={(seconds) => void seekToSeconds(seconds, true)}
+              />
+            </View>
           </AnimatedTabContent>
         )}
         {reviewMode === "comments" && (
@@ -5677,8 +5656,6 @@ function SessionReviewExperience({
             <Text style={reviewSt.selectionActionText}>Create clip</Text>
           </Pressable>
         </View>
-      ) : !readOnly ? (
-        <SessionAiFab onPress={onOpenAiChat} bottomOffset={Platform.OS === "ios" ? 118 : 104} />
       ) : null}
       <SessionPlayer
         position={position}
@@ -7836,6 +7813,7 @@ const reviewSt = StyleSheet.create({
   commentsPageContent: { gap: 12, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 12, paddingBottom: 130 },
   tabSticky: { backgroundColor: tourColors.bg, zIndex: 2 },
   tabBody: { gap: 13, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 8 },
+  aiChatPanel: { height: Math.max(460, Dimensions.get("window").height - (Platform.OS === "ios" ? 285 : 255)), paddingTop: 4 },
   sampleReadOnlyBanner: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 11, padding: 12, borderWidth: 1, borderColor: "#ddd6fe", borderRadius: 14, backgroundColor: "#faf7ff" },
   sampleReadOnlyIcon: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: C.purpleBg },
   sampleReadOnlyTitle: { color: C.text, fontSize: 13, fontWeight: "900" },

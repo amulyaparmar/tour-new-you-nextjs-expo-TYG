@@ -173,6 +173,7 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
 
       <ScrollView
         ref={listRef}
+        nestedScrollEnabled
         style={styles.list}
         contentContainerStyle={[styles.listContent, { paddingBottom: 8 + bottomInset }]}
         keyboardShouldPersistTaps="handled"
