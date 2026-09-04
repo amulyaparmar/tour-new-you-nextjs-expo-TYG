@@ -16,6 +16,7 @@ export type SessionParticipantRealtimeStatus =
 type ParticipantRefreshSource = "initial" | "realtime" | "poll" | "foreground";
 
 const FALLBACK_REFRESH_MS = 12_000;
+const PENDING_SESSION_REFRESH_MS = 1_500;
 
 export function useSessionParticipantRealtime(input: {
   sessionId: string | null;
@@ -45,6 +46,8 @@ export function useSessionParticipantRealtime(input: {
     let refreshQueued = false;
     let channel: RealtimeChannel | null = null;
     let realtimeClient: ReturnType<typeof getSupabasePublicClient> | null = null;
+    let realtimeSubscribed = false;
+    let pendingSessionTimer: ReturnType<typeof setInterval> | undefined;
 
     const setStatus = (status: SessionParticipantRealtimeStatus) => {
       if (!cancelled) onStatusChangeRef.current?.(status);
@@ -58,7 +61,14 @@ export function useSessionParticipantRealtime(input: {
       refreshInFlight = true;
       try {
         const { session } = await fetchSession(sessionId);
-        if (!cancelled) onParticipantsRef.current(session.leads ?? [], source);
+        if (!cancelled) {
+          if (pendingSessionTimer) {
+            clearInterval(pendingSessionTimer);
+            pendingSessionTimer = undefined;
+          }
+          if (realtimeSubscribed) setStatus("live");
+          onParticipantsRef.current(session.leads ?? [], source);
+        }
       } catch {
         if (source === "realtime") setStatus("fallback");
       } finally {
@@ -72,6 +82,13 @@ export function useSessionParticipantRealtime(input: {
 
     setStatus("connecting");
     void refreshParticipants("initial");
+
+    // A new QR reserves its session ID before the first guest creates the
+    // session row. Refresh briefly until that row exists; later guests use the
+    // session-scoped Realtime broadcast.
+    pendingSessionTimer = setInterval(() => {
+      void refreshParticipants("poll");
+    }, PENDING_SESSION_REFRESH_MS);
 
     const fallbackTimer = setInterval(() => {
       void refreshParticipants("poll");
@@ -108,11 +125,13 @@ export function useSessionParticipantRealtime(input: {
           })
           .subscribe((status) => {
             if (status === "SUBSCRIBED") {
+              realtimeSubscribed = true;
               setStatus("live");
               void refreshParticipants("realtime");
               return;
             }
             if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+              realtimeSubscribed = false;
               setStatus("fallback");
             }
           });
@@ -124,6 +143,7 @@ export function useSessionParticipantRealtime(input: {
     return () => {
       cancelled = true;
       clearInterval(fallbackTimer);
+      if (pendingSessionTimer) clearInterval(pendingSessionTimer);
       appStateSubscription.remove();
       if (channel && realtimeClient) {
         void realtimeClient.removeChannel(channel);

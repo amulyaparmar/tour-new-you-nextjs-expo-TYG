@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
+import type { SessionLead } from "@tour/shared";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import QRCodeStyled from "react-native-qrcode-styled";
 import Reanimated, {
   FadeIn,
@@ -23,6 +24,10 @@ import {
 } from "react-native";
 
 import { submitCheckInLead } from "../../api";
+import {
+  useSessionParticipantRealtime,
+  type SessionParticipantRealtimeStatus,
+} from "../../session-participants-realtime";
 import { LoadingDots } from "@/components/loading-dots";
 import { TourMark } from "../TourLogo";
 
@@ -97,6 +102,34 @@ function slugifyRep(name: string | null | undefined) {
   return slug || "check-in";
 }
 
+function checkedInGuestKey(guest: SessionLead) {
+  if (guest.createdAt) return `created:${guest.createdAt}`;
+  const email = guest.email?.trim().toLowerCase();
+  if (email) return `email:${email}`;
+  const phone = guest.phone?.replace(/\D/g, "");
+  if (phone) return `phone:${phone}`;
+  return `name:${guest.name.trim().toLowerCase()}`;
+}
+
+function uniqueCheckedInGuests(guests: SessionLead[]) {
+  const seen = new Set<string>();
+  return guests.filter((guest) => {
+    const key = checkedInGuestKey(guest);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function guestInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "?";
+}
+
 export function CheckInSheet({
   visible,
   onClose,
@@ -137,6 +170,7 @@ export function CheckInSheet({
     const memberPath = sessionId ? `/${encodeURIComponent(resolvedRepSlug)}` : "";
     return `https://tour.you/p/${encodeURIComponent(propertySlug)}${memberPath}?check-in=true${sessionQuery}`;
   }, [checkInUrlProp, property, resolvedRepSlug, sessionId]);
+  const sessionQrReady = Boolean(sessionId);
   const [mode, setMode] = useState<"checkin" | "qr">("qr");
   const [tabSwitching, setTabSwitching] = useState(false);
   const [tabSegmentWidth, setTabSegmentWidth] = useState(0);
@@ -152,6 +186,19 @@ export function CheckInSheet({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultSessionId, setResultSessionId] = useState<string | null>(null);
+  const [checkedInGuests, setCheckedInGuests] = useState<SessionLead[]>([]);
+  const [realtimeStatus, setRealtimeStatus] = useState<SessionParticipantRealtimeStatus>("idle");
+  const [guestPopupDismissed, setGuestPopupDismissed] = useState(false);
+
+  const updateCheckedInGuests = useCallback((guests: SessionLead[]) => {
+    setCheckedInGuests(uniqueCheckedInGuests(guests));
+  }, []);
+
+  useSessionParticipantRealtime({
+    sessionId: visible ? sessionId ?? null : null,
+    onParticipants: updateCheckedInGuests,
+    onStatusChange: setRealtimeStatus,
+  });
 
   const tabIndicatorStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: tabPosition.value * (tabSegmentWidth + 6) }],
@@ -187,6 +234,16 @@ export function CheckInSheet({
     setError(null);
     setResultSessionId(null);
   }, [visible, property]);
+
+  useEffect(() => {
+    if (!visible) return;
+    setCheckedInGuests([]);
+    setGuestPopupDismissed(false);
+  }, [sessionId, visible]);
+
+  useEffect(() => {
+    if (checkedInGuests.length > 0) setGuestPopupDismissed(false);
+  }, [checkedInGuests.length]);
 
   async function submitLead() {
     setSubmitting(true);
@@ -240,6 +297,12 @@ export function CheckInSheet({
     if (!resultSessionId) return;
     onClose();
     onCheckedIn(resultSessionId);
+  }
+
+  function startQrSession() {
+    if (!sessionId) return;
+    onClose();
+    onCheckedIn(sessionId);
   }
 
   function addAnotherPerson() {
@@ -306,6 +369,9 @@ export function CheckInSheet({
           {tabSwitching ? (
             <CheckInPanelSkeleton mode={mode} />
           ) : mode === "qr" ? (
+            !sessionQrReady ? (
+              <CheckInPanelSkeleton mode="qr" />
+            ) : (
             <View style={styles.qrPanel}>
               <View style={styles.qrCard}>
                 <QRCodeStyled
@@ -333,13 +399,99 @@ export function CheckInSheet({
                 <Ionicons name="open-outline" size={13} color={C.brand} />
               </Pressable>
               <Pressable
+                disabled={checkedInGuests.length === 0}
+                onPress={() => setGuestPopupDismissed(false)}
+                style={styles.realtimeStatusRow}
+              >
+                <View style={[
+                  styles.realtimeDot,
+                  (realtimeStatus === "live" || checkedInGuests.length > 0) && styles.realtimeDotLive,
+                ]} />
+                <Text style={styles.realtimeStatusText}>
+                  {checkedInGuests.length > 0
+                    ? `${checkedInGuests.length} ${checkedInGuests.length === 1 ? "guest" : "guests"} checked in`
+                    : realtimeStatus === "live"
+                      ? "Waiting for live check-ins"
+                      : "Waiting for check-ins"}
+                </Text>
+              </Pressable>
+              <Pressable
                 onPress={() => void shareCheckInLink()}
                 style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
               >
                 <Ionicons name="share-social-outline" size={16} color="#fff" />
                 <Text style={styles.sheetPrimaryText}>Share check-in link</Text>
               </Pressable>
+
+              {checkedInGuests.length > 0 && !guestPopupDismissed ? (
+                <Reanimated.View
+                  entering={FadeIn.duration(180)}
+                  style={styles.checkedInOverlay}
+                >
+                  <View pointerEvents="none" style={styles.checkedInOverlayWash} />
+                  <View style={styles.checkedInPopup}>
+                    <View style={styles.checkedInStatusPill}>
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                      <Text style={styles.checkedInStatusText}>
+                        {checkedInGuests.length === 1 ? "Guest checked in" : `${checkedInGuests.length} guests checked in`}
+                      </Text>
+                    </View>
+                    <View style={styles.checkedInHeadingRow}>
+                      <View style={styles.checkedInHeadingIcon}>
+                        <Ionicons name="person-add-outline" size={22} color={C.green} />
+                      </View>
+                      <View style={styles.flex1}>
+                        <Text style={styles.checkedInTitle}>
+                          {checkedInGuests.length === 1
+                            ? `${checkedInGuests[0]?.firstName || checkedInGuests[0]?.name.split(" ")[0] || "Guest"} is ready`
+                            : `${checkedInGuests.length} guests are ready`}
+                        </Text>
+                        <Text style={styles.checkedInSub}>
+                          Checked in for {property}. Keep this QR open for anyone else joining the tour.
+                        </Text>
+                      </View>
+                    </View>
+                    <ScrollView
+                      style={styles.checkedInListScroll}
+                      contentContainerStyle={styles.checkedInList}
+                      showsVerticalScrollIndicator={checkedInGuests.length > 2}
+                      nestedScrollEnabled
+                    >
+                      {checkedInGuests.map((guest) => (
+                        <View key={checkedInGuestKey(guest)} style={styles.checkedInRow}>
+                          <View style={styles.checkedInAvatar}>
+                            <Text style={styles.checkedInAvatarText}>{guestInitials(guest.name)}</Text>
+                          </View>
+                          <View style={styles.flex1}>
+                            <Text style={styles.checkedInName}>{guest.name}</Text>
+                            <Text style={styles.checkedInReady}>Ready for tour</Text>
+                          </View>
+                          <View style={styles.checkedInCheck}>
+                            <Ionicons name="checkmark" size={17} color={C.green} />
+                          </View>
+                        </View>
+                      ))}
+                    </ScrollView>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Start live session with checked-in guests"
+                      onPress={startQrSession}
+                      style={({ pressed }) => [styles.startSessionButton, pressed && styles.pressed]}
+                    >
+                      <Ionicons name="mic-outline" size={19} color="#fff" />
+                      <Text style={styles.startSessionButtonText}>Start live session</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setGuestPopupDismissed(true)}
+                      style={({ pressed }) => [styles.notYetButton, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.notYetButtonText}>Not yet</Text>
+                    </Pressable>
+                  </View>
+                </Reanimated.View>
+              ) : null}
             </View>
+            )
           ) : step === "done" ? (
             <View style={styles.donePanel}>
               <View style={styles.doneIcon}>
@@ -884,6 +1036,106 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fff",
   },
+  realtimeStatusRow: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 7 },
+  realtimeDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: C.textMuted },
+  realtimeDotLive: { backgroundColor: C.green },
+  realtimeStatusText: { color: C.textSec, fontSize: 11, fontWeight: "700" },
+  checkedInOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
+    justifyContent: "flex-end",
+    marginHorizontal: -2,
+    marginVertical: -2,
+  },
+  checkedInOverlayWash: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.72)",
+  },
+  checkedInPopup: {
+    position: "relative",
+    maxHeight: "76%",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 25,
+    paddingBottom: 10,
+    borderWidth: 1,
+    borderColor: "#d9e2ec",
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  checkedInStatusPill: {
+    position: "absolute",
+    top: -17,
+    alignSelf: "center",
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 15,
+    borderRadius: 999,
+    backgroundColor: C.green,
+  },
+  checkedInStatusText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  checkedInHeadingRow: { flexDirection: "row", alignItems: "center", gap: 11 },
+  checkedInHeadingIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: "#ecfdf3",
+  },
+  checkedInTitle: { color: C.text, fontSize: 20, lineHeight: 25, fontWeight: "900" },
+  checkedInSub: { marginTop: 2, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600" },
+  checkedInListScroll: { maxHeight: 152 },
+  checkedInList: { gap: 7 },
+  checkedInRow: {
+    minHeight: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 15,
+    backgroundColor: "#f8fafc",
+  },
+  checkedInAvatar: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: "#e0f2fe",
+  },
+  checkedInAvatarText: { color: C.brand, fontSize: 14, fontWeight: "900" },
+  checkedInName: { color: C.text, fontSize: 14, fontWeight: "900" },
+  checkedInReady: { marginTop: 1, color: C.green, fontSize: 12, fontWeight: "800" },
+  checkedInCheck: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+    backgroundColor: "#ecfdf3",
+  },
+  startSessionButton: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    borderRadius: 14,
+    backgroundColor: C.brand,
+  },
+  startSessionButtonText: { color: "#fff", fontSize: 17, fontWeight: "900" },
+  notYetButton: { minHeight: 32, alignItems: "center", justifyContent: "center" },
+  notYetButtonText: { color: C.textSec, fontSize: 14, fontWeight: "800" },
   flex1: { flex: 1 },
   pressed: { opacity: 0.88 },
 });

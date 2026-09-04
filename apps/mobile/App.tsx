@@ -1465,9 +1465,9 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
       const binding = await createCheckInLink();
       setCheckInBinding(binding);
     } catch (caught) {
-      // The check-in sheet can work without a pre-created session. If the
-      // binding request fails, the eventual lead submission creates the
-      // session and returns its ID.
+      setCheckInOpen(false);
+      setCheckInBinding(null);
+      showToast(caught instanceof Error ? caught.message : "Could not create the check-in QR", "error");
     } finally {
       checkInStartingRef.current = false;
     }
