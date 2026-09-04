@@ -107,7 +107,8 @@
           "microphonePermission": "Allow Tour to record audio when you capture video assets."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ],
     "extra": {
       "eas": {

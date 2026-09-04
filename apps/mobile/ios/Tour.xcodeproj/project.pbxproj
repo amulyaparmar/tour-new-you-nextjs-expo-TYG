@@ -52,27 +52,27 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0CC531E402F74DD4ADA5C39B /* ViewHelpers.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = ViewHelpers.swift; path = ViewHelpers.swift; sourceTree = "<group>"; };
+		0CC531E402F74DD4ADA5C39B /* ViewHelpers.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = ViewHelpers.swift; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* Tour.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tour.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Tour/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Tour/Info.plist; sourceTree = "<group>"; };
-		35871605950244BFB47A5A2F /* Date+toTimerInterval.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = "Date+toTimerInterval.swift"; path = "Date+toTimerInterval.swift"; sourceTree = "<group>"; };
-		3CAC746E0DC94EC1B884002C /* LiveActivity.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = LiveActivity.entitlements; path = LiveActivity.entitlements; sourceTree = "<group>"; };
-		55B594F5760E4B81959C4C7C /* Color+hex.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = "Color+hex.swift"; path = "Color+hex.swift"; sourceTree = "<group>"; };
-		704E7E4749764EB4860BE0B1 /* LiveActivityWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = LiveActivityWidget.swift; path = LiveActivityWidget.swift; sourceTree = "<group>"; };
-		75E705EF6DC348FC7B8418B0 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Tour/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		78F22CBCD59D4A408798342A /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
+		35871605950244BFB47A5A2F /* Date+toTimerInterval.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = "Date+toTimerInterval.swift"; sourceTree = "<group>"; };
+		3CAC746E0DC94EC1B884002C /* LiveActivity.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = LiveActivity.entitlements; sourceTree = "<group>"; };
+		55B594F5760E4B81959C4C7C /* Color+hex.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = "Color+hex.swift"; sourceTree = "<group>"; };
+		704E7E4749764EB4860BE0B1 /* LiveActivityWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = LiveActivityWidget.swift; sourceTree = "<group>"; };
+		75E705EF6DC348FC7B8418B0 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Tour/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		78F22CBCD59D4A408798342A /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7ABEB01D1300BEE17A34F6B3 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Tour/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		969A3EB5AD9B48BBA61A539B /* Image+dynamic.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = "Image+dynamic.swift"; path = "Image+dynamic.swift"; sourceTree = "<group>"; };
-		9B33B9B07CA24C88A518B2C2 /* View+applyWidgetURL.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = "View+applyWidgetURL.swift"; path = "View+applyWidgetURL.swift"; sourceTree = "<group>"; };
-		A6D297AB871F4E99A10F8247 /* View+applyIfPresent.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = "View+applyIfPresent.swift"; path = "View+applyIfPresent.swift"; sourceTree = "<group>"; };
+		969A3EB5AD9B48BBA61A539B /* Image+dynamic.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = "Image+dynamic.swift"; sourceTree = "<group>"; };
+		9B33B9B07CA24C88A518B2C2 /* View+applyWidgetURL.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = "View+applyWidgetURL.swift"; sourceTree = "<group>"; };
+		A6D297AB871F4E99A10F8247 /* View+applyIfPresent.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = "View+applyIfPresent.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Tour/SplashScreen.storyboard; sourceTree = "<group>"; };
-		B9EF8985B72A430B92692790 /* Assets.xcassets */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Assets.xcassets; sourceTree = "<group>"; };
+		B9EF8985B72A430B92692790 /* Assets.xcassets */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		BDE376C618AD41F29FEC006E /* LiveActivityView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = LiveActivityView.swift; path = LiveActivityView.swift; sourceTree = "<group>"; };
+		BDE376C618AD41F29FEC006E /* LiveActivityView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = LiveActivityView.swift; sourceTree = "<group>"; };
 		C3AC7E8BEB61BB14D62B55EA /* libPods-Tour.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Tour.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		C73FE5B449134A7E86EAE72F /* LiveActivityWidgetBundle.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = LiveActivityWidgetBundle.swift; path = LiveActivityWidgetBundle.swift; sourceTree = "<group>"; };
-		D30EF06AE7214AA8B50492E8 /* LiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = LiveActivity.appex; path = LiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C73FE5B449134A7E86EAE72F /* LiveActivityWidgetBundle.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = LiveActivityWidgetBundle.swift; sourceTree = "<group>"; };
+		D30EF06AE7214AA8B50492E8 /* LiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = 9; includeInIndex = 0; path = LiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DEE0C1917C70F4542792C6D8 /* Pods-Tour.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Tour.release.xcconfig"; path = "Target Support Files/Pods-Tour/Pods-Tour.release.xcconfig"; sourceTree = "<group>"; };
 		EA9A4526EE0E05DE14C14B30 /* Pods-Tour.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Tour.debug.xcconfig"; path = "Target Support Files/Pods-Tour/Pods-Tour.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -138,7 +138,6 @@
 				B9EF8985B72A430B92692790 /* Assets.xcassets */,
 				3CAC746E0DC94EC1B884002C /* LiveActivity.entitlements */,
 			);
-			name = LiveActivity;
 			path = LiveActivity;
 			sourceTree = "<group>";
 		};
@@ -205,7 +204,6 @@
 				EA9A4526EE0E05DE14C14B30 /* Pods-Tour.debug.xcconfig */,
 				DEE0C1917C70F4542792C6D8 /* Pods-Tour.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -263,9 +261,11 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
+						ProvisioningStyle = Automatic;
 					};
 					19E1E840F5E14A60A88F0A60 = {
 						LastSwiftMigration = 1250;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -494,7 +494,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Tour/Tour.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TFYHB5DBW5;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -530,7 +533,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Tour/Tour.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TFYHB5DBW5;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Tour/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
@@ -679,7 +685,10 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = LiveActivity/LiveActivity.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TFYHB5DBW5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;
@@ -700,7 +709,10 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = LiveActivity/LiveActivity.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TFYHB5DBW5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;
