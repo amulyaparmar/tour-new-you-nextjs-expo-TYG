@@ -1679,7 +1679,7 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
       <CommunityTopBar
         property={property}
         onCommunityPress={onCommunityPress}
-        left={<TourLogo width={62} />}
+        left={<TourLogo width={74} />}
       />
 
       <MotionPressable onPress={onProfile} haptic="selection" style={homeSt.profileCard}>
@@ -1779,8 +1779,9 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
               directionalLockEnabled
               showsHorizontalScrollIndicator={false}
               decelerationRate="fast"
-              snapToInterval={assetTileWidth + 10}
+              snapToInterval={assetTileWidth + 6}
               disableIntervalMomentum
+              style={homeSt.mediaRowBleed}
               contentContainerStyle={homeSt.mediaRow}
             >
               {materials.map((material) => {
@@ -1808,7 +1809,7 @@ function DashboardScreen({ sessions, upcomingSessions, materials, materialCount,
                         </View>
                       ) : null}
                     </View>
-                    <CustomText textStyle="micro" numberOfLines={2} style={homeSt.mediaLabel}>{material.name}</CustomText>
+                    <CustomText textStyle="micro" numberOfLines={1} style={homeSt.mediaLabel}>{material.name}</CustomText>
                   </MotionPressable>
                 );
               })}
@@ -7697,7 +7698,8 @@ const homeSt = StyleSheet.create({
   tourMeta: { flex: 1, color: C.textSec, fontSize: 12, fontWeight: "600" },
   assetPreviewStack: { gap: 12 },
   assetPreviewLoading: { minHeight: 132, alignItems: "center", justifyContent: "center", gap: 9, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
-  mediaRow: { gap: 10, paddingRight: 4 },
+  mediaRowBleed: { marginHorizontal: -16 },
+  mediaRow: { gap: 6, paddingHorizontal: 16 },
   mediaTile: { minHeight: 132, justifyContent: "space-between", gap: 8, padding: 8, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
   mediaThumb: { flex: 1, minHeight: 82, alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", borderRadius: 10, borderCurve: "continuous", backgroundColor: BACKGROUND },
   mediaPreviewImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
