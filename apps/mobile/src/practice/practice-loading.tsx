@@ -12,6 +12,7 @@ import Reanimated, {
 
 import { TourBackButton as BackBtn } from "@/components/tour";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BACKGROUND, CARD, SMALL_CORNER } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
 
 function ShimmerGroup({ children }: { children: React.ReactNode }) {
@@ -38,29 +39,10 @@ export function PracticeListSkeleton() {
     <ShimmerGroup>
       <View accessibilityLabel="Loading practice sessions" style={styles.listRoot}>
         <View style={styles.sectionHeading}>
-          <Skeleton style={styles.sectionTitle} />
-          <Skeleton style={styles.countPill} />
-        </View>
-        {Array.from({ length: 3 }, (_, index) => (
-          <View key={`scenario-${index}`} style={styles.row}>
-            <Skeleton style={styles.rowIcon} />
-            <View style={styles.rowBody}>
-              <View style={styles.rowTitleLine}>
-                <Skeleton style={[styles.line, styles.scenarioTitle]} />
-                <Skeleton style={styles.difficultyPill} />
-              </View>
-              <Skeleton style={[styles.line, index === 1 ? styles.copyMedium : styles.copyLong]} />
-              <Skeleton style={[styles.line, styles.metaLine]} />
-            </View>
-          </View>
-        ))}
-
-        <View style={[styles.sectionHeading, styles.historyHeading]}>
           <Skeleton style={styles.historyTitle} />
         </View>
         {Array.from({ length: 2 }, (_, index) => (
           <View key={`attempt-${index}`} style={styles.row}>
-            <Skeleton style={styles.attemptIcon} />
             <View style={styles.rowBody}>
               <Skeleton style={[styles.line, index === 0 ? styles.copyLong : styles.copyMedium]} />
               <Skeleton style={[styles.line, styles.metaLine]} />
@@ -113,25 +95,26 @@ export function PracticeSessionSkeleton({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  listRoot: { gap: 10, paddingTop: 2 },
+  listRoot: { gap: 12, paddingTop: 2 },
   sectionHeading: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  sectionTitle: { width: 92, height: 18, borderRadius: 7 },
-  countPill: { width: 24, height: 18, borderRadius: 99 },
-  historyHeading: { marginTop: 16 },
   historyTitle: { width: 154, height: 18, borderRadius: 7 },
-  row: { minHeight: 84, flexDirection: "row", alignItems: "center", gap: 11, padding: 13, borderWidth: 1, borderColor: C.border, borderRadius: 15, backgroundColor: C.card },
-  rowIcon: { width: 39, height: 39, borderRadius: 12 },
-  attemptIcon: { width: 37, height: 37, borderRadius: 12 },
+  row: {
+    minHeight: 74,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 15,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
   rowBody: { flex: 1, minWidth: 0, gap: 7 },
-  rowTitleLine: { flexDirection: "row", alignItems: "center", gap: 9 },
   line: { height: 10, borderRadius: 6 },
-  scenarioTitle: { flex: 1, height: 13 },
-  difficultyPill: { width: 48, height: 18, borderRadius: 99 },
   copyLong: { width: "82%" },
   copyMedium: { width: "62%" },
   metaLine: { width: 66, height: 8 },
   score: { width: 38, height: 19, borderRadius: 7 },
-  sessionRoot: { flex: 1, backgroundColor: C.bg },
+  sessionRoot: { flex: 1, backgroundColor: BACKGROUND },
   sessionHeader: { gap: 14, paddingTop: 14, paddingHorizontal: 20, paddingBottom: 17, borderBottomWidth: 1, borderColor: C.border },
   headerTop: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   statusPill: { width: 78, height: 28, borderRadius: 99 },

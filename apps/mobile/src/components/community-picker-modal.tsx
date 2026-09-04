@@ -610,7 +610,7 @@ function CandidateBadge({ state }: { state: PropertyOnboardingCandidate["state"]
 const styles = StyleSheet.create({
   sheet: {
     overflow: "hidden",
-    paddingTop: 10,
+    paddingTop: 2,
     paddingHorizontal: 0,
     borderTopLeftRadius: LARGE_CORNER,
     borderTopRightRadius: LARGE_CORNER,

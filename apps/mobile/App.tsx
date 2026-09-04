@@ -45,6 +45,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   useWindowDimensions,
@@ -159,13 +160,17 @@ import {
 import { trackAnalyticsEvent, setAnalyticsUserId } from "./src/analytics";
 import { LoginScreen } from "./src/LoginScreen";
 import { TourLogo, TourMark } from "./src/components/TourLogo";
-import { CustomText } from "./src/components/custom-text";
+import { CustomText, customTextVariants } from "./src/components/custom-text";
 import {
   LargeTitleCopy,
   LargeTitleHeader,
   LARGE_TITLE_BAR_HEIGHT,
   largeTitleContentInset,
 } from "./src/components/large-title-header";
+import {
+  GlassNavHeader,
+  glassNavContentInset,
+} from "./src/components/glass-nav-header";
 import { LiquidGlassDropdown } from "./src/components/liquid-glass-dropdown";
 import { LiquidGlassIconButton } from "./src/components/liquid-glass-icon-button";
 import { LiquidGlassSearch } from "./src/components/liquid-glass-search";
@@ -1603,6 +1608,7 @@ export default function App() {
                 {screen.type === "practice" && (
                   <PracticeSessionsScreen
                     initialScenarioId={screen.scenarioId}
+                    property={property}
                     onBack={() => nav({ type: "main", tab: "practice" })}
                   />
                 )}
@@ -1901,7 +1907,8 @@ function MainTabs({
     tab !== "home" &&
     tab !== "sessions" &&
     tab !== "materials" &&
-    tab !== "practice";
+    tab !== "practice" &&
+    tab !== "settings";
   const handleTabPress = useCallback(
     (nextTab: MainTab) => {
       const currentIndex = TAB_ITEMS.findIndex((item) => item.id === tab);
@@ -1937,7 +1944,8 @@ function MainTabs({
         (tab === "home" ||
           tab === "materials" ||
           tab === "sessions" ||
-          tab === "practice") &&
+          tab === "practice" ||
+          tab === "settings") &&
           homeSt.pageBg,
       ]}
     >
@@ -1977,40 +1985,6 @@ function MainTabs({
                 }}
                 onCommunityPress={() => setCommunityPickerOpen(true)}
                 property={property}
-              />
-            )}
-            {tab === "settings" && (
-              <SettingsScreen
-                session={authSession}
-                propertyWebsite={propertyWebsite}
-                aiTrainingDataFeedback={
-                  profile?.aiTrainingDataFeedback ??
-                  authSession.workspace.user.aiTrainingDataFeedback ??
-                  false
-                }
-                onAiTrainingDataFeedback={async (enabled) => {
-                  const nextProfile = await updateProfile({
-                    aiTrainingDataFeedback: enabled,
-                  });
-                  await queryClient.invalidateQueries({
-                    queryKey: queryKeys.profile(),
-                  });
-                  onAuthSession({
-                    ...authSession,
-                    workspace: {
-                      ...authSession.workspace,
-                      user: {
-                        ...authSession.workspace.user,
-                        aiTrainingDataFeedback:
-                          nextProfile.aiTrainingDataFeedback,
-                      },
-                    },
-                  });
-                }}
-                onSessionChange={onAuthSession}
-                onProfile={onProfile}
-                onRubrics={onRubrics}
-                onSignOut={onSignOut}
               />
             )}
           </ScrollView>
@@ -2103,7 +2077,51 @@ function MainTabs({
           transitionKey="tab:practice"
           direction={tabTransitionDirection}
         >
-          <PracticeSessionsScreen onLiveChange={setPracticeLive} />
+          <PracticeSessionsScreen
+            property={property}
+            onLiveChange={setPracticeLive}
+          />
+        </ScreenTransition>
+      )}
+
+      {tab === "settings" && (
+        <ScreenTransition
+          transitionKey="tab:settings"
+          direction={tabTransitionDirection}
+        >
+          <SettingsScreen
+            session={authSession}
+            propertyWebsite={propertyWebsite}
+            aiTrainingDataFeedback={
+              profile?.aiTrainingDataFeedback ??
+              authSession.workspace.user.aiTrainingDataFeedback ??
+              false
+            }
+            onAiTrainingDataFeedback={async (enabled) => {
+              const nextProfile = await updateProfile({
+                aiTrainingDataFeedback: enabled,
+              });
+              await queryClient.invalidateQueries({
+                queryKey: queryKeys.profile(),
+              });
+              onAuthSession({
+                ...authSession,
+                workspace: {
+                  ...authSession.workspace,
+                  user: {
+                    ...authSession.workspace.user,
+                    aiTrainingDataFeedback:
+                      nextProfile.aiTrainingDataFeedback,
+                  },
+                },
+              });
+            }}
+            onSessionChange={onAuthSession}
+            onBack={() => handleTabPress("home")}
+            onProfile={onProfile}
+            onRubrics={onRubrics}
+            onSignOut={onSignOut}
+          />
         </ScreenTransition>
       )}
 
@@ -2855,84 +2873,63 @@ function CardRow({
   sub,
   onPress,
   destructive = false,
+  trailing,
+  disabled = false,
+  accessibilityRole = "button",
+  accessibilityState,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   sub: string;
   onPress: () => void;
   destructive?: boolean;
+  trailing?: React.ReactNode;
+  disabled?: boolean;
+  accessibilityRole?: "button" | "switch" | "link";
+  accessibilityState?: { checked?: boolean };
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <MotionPressable
+      accessibilityRole={accessibilityRole}
+      accessibilityState={accessibilityState}
+      disabled={disabled}
+      haptic="selection"
       onPress={onPress}
-      style={({ pressed }) => pressed && st.pressed}
+      style={settingsSt.card}
     >
-      <Card style={[cardRowSt.card, destructive && cardRowSt.cardDestructive]}>
-        <CardContent style={cardRowSt.content}>
-          <View
-            style={[
-              cardRowSt.iconWrap,
-              destructive && cardRowSt.iconWrapDestructive,
-            ]}
-          >
-            <Ionicons
-              name={icon}
-              size={22}
-              color={destructive ? C.red : C.brand}
-            />
-          </View>
-          <View style={st.flex1}>
-            <UiText
-              style={[
-                cardRowSt.title,
-                destructive && cardRowSt.titleDestructive,
-              ]}
-            >
-              {title}
-            </UiText>
-            <UiText style={cardRowSt.sub}>{sub}</UiText>
-          </View>
-          <Ionicons
-            name={destructive ? "log-out-outline" : "chevron-forward"}
-            size={18}
-            color={destructive ? C.red : C.textMuted}
-          />
-        </CardContent>
-      </Card>
-    </Pressable>
+      <View
+        style={[
+          settingsSt.iconWrap,
+          destructive && settingsSt.iconWrapDestructive,
+        ]}
+      >
+        <Ionicons
+          name={icon}
+          size={20}
+          color={destructive ? C.red : ACCENT}
+        />
+      </View>
+      <View style={st.flex1}>
+        <CustomText
+          textStyle="title"
+          style={destructive ? settingsSt.destructiveTitle : undefined}
+        >
+          {title}
+        </CustomText>
+        <CustomText textStyle="caption" style={settingsSt.rowSub}>
+          {sub}
+        </CustomText>
+      </View>
+      {trailing ?? (
+        <Ionicons
+          name={destructive ? "log-out-outline" : "chevron-forward"}
+          size={18}
+          color={destructive ? C.red : C.textMuted}
+        />
+      )}
+    </MotionPressable>
   );
 }
-
-const cardRowSt = StyleSheet.create({
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderColor: C.border,
-    paddingVertical: 12,
-  },
-  cardDestructive: { borderColor: "#fecdca", backgroundColor: "#fffafa" },
-  content: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 0,
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: "#e8f2ff",
-  },
-  iconWrapDestructive: { backgroundColor: C.redBg },
-  title: { fontSize: 14, fontWeight: "900", color: C.text },
-  titleDestructive: { color: C.red },
-  sub: { marginTop: 2, fontSize: 12, color: C.textSec },
-});
 
 function SessionRow({
   session,
@@ -5152,7 +5149,7 @@ const assetSt = StyleSheet.create({
   tourLibraryFooterMeta: { color: C.textSec, marginTop: 2 },
   addSheet: {
     overflow: "visible",
-    paddingTop: 10,
+    paddingTop: 2,
     paddingHorizontal: 0,
     borderTopLeftRadius: LARGE_CORNER,
     borderTopRightRadius: LARGE_CORNER,
@@ -11372,6 +11369,7 @@ function RubricsScreen({
 function SettingsScreen({
   session,
   onSessionChange,
+  onBack,
   onProfile,
   onRubrics,
   onSignOut,
@@ -11381,6 +11379,7 @@ function SettingsScreen({
 }: {
   session: MobileAuthSession;
   onSessionChange: (session: MobileAuthSession) => void;
+  onBack: () => void;
   onProfile: () => void;
   onRubrics: () => void;
   onSignOut: () => void;
@@ -11388,6 +11387,7 @@ function SettingsScreen({
   onAiTrainingDataFeedback: (enabled: boolean) => Promise<void>;
   propertyWebsite: string | null;
 }) {
+  const insets = useSafeAreaInsets();
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [communityPickerOpen, setCommunityPickerOpen] = useState(false);
   const [communityQuery, setCommunityQuery] = useState("");
@@ -11396,6 +11396,17 @@ function SettingsScreen({
   const [feedbackText, setFeedbackText] = useState("");
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const teamRole = session.workspace.teamMember?.role || "Property Team";
+  const displayName = session.workspace.user.fullName ?? "Team member";
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() ||
+    session.workspace.user.email[0]?.toUpperCase() ||
+    "?";
   const authorizedPropertyCount =
     authorizedCommunitiesForSession(session).length;
   const accent = resolveCardAccent(session.workspace.user.cardAccent);
@@ -11474,152 +11485,162 @@ function SettingsScreen({
   }
 
   return (
-    <View style={st.page}>
-      <Text style={st.pageTitle}>Settings</Text>
-      <Pressable
-        onPress={onProfile}
-        style={({ pressed }) => [st.settingsIdentity, pressed && st.pressed]}
+    <View style={[st.flex1, homeSt.pageBg]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={[
+          settingsSt.scroll,
+          { paddingTop: glassNavContentInset(insets.top) },
+        ]}
       >
-        <View style={[st.avatar48, { backgroundColor: accent }]}>
-          <Text style={[st.avatar48Text, { color: "#fff" }]}>
-            {(session.workspace.user.fullName ??
-              session.workspace.user.email)[0]?.toUpperCase()}
-          </Text>
-        </View>
-        <View style={st.flex1}>
-          <Text style={st.cardRowTitle}>
-            {session.workspace.user.fullName ?? "Team member"}
-          </Text>
-          <Text style={st.cardRowSub}>
-            {session.workspace.user.title ?? teamRole} · Tap to edit card
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-      </Pressable>
-
-      <Text style={st.settingsSectionLabel}>ACTIVE PROPERTY</Text>
-      <View style={st.settingsIdentity}>
-        <View style={st.settingsCommunityRow}>
-          <View
-            style={[st.communitySettingIcon, { backgroundColor: C.greenBg }]}
-          >
-            <Ionicons name="business-outline" size={18} color={C.green} />
-          </View>
-          <View style={st.flex1}>
-            <Text style={st.communitySettingName}>
-              {session.workspace.community.name}
-            </Text>
-            <Text style={st.cardRowSub}>
-              {authorizedPropertyCount} available{" "}
-              {authorizedPropertyCount === 1 ? "property" : "properties"}
-            </Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Switch active property"
-            onPress={() => setCommunityPickerOpen(true)}
-            style={({ pressed }) => [
-              st.settingsSwitchButton,
-              pressed && st.pressed,
-            ]}
-          >
-            <Text style={st.settingsChangeText}>Switch</Text>
-          </Pressable>
-        </View>
-      </View>
-      {propertyWebsiteUrl ? (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={`Open ${propertyName} website`}
-          onPress={() => void Linking.openURL(propertyWebsiteUrl)}
-          style={({ pressed }) => [assetSt.websiteLink, pressed && st.pressed]}
+        <MotionPressable
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile card"
+          haptic="selection"
+          onPress={onProfile}
+          style={settingsSt.card}
         >
-          <View style={assetSt.websiteLinkIcon}>
-            <Ionicons name="globe-outline" size={20} color={ACCENT} />
-          </View>
-          <View style={st.flex1}>
-            <CustomText textStyle="title">Property website</CustomText>
-            <CustomText
-              textStyle="micro"
-              style={assetSt.websiteLinkMeta}
-              numberOfLines={1}
-            >
-              {propertyWebsiteDisplay}
+          <View style={[settingsSt.avatar, { backgroundColor: accent }]}>
+            <CustomText textStyle="title" style={settingsSt.avatarText}>
+              {initials}
             </CustomText>
           </View>
-          <Ionicons name="open-outline" size={18} color={ACCENT} />
-        </Pressable>
-      ) : null}
+          <View style={st.flex1}>
+            <CustomText textStyle="title" numberOfLines={1}>
+              {displayName}
+            </CustomText>
+            <CustomText textStyle="caption" style={settingsSt.rowSub}>
+              {session.workspace.user.title ?? teamRole} · Tap to edit card
+            </CustomText>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+        </MotionPressable>
 
-      <Text style={st.settingsSectionLabel}>EVALUATION</Text>
-      <CardRow
-        icon="clipboard-outline"
-        title="Rubrics"
-        sub="Templates, criteria, and session applications"
-        onPress={onRubrics}
-      />
-      <Text style={st.settingsSectionLabel}>SUPPORT</Text>
-      <CardRow
-        icon="chatbubble-ellipses-outline"
-        title="Share feedback"
-        sub="Help us make the next Tour better"
-        onPress={() => setFeedbackOpen(true)}
-      />
-      <Text style={st.settingsSectionLabel}>PRIVACY</Text>
-      <Pressable
-        accessibilityRole="switch"
-        accessibilityState={{ checked: aiTrainingDataFeedback }}
-        onPress={() => void toggleAiTrainingDataFeedback()}
-        style={({ pressed }) => pressed && st.pressed}
-      >
-        <Card style={cardRowSt.card}>
-          <CardContent style={cardRowSt.content}>
-            <View style={cardRowSt.iconWrap}>
-              <Ionicons name="sparkles-outline" size={22} color={C.brand} />
+        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
+          Active property
+        </CustomText>
+        <MotionPressable
+          accessibilityRole="button"
+          accessibilityLabel="Switch active property"
+          haptic="selection"
+          onPress={() => setCommunityPickerOpen(true)}
+          style={settingsSt.card}
+        >
+          <View style={settingsSt.iconWrap}>
+            <Ionicons name="business-outline" size={20} color={ACCENT} />
+          </View>
+          <View style={st.flex1}>
+            <CustomText textStyle="title" numberOfLines={1}>
+              {propertyName}
+            </CustomText>
+            <CustomText textStyle="caption" style={settingsSt.rowSub}>
+              {authorizedPropertyCount} available{" "}
+              {authorizedPropertyCount === 1 ? "property" : "properties"}
+            </CustomText>
+          </View>
+          <CustomText textStyle="label" style={settingsSt.switchLabel}>
+            Switch
+          </CustomText>
+        </MotionPressable>
+        {propertyWebsiteUrl ? (
+          <MotionPressable
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${propertyName} website`}
+            haptic="selection"
+            onPress={() => void Linking.openURL(propertyWebsiteUrl)}
+            style={settingsSt.card}
+          >
+            <View style={settingsSt.iconWrap}>
+              <Ionicons name="globe-outline" size={20} color={ACCENT} />
             </View>
             <View style={st.flex1}>
-              <UiText style={cardRowSt.title}>AI Training Data feedback</UiText>
-              <UiText style={cardRowSt.sub}>
-                {aiTrainingDataFeedback
-                  ? "On · helps improve AI features"
-                  : "Off · your eligible feedback is not used for training"}
-              </UiText>
+              <CustomText textStyle="title">Property website</CustomText>
+              <CustomText
+                textStyle="caption"
+                style={settingsSt.rowSub}
+                numberOfLines={1}
+              >
+                {propertyWebsiteDisplay}
+              </CustomText>
             </View>
-            <View
-              style={[
-                privacyToggleSt.track,
-                aiTrainingDataFeedback && privacyToggleSt.trackOn,
-              ]}
-            >
-              <View
-                style={[
-                  privacyToggleSt.thumb,
-                  aiTrainingDataFeedback && privacyToggleSt.thumbOn,
-                ]}
+            <Ionicons name="open-outline" size={18} color={ACCENT} />
+          </MotionPressable>
+        ) : null}
+
+        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
+          Evaluation
+        </CustomText>
+        <CardRow
+          icon="clipboard-outline"
+          title="Rubrics"
+          sub="Templates, criteria, and session applications"
+          onPress={onRubrics}
+        />
+
+        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
+          Support
+        </CustomText>
+        <CardRow
+          icon="chatbubble-ellipses-outline"
+          title="Share feedback"
+          sub="Help us make the next Tour better"
+          onPress={() => setFeedbackOpen(true)}
+        />
+
+        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
+          Privacy
+        </CustomText>
+        <CardRow
+          icon="sparkles-outline"
+          title="AI Training Data feedback"
+          sub={
+            aiTrainingDataFeedback
+              ? "On · helps improve AI features"
+              : "Off · your eligible feedback is not used for training"
+          }
+          accessibilityRole="switch"
+          accessibilityState={{ checked: aiTrainingDataFeedback }}
+          disabled={savingPrivacy}
+          onPress={() => void toggleAiTrainingDataFeedback()}
+          trailing={
+            <View pointerEvents="none">
+              <Switch
+                accessible={false}
+                value={aiTrainingDataFeedback}
+                disabled={savingPrivacy}
+                trackColor={{ false: "#d1d5db", true: ACCENT }}
+                ios_backgroundColor="#d1d5db"
               />
             </View>
-          </CardContent>
-        </Card>
-      </Pressable>
-      <CardRow
-        icon="hand-left-outline"
-        title="Privacy Policy"
-        sub="How Tour.you handles your data"
-        onPress={() =>
-          void Linking.openURL(`${getSiteBaseUrl()}/privacy-policy`)
-        }
-      />
-      <Text style={st.settingsSectionLabel}>ACCOUNT</Text>
-      <CardRow
-        icon="log-out-outline"
-        title="Log out"
-        sub="Remove this account from this device"
-        onPress={() => setLogoutOpen(true)}
-        destructive
-      />
-      <Text style={st.settingsVersion}>
-        Tour mobile 0.1.0 · Host Your Voice
-      </Text>
+          }
+        />
+        <CardRow
+          icon="hand-left-outline"
+          title="Privacy Policy"
+          sub="How Tour.you handles your data"
+          accessibilityRole="link"
+          onPress={() =>
+            void Linking.openURL(`${getSiteBaseUrl()}/privacy-policy`)
+          }
+        />
+
+        <CustomText textStyle="title" style={settingsSt.sectionTitle}>
+          Account
+        </CustomText>
+        <CardRow
+          icon="log-out-outline"
+          title="Log out"
+          sub="Remove this account from this device"
+          onPress={() => setLogoutOpen(true)}
+          destructive
+        />
+        <CustomText textStyle="caption" style={settingsSt.version}>
+          Tour mobile 0.1.0 · Host Your Voice
+        </CustomText>
+      </ScrollView>
+
+      <GlassNavHeader title="Settings" onBack={onBack} />
 
       <CommunityPickerModal
         visible={communityPickerOpen}
@@ -11647,25 +11668,25 @@ function SettingsScreen({
         sheetHeight={430}
         keyboardAvoiding
         dragHeader={
-          <View style={feedbackSheetSt.header}>
-            <View style={feedbackSheetSt.icon}>
+          <View style={settingsSt.sheetHeader}>
+            <View style={settingsSt.iconWrap}>
               <Ionicons
                 name="chatbubble-ellipses-outline"
-                size={21}
-                color={C.brand}
+                size={20}
+                color={ACCENT}
               />
             </View>
             <View style={st.flex1}>
-              <Text style={feedbackSheetSt.title}>Share Feedback</Text>
-              <Text style={feedbackSheetSt.subtitle}>
+              <CustomText textStyle="title">Share Feedback</CustomText>
+              <CustomText textStyle="caption" style={settingsSt.rowSub}>
                 Tell us what would make the next Tour better.
-              </Text>
+              </CustomText>
             </View>
           </View>
         }
       >
-        <View style={feedbackSheetSt.body}>
-          <Text style={feedbackSheetSt.prompt}>What should we improve?</Text>
+        <View style={settingsSt.sheetBody}>
+          <CustomText textStyle="title">What should we improve?</CustomText>
           <TextInput
             multiline
             maxLength={4000}
@@ -11673,33 +11694,33 @@ function SettingsScreen({
             onChangeText={setFeedbackText}
             placeholder="What do you love, need help with, found, or feel is missing?"
             placeholderTextColor={C.textMuted}
-            style={feedbackSheetSt.input}
+            style={[customTextVariants.body, settingsSt.input]}
             textAlignVertical="top"
           />
-          <Text style={feedbackSheetSt.counter}>
+          <CustomText textStyle="micro" style={settingsSt.counter}>
             {feedbackText.length}/4000
-          </Text>
-          <Pressable
+          </CustomText>
+          <MotionPressable
             accessibilityRole="button"
+            haptic="medium"
             onPress={() => void sendFeedback()}
-            style={({ pressed }) => [
-              feedbackSheetSt.sendButton,
-              pressed && st.pressed,
-            ]}
+            style={settingsSt.primaryButton}
           >
-            <Ionicons name="send-outline" size={17} color="#fff" />
-            <Text style={feedbackSheetSt.sendText}>Send feedback</Text>
-          </Pressable>
-          <Pressable
+            <Ionicons name="send-outline" size={17} color={CARD} />
+            <CustomText textStyle="title" style={settingsSt.primaryButtonText}>
+              Send feedback
+            </CustomText>
+          </MotionPressable>
+          <MotionPressable
             accessibilityRole="button"
+            haptic="selection"
             onPress={() => setFeedbackOpen(false)}
-            style={({ pressed }) => [
-              feedbackSheetSt.cancelButton,
-              pressed && st.pressed,
-            ]}
+            style={settingsSt.cancelButton}
           >
-            <Text style={feedbackSheetSt.cancelText}>Not now</Text>
-          </Pressable>
+            <CustomText textStyle="label" style={settingsSt.cancelText}>
+              Not now
+            </CustomText>
+          </MotionPressable>
         </View>
       </BottomSheetModal>
       <BottomSheetModal
@@ -11707,159 +11728,134 @@ function SettingsScreen({
         onClose={() => setLogoutOpen(false)}
         sheetHeight={310}
         dragHeader={
-          <View style={logoutSheetSt.header}>
-            <View style={logoutSheetSt.icon}>
-              <Ionicons name="log-out-outline" size={22} color={C.red} />
+          <View style={settingsSt.sheetHeader}>
+            <View style={[settingsSt.iconWrap, settingsSt.iconWrapDestructive]}>
+              <Ionicons name="log-out-outline" size={20} color={C.red} />
             </View>
             <View style={st.flex1}>
-              <Text style={logoutSheetSt.title}>Log out of Tour?</Text>
-              <Text style={logoutSheetSt.subtitle}>
+              <CustomText textStyle="title">Log out of Tour?</CustomText>
+              <CustomText textStyle="caption" style={settingsSt.rowSub}>
                 Your account will be removed from this device.
-              </Text>
+              </CustomText>
             </View>
           </View>
         }
       >
-        <View style={logoutSheetSt.body}>
-          <Text style={logoutSheetSt.note}>
+        <View style={settingsSt.sheetBody}>
+          <CustomText textStyle="caption" style={settingsSt.sheetNote}>
             You’ll need a new email verification code the next time you sign in.
-          </Text>
-          <Pressable
+          </CustomText>
+          <MotionPressable
             accessibilityRole="button"
+            haptic="medium"
             onPress={onSignOut}
-            style={({ pressed }) => [
-              logoutSheetSt.logoutButton,
-              pressed && st.pressed,
-            ]}
+            style={settingsSt.logoutButton}
           >
-            <Text style={logoutSheetSt.logoutText}>Log out</Text>
-          </Pressable>
-          <Pressable
+            <CustomText textStyle="title" style={settingsSt.primaryButtonText}>
+              Log out
+            </CustomText>
+          </MotionPressable>
+          <MotionPressable
             accessibilityRole="button"
+            haptic="selection"
             onPress={() => setLogoutOpen(false)}
-            style={({ pressed }) => [
-              logoutSheetSt.cancelButton,
-              pressed && st.pressed,
-            ]}
+            style={settingsSt.cancelButton}
           >
-            <Text style={logoutSheetSt.cancelText}>Cancel</Text>
-          </Pressable>
+            <CustomText textStyle="label" style={settingsSt.cancelText}>
+              Cancel
+            </CustomText>
+          </MotionPressable>
         </View>
       </BottomSheetModal>
     </View>
   );
 }
 
-const feedbackSheetSt = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 12 },
-  icon: {
-    width: 44,
-    height: 44,
+const settingsSt = StyleSheet.create({
+  scroll: {
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 120,
+  },
+  card: {
+    minHeight: 74,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 15,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "#eaf4ff",
   },
-  title: { color: C.text, fontSize: 20, lineHeight: 25, fontWeight: "900" },
-  subtitle: { marginTop: 2, color: C.textSec, fontSize: 12, lineHeight: 17 },
-  body: { flex: 1, gap: 8, paddingTop: 16 },
-  prompt: { color: C.text, fontSize: 14, fontWeight: "900" },
+  avatarText: { color: CARD },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    backgroundColor: BACKGROUND,
+  },
+  iconWrapDestructive: { backgroundColor: C.redBg },
+  destructiveTitle: { color: C.red },
+  rowSub: { marginTop: 3, color: C.textSec },
+  switchLabel: { color: ACCENT },
+  sectionTitle: { marginTop: 10 },
+  version: {
+    marginTop: 8,
+    color: C.textMuted,
+    textAlign: "center",
+  },
+  sheetHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sheetBody: { flex: 1, gap: 10, paddingTop: 16 },
+  sheetNote: { color: C.textSec, lineHeight: 19 },
   input: {
     flex: 1,
     minHeight: 120,
-    padding: 13,
-    borderWidth: 1,
-    borderColor: "#d7dee8",
-    borderRadius: 14,
-    backgroundColor: "#f8fafc",
-    color: C.text,
-    fontSize: 14,
+    padding: 14,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+    color: TEXT,
     lineHeight: 20,
   },
   counter: {
     alignSelf: "flex-end",
     color: C.textMuted,
-    fontSize: 11,
-    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
-  sendButton: {
+  primaryButton: {
     minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    borderRadius: 12,
-    backgroundColor: C.brand,
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
-  sendText: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  cancelButton: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
-    backgroundColor: C.card,
-  },
-  cancelText: { color: C.textSec, fontSize: 14, fontWeight: "800" },
-});
-
-const privacyToggleSt = StyleSheet.create({
-  track: {
-    width: 50,
-    height: 30,
-    justifyContent: "center",
-    paddingHorizontal: 3,
-    borderRadius: 15,
-    backgroundColor: "#c7ced8",
-  },
-  trackOn: { backgroundColor: C.brand },
-  thumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
-  thumbOn: { alignSelf: "flex-end" },
-});
-
-const logoutSheetSt = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 12 },
-  icon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: C.redBg,
-  },
-  title: { color: C.text, fontSize: 20, lineHeight: 25, fontWeight: "900" },
-  subtitle: { marginTop: 2, color: C.textSec, fontSize: 12, lineHeight: 17 },
-  body: { flex: 1, gap: 10, paddingTop: 16 },
-  note: { color: C.textSec, fontSize: 13, lineHeight: 19 },
+  primaryButtonText: { color: CARD },
   logoutButton: {
     minHeight: 50,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
+    borderRadius: 25,
     backgroundColor: C.red,
   },
-  logoutText: { color: "#fff", fontSize: 15, fontWeight: "900" },
   cancelButton: {
-    minHeight: 46,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
-    backgroundColor: C.card,
   },
-  cancelText: { color: C.textSec, fontSize: 14, fontWeight: "800" },
+  cancelText: { color: C.textSec },
 });
 
 // ═══════════════════════════════════════
@@ -14950,62 +14946,6 @@ const st = StyleSheet.create({
   calDayTextSelected: { color: "#fff", fontWeight: "900" },
   calDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: C.brand },
   calDots: { height: 5, flexDirection: "row", gap: 3 },
-
-  // Settings
-  settingsIdentity: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 8,
-    backgroundColor: C.card,
-  },
-  settingsCommunityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    width: "100%",
-  },
-  settingsSwitchButton: {
-    minHeight: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: "#eef4ff",
-  },
-  settingsSectionLabel: {
-    color: C.textMuted,
-    fontSize: 10,
-    fontWeight: "900",
-    marginTop: 4,
-  },
-  communitySettingRow: {
-    minHeight: 58,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    paddingHorizontal: 12,
-  },
-  communitySettingIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#eef2ff",
-  },
-  communityRowBody: { flex: 1, minWidth: 0, gap: 2 },
-  communitySettingName: { color: C.text, fontSize: 13, fontWeight: "800" },
-  settingsChangeText: { color: C.brand, fontSize: 12, fontWeight: "900" },
-  settingsVersion: {
-    color: C.textMuted,
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 4,
-  },
 
   // Buttons
   primaryBtn: {

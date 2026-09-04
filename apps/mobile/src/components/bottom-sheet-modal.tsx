@@ -266,7 +266,6 @@ const styles = StyleSheet.create({
   },
   dragZone: {
     alignSelf: "stretch",
-    paddingBottom: 6,
   },
   handle: {
     width: 40,
@@ -274,8 +273,8 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     borderRadius: 2,
     backgroundColor: "#d0d5dd",
-    marginTop: 9,
-    marginBottom: 12,
+    marginTop: 6,
+    marginBottom: 6,
   },
   body: {
     flex: 1,

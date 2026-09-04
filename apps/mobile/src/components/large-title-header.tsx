@@ -56,6 +56,7 @@ export function LargeTitleCopy({
 export function LargeTitleHeader({
   title,
   scrollY,
+  leading,
   trailing,
   children,
   hideCompactTitle = false,
@@ -64,6 +65,7 @@ export function LargeTitleHeader({
 }: {
   title?: string;
   scrollY: SharedValue<number>;
+  leading?: React.ReactNode;
   trailing?: React.ReactNode;
   children?: React.ReactNode;
   hideCompactTitle?: boolean;
@@ -71,6 +73,8 @@ export function LargeTitleHeader({
   fadeEnd?: number;
 }) {
   const insets = useSafeAreaInsets();
+  const hasLeading = Boolean(leading);
+  const hasTrailing = Boolean(trailing);
 
   const chromeStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollY.value, [fadeStart, fadeEnd], [0, 1], Extrapolation.CLAMP),
@@ -99,7 +103,13 @@ export function LargeTitleHeader({
           </View>
         ) : (
           <>
-            {hideCompactTitle ? null : <View pointerEvents="none" style={styles.sideCluster} />}
+            {hideCompactTitle ? null : hasTrailing && !hasLeading ? (
+              <View pointerEvents="none" style={styles.sideCluster} />
+            ) : hasLeading ? (
+              <View pointerEvents="box-none" style={styles.side}>
+                {leading}
+              </View>
+            ) : null}
             {hideCompactTitle ? null : (
               <Reanimated.View pointerEvents="none" style={[styles.titleWrap, compactTitleStyle]}>
                 <CustomText textStyle="title" numberOfLines={1} style={styles.title}>
@@ -107,7 +117,17 @@ export function LargeTitleHeader({
                 </CustomText>
               </Reanimated.View>
             )}
-            <View style={[styles.trailing, hideCompactTitle && styles.trailingFill]}>{trailing}</View>
+            {hasTrailing || hasLeading ? (
+              <View
+                style={[
+                  styles.trailing,
+                  hideCompactTitle && styles.trailingFill,
+                  hasLeading && !hasTrailing && styles.side,
+                ]}
+              >
+                {trailing}
+              </View>
+            ) : null}
           </>
         )}
       </View>
@@ -148,6 +168,10 @@ const styles = StyleSheet.create({
   title: {
     color: TEXT,
     textAlign: "center",
+  },
+  side: {
+    width: 42,
+    height: 42,
   },
   sideCluster: {
     width: 92,
