@@ -1,27 +1,12 @@
-import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
 import React, { useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { CustomText } from "@/components/custom-text";
+import { getLiquidGlassView } from "@/components/liquid-glass";
 import { LoadingDots } from "@/components/loading-dots";
 import { ACCENT, CARD, TEXT } from "@/theme/tokens";
 
 const CHIP_RADIUS = 20;
-
-type ExpoGlassEffectNative = {
-  isLiquidGlassAvailable?: boolean;
-  isGlassEffectAPIAvailable?: boolean;
-};
-
-function getLiquidGlassView() {
-  const native = requireOptionalNativeModule("ExpoGlassEffect") as ExpoGlassEffectNative | null;
-  if (!native?.isLiquidGlassAvailable || !native?.isGlassEffectAPIAvailable) return null;
-  try {
-    return requireNativeViewManager("ExpoGlassEffect", "GlassView");
-  } catch {
-    return null;
-  }
-}
 
 export function LiquidGlassTextButton({
   label,

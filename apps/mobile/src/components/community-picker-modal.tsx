@@ -16,7 +16,7 @@ import Reanimated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from
 
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { CustomText } from "@/components/custom-text";
-import { LoadingDots } from "@/components/loading-dots";
+import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import {
   authorizedCommunitiesForSession,
   listBusinesses,
@@ -323,7 +323,8 @@ export function CommunityPickerModal({
       dragHeader={
         <View style={styles.titleRow}>
           {mode === "add" ? (
-            <Pressable
+            <LiquidGlassIconButton
+              icon="chevron-back"
               accessibilityLabel="Back to assigned properties"
               disabled={Boolean(joiningPlaceId)}
               onPress={() => {
@@ -331,10 +332,7 @@ export function CommunityPickerModal({
                 else setMode("assigned");
                 setJoinError(null);
               }}
-              style={styles.closeBtn}
-            >
-              <Ionicons name="arrow-back" size={20} color={tourColors.text} />
-            </Pressable>
+            />
           ) : null}
           <View style={styles.headerCopy}>
             <CustomText textStyle="hero" style={styles.title}>
@@ -342,14 +340,12 @@ export function CommunityPickerModal({
             </CustomText>
           </View>
           {closeButtonVisible ? (
-            <Pressable
+            <LiquidGlassIconButton
+              icon="close"
               accessibilityLabel="Close properties"
               disabled={switchLocked || Boolean(joiningPlaceId)}
               onPress={onClose}
-              style={styles.closeBtn}
-            >
-              <Ionicons name="close" size={20} color={tourColors.text} />
-            </Pressable>
+            />
           ) : null}
         </View>
       }
@@ -626,20 +622,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     paddingHorizontal: SHEET_GUTTER,
+    overflow: "visible",
   },
   headerCopy: {
     flex: 1,
   },
   title: {
     color: tourColors.text,
-  },
-  closeBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: CARD,
   },
   searchBar: {
     flexDirection: "row",
