@@ -200,6 +200,7 @@ import {
 import { CommunityPickerModal } from "@/components/community-picker-modal";
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { CheckInSheet } from "./src/components/check-in/check-in-sheet";
+import { ProfileEditorModal } from "./src/components/profile/profile-editor-modal";
 import { ProfileEditorScreen, resolveCardAccent } from "./src/components/profile/profile-editor-screen";
 import { PhotoAssetRecorder, type RecordedPhotoAsset } from "./src/assets/PhotoAssetRecorder";
 import { VideoAssetRecorder, type RecordedVideoAsset } from "./src/assets/VideoAssetRecorder";
@@ -1381,6 +1382,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
   const [switchingCommunityId, setSwitchingCommunityId] = useState<string | null>(null);
   const [tabTransitionDirection, setTabTransitionDirection] = useState<SlideDirection>("forward");
   const [checkInOpen, setCheckInOpen] = useState(false);
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const checkInStartingRef = useRef(false);
   const [checkInBinding, setCheckInBinding] = useState<{
     sessionId: string | null;
@@ -1497,7 +1499,7 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
                 loading={loading}
                 materialsLoading={materialsLoading}
                 onSession={onSession}
-                onProfile={onProfile}
+                onProfile={() => setProfileEditorOpen(true)}
                 onCheckIn={() => void openSessionCheckIn()}
                 onCreate={onCreate}
                 onAudioTest={onAudioTest}
@@ -1575,6 +1577,12 @@ function MainTabs({ tab, onTab, onSession, onSampleSession, onCreate, onPractice
           </Pressable>
         ))}
       </View>
+      <ProfileEditorModal
+        visible={profileEditorOpen}
+        session={authSession}
+        onClose={() => setProfileEditorOpen(false)}
+        onSaved={onAuthSession}
+      />
       <CommunityPickerModal
         visible={communityPickerOpen}
         session={authSession}
