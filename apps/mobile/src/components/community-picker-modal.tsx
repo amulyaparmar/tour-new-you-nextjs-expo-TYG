@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
+  Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   TextInput,
@@ -10,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import Reanimated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { CustomText } from "@/components/custom-text";
@@ -26,10 +29,11 @@ import {
   type PropertyOnboardingCandidate,
 } from "../auth";
 import { tourColors } from "@/theme/tour-brand";
-import { ACCENT, BACKGROUND, CARD } from "@/theme/tokens";
+import { ACCENT, BACKGROUND, CARD, LARGE_CORNER } from "@/theme/tokens";
 
 const SHEET_HEIGHT_RATIO = 0.72;
 const SHEET_MAX_HEIGHT = 650;
+const SHEET_GUTTER = 18;
 const ROW_HEIGHT = 59;
 const SKELETON_ROWS = 9;
 
@@ -67,7 +71,6 @@ export function CommunityPickerModal({
   query,
   switchingId,
   title = "Choose a property",
-  subtitle = "Your dashboard, sessions, assets, and integrations will update.",
   closeButtonVisible = true,
   dismissDisabled = false,
   onPropertyAdded,
@@ -84,6 +87,7 @@ export function CommunityPickerModal({
   const [selectedCandidate, setSelectedCandidate] = useState<PropertyOnboardingCandidate | null>(null);
   const [joiningPlaceId, setJoiningPlaceId] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const enrichmentQuery = useQuery({
     queryKey: ["community-enrichment", session.workspace.user.email],
     queryFn: listCommunityEnrichment,
@@ -140,6 +144,11 @@ export function CommunityPickerModal({
   }, [activeCommunityId, assignedSearchQuery.data]);
   const switchLocked = Boolean(switchingId);
   const interactionLocked = switchLocked || Boolean(joiningPlaceId) || dismissDisabled;
+  const pagerWidth = useSharedValue(0);
+  const pagerProgress = useSharedValue(0);
+  const pagerTrackStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -pagerProgress.value * pagerWidth.value }],
+  }));
 
   useEffect(() => {
     if (!visible) {
@@ -155,6 +164,34 @@ export function CommunityPickerModal({
     }
     const frame = requestAnimationFrame(() => setListReady(true));
     return () => cancelAnimationFrame(frame);
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      pagerProgress.value = 0;
+      return;
+    }
+    pagerProgress.value = withTiming(mode === "add" ? 1 : 0, {
+      duration: 340,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [mode, pagerProgress, visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardHeight(0);
+      return;
+    }
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
   }, [visible]);
 
   useEffect(() => {
@@ -282,7 +319,6 @@ export function CommunityPickerModal({
       onClose={onClose}
       sheetHeight={sheetHeight}
       dismissDisabled={interactionLocked}
-      keyboardAvoiding
       sheetStyle={styles.sheet}
       dragHeader={
         <View style={styles.titleRow}>
@@ -295,7 +331,7 @@ export function CommunityPickerModal({
                 else setMode("assigned");
                 setJoinError(null);
               }}
-              style={styles.backBtn}
+              style={styles.closeBtn}
             >
               <Ionicons name="arrow-back" size={20} color={tourColors.text} />
             </Pressable>
@@ -303,13 +339,6 @@ export function CommunityPickerModal({
           <View style={styles.headerCopy}>
             <CustomText textStyle="hero" style={styles.title}>
               {mode === "add" ? (selectedCandidate ? "Confirm property" : "Add a property") : title}
-            </CustomText>
-            <CustomText textStyle="caption" style={styles.subtitle}>
-              {mode === "add"
-                ? selectedCandidate
-                  ? "Review the Google listing before joining this property team."
-                  : "Search Google, add yourself to its property team, and start enrichment."
-                : subtitle}
             </CustomText>
           </View>
           {closeButtonVisible ? (
@@ -324,25 +353,108 @@ export function CommunityPickerModal({
           ) : null}
         </View>
       }
-      header={selectedCandidate ? undefined : (
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color={tourColors.textMuted} />
-          <TextInput
-            value={mode === "add" ? addSearch : query}
-            onChangeText={mode === "add" ? setAddSearch : onQueryChange}
-            placeholder={mode === "add" ? "Property name or location" : "Search assigned properties"}
-            placeholderTextColor={tourColors.textMuted}
-            style={styles.searchInput}
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-        </View>
-      )}
       contentStyle={styles.listContent}
     >
-      <>
-        {mode === "add" ? (
-          <>
+      <View
+        style={styles.pager}
+        onLayout={(event) => {
+          pagerWidth.value = event.nativeEvent.layout.width;
+        }}
+      >
+        <Reanimated.View style={[styles.pagerTrack, pagerTrackStyle]}>
+          <View style={styles.pagerPane} pointerEvents={mode === "add" ? "none" : "auto"}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={18} color={tourColors.textMuted} />
+              <TextInput
+                value={query}
+                onChangeText={onQueryChange}
+                placeholder="Search assigned properties"
+                placeholderTextColor={tourColors.textMuted}
+                style={styles.searchInput}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+            </View>
+            {!listReady ? (
+              <View style={styles.list}>
+                {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
+                  <View key={index} style={styles.skeletonRow}>
+                    <View style={styles.skeletonIcon} />
+                    <View style={styles.skeletonBody}>
+                      <View style={styles.skeletonLine} />
+                      <View style={styles.skeletonLineShort} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : assignedSearchQuery.isLoading ? (
+              <View style={styles.loadingSearch}>
+                <LoadingDots color={tourColors.brand} />
+                <CustomText textStyle="caption" style={styles.loadingSearchText}>Searching your assigned properties…</CustomText>
+              </View>
+            ) : assignedSearchQuery.error ? (
+              <View style={styles.empty}>
+                <Ionicons name="cloud-offline-outline" size={28} color={tourColors.textMuted} />
+                <CustomText textStyle="title" style={styles.emptyTitle}>Couldn’t search properties</CustomText>
+                <CustomText textStyle="caption" style={styles.emptySub}>
+                  {assignedSearchQuery.error instanceof Error ? assignedSearchQuery.error.message : "Try again."}
+                </CustomText>
+                <Pressable onPress={() => void assignedSearchQuery.refetch()} style={styles.retryButton}>
+                  <CustomText textStyle="caption" style={styles.retryText}>Try again</CustomText>
+                </Pressable>
+              </View>
+            ) : assignedProperties.length === 0 ? (
+              <View style={styles.empty}>
+                <Ionicons name="business-outline" size={28} color={tourColors.textMuted} />
+                <CustomText textStyle="title" style={styles.emptyTitle}>No assigned properties found</CustomText>
+                <CustomText textStyle="caption" style={styles.emptySub}>Try another search or add a property below.</CustomText>
+              </View>
+            ) : (
+              <FlatList
+                data={assignedProperties}
+                extraData={activeCommunityId}
+                renderItem={renderCommunity}
+                keyExtractor={(item) => item.id}
+                style={styles.list}
+                contentContainerStyle={{ paddingBottom: keyboardHeight }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator
+                initialNumToRender={16}
+                maxToRenderPerBatch={14}
+                updateCellsBatchingPeriod={30}
+                windowSize={7}
+                removeClippedSubviews
+                getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
+              />
+            )}
+            {onPropertyAdded ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={beginAddProperty}
+                style={({ pressed }) => [styles.findPropertyButton, pressed && styles.findPropertyPressed]}
+              >
+                <Ionicons name="add" size={21} color={CARD} />
+                <CustomText textStyle="title" style={styles.findPropertyText}>Find/Add A Property</CustomText>
+              </Pressable>
+            ) : null}
+          </View>
+
+          <View style={styles.pagerPane} pointerEvents={mode === "add" ? "auto" : "none"}>
+            {selectedCandidate ? null : (
+              <View style={styles.searchBar}>
+                <Ionicons name="search" size={18} color={tourColors.textMuted} />
+                <TextInput
+                  value={addSearch}
+                  onChangeText={setAddSearch}
+                  placeholder="Property name or location"
+                  placeholderTextColor={tourColors.textMuted}
+                  style={styles.searchInput}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+              </View>
+            )}
             {joinError ? (
               <View style={styles.errorBanner}>
                 <Ionicons name="alert-circle-outline" size={18} color="#b42318" />
@@ -403,9 +515,9 @@ export function CommunityPickerModal({
                 <CustomText textStyle="micro" style={styles.confirmFootnote}>New team entries begin unverified and can be reviewed on Tour.report.</CustomText>
               </View>
             ) : debouncedAddSearch.length < 2 ? (
-              <View style={styles.searchPrompt}>
+              <View style={styles.searchPromptCard}>
                 <View style={styles.searchPromptIcon}>
-                  <Ionicons name="sparkles-outline" size={25} color={tourColors.brand} />
+                  <Ionicons name="sparkles-outline" size={34} color={tourColors.brand} />
                 </View>
                 <CustomText textStyle="title" style={styles.emptyTitle}>Find any property</CustomText>
                 <CustomText textStyle="caption" style={styles.searchPromptText}>
@@ -440,7 +552,9 @@ export function CommunityPickerModal({
                 renderItem={renderCandidate}
                 keyExtractor={(item) => item.placeId}
                 style={styles.list}
+                contentContainerStyle={{ paddingBottom: keyboardHeight }}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
                 showsVerticalScrollIndicator
               />
             )}
@@ -448,69 +562,9 @@ export function CommunityPickerModal({
               <Ionicons name="shield-checkmark-outline" size={15} color={tourColors.green} />
               <CustomText textStyle="micro" style={styles.securityNoteText}>Your exact email is added to PropertiesTYG.property_team.</CustomText>
             </View>
-          </>
-        ) : !listReady ? (
-          <View style={styles.list}>
-            {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
-              <View key={index} style={styles.skeletonRow}>
-                <View style={styles.skeletonIcon} />
-                <View style={styles.skeletonBody}>
-                  <View style={styles.skeletonLine} />
-                  <View style={styles.skeletonLineShort} />
-                </View>
-              </View>
-            ))}
           </View>
-        ) : assignedSearchQuery.isLoading ? (
-          <View style={styles.loadingSearch}>
-            <LoadingDots color={tourColors.brand} />
-            <CustomText textStyle="caption" style={styles.loadingSearchText}>Searching your assigned properties…</CustomText>
-          </View>
-        ) : assignedSearchQuery.error ? (
-          <View style={styles.empty}>
-            <Ionicons name="cloud-offline-outline" size={28} color={tourColors.textMuted} />
-            <CustomText textStyle="title" style={styles.emptyTitle}>Couldn’t search properties</CustomText>
-            <CustomText textStyle="caption" style={styles.emptySub}>
-              {assignedSearchQuery.error instanceof Error ? assignedSearchQuery.error.message : "Try again."}
-            </CustomText>
-            <Pressable onPress={() => void assignedSearchQuery.refetch()} style={styles.retryButton}>
-              <CustomText textStyle="caption" style={styles.retryText}>Try again</CustomText>
-            </Pressable>
-          </View>
-        ) : assignedProperties.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="business-outline" size={28} color={tourColors.textMuted} />
-            <CustomText textStyle="title" style={styles.emptyTitle}>No assigned properties found</CustomText>
-            <CustomText textStyle="caption" style={styles.emptySub}>Try another search or add a property below.</CustomText>
-          </View>
-        ) : (
-          <FlatList
-            data={assignedProperties}
-            extraData={activeCommunityId}
-            renderItem={renderCommunity}
-            keyExtractor={(item) => item.id}
-            style={styles.list}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator
-            initialNumToRender={16}
-            maxToRenderPerBatch={14}
-            updateCellsBatchingPeriod={30}
-            windowSize={7}
-            removeClippedSubviews
-            getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
-          />
-        )}
-        {mode === "assigned" && onPropertyAdded ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={beginAddProperty}
-            style={({ pressed }) => [styles.findPropertyButton, pressed && styles.findPropertyPressed]}
-          >
-            <Ionicons name="add" size={21} color={CARD} />
-            <CustomText textStyle="title" style={styles.findPropertyText}>Find/Add A Property</CustomText>
-          </Pressable>
-        ) : null}
-      </>
+        </Reanimated.View>
+      </View>
     </BottomSheetModal>
   );
 }
@@ -559,23 +613,25 @@ function CandidateBadge({ state }: { state: PropertyOnboardingCandidate["state"]
 
 const styles = StyleSheet.create({
   sheet: {
+    overflow: "hidden",
+    paddingTop: 10,
+    paddingHorizontal: 0,
+    borderTopLeftRadius: LARGE_CORNER,
+    borderTopRightRadius: LARGE_CORNER,
+    borderCurve: "continuous",
     backgroundColor: BACKGROUND,
   },
   titleRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 12,
+    paddingHorizontal: SHEET_GUTTER,
   },
   headerCopy: {
     flex: 1,
-    gap: 4,
   },
   title: {
     color: tourColors.text,
-  },
-  subtitle: {
-    color: tourColors.textSec,
-    lineHeight: 17,
   },
   closeBtn: {
     width: 42,
@@ -584,16 +640,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: CARD,
-  },
-  backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: tourColors.border,
-    backgroundColor: tourColors.card,
   },
   searchBar: {
     flexDirection: "row",
@@ -616,8 +662,23 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
+  pager: {
+    flex: 1,
+    overflow: "hidden",
+  },
+  pagerTrack: {
+    height: "100%",
+    width: "200%",
+    flexDirection: "row",
+  },
+  pagerPane: {
+    width: "50%",
+    height: "100%",
+    paddingHorizontal: SHEET_GUTTER,
+    paddingBottom: 22,
+  },
   listContent: {
-    paddingBottom: 12,
+    overflow: "visible",
   },
   row: {
     flexDirection: "row",
@@ -722,13 +783,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 17,
   },
-  searchPrompt: {
+  searchPromptCard: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 9,
+    gap: 12,
+    marginVertical: 12,
     paddingHorizontal: 28,
-    paddingBottom: 20,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   confirmWrap: {
     flex: 1,
@@ -815,9 +879,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   searchPromptIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
+    width: 72,
+    height: 72,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#eef4ff",
