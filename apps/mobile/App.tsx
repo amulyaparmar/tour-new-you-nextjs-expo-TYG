@@ -172,6 +172,7 @@ import {
 import { LiquidGlassDropdown } from "./src/components/liquid-glass-dropdown";
 import { LiquidGlassIconButton } from "./src/components/liquid-glass-icon-button";
 import { LiquidGlassSearch } from "./src/components/liquid-glass-search";
+import { InfoBox } from "./src/components/info-box";
 import {
   LiveRecordingCard,
   LiveRecordingDock,
@@ -232,7 +233,6 @@ import {
   BACKGROUND,
   CARD,
   FONT,
-  HINT,
   LARGE_CORNER,
   SMALL_CORNER,
   TEXT,
@@ -270,7 +270,6 @@ import {
 import { PanoramaImageViewer } from "./src/assets/PanoramaImageViewer";
 import {
   queryKeys,
-  useCalendarEventsQuery,
   useDeleteCommentMutation,
   useDeleteSessionMutation,
   useInfiniteSessionsQuery,
@@ -300,6 +299,7 @@ import {
   BulkUploadFlow,
 } from "./src/bulk-upload/BulkUploadFlow";
 import { SessionReportScreen } from "./src/reports/SessionReportScreen";
+import { PracticeSessionsScreen } from "./src/practice/PracticeSessionsScreen";
 
 const loginBackground = require("./assets/videos/login-bg.mp4");
 
@@ -311,7 +311,7 @@ type ProspectData = {
   bedrooms: string;
   budget: string;
 };
-type MainTab = "home" | "sessions" | "tour" | "materials";
+type MainTab = "home" | "sessions" | "tour" | "materials" | "practice";
 type Screen =
   | { type: "main"; tab: MainTab }
   | {
@@ -337,6 +337,7 @@ type Screen =
   | { type: "session-report"; sessionId: string }
   | { type: "bulk-upload"; batchId?: string }
   | { type: "create-session" }
+  | { type: "practice"; scenarioId?: string }
   | { type: "audio-test" }
   | { type: "rubrics" }
   | { type: "settings" }
@@ -823,6 +824,8 @@ function screenKey(screen: Screen) {
     return `session-report:${screen.sessionId}`;
   if (screen.type === "bulk-upload")
     return `bulk-upload:${screen.batchId ?? "new"}`;
+  if (screen.type === "practice")
+    return `practice:${screen.scenarioId ?? "list"}`;
   return screen.type;
 }
 
@@ -833,6 +836,7 @@ function screenRank(screen: Screen) {
   }
   if (screen.type === "tour") return 11;
   if (screen.type === "create-session") return 12;
+  if (screen.type === "practice") return 12;
   if (screen.type === "rubrics") return 12;
   if (screen.type === "settings") return 12;
   if (screen.type === "profile") return 12;
@@ -1680,6 +1684,13 @@ export default function App() {
                     agentName={agentName}
                   />
                 )}
+                {screen.type === "practice" && (
+                  <PracticeSessionsScreen
+                    initialScenarioId={screen.scenarioId}
+                    property={property}
+                    onBack={() => nav({ type: "main", tab: "practice" })}
+                  />
+                )}
                 {screen.type === "audio-test" && (
                   <AudioTestScreen
                     onBack={() => nav({ type: "main", tab: "home" })}
@@ -1775,10 +1786,10 @@ const TAB_ITEMS: Array<{
     iconActive: "folder",
   },
   {
-    id: "tour",
-    label: "Tour",
-    icon: "play-circle-outline",
-    iconActive: "play-circle",
+    id: "practice",
+    label: "Practice",
+    icon: "sparkles-outline",
+    iconActive: "sparkles",
   },
 ];
 
@@ -1820,24 +1831,19 @@ function MainTabs({
     sort: "scheduled_asc",
   });
   const materialsQuery = useMaterialsQuery();
-  const calendarQuery = useCalendarEventsQuery();
   const profileQuery = useProfileQuery();
   const sessions = sessionsQuery.data?.sessions ?? [];
   const upcomingSessions = upcomingSessionsQuery.data?.sessions ?? [];
   const materials = materialsQuery.data?.materials ?? [];
   const tourLibrary = materialsQuery.data?.tourLibrary ?? null;
-  const calendarEvents = calendarQuery.data?.events ?? [];
   const profile = profileQuery.data;
   const loading =
-    sessionsQuery.isLoading ||
-    upcomingSessionsQuery.isLoading ||
-    calendarQuery.isLoading;
+    sessionsQuery.isLoading || upcomingSessionsQuery.isLoading;
   const materialsLoading = materialsQuery.isLoading;
   const [refreshing, setRefreshing] = useState(false);
   const error =
     sessionsQuery.error ??
     upcomingSessionsQuery.error ??
-    calendarQuery.error ??
     materialsQuery.error ??
     null;
   const communityPickerOpen = useAppStore((state) => state.communityPickerOpen);
@@ -1856,6 +1862,7 @@ function MainTabs({
     useState<SlideDirection>("forward");
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [practiceLive, setPracticeLive] = useState(false);
   const checkInStartingRef = useRef(false);
   const [checkInBinding, setCheckInBinding] = useState<{
     sessionId: string | null;
@@ -1891,6 +1898,10 @@ function MainTabs({
   }, [tab, tabBarWidth, tabIndicatorX]);
 
   useEffect(() => {
+    if (tab !== "practice") setPracticeLive(false);
+  }, [tab]);
+
+  useEffect(() => {
     if (!profile) return;
     const next = getCurrentSession();
     if (next) onAuthSession(next);
@@ -1906,18 +1917,11 @@ function MainTabs({
     await Promise.all([
       sessionsQuery.refetch(),
       upcomingSessionsQuery.refetch(),
-      calendarQuery.refetch(),
       materialsQuery.refetch(),
       profileQuery.refetch(),
     ]);
     setRefreshing(false);
-  }, [
-    calendarQuery,
-    materialsQuery,
-    profileQuery,
-    sessionsQuery,
-    upcomingSessionsQuery,
-  ]);
+  }, [materialsQuery, profileQuery, sessionsQuery, upcomingSessionsQuery]);
 
   const chooseCommunity = useCallback(
     async (communityId: string) => {
@@ -1989,7 +1993,7 @@ function MainTabs({
         (tab === "home" ||
           tab === "materials" ||
           tab === "sessions" ||
-          tab === "tour") &&
+          tab === "practice") &&
           homeSt.pageBg,
       ]}
     >
@@ -2050,15 +2054,19 @@ function MainTabs({
             onSampleSession={onSampleSession}
             onCreate={onCreate}
             initialSessions={sessions}
-            upcomingSessions={upcomingSessions}
-            calendarEvents={calendarEvents}
-            calendarLoading={calendarQuery.isLoading}
-            calendarError={calendarQuery.error}
-            onRefreshUpcoming={() => upcomingSessionsQuery.refetch()}
-            onRefreshCalendar={async () => {
-              await calendarQuery.refetch();
-            }}
             property={property}
+          />
+        </ScreenTransition>
+      )}
+
+      {tab === "practice" && (
+        <ScreenTransition
+          transitionKey="tab:practice"
+          direction={tabTransitionDirection}
+        >
+          <PracticeSessionsScreen
+            property={property}
+            onLiveChange={setPracticeLive}
           />
         </ScreenTransition>
       )}
@@ -2101,6 +2109,7 @@ function MainTabs({
         </ScreenTransition>
       )}
 
+      {!practiceLive ? (
       <View style={st.tabBar}>
           <Reanimated.View
             pointerEvents="none"
@@ -2132,6 +2141,7 @@ function MainTabs({
             </Pressable>
           ))}
       </View>
+      ) : null}
       <ProfileEditorModal
         visible={profileEditorOpen}
         session={authSession}
@@ -2302,17 +2312,10 @@ function DashboardScreen({
   });
   const { width: dashboardWidth } = useWindowDimensions();
   const assetTileWidth = Math.max(148, Math.min(168, (dashboardWidth - 40) / 2.15));
-  const todayTours = useMemo(() => {
-    const todayKey = new Date().toDateString();
-    return upcomingSessions
-      .filter(
-        (session) =>
-          session.status === "in_progress" ||
-          (session.scheduledAt &&
-            new Date(session.scheduledAt).toDateString() === todayKey),
-      )
-      .slice(0, 2);
-  }, [upcomingSessions]);
+  const upcomingTours = useMemo(
+    () => upcomingSessions.slice(0, 2),
+    [upcomingSessions],
+  );
   const initials = agentName
     .split(" ")
     .map((name) => name[0])
@@ -2430,10 +2433,10 @@ function DashboardScreen({
       </View>
 
       <View style={homeSt.sectionStack}>
-        {todayTours.length > 0 && (
-          <HomeSection title="Needs your attention">
+        <HomeSection title="Upcoming Tours">
+          {upcomingTours.length > 0 ? (
             <View style={homeSt.focusStack}>
-              {todayTours.map((session) => (
+              {upcomingTours.map((session) => (
                 <MotionPressable
                   key={session.id}
                   onPress={() => onSession(session.id)}
@@ -2455,7 +2458,7 @@ function DashboardScreen({
                           ? "Now"
                           : session.scheduledAt
                             ? fmtTime(session.scheduledAt)
-                            : "Today"}
+                            : "Scheduled"}
                       </CustomText>
                       <CustomText
                         textStyle="caption"
@@ -2485,8 +2488,21 @@ function DashboardScreen({
                 </MotionPressable>
               ))}
             </View>
-          </HomeSection>
-        )}
+          ) : (
+            <Reanimated.View
+              entering={FadeInDown.duration(260).springify()}
+              style={homeSt.emptyCard}
+            >
+              <View style={homeSt.emptyIcon}>
+                <Ionicons name="calendar-outline" size={22} color={ACCENT} />
+              </View>
+              <CustomText textStyle="title">No upcoming tours</CustomText>
+              <CustomText textStyle="caption" style={homeSt.emptySub}>
+                Newly scheduled tours will appear here.
+              </CustomText>
+            </Reanimated.View>
+          )}
+        </HomeSection>
 
         <HomeSection
           title="Assets"
@@ -3139,12 +3155,6 @@ function SessionsListScreen({
   onSampleSession,
   onCreate,
   initialSessions,
-  upcomingSessions,
-  calendarEvents,
-  calendarLoading,
-  calendarError,
-  onRefreshUpcoming,
-  onRefreshCalendar,
   property,
 }: {
   authSession: MobileAuthSession;
@@ -3154,12 +3164,6 @@ function SessionsListScreen({
   onSampleSession: (id: string) => void;
   onCreate: () => void;
   initialSessions: SessionSummary[];
-  upcomingSessions: SessionSummary[];
-  calendarEvents: CalendarEvent[];
-  calendarLoading: boolean;
-  calendarError: Error | null;
-  onRefreshUpcoming: () => Promise<unknown>;
-  onRefreshCalendar: () => Promise<void>;
   property: string;
 }) {
   const insets = useSafeAreaInsets();
@@ -3174,7 +3178,7 @@ function SessionsListScreen({
   const [showSamples, setShowSamples] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const search = useAppStore((state) => state.sessionsSearch);
   const statusFilter = useAppStore((state) => state.sessionsStatusFilter);
@@ -3263,101 +3267,15 @@ function SessionsListScreen({
   const hasMore = sessionsQuery.hasNextPage;
   const loading = sessionsQuery.isLoading && sessions.length === 0;
   const loadingMore = sessionsQuery.isFetchingNextPage;
-  const upcomingSevenDaySessions = useMemo(() => {
-    const today = new Date();
-    const windowStart = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    ).getTime();
-    const windowEnd = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate() + 7,
-    ).getTime();
-    return upcomingSessions.filter((session) => {
-      if (session.status === "in_progress") return true;
-      if (!session.scheduledAt) return false;
-      const scheduledTime = new Date(session.scheduledAt).getTime();
-      return (
-        !Number.isNaN(scheduledTime) &&
-        scheduledTime >= windowStart &&
-        scheduledTime < windowEnd
-      );
-    });
-  }, [upcomingSessions]);
-  const upcomingSevenDayGroups = useMemo(() => {
-    const today = new Date();
-    const tomorrow = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate() + 1,
-    );
-    const groups = new Map<
-      string,
-      { key: string; label: string; dateLabel: string; sessions: SessionSummary[] }
-    >();
-    const isSameDay = (left: Date, right: Date) =>
-      left.getFullYear() === right.getFullYear() &&
-      left.getMonth() === right.getMonth() &&
-      left.getDate() === right.getDate();
-
-    for (const session of upcomingSevenDaySessions) {
-      const scheduled = session.scheduledAt
-        ? new Date(session.scheduledAt)
-        : null;
-      const validScheduled =
-        scheduled && !Number.isNaN(scheduled.getTime()) ? scheduled : null;
-      const key =
-        session.status === "in_progress"
-          ? "in-progress"
-          : validScheduled
-            ? `${validScheduled.getFullYear()}-${validScheduled.getMonth() + 1}-${validScheduled.getDate()}`
-            : "unscheduled";
-      const label =
-        session.status === "in_progress"
-          ? "Happening now"
-          : validScheduled && isSameDay(validScheduled, today)
-            ? "Today"
-            : validScheduled && isSameDay(validScheduled, tomorrow)
-              ? "Tomorrow"
-              : validScheduled
-                ? validScheduled.toLocaleDateString(undefined, { weekday: "long" })
-                : "Scheduled";
-      const dateLabel =
-        session.status === "in_progress"
-          ? "Live now"
-          : validScheduled
-            ? validScheduled.toLocaleDateString(undefined, {
-                month: "long",
-                day: "numeric",
-              })
-            : "Date to be confirmed";
-      const group = groups.get(key);
-      if (group) group.sessions.push(session);
-      else groups.set(key, { key, label, dateLabel, sessions: [session] });
-    }
-    return [...groups.values()];
-  }, [upcomingSevenDaySessions]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await drainSyncOutbox();
-    const requests: Promise<unknown>[] = [
-      sessionsQuery.refetch(),
-      onRefreshUpcoming(),
-      onRefreshCalendar(),
-    ];
+    const requests: Promise<unknown>[] = [sessionsQuery.refetch()];
     if (showSamples) requests.push(sampleSessionsQuery.refetch());
     await Promise.all(requests);
     setRefreshing(false);
-  }, [
-    onRefreshCalendar,
-    onRefreshUpcoming,
-    sampleSessionsQuery,
-    sessionsQuery,
-    showSamples,
-  ]);
+  }, [sampleSessionsQuery, sessionsQuery, showSamples]);
 
   const onEndReached = useCallback(() => {
     if (hasMore && !loadingMore && !loading) void sessionsQuery.fetchNextPage();
@@ -3545,19 +3463,6 @@ function SessionsListScreen({
           )}
         </View>
 
-        {!showSamples && calendarOpen ? (
-          <Reanimated.View entering={FadeInDown.duration(220)}>
-            <SessionsCalendar
-              sessions={initialSessions}
-              entrataEvents={calendarEvents}
-              loading={calendarLoading}
-              error={calendarError}
-              onSession={onSession}
-              onReload={onRefreshCalendar}
-            />
-          </Reanimated.View>
-        ) : null}
-
         {showSamples ? (
           <Pressable
             accessibilityRole="button"
@@ -3580,144 +3485,15 @@ function SessionsListScreen({
             </CustomText>
           </Pressable>
         ) : null}
-
-        {!showSamples ? (
-          <View style={calSt.upcomingBlock}>
-            <View style={homeSt.sectionHeader}>
-              <CustomText textStyle="title">Tours in the Next 7 Days</CustomText>
-              <View style={calSt.upcomingHeaderCount}>
-                <CustomText textStyle="micro" style={calSt.upcomingHeaderCountText}>
-                  {upcomingSevenDaySessions.length}
-                </CustomText>
-              </View>
-            </View>
-            {upcomingSevenDaySessions.length === 0 ? (
-              <EmptyState
-                icon="calendar-outline"
-                title="No scheduled tours in the next 7 days"
-                subtitle="Newly scheduled tours will appear here"
-              />
-            ) : (
-              <View style={calSt.upcomingGroups}>
-                {upcomingSevenDayGroups.map((group) => (
-                  <View key={group.key} style={calSt.upcomingGroup}>
-                    <View style={calSt.upcomingGroupHeader}>
-                      <View style={calSt.upcomingGroupMarker} />
-                      <View style={st.flex1}>
-                        <CustomText textStyle="label" style={calSt.upcomingGroupLabel}>
-                          {group.label}
-                        </CustomText>
-                        <CustomText textStyle="micro" style={calSt.upcomingGroupDate}>
-                          {group.dateLabel}
-                        </CustomText>
-                      </View>
-                      <View style={calSt.upcomingGroupCount}>
-                        <CustomText textStyle="micro" style={calSt.upcomingGroupCountText}>
-                          {group.sessions.length}
-                        </CustomText>
-                      </View>
-                    </View>
-                    <View style={homeSt.focusStack}>
-                      {group.sessions.map((session) => (
-                        <MotionPressable
-                          key={session.id}
-                          onPress={() => onSession(session.id)}
-                          haptic="selection"
-                          style={homeSt.tourCard}
-                        >
-                          <View style={st.flex1}>
-                            <CustomText textStyle="title" numberOfLines={1}>
-                              {session.title}
-                            </CustomText>
-                            <View style={homeSt.tourMetaRow}>
-                              <CustomText textStyle="micro" style={homeSt.timePill}>
-                                {session.status === "in_progress"
-                                  ? "Now"
-                                  : session.scheduledAt
-                                    ? fmtTime(session.scheduledAt)
-                                    : "Scheduled"}
-                              </CustomText>
-                              <CustomText textStyle="caption" style={homeSt.tourMeta} numberOfLines={1}>
-                                {session.prospectName ?? "Prospect details pending"}
-                              </CustomText>
-                            </View>
-                          </View>
-                          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-                        </MotionPressable>
-                      ))}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        ) : null}
-
-        {!showSamples ? (
-          <View style={slst.searchFilterRow}>
-            <View style={slst.searchControl}>
-              <Ionicons name="search-outline" size={18} color={C.textMuted} />
-              <TextInput
-                placeholder="Search sessions..."
-                placeholderTextColor={C.textMuted}
-                value={search}
-                onChangeText={setSearch}
-                style={slst.searchInput}
-                returnKeyType="search"
-              />
-              {search ? (
-                <Pressable
-                  accessibilityLabel="Clear session search"
-                  onPress={() => setSearch("")}
-                  hitSlop={8}
-                >
-                  <Ionicons name="close-circle" size={18} color={C.textMuted} />
-                </Pressable>
-              ) : null}
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open session filters"
-              onPress={() => setFiltersOpen(true)}
-              style={({ pressed }) => [
-                slst.filterButton,
-                pressed && st.pressed,
-              ]}
-            >
-              <Ionicons name="options-outline" size={18} color={ACCENT} />
-              <CustomText textStyle="label" style={slst.filterButtonText}>Filter</CustomText>
-              {activeFilterCount > 0 ? (
-                <View style={slst.filterCount}>
-                  <CustomText textStyle="micro" style={slst.filterCountText}>
-                    {activeFilterCount}
-                  </CustomText>
-                </View>
-              ) : null}
-            </Pressable>
-          </View>
-        ) : null}
       </View>
     ),
     [
       averageScore,
-      activeFilterCount,
-      calendarError,
-      calendarEvents,
-      calendarLoading,
-      calendarOpen,
-      initialSessions,
       loading,
-      onRefreshCalendar,
-      onSession,
       property,
       samplePropertyName,
-      scrollY,
-      search,
-      setSearch,
       sessionMetrics.averageScore,
       showSamples,
-      upcomingSevenDayGroups,
-      upcomingSevenDaySessions.length,
     ],
   );
 
@@ -3879,13 +3655,37 @@ function SessionsListScreen({
       <LargeTitleHeader
         title={showSamples ? "Sample sessions" : "Sessions"}
         scrollY={scrollY}
+        hideCompactTitle={showSearch}
         trailing={
           showSamples ? undefined : (
-            <LiquidGlassIconButton
-              icon={calendarOpen ? "calendar" : "calendar-outline"}
-              accessibilityLabel={calendarOpen ? "Hide calendar" : "Show calendar"}
-              onPress={() => setCalendarOpen((open) => !open)}
-            />
+            <>
+              <LiquidGlassSearch
+                expanded={showSearch}
+                value={search}
+                onChangeText={setSearch}
+                onExpand={() => setShowSearch(true)}
+                onCollapse={() => {
+                  setShowSearch(false);
+                  Keyboard.dismiss();
+                }}
+                placeholder="Search sessions"
+                accessibilityLabel="Search sessions"
+              />
+              <View style={slst.filterHeaderSlot}>
+                <LiquidGlassIconButton
+                  icon="options-outline"
+                  accessibilityLabel="Open session filters"
+                  onPress={() => setFiltersOpen(true)}
+                />
+                {activeFilterCount > 0 ? (
+                  <View pointerEvents="none" style={slst.filterHeaderBadge}>
+                    <CustomText textStyle="micro" style={slst.filterHeaderBadgeText}>
+                      {activeFilterCount}
+                    </CustomText>
+                  </View>
+                ) : null}
+              </View>
+            </>
           )
         }
       />
@@ -4282,50 +4082,24 @@ const slst = StyleSheet.create({
     color: ACCENT,
     textAlign: "center",
   },
-  searchFilterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
+  filterHeaderSlot: {
+    width: 42,
+    height: 42,
+    overflow: "visible",
   },
-  searchControl: {
-    flex: 1,
-    minHeight: 46,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 13,
-    borderRadius: 23,
-    backgroundColor: CARD,
-  },
-  searchInput: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: 0,
-    color: C.text,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  filterButton: {
-    minHeight: 46,
-    flexDirection: "row",
+  filterHeaderBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
-    paddingHorizontal: 13,
-    borderRadius: 23,
-    backgroundColor: CARD,
-  },
-  filterButtonText: { color: C.text },
-  filterCount: {
-    minWidth: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 5,
-    borderRadius: 10,
+    paddingHorizontal: 4,
+    borderRadius: 9,
     backgroundColor: ACCENT,
   },
-  filterCountText: { color: CARD, fontSize: 10 },
+  filterHeaderBadgeText: { color: CARD, fontSize: 10 },
   sep: { height: 1, backgroundColor: BACKGROUND },
   endText: {
     textAlign: "center",
@@ -8255,13 +8029,10 @@ function SessionReviewExperience({
             </AnimatedTabContent>
           )}
           {reviewMode === "transcript" && transcript.length > 0 && (
-            <View style={reviewSt.commentHint}>
-              <Ionicons name="information-circle-outline" size={16} color={ACCENT} />
-              <CustomText textStyle="caption" style={reviewSt.commentHintText}>
-                Long-press to select lines, or double-tap a line to comment at
-                that timestamp.
-              </CustomText>
-            </View>
+            <InfoBox style={{ marginBottom: 10 }}>
+              Long-press to select lines, or double-tap a line to comment at
+              that timestamp.
+            </InfoBox>
           )}
           {reviewMode === "transcript" &&
             transcriptGroups.map((group) => (
@@ -12113,6 +11884,27 @@ const homeSt = StyleSheet.create({
   },
   mediaLabel: { color: TEXT },
   emptyInline: { color: C.textSec },
+  emptyCard: {
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  emptyIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 108, 229, 0.08)",
+  },
+  emptySub: {
+    color: C.textSec,
+    textAlign: "center",
+  },
   assetLinkCard: {
     minHeight: 78,
     flexDirection: "row",
@@ -13067,21 +12859,6 @@ const reviewSt = StyleSheet.create({
     minHeight: 28,
     paddingHorizontal: 9,
     borderRadius: 999,
-  },
-  commentHint: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: SMALL_CORNER,
-    backgroundColor: HINT,
-  },
-  commentHintText: {
-    flex: 1,
-    color: ACCENT,
-    lineHeight: 17,
   },
   returnToPlaying: {
     position: "absolute",

@@ -17,6 +17,7 @@ export function LiquidGlassSearch({
   onExpand,
   onCollapse,
   placeholder = "Search assets",
+  accessibilityLabel = "Search assets",
 }: {
   expanded: boolean;
   value: string;
@@ -24,6 +25,7 @@ export function LiquidGlassSearch({
   onExpand: () => void;
   onCollapse: () => void;
   placeholder?: string;
+  accessibilityLabel?: string;
 }) {
   const GlassView = useMemo(() => getLiquidGlassView(), []);
   const inputRef = useRef<TextInput>(null);
@@ -38,7 +40,7 @@ export function LiquidGlassSearch({
     return (
       <LiquidGlassIconButton
         icon="search"
-        accessibilityLabel="Search assets"
+        accessibilityLabel={accessibilityLabel}
         onPress={onExpand}
       />
     );
