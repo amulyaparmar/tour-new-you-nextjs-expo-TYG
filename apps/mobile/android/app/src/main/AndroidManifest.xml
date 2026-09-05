@@ -3,7 +3,6 @@
   <uses-permission android:name="android.permission.BLUETOOTH"/>
   <uses-permission android:name="android.permission.CAMERA"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
   <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS"/>
   <uses-permission android:name="android.permission.INTERNET"/>
@@ -32,7 +31,6 @@
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATE_URL" android:value="https://u.expo.dev/a30cd0f8-93f0-423b-979b-2c415aa6a5c4"/>
-    <service android:name="com.daily.reactlibrary.DailyOngoingMeetingForegroundService" android:exported="false" android:foregroundServiceType="camera|microphone"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>

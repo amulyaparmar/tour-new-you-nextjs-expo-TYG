@@ -70,8 +70,7 @@ export function getSiteBaseUrl(): string {
     const metroHost = metroLanHostname();
     try {
       const url = new URL(configuredUrl);
-      // The practice experience is opened in the device browser. Keep a local
-      // site URL reachable when Metro is serving the app over LAN.
+      // Keep local site URLs reachable when Metro serves the app over LAN.
       if (__DEV__ && metroHost && isMutableLanHost(url.hostname)) {
         url.hostname = metroHost;
         return url.toString().replace(/\/+$/, "");

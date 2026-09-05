@@ -33,8 +33,7 @@
         "NSPhotoLibraryAddUsageDescription": "Allow Tour to save tour media and shared assets to your photo library when you request it.",
         "NSSpeechRecognitionUsageDescription": "Allow Tour to transcribe leasing conversations live for in-tour coaching.",
         "UIBackgroundModes": [
-          "audio",
-          "voip"
+          "audio"
         ]
       }
     },
@@ -76,8 +75,6 @@
           "motionPermission": "Allow Tour to use motion sensors to keep 360° panorama photos level and evenly spaced."
         }
       ],
-      "@config-plugins/react-native-webrtc",
-      "@daily-co/config-plugin-rn-daily-js",
       [
         "expo-build-properties",
         {

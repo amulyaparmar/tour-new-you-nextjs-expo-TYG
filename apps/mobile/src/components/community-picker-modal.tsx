@@ -16,6 +16,7 @@ import Reanimated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from
 
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { CustomText } from "@/components/custom-text";
+import { LoadingDots } from "@/components/loading-dots";
 import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import {
   authorizedCommunitiesForSession,

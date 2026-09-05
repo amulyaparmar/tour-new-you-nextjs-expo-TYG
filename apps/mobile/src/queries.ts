@@ -32,14 +32,7 @@ import {
   type ProfileUpdatePayload,
   type SessionComment,
 } from "./api";
-import { authenticatedFetch, getCurrentSession, replaceStoredSession } from "./auth";
-
-export type PracticeScenarioPreview = {
-  id: string;
-  name: string;
-  description?: string;
-  difficulty?: "easy" | "medium" | "hard";
-};
+import { getCurrentSession, replaceStoredSession } from "./auth";
 
 const communityKey = () => getCurrentSession()?.workspace.community.id ?? "anonymous";
 const userKey = () => getCurrentSession()?.workspace.user.id ?? "anonymous";
@@ -60,18 +53,7 @@ export const queryKeys = {
   rubrics: () => [...queryKeys.all(), "rubrics"] as const,
   materials: () => [...queryKeys.all(), "materials"] as const,
   calendar: () => [...queryKeys.all(), "calendar"] as const,
-  practiceScenarioPreviews: () => [...queryKeys.all(), "practiceScenarioPreviews"] as const,
 };
-
-async function fetchPracticeScenarioPreviews(): Promise<PracticeScenarioPreview[]> {
-  const response = await authenticatedFetch("/api/roleplay/scenarios");
-  const body = await response.json().catch(() => null) as {
-    success?: boolean;
-    scenarios?: PracticeScenarioPreview[];
-  } | null;
-  if (!response.ok || !body?.success) throw new Error("Could not load practice scenarios");
-  return (body.scenarios ?? []).slice(0, 3);
-}
 
 export function useSessionsQuery(params?: FetchSessionsParams) {
   return useQuery({
@@ -109,15 +91,6 @@ export function useSampleSessionQuery(sessionId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.sampleSession(sessionId),
     queryFn: () => fetchSampleSession(sessionId),
-    enabled,
-    staleTime: 5 * 60_000,
-  });
-}
-
-export function usePracticeScenarioPreviewsQuery(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.practiceScenarioPreviews(),
-    queryFn: fetchPracticeScenarioPreviews,
     enabled,
     staleTime: 5 * 60_000,
   });
