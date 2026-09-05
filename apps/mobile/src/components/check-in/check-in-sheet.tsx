@@ -5,11 +5,14 @@ import QRCodeStyled from "react-native-qrcode-styled";
 import Reanimated, {
   FadeIn,
   LinearTransition,
+  cancelAnimation,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   View,
@@ -23,6 +26,7 @@ import {
   TextInput,
   useWindowDimensions,
 } from "react-native";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { submitCheckInLead } from "../../api";
@@ -165,13 +169,57 @@ export function CheckInSheet({
 }) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  const popupBottomSpace = Math.max(insets.bottom, 12) + 8;
   const popupTopSpace = insets.top + 12;
   const popupHeight = Math.min(
     Math.round(windowHeight * 0.78),
     720,
-    windowHeight - popupTopSpace - popupBottomSpace,
+    windowHeight - popupTopSpace,
   );
+  const dragY = useSharedValue(0);
+  const dragClosing = useSharedValue(false);
+  const closeFromSwipe = useCallback(() => {
+    Keyboard.dismiss();
+    onClose();
+  }, [onClose]);
+  const dragStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: dragY.value }],
+  }));
+
+  useEffect(() => {
+    // Keep the dragged position during native dismissal; reset on reopening.
+    if (visible) {
+      cancelAnimation(dragY);
+      dragY.value = 0;
+      dragClosing.value = false;
+    }
+    return () => cancelAnimation(dragY);
+  }, [visible, dragY, dragClosing]);
+
+  // Limit dragging to the header so the form and QR content can scroll normally.
+  const dismissGesture = useMemo(() => Gesture.Pan()
+    .enabled(visible)
+    .activeOffsetY(6)
+    .failOffsetX([-28, 28])
+    .onBegin(() => {
+      cancelAnimation(dragY);
+    })
+    .onUpdate((event) => {
+      if (!dragClosing.value) dragY.value = Math.max(0, event.translationY);
+    })
+    .onEnd((event, success) => {
+      if (dragClosing.value) return;
+      if (success && (event.translationY > 88 || (event.translationY > 12 && event.velocityY > 900))) {
+        dragClosing.value = true;
+        runOnJS(closeFromSwipe)();
+      } else {
+        dragY.value = withSpring(0, { damping: 24, stiffness: 260 });
+      }
+    })
+    .onFinalize((_event, success) => {
+      if (!success && !dragClosing.value) {
+        dragY.value = withSpring(0, { damping: 24, stiffness: 260 });
+      }
+    }), [visible, closeFromSwipe, dragY, dragClosing]);
   const repFirst = firstNameOf(agentName);
   const resolvedRepSlug = (repSlug ?? "").trim() || slugifyRep(agentName);
   // Keep a session returned by native check-in when another guest is added.
@@ -394,6 +442,7 @@ export function CheckInSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <GestureHandlerRootView style={styles.flex1}>
       <Pressable style={styles.sheetScrim} onPress={onClose} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -404,32 +453,39 @@ export function CheckInSheet({
         pointerEvents="box-none"
         style={[
           styles.sheetKeyboard,
-          { paddingTop: popupTopSpace, paddingBottom: popupBottomSpace },
+          { paddingTop: popupTopSpace },
         ]}
       >
-        <Pressable
-          onPress={(event) => event.stopPropagation()}
-          style={[styles.checkInSheet, { height: popupHeight }]}
+        <Reanimated.View
+          style={[
+            styles.checkInSheet,
+            { height: popupHeight, paddingBottom: Math.max(insets.bottom, 16) },
+            dragStyle,
+          ]}
         >
-          <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeading}>
-            <View style={styles.tourMarkWrap}>
-              <TourMark size={30} />
+          <GestureDetector gesture={dismissGesture}>
+            <View collapsable={false} style={styles.dragHeader}>
+              <View style={styles.sheetHandle} />
+              <View style={styles.sheetHeading}>
+                <View style={styles.tourMarkWrap}>
+                  <TourMark size={30} />
+                </View>
+                <View style={styles.flex1}>
+                  <Text style={styles.sheetTitle}>New tour / Check-in</Text>
+                  <Text style={styles.sheetSubtitle}>Check in your guests, or go straight to recording.</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close new tour"
+                  hitSlop={4}
+                  onPress={onClose}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={22} color={C.textSec} />
+                </Pressable>
+              </View>
             </View>
-            <View style={styles.flex1}>
-              <Text style={styles.sheetTitle}>New tour / Check-in</Text>
-              <Text style={styles.sheetSubtitle}>Check in your guests, or go straight to recording.</Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close new tour"
-              hitSlop={4}
-              onPress={onClose}
-              style={styles.closeButton}
-            >
-              <Ionicons name="close" size={22} color={C.textSec} />
-            </Pressable>
-          </View>
+          </GestureDetector>
           <View
             style={styles.sheetTabs}
             onLayout={(event) => setTabSegmentWidth((event.nativeEvent.layout.width - 12) / 2)}
@@ -830,9 +886,10 @@ export function CheckInSheet({
               </Pressable>
             </View>
           ) : null}
-        </Pressable>
+        </Reanimated.View>
       </View>
       </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -936,24 +993,18 @@ function CheckInPanelSkeleton({ mode }: { mode: "checkin" | "qr" }) {
 
 const styles = StyleSheet.create({
   sheetScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.42)" },
-  sheetKeyboard: { flex: 1, justifyContent: "flex-end", paddingHorizontal: 12 },
+  sheetKeyboard: { flex: 1, justifyContent: "flex-end" },
   checkInSheet: {
     width: "100%",
-    maxWidth: 520,
     maxHeight: "100%",
     flexShrink: 1,
-    alignSelf: "center",
     gap: 10,
     paddingHorizontal: 18,
     paddingTop: 8,
     paddingBottom: 16,
-    borderRadius: 24,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     backgroundColor: "#fff",
-    shadowColor: "#101828",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    elevation: 8,
   },
   sheetBody: {
     flex: 1,
@@ -1004,6 +1055,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#d1d5db",
     marginBottom: 2,
   },
+  dragHeader: { gap: 10, minHeight: 44 },
   sheetHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
   tourMarkWrap: {
     width: 40,
