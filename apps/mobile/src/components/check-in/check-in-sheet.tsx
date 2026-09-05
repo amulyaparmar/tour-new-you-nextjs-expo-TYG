@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { SessionLead } from "@tour/shared";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCodeStyled from "react-native-qrcode-styled";
 import Reanimated, {
   FadeIn,
@@ -10,7 +10,7 @@ import Reanimated, {
   withSpring,
 } from "react-native-reanimated";
 import {
-  Dimensions,
+  KeyboardAvoidingView,
   Linking,
   View,
   Modal,
@@ -21,7 +21,9 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { submitCheckInLead } from "../../api";
 import {
@@ -30,10 +32,6 @@ import {
 } from "../../session-participants-realtime";
 import { LoadingDots } from "@/components/loading-dots";
 import { TourMark } from "../TourLogo";
-
-// Keep the check-in form compact on tall devices. The form itself scrolls when
-// the keyboard is visible instead of making the entire sheet rise excessively.
-const SHEET_HEIGHT = Math.min(Math.round(Dimensions.get("window").height * 0.78), 720);
 
 const C = {
   text: "#101828",
@@ -140,6 +138,11 @@ export function CheckInSheet({
   sessionId,
   checkInUrl: checkInUrlProp,
   onCheckedIn,
+  onSkipCheckIn,
+  onRecordLater,
+  bindingPending = false,
+  bindingError,
+  onRetry,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -151,26 +154,45 @@ export function CheckInSheet({
   sessionId?: string | null;
   /** Personalized public check-in URL from property/member aliases. */
   checkInUrl?: string | null;
-  /** After check-in, open the session and start recording. */
+  /** Open the checked-in tour's recording setup. */
   onCheckedIn: (sessionId: string) => void;
+  onSkipCheckIn: () => void;
+  /** Leave this same tour ready to resume from the main screen. */
+  onRecordLater: (sessionId: string) => void;
+  bindingPending?: boolean;
+  bindingError?: string | null;
+  onRetry?: () => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const popupBottomSpace = Math.max(insets.bottom, 12) + 8;
+  const popupTopSpace = insets.top + 12;
+  const popupHeight = Math.min(
+    Math.round(windowHeight * 0.78),
+    720,
+    windowHeight - popupTopSpace - popupBottomSpace,
+  );
   const repFirst = firstNameOf(agentName);
   const resolvedRepSlug = (repSlug ?? "").trim() || slugifyRep(agentName);
+  // Keep a session returned by native check-in when another guest is added.
+  // This also binds the QR/realtime flow if initial session creation failed.
+  const [resultSessionId, setResultSessionId] = useState<string | null>(null);
+  const resolvedSessionId = resultSessionId ?? sessionId ?? null;
   const checkInUrl = useMemo(() => {
     const fromProp = (checkInUrlProp ?? "").trim();
-    if (fromProp) return fromProp;
-    // Show a property-level QR immediately. Once the server creates a
-    // session binding, checkInUrlProp replaces this with the session URL.
+    if (fromProp && (!resultSessionId || resultSessionId === sessionId)) return fromProp;
+    // Only expose the QR once it is bound to this tour, never to a generic
+    // property check-in that could create a separate session for each guest.
     const propertySlug = (property ?? "")
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "property";
-    const sessionQuery = sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : "";
-    const memberPath = sessionId ? `/${encodeURIComponent(resolvedRepSlug)}` : "";
+    const sessionQuery = resolvedSessionId ? `&sessionId=${encodeURIComponent(resolvedSessionId)}` : "";
+    const memberPath = resolvedSessionId ? `/${encodeURIComponent(resolvedRepSlug)}` : "";
     return `https://tour.you/p/${encodeURIComponent(propertySlug)}${memberPath}?check-in=true${sessionQuery}`;
-  }, [checkInUrlProp, property, resolvedRepSlug, sessionId]);
-  const sessionQrReady = Boolean(sessionId);
+  }, [checkInUrlProp, property, resolvedRepSlug, resolvedSessionId, resultSessionId, sessionId]);
+  const sessionQrReady = Boolean(resolvedSessionId);
   const [mode, setMode] = useState<"checkin" | "qr">("qr");
   const [tabSwitching, setTabSwitching] = useState(false);
   const [tabSegmentWidth, setTabSegmentWidth] = useState(0);
@@ -185,17 +207,41 @@ export function CheckInSheet({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resultSessionId, setResultSessionId] = useState<string | null>(null);
-  const [checkedInGuests, setCheckedInGuests] = useState<SessionLead[]>([]);
+  const [realtimeGuests, setRealtimeGuests] = useState<SessionLead[]>([]);
+  const [nativeGuests, setNativeGuests] = useState<SessionLead[]>([]);
+  const submissionEpoch = useRef(0);
+  const submissionInFlight = useRef(false);
+  // A confirmed native check-in is immediately available in the QR tab, even
+  // before the next realtime refresh. Replace its preview with server details.
+  const checkedInGuests = useMemo(() => uniqueCheckedInGuests([
+    ...realtimeGuests,
+    ...nativeGuests.filter((nativeGuest) => !realtimeGuests.some((remoteGuest) =>
+      remoteGuest.email?.trim().toLowerCase() === nativeGuest.email?.trim().toLowerCase()
+      && remoteGuest.name.trim().toLowerCase() === nativeGuest.name.trim().toLowerCase(),
+    )),
+  ]), [nativeGuests, realtimeGuests]);
   const [realtimeStatus, setRealtimeStatus] = useState<SessionParticipantRealtimeStatus>("idle");
   const [guestPopupDismissed, setGuestPopupDismissed] = useState(false);
+  const hasCheckedIn = checkedInGuests.length > 0 || Boolean(resultSessionId);
+  const checkInBusy = submitting || bindingPending;
 
   const updateCheckedInGuests = useCallback((guests: SessionLead[]) => {
-    setCheckedInGuests(uniqueCheckedInGuests(guests));
+    setRealtimeGuests(uniqueCheckedInGuests(guests));
   }, []);
 
+  useEffect(() => {
+    submissionEpoch.current += 1;
+    submissionInFlight.current = false;
+    setSubmitting(false);
+    return () => {
+      // A response from a previous opening must never bind the next tour.
+      submissionEpoch.current += 1;
+      submissionInFlight.current = false;
+    };
+  }, [visible, sessionId, property]);
+
   useSessionParticipantRealtime({
-    sessionId: visible ? sessionId ?? null : null,
+    sessionId: visible ? resolvedSessionId : null,
     onParticipants: updateCheckedInGuests,
     onStatusChange: setRealtimeStatus,
   });
@@ -233,19 +279,23 @@ export function CheckInSheet({
     setSubmitting(false);
     setError(null);
     setResultSessionId(null);
+    setNativeGuests([]);
   }, [visible, property]);
 
   useEffect(() => {
     if (!visible) return;
-    setCheckedInGuests([]);
+    setRealtimeGuests([]);
     setGuestPopupDismissed(false);
-  }, [sessionId, visible]);
+  }, [resolvedSessionId, visible]);
 
   useEffect(() => {
     if (checkedInGuests.length > 0) setGuestPopupDismissed(false);
   }, [checkedInGuests.length]);
 
   async function submitLead() {
+    if (checkInBusy || submissionInFlight.current) return;
+    const requestEpoch = submissionEpoch.current;
+    submissionInFlight.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -261,18 +311,45 @@ export function CheckInSheet({
         repName: agentName?.trim() || null,
         propertyName: property,
         propertyId: propertyId ?? null,
-        sessionId,
+        sessionId: resolvedSessionId,
       });
-      setResultSessionId(result.sessionId ?? null);
+      if (requestEpoch !== submissionEpoch.current) return;
+      // The initial QR binding can reserve an ID before a session exists.
+      // Require confirmation from check-in before offering recording actions.
+      const checkedInSessionId = result.sessionId;
+      if (!checkedInSessionId) {
+        throw new Error("We couldn't confirm this tour. Please try checking in again.");
+      }
+      setResultSessionId(checkedInSessionId);
+      const nativeGuest: SessionLead = {
+        name: [firstName.trim(), lastName.trim()].filter(Boolean).join(" "),
+        firstName: firstName.trim(),
+        lastName: lastName.trim() || null,
+        email: email.trim(),
+        phone: phone.replace(/\D/g, "") || null,
+        wantsSummary,
+        createdAt: new Date().toISOString(),
+      };
+      setNativeGuests((current) => [
+        ...current.filter((guest) => guest.email?.trim().toLowerCase() !== nativeGuest.email?.toLowerCase()
+          || guest.name.trim().toLowerCase() !== nativeGuest.name.toLowerCase()),
+        nativeGuest,
+      ]);
       setStep("done");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong. Please try again.");
+      if (requestEpoch === submissionEpoch.current) {
+        setError(caught instanceof Error ? caught.message : "Something went wrong. Please try again.");
+      }
     } finally {
-      setSubmitting(false);
+      if (requestEpoch === submissionEpoch.current) {
+        submissionInFlight.current = false;
+        setSubmitting(false);
+      }
     }
   }
 
   function nextFromContact() {
+    if (checkInBusy) return;
     setError(null);
     if (!firstName.trim() || !email.trim()) {
       setError("Name and email are required.");
@@ -294,15 +371,13 @@ export function CheckInSheet({
   }
 
   function finishAndRecord() {
-    if (!resultSessionId) return;
-    onClose();
-    onCheckedIn(resultSessionId);
+    if (!resolvedSessionId) return;
+    onCheckedIn(resolvedSessionId);
   }
 
-  function startQrSession() {
-    if (!sessionId) return;
-    onClose();
-    onCheckedIn(sessionId);
+  function recordLater() {
+    if (!resolvedSessionId) return;
+    onRecordLater(resolvedSessionId);
   }
 
   function addAnotherPerson() {
@@ -314,16 +389,47 @@ export function CheckInSheet({
     setWantsSummary(false);
     setAnswers(sharedHowHeard ? { hear_about: sharedHowHeard } : {});
     setError(null);
-    setResultSessionId(null);
     setStep("contact");
   }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetScrim} onPress={onClose} />
-      <View style={styles.sheetKeyboard}>
-        <Pressable onPress={(event) => event.stopPropagation()} style={styles.checkInSheet}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        pointerEvents="box-none"
+        style={styles.flex1}
+      >
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.sheetKeyboard,
+          { paddingTop: popupTopSpace, paddingBottom: popupBottomSpace },
+        ]}
+      >
+        <Pressable
+          onPress={(event) => event.stopPropagation()}
+          style={[styles.checkInSheet, { height: popupHeight }]}
+        >
           <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeading}>
+            <View style={styles.tourMarkWrap}>
+              <TourMark size={30} />
+            </View>
+            <View style={styles.flex1}>
+              <Text style={styles.sheetTitle}>New tour / Check-in</Text>
+              <Text style={styles.sheetSubtitle}>Check in your guests, or go straight to recording.</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close new tour"
+              hitSlop={4}
+              onPress={onClose}
+              style={styles.closeButton}
+            >
+              <Ionicons name="close" size={22} color={C.textSec} />
+            </Pressable>
+          </View>
           <View
             style={styles.sheetTabs}
             onLayout={(event) => setTabSegmentWidth((event.nativeEvent.layout.width - 12) / 2)}
@@ -335,6 +441,9 @@ export function CheckInSheet({
               />
             ) : null}
             <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: mode === "checkin", disabled: submitting }}
+              disabled={submitting}
               onPress={() => {
                 if (mode === "checkin") return;
                 setTabSwitching(true);
@@ -348,6 +457,9 @@ export function CheckInSheet({
               </Text>
             </Pressable>
             <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: mode === "qr", disabled: submitting }}
+              disabled={submitting}
               onPress={() => {
                 if (mode === "qr") return;
                 setTabSwitching(true);
@@ -370,9 +482,30 @@ export function CheckInSheet({
             <CheckInPanelSkeleton mode={mode} />
           ) : mode === "qr" ? (
             !sessionQrReady ? (
-              <CheckInPanelSkeleton mode="qr" />
+              bindingError && !bindingPending ? (
+                <View style={styles.bindingErrorPanel}>
+                  <Ionicons name="cloud-offline-outline" size={32} color={C.textMuted} />
+                  <Text style={styles.qrTitle}>Check-in isn't ready yet</Text>
+                  <Text accessibilityRole="alert" style={styles.qrSub}>{bindingError}</Text>
+                  {onRetry ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={onRetry}
+                      style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
+                    >
+                      <Ionicons name="refresh" size={17} color="#fff" />
+                      <Text style={styles.sheetPrimaryText}>Try again</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : <CheckInPanelSkeleton mode="qr" />
             ) : (
             <View style={styles.qrPanel}>
+              <ScrollView
+                style={styles.flex1}
+                contentContainerStyle={styles.qrPanelContent}
+                showsVerticalScrollIndicator={false}
+              >
               <View style={styles.qrCard}>
                 <QRCodeStyled
                   data={checkInUrl}
@@ -399,6 +532,8 @@ export function CheckInSheet({
                 <Ionicons name="open-outline" size={13} color={C.brand} />
               </Pressable>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Show checked-in guests"
                 disabled={checkedInGuests.length === 0}
                 onPress={() => setGuestPopupDismissed(false)}
                 style={styles.realtimeStatusRow}
@@ -416,12 +551,14 @@ export function CheckInSheet({
                 </Text>
               </Pressable>
               <Pressable
+                accessibilityRole="button"
                 onPress={() => void shareCheckInLink()}
                 style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
               >
                 <Ionicons name="share-social-outline" size={16} color="#fff" />
                 <Text style={styles.sheetPrimaryText}>Share check-in link</Text>
               </Pressable>
+              </ScrollView>
 
               {checkedInGuests.length > 0 && !guestPopupDismissed ? (
                 <Reanimated.View
@@ -436,6 +573,12 @@ export function CheckInSheet({
                         {checkedInGuests.length === 1 ? "Guest checked in" : `${checkedInGuests.length} guests checked in`}
                       </Text>
                     </View>
+                    <ScrollView
+                      style={styles.popupScroll}
+                      contentContainerStyle={styles.popupContent}
+                      showsVerticalScrollIndicator={false}
+                      nestedScrollEnabled
+                    >
                     <View style={styles.checkedInHeadingRow}>
                       <View style={styles.checkedInHeadingIcon}>
                         <Ionicons name="person-add-outline" size={22} color={C.green} />
@@ -447,7 +590,7 @@ export function CheckInSheet({
                             : `${checkedInGuests.length} guests are ready`}
                         </Text>
                         <Text style={styles.checkedInSub}>
-                          Checked in for {property}. Keep this QR open for anyone else joining the tour.
+                          Checked in for {property}. Record now, or find this tour on your home screen later.
                         </Text>
                       </View>
                     </View>
@@ -474,63 +617,80 @@ export function CheckInSheet({
                     </ScrollView>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Start live session with checked-in guests"
-                      onPress={startQrSession}
+                      accessibilityLabel="Record now with checked-in guests"
+                      onPress={finishAndRecord}
                       style={({ pressed }) => [styles.startSessionButton, pressed && styles.pressed]}
                     >
                       <Ionicons name="mic-outline" size={19} color="#fff" />
-                      <Text style={styles.startSessionButtonText}>Start live session</Text>
+                      <Text style={styles.startSessionButtonText}>Record now</Text>
                     </Pressable>
                     <Pressable
+                      accessibilityRole="button"
+                      onPress={recordLater}
+                      style={({ pressed }) => [styles.recordLaterButton, pressed && styles.pressed]}
+                    >
+                      <Ionicons name="time-outline" size={18} color={C.textSec} />
+                      <Text style={styles.notYetButtonText}>Record later</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
                       onPress={() => setGuestPopupDismissed(true)}
                       style={({ pressed }) => [styles.notYetButton, pressed && styles.pressed]}
                     >
-                      <Text style={styles.notYetButtonText}>Not yet</Text>
+                      <Text style={styles.keepOpenButtonText}>Keep QR open</Text>
                     </Pressable>
+                    </ScrollView>
                   </View>
                 </Reanimated.View>
               ) : null}
             </View>
             )
           ) : step === "done" ? (
-            <View style={styles.donePanel}>
+            <ScrollView
+              style={styles.flex1}
+              contentContainerStyle={styles.donePanel}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.doneIcon}>
                 <Ionicons name="checkmark" size={26} color="#fff" />
               </View>
-              <Text style={styles.qrTitle}>You're checked in</Text>
+              <Text style={styles.qrTitle}>{firstName.trim() || "Your guest"} is checked in</Text>
               <Text style={styles.qrSub}>
-                Thanks for visiting {property}. {repFirst} has the guest details and can start the tour.
+                Ready for {property}. Record now, or find this tour on your home screen later.
               </Text>
-              {resultSessionId ? (
+              {resolvedSessionId ? (
+                <>
                 <Pressable
+                  accessibilityRole="button"
                   onPress={finishAndRecord}
-                  style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.startSessionButton, styles.stretch, pressed && styles.pressed]}
                 >
-                  <Ionicons name="mic" size={16} color="#fff" />
-                  <Text style={styles.sheetPrimaryText}>Start recording</Text>
+                  <Ionicons name="mic-outline" size={19} color="#fff" />
+                  <Text style={styles.startSessionButtonText}>Record now</Text>
                 </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={recordLater}
+                  style={({ pressed }) => [styles.recordLaterButton, styles.stretch, pressed && styles.pressed]}
+                >
+                  <Ionicons name="time-outline" size={18} color={C.textSec} />
+                  <Text style={styles.notYetButtonText}>Record later</Text>
+                </Pressable>
+                </>
               ) : null}
-              <View style={styles.buttonRow}>
                 <Pressable
+                  accessibilityRole="button"
                   onPress={addAnotherPerson}
-                  style={({ pressed }) => [styles.backBtn, styles.addAnotherBtn, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.notYetButton, styles.addAnotherBtn, pressed && styles.pressed]}
                 >
-                  <Ionicons name="person-add-outline" size={16} color={C.text} />
-                  <Text style={styles.backBtnText}>Add another person</Text>
+                  <Ionicons name="person-add-outline" size={16} color={C.textSec} />
+                  <Text style={styles.keepOpenButtonText}>Add another guest</Text>
                 </Pressable>
-                <Pressable
-                  onPress={onClose}
-                  style={({ pressed }) => [styles.backBtn, styles.doneBtn, pressed && styles.pressed]}
-                >
-                  <Text style={styles.backBtnText}>Done</Text>
-                </Pressable>
-              </View>
-            </View>
+            </ScrollView>
           ) : step === "questions" ? (
             <ScrollView
               style={styles.flex1}
               keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.checkInForm}
             >
@@ -556,27 +716,33 @@ export function CheckInSheet({
               {error ? <Text style={styles.fieldError}>{error}</Text> : null}
               <View style={styles.buttonRow}>
                 <Pressable
+                  accessibilityRole="button"
                   onPress={() => setStep("contact")}
+                  disabled={submitting}
                   style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
                 >
                   <Text style={styles.backBtnText}>Back</Text>
                 </Pressable>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: checkInBusy, busy: checkInBusy }}
                   onPress={() => void submitLead()}
-                  disabled={submitting}
+                  disabled={checkInBusy}
                   style={({ pressed }) => [
                     styles.nextButton,
                     { flex: 1 },
-                    submitting && { opacity: 0.64 },
+                    checkInBusy && styles.disabled,
                     pressed && styles.pressed,
                   ]}
                 >
-                  {submitting ? (
+                  {checkInBusy ? (
                     <LoadingDots size="small" color="#fff" />
                   ) : (
                     <Ionicons name="send-outline" size={16} color="#fff" />
                   )}
-                  <Text style={styles.nextButtonText}>{submitting ? "Checking in..." : "Check in"}</Text>
+                  <Text style={styles.nextButtonText}>
+                    {submitting ? "Checking in..." : bindingPending ? "Preparing tour..." : "Check in"}
+                  </Text>
                 </Pressable>
               </View>
             </ScrollView>
@@ -584,7 +750,6 @@ export function CheckInSheet({
             <ScrollView
               style={styles.flex1}
               keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.checkInForm}
             >
@@ -638,19 +803,36 @@ export function CheckInSheet({
               <CheckInField label="Reason for visit" value={reason} onChangeText={setReason} />
               {error ? <Text style={styles.fieldError}>{error}</Text> : null}
               <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: checkInBusy, busy: checkInBusy }}
                 onPress={nextFromContact}
-                disabled={submitting}
-                style={({ pressed }) => [styles.nextButton, pressed && styles.pressed]}
+                disabled={checkInBusy}
+                style={({ pressed }) => [styles.nextButton, checkInBusy && styles.disabled, pressed && styles.pressed]}
               >
                 <Ionicons name="send-outline" size={16} color="#fff" />
-                <Text style={styles.nextButtonText}>Next</Text>
+                <Text style={styles.nextButtonText}>{bindingPending ? "Preparing tour..." : "Next"}</Text>
               </Pressable>
-              <Text style={styles.checkInDestination}>QR opens {checkInUrl}</Text>
             </ScrollView>
           )}
           </Reanimated.View>
+          {!hasCheckedIn ? (
+            <View style={styles.skipFooter}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: submitting, busy: submitting }}
+                accessibilityHint="Continue to recording without adding guest details"
+                disabled={submitting}
+                onPress={onSkipCheckIn}
+                style={({ pressed }) => [styles.skipButton, submitting && styles.disabled, pressed && styles.pressed]}
+              >
+                <Text style={styles.skipButtonText}>Skip check-in for now</Text>
+                <Ionicons name="arrow-forward" size={17} color={C.brand} />
+              </Pressable>
+            </View>
+          ) : null}
         </Pressable>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -754,16 +936,24 @@ function CheckInPanelSkeleton({ mode }: { mode: "checkin" | "qr" }) {
 
 const styles = StyleSheet.create({
   sheetScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.42)" },
-  sheetKeyboard: { flex: 1, justifyContent: "flex-end" },
+  sheetKeyboard: { flex: 1, justifyContent: "flex-end", paddingHorizontal: 12 },
   checkInSheet: {
-    height: SHEET_HEIGHT,
+    width: "100%",
+    maxWidth: 520,
+    maxHeight: "100%",
+    flexShrink: 1,
+    alignSelf: "center",
     gap: 10,
     paddingHorizontal: 18,
     paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 28 : 16,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    paddingBottom: 16,
+    borderRadius: 24,
     backgroundColor: "#fff",
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 8,
   },
   sheetBody: {
     flex: 1,
@@ -814,6 +1004,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#d1d5db",
     marginBottom: 2,
   },
+  sheetHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
+  tourMarkWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: "#eff6ff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetTitle: { color: C.text, fontSize: 21, lineHeight: 26, fontWeight: "900" },
+  sheetSubtitle: { color: C.textSec, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  closeButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  skipFooter: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#e4e7ec", paddingTop: 4 },
+  skipButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  skipButtonText: { color: C.brand, fontSize: 14, fontWeight: "700" },
+  bindingErrorPanel: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 12 },
   sheetTabs: {
     position: "relative",
     flexDirection: "row",
@@ -826,7 +1032,7 @@ const styles = StyleSheet.create({
   sheetTab: {
     zIndex: 1,
     flex: 1,
-    minHeight: 36,
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -910,7 +1116,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#111",
   },
   nextButtonText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  checkInDestination: { color: C.textMuted, fontSize: 10, fontWeight: "600", textAlign: "center" },
   questionTitle: { color: C.text, fontSize: 17, lineHeight: 22, fontWeight: "800" },
   questionField: { gap: 6 },
   questionLabel: { color: C.text, fontSize: 13, fontWeight: "800" },
@@ -938,8 +1143,7 @@ const styles = StyleSheet.create({
   toggleText: { flex: 1, color: C.text, fontSize: 12, fontWeight: "700" },
   fieldError: { color: C.red, fontSize: 12, fontWeight: "700" },
   buttonRow: { flexDirection: "row", gap: 8 },
-  addAnotherBtn: { flex: 1.7, flexDirection: "row", gap: 6 },
-  doneBtn: { flex: 0.8 },
+  addAnotherBtn: { flexDirection: "row", gap: 6, alignSelf: "stretch" },
   backBtn: {
     minWidth: 80,
     minHeight: 48,
@@ -952,7 +1156,7 @@ const styles = StyleSheet.create({
   },
   backBtnText: { color: C.text, fontSize: 14, fontWeight: "800" },
   donePanel: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
@@ -980,11 +1184,15 @@ const styles = StyleSheet.create({
   sheetPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   qrPanel: {
     flex: 1,
+    minHeight: 0,
+  },
+  qrPanelContent: {
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    paddingTop: 4,
-    paddingBottom: 6,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   qrCard: {
     width: 248,
@@ -1010,6 +1218,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   qrLink: {
+    minHeight: 44,
     maxWidth: 300,
     flexDirection: "row",
     alignItems: "center",
@@ -1036,7 +1245,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fff",
   },
-  realtimeStatusRow: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 7 },
+  realtimeStatusRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7 },
   realtimeDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: C.textMuted },
   realtimeDotLive: { backgroundColor: C.green },
   realtimeStatusText: { color: C.textSec, fontSize: 11, fontWeight: "700" },
@@ -1054,8 +1263,7 @@ const styles = StyleSheet.create({
   },
   checkedInPopup: {
     position: "relative",
-    maxHeight: "76%",
-    gap: 12,
+    maxHeight: "96%",
     paddingHorizontal: 14,
     paddingTop: 25,
     paddingBottom: 10,
@@ -1069,6 +1277,8 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 8,
   },
+  popupScroll: { flexShrink: 1 },
+  popupContent: { gap: 10 },
   checkedInStatusPill: {
     position: "absolute",
     top: -17,
@@ -1134,8 +1344,22 @@ const styles = StyleSheet.create({
     backgroundColor: C.brand,
   },
   startSessionButtonText: { color: "#fff", fontSize: 17, fontWeight: "900" },
-  notYetButton: { minHeight: 32, alignItems: "center", justifyContent: "center" },
+  recordLaterButton: {
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderWidth: 1,
+    borderColor: "#e4e7ec",
+    borderRadius: 13,
+    backgroundColor: "#f8fafc",
+  },
+  notYetButton: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   notYetButtonText: { color: C.textSec, fontSize: 14, fontWeight: "800" },
+  keepOpenButtonText: { color: C.textSec, fontSize: 13, fontWeight: "600" },
+  stretch: { alignSelf: "stretch" },
   flex1: { flex: 1 },
+  disabled: { opacity: 0.5 },
   pressed: { opacity: 0.88 },
 });

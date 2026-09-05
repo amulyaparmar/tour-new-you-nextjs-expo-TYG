@@ -4,22 +4,21 @@ import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { CustomText } from "../components/custom-text";
 import { ACCENT, CARD, SMALL_CORNER } from "../theme/tokens";
 import { formatElapsed } from "./formatElapsed";
-import { liveSessionHeadline, liveSessionSubline } from "./liveSessionLabel";
+import { liveSessionHeadline } from "./liveSessionLabel";
 import { useRecording } from "./RecordingProvider";
 
 const C = {
   textSec: "#667085",
-  textMuted: "#98A2B3",
-  brandSoft: "#EAF4FF",
-  red: "#D92D20",
-  redSoft: "#FEF3F2",
+  text: "#102C48",
+  brandSoft: "#F3F8FF",
+  border: "#DCEBFC",
 } as const;
 
 type LiveRecordingCardProps = {
   onPress?: () => void;
 };
 
-/** Tour-themed live session card for Home / Sessions while recording continues in the background. */
+/** Compact entry back into the ongoing tour, including when its floating player is hidden. */
 export function LiveRecordingCard({ onPress }: LiveRecordingCardProps) {
   const {
     isRecording,
@@ -27,45 +26,49 @@ export function LiveRecordingCard({ onPress }: LiveRecordingCardProps) {
     elapsed,
     experienceVisible,
     liveMeta,
-    transcriptPreview,
+    draft,
     expandExperience,
   } = useRecording();
   const pulse = useRef(new Animated.Value(1)).current;
+  const cardVisible = isRecording && !experienceVisible && Boolean(liveMeta);
 
   useEffect(() => {
-    if (!isRecording || isPaused) {
-      pulse.setValue(1);
-      return;
-    }
+    pulse.stopAnimation();
+    pulse.setValue(1);
+    if (!cardVisible || isPaused) return;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.35, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.6, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 1000, useNativeDriver: true }),
       ]),
     );
     loop.start();
-    return () => loop.stop();
-  }, [isPaused, isRecording, pulse]);
+    return () => {
+      loop.stop();
+      pulse.stopAnimation();
+    };
+  }, [cardVisible, isPaused, pulse]);
 
-  if (!isRecording || experienceVisible || !liveMeta) return null;
+  if (!cardVisible || !liveMeta) return null;
 
-  const headline = liveSessionHeadline(liveMeta);
-  const subline = liveSessionSubline(liveMeta, formatElapsed(elapsed));
-  const preview =
-    transcriptPreview.trim() ||
-    (isPaused
-      ? "Recording paused. Tap to return to the live tour."
-      : "When someone starts speaking, live updates will appear here.");
+  const headline = draft?.participants.map((guest) => guest.name.trim()).filter(Boolean).join(", ")
+    || draft?.prospect.trim()
+    || liveMeta.prospectName?.trim()
+    || liveSessionHeadline(liveMeta);
+  const elapsedLabel = formatElapsed(elapsed);
+  const statusLabel = isPaused ? "Paused" : "Recording";
   const initials = headline
-    .split(/\s*[×x]\s*|\s+/)
-    .filter(Boolean)
+    .split(/\s+/)
+    .filter((part) => part && part !== "×" && part !== "x")
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
 
   return (
     <Pressable
-      accessibilityLabel="Open live recording"
+      accessibilityRole="button"
+      accessibilityLabel={`Open tour with ${headline}. ${statusLabel}. ${elapsedLabel} elapsed.`}
+      accessibilityHint="Expand the ongoing tour and recording controls"
       onPress={() => {
         onPress?.();
         expandExperience();
@@ -76,68 +79,69 @@ export function LiveRecordingCard({ onPress }: LiveRecordingCardProps) {
         {initials ? (
           <CustomText textStyle="title" style={st.avatarText}>{initials}</CustomText>
         ) : (
-          <Ionicons name="mic" size={22} color={ACCENT} />
+          <Ionicons name="mic-outline" size={19} color={ACCENT} />
         )}
       </View>
       <View style={st.body}>
-        <CustomText textStyle="title" numberOfLines={1}>
+        <CustomText textStyle="title" numberOfLines={1} style={st.headline}>
           {headline}
         </CustomText>
-        <CustomText textStyle="label" numberOfLines={1} style={st.meta}>
-          {subline}
-        </CustomText>
-        <CustomText textStyle="caption" numberOfLines={2} style={st.preview}>
-          {preview}
-        </CustomText>
-        <View style={st.liveBadge}>
-          <Animated.View style={[st.liveDot, { opacity: isPaused ? 1 : pulse }]} />
-          <CustomText textStyle="micro" style={st.liveText}>{isPaused ? "PAUSED" : "LIVE"}</CustomText>
+        <View style={st.statusRow}>
+          <Animated.View style={[st.liveDot, isPaused && st.pausedDot, { opacity: isPaused ? 1 : pulse }]} />
+          <CustomText textStyle="caption" style={st.statusText}>{statusLabel}</CustomText>
+          <CustomText textStyle="caption" style={st.separator}>·</CustomText>
+          <CustomText textStyle="label" style={st.elapsed}>{elapsedLabel}</CustomText>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+      <View style={st.expandAffordance}>
+        <Ionicons name="expand-outline" size={18} color={ACCENT} />
+      </View>
     </Pressable>
   );
 }
 
 const st = StyleSheet.create({
   card: {
+    minHeight: 76,
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    padding: 14,
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: C.border,
     borderRadius: SMALL_CORNER,
     borderCurve: "continuous",
-    backgroundColor: CARD,
-    shadowColor: "#101828",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 2,
+    backgroundColor: C.brandSoft,
   },
   pressed: { opacity: 0.92 },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: C.brandSoft,
+    backgroundColor: CARD,
   },
-  avatarText: { color: ACCENT, letterSpacing: 0.2 },
+  avatarText: { color: ACCENT, fontSize: 14, letterSpacing: 0.2 },
   body: { flex: 1, minWidth: 0, gap: 4 },
-  meta: { color: C.textSec },
-  preview: { color: C.textMuted, lineHeight: 18, marginTop: 2 },
-  liveBadge: {
-    alignSelf: "flex-start",
-    marginTop: 8,
+  headline: { color: C.text, lineHeight: 22 },
+  statusRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: C.redSoft,
   },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.red },
-  liveText: { color: C.red, letterSpacing: 0.4 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: ACCENT },
+  pausedDot: { backgroundColor: C.textSec },
+  statusText: { color: C.textSec },
+  separator: { color: C.textSec, marginHorizontal: 1 },
+  elapsed: { color: C.text, fontVariant: ["tabular-nums"] },
+  expandAffordance: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: CARD,
+  },
 });

@@ -55,10 +55,14 @@ export const queryKeys = {
   calendar: () => [...queryKeys.all(), "calendar"] as const,
 };
 
-export function useSessionsQuery(params?: FetchSessionsParams) {
+export function useSessionsQuery(
+  params?: FetchSessionsParams,
+  options?: { refetchInterval?: number | false },
+) {
   return useQuery({
     queryKey: queryKeys.sessions(params),
     queryFn: () => fetchSessions(params),
+    refetchInterval: options?.refetchInterval,
   });
 }
 
