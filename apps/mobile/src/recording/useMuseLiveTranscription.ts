@@ -1,8 +1,6 @@
 import NetInfo from "@react-native-community/netinfo";
 import { useEffect, useRef, useState } from "react";
 
-import { createLiveTranscriptionSocket } from "../api";
-
 export type RealtimeTranscriptionStatus = "idle" | "connecting" | "streaming" | "fallback";
 
 export type RealtimeTranscriptLine = {
@@ -47,6 +45,8 @@ type BufferedAudio = {
 const PCM_CHUNK_BYTES = 3_200;
 const PCM_SILENCE = new Uint8Array(PCM_CHUNK_BYTES);
 const MAX_RECONNECT_AUDIO_BYTES = 64_000;
+const MUSE_REALTIME_URL = "wss://api.meta.ai/v1/asr/realtime";
+const MUSE_API_KEY = process.env.EXPO_PUBLIC_META_MODEL_API_KEY?.trim() ?? "";
 
 export function useMuseLiveTranscription({
   enabled,
@@ -113,10 +113,13 @@ export function useMuseLiveTranscription({
     const connect = async () => {
       setStatus(reconnectAttempt === 0 ? "connecting" : "fallback");
       try {
-        const { url } = await createLiveTranscriptionSocket(sessionId);
+        if (!MUSE_API_KEY) {
+          setStatus("fallback");
+          return;
+        }
         if (cancelled) return;
 
-        const socket = new WebSocket(url);
+        const socket = new WebSocket(MUSE_REALTIME_URL);
         socket.binaryType = "arraybuffer";
         socketRef.current = socket;
         upstreamReadyRef.current = false;
@@ -127,6 +130,19 @@ export function useMuseLiveTranscription({
         partialTurnIdRef.current = null;
         connectionNumberRef.current += 1;
         const connectionNumber = connectionNumberRef.current;
+
+        socket.onopen = () => {
+          if (cancelled) return;
+          socket.send(JSON.stringify({
+            model: "muse-voice-transcribe-1.0",
+            mode: "DIARIZATION",
+            audioEncoding: "PCM_16KHZ",
+            partialMode: "CUMULATIVE",
+            emitAudioProgress: true,
+            languageBias: ["English"],
+            authorization: { accessToken: `Bearer ${MUSE_API_KEY}` },
+          }));
+        };
 
         socket.onmessage = (event) => {
           if (cancelled || typeof event.data !== "string") return;
