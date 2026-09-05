@@ -1,51 +1,65 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { SessionLead } from "@tour/shared";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import QRCodeStyled from "react-native-qrcode-styled";
-import Reanimated, {
-  FadeIn,
-  LinearTransition,
-  cancelAnimation,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   Keyboard,
-  KeyboardAvoidingView,
-  Linking,
   View,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   Share,
   StyleSheet,
-  Text,
+  Switch,
   TextInput,
-  useWindowDimensions,
 } from "react-native";
-import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import Reanimated, {
+  Easing,
+  FadeIn,
+  ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { submitCheckInLead } from "../../api";
+import { createCheckInLink, submitCheckInLead } from "../../api";
+import { useSessionParticipantRealtime } from "../../session-participants-realtime";
+import { CustomText } from "@/components/custom-text";
 import {
-  useSessionParticipantRealtime,
-  type SessionParticipantRealtimeStatus,
-} from "../../session-participants-realtime";
+  GlassNavHeader,
+  glassNavContentInset,
+} from "@/components/glass-nav-header";
+import { InfoBox } from "@/components/info-box";
+import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { LoadingDots } from "@/components/loading-dots";
-import { TourMark } from "../TourLogo";
-import { CheckInSheetScrollView } from "./check-in-sheet-scroll-view";
+import {
+  PAGE_SHEET_HEADER_INSET,
+  PageSheetModal,
+} from "@/components/page-sheet-modal";
+import { SecondaryButton } from "@/components/secondary-button";
+import {
+  ACCENT,
+  BACKGROUND,
+  CARD,
+  FONT,
+  HINT,
+  LARGE_CORNER,
+  SMALL_CORNER,
+  TEXT,
+} from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 
-const C = {
-  text: "#101828",
-  textSec: "#667085",
-  textMuted: "#98A2B3",
-  brand: "#006CE5",
-  green: "#12B76A",
-  red: "#D92D20",
-} as const;
+const FOOTER_FADE = 56;
+const FORM_TOP_INSET = PAGE_SHEET_HEADER_INSET + 16;
+const CHECK_IN_CONFIRM_MS = 1000;
 
 type MobileCheckInQuestion = {
   id: string;
@@ -61,21 +75,40 @@ const CHECK_IN_QUESTIONS: MobileCheckInQuestion[] = [
     id: "hear_about",
     label: "Where did you hear about us?",
     type: "select",
-    options: ["Google", "Apartments.com", "Drive by", "Referral", "Social media", "Other"],
+    options: [
+      "Google",
+      "Apartments.com",
+      "Drive by",
+      "Referral",
+      "Social media",
+      "Other",
+    ],
     placeholder: "Select one",
   },
   {
     id: "move_in",
     label: "When are you looking to move in?",
     type: "select",
-    options: ["ASAP", "Within 1 month", "1-3 months", "3-6 months", "Just browsing"],
+    options: [
+      "ASAP",
+      "Within 1 month",
+      "1-3 months",
+      "3-6 months",
+      "Just browsing",
+    ],
     placeholder: "Select a timeframe",
   },
   {
     id: "floor_plan",
     label: "Which floor plan interests you most?",
     type: "select",
-    options: ["1 bedroom", "2 bedroom", "3 bedroom", "4 bedroom", "Not sure yet"],
+    options: [
+      "1 bedroom",
+      "2 bedroom",
+      "3 bedroom",
+      "4 bedroom",
+      "Not sure yet",
+    ],
     placeholder: "Select a floor plan",
   },
 ];
@@ -89,11 +122,6 @@ function formatCheckInPhone(value: string) {
 
 function validCheckInEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
-function firstNameOf(fullName: string | null | undefined) {
-  const part = (fullName ?? "").trim().split(/\s+/).filter(Boolean)[0];
-  return part || "your agent";
 }
 
 function slugifyRep(name: string | null | undefined) {
@@ -125,128 +153,81 @@ function uniqueCheckedInGuests(guests: SessionLead[]) {
 }
 
 function guestInitials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "?";
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "?"
+  );
 }
 
 export function CheckInSheet({
-  visible,
-  onClose,
+  onBack,
   property,
   propertyId,
   agentName,
   repSlug,
-  sessionId,
-  checkInUrl: checkInUrlProp,
   onCheckedIn,
   onSkipCheckIn,
-  onRecordLater,
-  bindingPending = false,
-  bindingError,
-  onRetry,
 }: {
-  visible: boolean;
-  onClose: () => void;
+  onBack: () => void;
   property: string;
   propertyId?: string | null;
   agentName?: string | null;
   repSlug?: string | null;
-  /** Exact remote session that both QR and native check-in add to. */
-  sessionId?: string | null;
-  /** Personalized public check-in URL from property/member aliases. */
-  checkInUrl?: string | null;
-  /** Open the checked-in tour's recording setup. */
   onCheckedIn: (sessionId: string) => void;
   onSkipCheckIn: () => void;
-  /** Leave this same tour ready to resume from the main screen. */
   onRecordLater: (sessionId: string) => void;
-  bindingPending?: boolean;
-  bindingError?: string | null;
-  onRetry?: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
-  const popupTopSpace = insets.top + 12;
-  const popupHeight = Math.min(
-    Math.round(windowHeight * 0.78),
-    720,
-    windowHeight - popupTopSpace,
-  );
-  const dragY = useSharedValue(0);
-  const dragClosing = useSharedValue(false);
-  const closeFromSwipe = useCallback(() => {
-    Keyboard.dismiss();
-    onClose();
-  }, [onClose]);
-  const dragStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: dragY.value }],
-  }));
-
-  useEffect(() => {
-    // Keep the dragged position during native dismissal; reset on reopening.
-    if (visible) {
-      cancelAnimation(dragY);
-      dragY.value = 0;
-      dragClosing.value = false;
-    }
-    return () => cancelAnimation(dragY);
-  }, [visible, dragY, dragClosing]);
-
-  // The header can always drag; QR and form content share a scroll-to-sheet handoff.
-  const dismissGesture = useMemo(() => Gesture.Pan()
-    .enabled(visible)
-    .activeOffsetY(6)
-    .failOffsetX([-28, 28])
-    .onBegin(() => {
-      cancelAnimation(dragY);
-    })
-    .onUpdate((event) => {
-      if (!dragClosing.value) dragY.value = Math.max(0, event.translationY);
-    })
-    .onEnd((event, success) => {
-      if (dragClosing.value) return;
-      if (success && (event.translationY > 88 || (event.translationY > 12 && event.velocityY > 900))) {
-        dragClosing.value = true;
-        runOnJS(closeFromSwipe)();
-      } else {
-        dragY.value = withSpring(0, { damping: 24, stiffness: 260 });
-      }
-    })
-    .onFinalize((_event, success) => {
-      if (!success && !dragClosing.value) {
-        dragY.value = withSpring(0, { damping: 24, stiffness: 260 });
-      }
-    }), [visible, closeFromSwipe, dragY, dragClosing]);
-  const repFirst = firstNameOf(agentName);
+  const footerPad = Math.max(insets.bottom, 16);
+  const footerClearance = FOOTER_FADE + 58 + footerPad;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const keyboardOpen = keyboardHeight > 0;
+  const formFooterPad = keyboardOpen ? 12 : footerPad;
+  const formFooterClearance = FOOTER_FADE + 58 + formFooterPad + keyboardHeight;
   const resolvedRepSlug = (repSlug ?? "").trim() || slugifyRep(agentName);
-  // Keep a session returned by native check-in when another guest is added.
-  // This also binds the QR/realtime flow if initial session creation failed.
   const [resultSessionId, setResultSessionId] = useState<string | null>(null);
-  const resolvedSessionId = resultSessionId ?? sessionId ?? null;
+  const [boundSessionId, setBoundSessionId] = useState<string | null>(null);
+  const [boundCheckInUrl, setBoundCheckInUrl] = useState<string | null>(null);
+  const [bindingPending, setBindingPending] = useState(true);
+  const [bindingError, setBindingError] = useState<string | null>(null);
+  const resolvedSessionId = resultSessionId ?? boundSessionId;
   const checkInUrl = useMemo(() => {
-    const fromProp = (checkInUrlProp ?? "").trim();
-    if (fromProp && (!resultSessionId || resultSessionId === sessionId)) return fromProp;
-    // Only expose the QR once it is bound to this tour, never to a generic
-    // property check-in that could create a separate session for each guest.
-    const propertySlug = (property ?? "")
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "property";
-    const sessionQuery = resolvedSessionId ? `&sessionId=${encodeURIComponent(resolvedSessionId)}` : "";
-    const memberPath = resolvedSessionId ? `/${encodeURIComponent(resolvedRepSlug)}` : "";
+    const fromProp = (boundCheckInUrl ?? "").trim();
+    if (fromProp && (!resultSessionId || resultSessionId === boundSessionId))
+      return fromProp;
+    const propertySlug =
+      (property ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "property";
+    const sessionQuery = resolvedSessionId
+      ? `&sessionId=${encodeURIComponent(resolvedSessionId)}`
+      : "";
+    const memberPath = resolvedSessionId
+      ? `/${encodeURIComponent(resolvedRepSlug)}`
+      : "";
     return `https://tour.you/p/${encodeURIComponent(propertySlug)}${memberPath}?check-in=true${sessionQuery}`;
-  }, [checkInUrlProp, property, resolvedRepSlug, resolvedSessionId, resultSessionId, sessionId]);
+  }, [
+    boundCheckInUrl,
+    boundSessionId,
+    property,
+    resolvedRepSlug,
+    resolvedSessionId,
+    resultSessionId,
+  ]);
   const sessionQrReady = Boolean(resolvedSessionId);
-  const [mode, setMode] = useState<"checkin" | "qr">("qr");
-  const [tabSwitching, setTabSwitching] = useState(false);
-  const [tabSegmentWidth, setTabSegmentWidth] = useState(0);
-  const tabPosition = useSharedValue(1);
+  const [formOpen, setFormOpen] = useState(false);
   const [step, setStep] = useState<"contact" | "questions" | "done">("contact");
+  const pagerWidth = useSharedValue(0);
+  const pagerProgress = useSharedValue(0);
+  const pagerTrackStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -pagerProgress.value * pagerWidth.value }],
+  }));
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -260,86 +241,113 @@ export function CheckInSheet({
   const [nativeGuests, setNativeGuests] = useState<SessionLead[]>([]);
   const submissionEpoch = useRef(0);
   const submissionInFlight = useRef(false);
-  // A confirmed native check-in is immediately available in the QR tab, even
-  // before the next realtime refresh. Replace its preview with server details.
-  const checkedInGuests = useMemo(() => uniqueCheckedInGuests([
-    ...realtimeGuests,
-    ...nativeGuests.filter((nativeGuest) => !realtimeGuests.some((remoteGuest) =>
-      remoteGuest.email?.trim().toLowerCase() === nativeGuest.email?.trim().toLowerCase()
-      && remoteGuest.name.trim().toLowerCase() === nativeGuest.name.trim().toLowerCase(),
-    )),
-  ]), [nativeGuests, realtimeGuests]);
-  const [realtimeStatus, setRealtimeStatus] = useState<SessionParticipantRealtimeStatus>("idle");
-  const [guestPopupDismissed, setGuestPopupDismissed] = useState(false);
-  const hasCheckedIn = checkedInGuests.length > 0 || Boolean(resultSessionId);
+  const bindingRequest = useRef(0);
+  const confirmCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkedInGuests = useMemo(
+    () =>
+      uniqueCheckedInGuests([
+        ...realtimeGuests,
+        ...nativeGuests.filter(
+          (nativeGuest) =>
+            !realtimeGuests.some(
+              (remoteGuest) =>
+                remoteGuest.email?.trim().toLowerCase() ===
+                  nativeGuest.email?.trim().toLowerCase() &&
+                remoteGuest.name.trim().toLowerCase() ===
+                  nativeGuest.name.trim().toLowerCase(),
+            ),
+        ),
+      ]),
+    [nativeGuests, realtimeGuests],
+  );
+  const hasCheckedIn = checkedInGuests.length > 0;
   const checkInBusy = submitting || bindingPending;
 
   const updateCheckedInGuests = useCallback((guests: SessionLead[]) => {
     setRealtimeGuests(uniqueCheckedInGuests(guests));
   }, []);
 
+  const loadBinding = useCallback(async () => {
+    const request = ++bindingRequest.current;
+    setBindingPending(true);
+    setBindingError(null);
+    try {
+      const binding = await createCheckInLink();
+      if (request !== bindingRequest.current) return;
+      setBoundSessionId(binding.sessionId);
+      setBoundCheckInUrl(binding.url);
+    } catch {
+      if (request !== bindingRequest.current) return;
+      setBindingError(
+        "Check-in is unavailable. Try again, or skip to recording.",
+      );
+    } finally {
+      if (request === bindingRequest.current) setBindingPending(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBinding();
+    return () => {
+      bindingRequest.current += 1;
+    };
+  }, [loadBinding]);
+
   useEffect(() => {
     submissionEpoch.current += 1;
     submissionInFlight.current = false;
     setSubmitting(false);
     return () => {
-      // A response from a previous opening must never bind the next tour.
       submissionEpoch.current += 1;
       submissionInFlight.current = false;
     };
-  }, [visible, sessionId, property]);
+  }, [boundSessionId, property]);
 
   useSessionParticipantRealtime({
-    sessionId: visible ? resolvedSessionId : null,
+    sessionId: resolvedSessionId,
     onParticipants: updateCheckedInGuests,
-    onStatusChange: setRealtimeStatus,
   });
 
-  const tabIndicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: tabPosition.value * (tabSegmentWidth + 6) }],
-  }), [tabSegmentWidth]);
-
   useEffect(() => {
-    tabPosition.value = withSpring(mode === "checkin" ? 0 : 1, {
-      damping: 20,
-      stiffness: 240,
-      mass: 0.72,
-    });
-  }, [mode, tabPosition]);
-
-  useEffect(() => {
-    if (!tabSwitching) return;
-    const timeout = setTimeout(() => setTabSwitching(false), 140);
-    return () => clearTimeout(timeout);
-  }, [mode, tabSwitching]);
-
-  useEffect(() => {
-    if (!visible) return;
-    setMode("qr");
-    setTabSwitching(false);
-    setStep("contact");
-    setFirstName("");
-    setLastName("");
-    setEmail("");
-    setPhone("");
-    setReason(`Tour ${property}`);
-    setWantsSummary(false);
-    setAnswers({});
-    setSubmitting(false);
-    setError(null);
-    setResultSessionId(null);
-    setNativeGuests([]);
-  }, [visible, property]);
-
-  useEffect(() => {
-    if (!visible) return;
     setRealtimeGuests([]);
-    setGuestPopupDismissed(false);
-  }, [resolvedSessionId, visible]);
+  }, [resolvedSessionId]);
 
   useEffect(() => {
-    if (checkedInGuests.length > 0) setGuestPopupDismissed(false);
-  }, [checkedInGuests.length]);
+    return () => {
+      if (confirmCloseTimer.current) clearTimeout(confirmCloseTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (step === "done") {
+      pagerProgress.value = 0;
+      return;
+    }
+    if (!formOpen) return;
+    pagerProgress.value = withTiming(step === "questions" ? 1 : 0, {
+      duration: 340,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [formOpen, pagerProgress, step]);
+
+  useEffect(() => {
+    if (!formOpen) {
+      setKeyboardHeight(0);
+      return;
+    }
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [formOpen]);
 
   async function submitLead() {
     if (checkInBusy || submissionInFlight.current) return;
@@ -363,11 +371,11 @@ export function CheckInSheet({
         sessionId: resolvedSessionId,
       });
       if (requestEpoch !== submissionEpoch.current) return;
-      // The initial QR binding can reserve an ID before a session exists.
-      // Require confirmation from check-in before offering recording actions.
       const checkedInSessionId = result.sessionId;
       if (!checkedInSessionId) {
-        throw new Error("We couldn't confirm this tour. Please try checking in again.");
+        throw new Error(
+          "We couldn't confirm this tour. Please try checking in again.",
+        );
       }
       setResultSessionId(checkedInSessionId);
       const nativeGuest: SessionLead = {
@@ -380,14 +388,28 @@ export function CheckInSheet({
         createdAt: new Date().toISOString(),
       };
       setNativeGuests((current) => [
-        ...current.filter((guest) => guest.email?.trim().toLowerCase() !== nativeGuest.email?.toLowerCase()
-          || guest.name.trim().toLowerCase() !== nativeGuest.name.toLowerCase()),
+        ...current.filter(
+          (guest) =>
+            guest.email?.trim().toLowerCase() !==
+              nativeGuest.email?.toLowerCase() ||
+            guest.name.trim().toLowerCase() !== nativeGuest.name.toLowerCase(),
+        ),
         nativeGuest,
       ]);
       setStep("done");
+      if (confirmCloseTimer.current) clearTimeout(confirmCloseTimer.current);
+      confirmCloseTimer.current = setTimeout(() => {
+        confirmCloseTimer.current = null;
+        setFormOpen(false);
+        resetCheckInForm();
+      }, CHECK_IN_CONFIRM_MS);
     } catch (caught) {
       if (requestEpoch === submissionEpoch.current) {
-        setError(caught instanceof Error ? caught.message : "Something went wrong. Please try again.");
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Something went wrong. Please try again.",
+        );
       }
     } finally {
       if (requestEpoch === submissionEpoch.current) {
@@ -416,20 +438,20 @@ export function CheckInSheet({
   }
 
   async function shareCheckInLink() {
-    await Share.share({ title: "Tour check-in", message: checkInUrl, url: checkInUrl });
+    await Share.share({
+      title: "Tour check-in",
+      message: checkInUrl,
+      url: checkInUrl,
+    });
   }
 
   function finishAndRecord() {
     if (!resolvedSessionId) return;
+    setFormOpen(false);
     onCheckedIn(resolvedSessionId);
   }
 
-  function recordLater() {
-    if (!resolvedSessionId) return;
-    onRecordLater(resolvedSessionId);
-  }
-
-  function addAnotherPerson() {
+  function resetCheckInForm() {
     const sharedHowHeard = answers.hear_about;
     setFirstName("");
     setLastName("");
@@ -441,474 +463,500 @@ export function CheckInSheet({
     setStep("contact");
   }
 
+  function closeCheckInForm() {
+    if (confirmCloseTimer.current) {
+      clearTimeout(confirmCloseTimer.current);
+      confirmCloseTimer.current = null;
+    }
+    setFormOpen(false);
+    if (step === "done") resetCheckInForm();
+  }
+
+  function openCheckInForm() {
+    if (step === "done") resetCheckInForm();
+    setFormOpen(true);
+  }
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <GestureHandlerRootView style={styles.flex1}>
-      <Pressable style={styles.sheetScrim} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        pointerEvents="box-none"
-        style={styles.flex1}
-      >
-      <View
-        pointerEvents="box-none"
-        style={[
-          styles.sheetKeyboard,
-          { paddingTop: popupTopSpace },
-        ]}
-      >
-        <Reanimated.View
-          style={[
-            styles.checkInSheet,
-            { height: popupHeight, paddingBottom: Math.max(insets.bottom, 16) },
-            dragStyle,
-          ]}
-        >
-          <GestureDetector gesture={dismissGesture}>
-            <View collapsable={false} style={styles.dragHeader}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.sheetHeading}>
-                <View style={styles.tourMarkWrap}>
-                  <TourMark size={30} />
-                </View>
-                <View style={styles.flex1}>
-                  <Text style={styles.sheetTitle}>New tour / Check-in</Text>
-                  <Text style={styles.sheetSubtitle}>Check in your guests, or go straight to recording.</Text>
-                </View>
+    <View style={styles.root}>
+      <View style={styles.page}>
+        <View style={styles.qrPanel}>
+          {!sessionQrReady ? (
+            bindingError && !bindingPending ? (
+              <View
+                style={[
+                  styles.bindingErrorPanel,
+                  {
+                    paddingTop: glassNavContentInset(insets.top),
+                    paddingBottom: footerClearance,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="cloud-offline-outline"
+                  size={32}
+                  color={C.textMuted}
+                />
+                <CustomText textStyle="title" style={styles.centerTitle}>
+                  Check-in isn't ready yet
+                </CustomText>
+                <CustomText
+                  accessibilityRole="alert"
+                  textStyle="caption"
+                  style={styles.centerSub}
+                >
+                  {bindingError}
+                </CustomText>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Close new tour"
-                  hitSlop={4}
-                  onPress={onClose}
-                  style={styles.closeButton}
+                  onPress={() => void loadBinding()}
+                  style={({ pressed }) => [
+                    styles.primaryBtn,
+                    styles.stretch,
+                    pressed && styles.pressed,
+                  ]}
                 >
-                  <Ionicons name="close" size={22} color={C.textSec} />
+                  <Ionicons name="refresh" size={17} color={CARD} />
+                  <CustomText textStyle="title" style={styles.primaryBtnText}>
+                    Try again
+                  </CustomText>
                 </Pressable>
               </View>
-            </View>
-          </GestureDetector>
-          <View
-            style={styles.sheetTabs}
-            onLayout={(event) => setTabSegmentWidth((event.nativeEvent.layout.width - 12) / 2)}
-          >
-            {tabSegmentWidth > 0 ? (
-              <Reanimated.View
-                pointerEvents="none"
-                style={[styles.sheetTabIndicator, { width: tabSegmentWidth }, tabIndicatorStyle]}
-              />
-            ) : null}
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected: mode === "checkin", disabled: submitting }}
-              disabled={submitting}
-              onPress={() => {
-                if (mode === "checkin") return;
-                setTabSwitching(true);
-                setMode("checkin");
-              }}
-              style={styles.sheetTab}
-            >
-              <Ionicons name="send-outline" size={14} color={mode === "checkin" ? C.brand : C.textMuted} />
-              <Text style={[styles.sheetTabText, mode === "checkin" && styles.sheetTabTextActive]}>
-                Check in
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected: mode === "qr", disabled: submitting }}
-              disabled={submitting}
-              onPress={() => {
-                if (mode === "qr") return;
-                setTabSwitching(true);
-                setMode("qr");
-              }}
-              style={styles.sheetTab}
-            >
-              <BrandedQrIcon size={15} />
-              <Text style={[styles.sheetTabText, mode === "qr" && styles.sheetTabTextActive]}>QR</Text>
-            </Pressable>
-          </View>
-
-          <Reanimated.View
-            key={mode}
-            entering={FadeIn.duration(160)}
-            layout={LinearTransition.duration(180)}
-            style={styles.sheetBody}
-          >
-          {tabSwitching ? (
-            <CheckInPanelSkeleton mode={mode} />
-          ) : mode === "qr" ? (
-            !sessionQrReady ? (
-              bindingError && !bindingPending ? (
-                <View style={styles.bindingErrorPanel}>
-                  <Ionicons name="cloud-offline-outline" size={32} color={C.textMuted} />
-                  <Text style={styles.qrTitle}>Check-in isn't ready yet</Text>
-                  <Text accessibilityRole="alert" style={styles.qrSub}>{bindingError}</Text>
-                  {onRetry ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={onRetry}
-                      style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
-                    >
-                      <Ionicons name="refresh" size={17} color="#fff" />
-                      <Text style={styles.sheetPrimaryText}>Try again</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : <CheckInPanelSkeleton mode="qr" />
             ) : (
-            <View style={styles.qrPanel}>
-              <CheckInSheetScrollView
-                key="qr"
-                visible={visible}
-                dragY={dragY}
-                closing={dragClosing}
-                onDismiss={closeFromSwipe}
-                style={styles.flex1}
-                contentContainerStyle={styles.qrPanelContent}
+              <View
+                style={{
+                  flex: 1,
+                  paddingTop: glassNavContentInset(insets.top),
+                }}
               >
+                <CheckInPanelSkeleton />
+              </View>
+            )
+          ) : (
+            <ScrollView
+              key="qr"
+              style={styles.flex1}
+              contentContainerStyle={[
+                styles.qrPanelContent,
+                {
+                  paddingTop: glassNavContentInset(insets.top),
+                  paddingBottom: footerClearance,
+                },
+              ]}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.topStack}>
+              <InfoBox>
+                Guests can scan to check in, or you can enter their details
+                manually by pressing "+"
+              </InfoBox>
               <View style={styles.qrCard}>
                 <QRCodeStyled
                   data={checkInUrl}
                   size={220}
                   padding={10}
-                  color={C.text}
+                  color={TEXT}
                   pieceScale={0.82}
                   pieceCornerType="rounded"
                   pieceBorderRadius={4}
-                  outerEyesOptions={{ borderRadius: 12, color: C.text }}
-                  innerEyesOptions={{ borderRadius: 10, color: C.brand }}
+                  outerEyesOptions={{ borderRadius: 12, color: TEXT }}
+                  innerEyesOptions={{ borderRadius: 10, color: ACCENT }}
                   errorCorrectionLevel="Q"
                   style={styles.qrCode}
                 />
               </View>
-              <Text style={styles.qrTitle}>Scan to check in</Text>
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel="Open check-in page"
-                onPress={() => void Linking.openURL(checkInUrl)}
-                style={({ pressed }) => [styles.qrLink, pressed && styles.pressed]}
-              >
-                <Text style={styles.qrLinkText} numberOfLines={2}>{checkInUrl}</Text>
-                <Ionicons name="open-outline" size={13} color={C.brand} />
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Show checked-in guests"
-                disabled={checkedInGuests.length === 0}
-                onPress={() => setGuestPopupDismissed(false)}
-                style={styles.realtimeStatusRow}
-              >
-                <View style={[
-                  styles.realtimeDot,
-                  (realtimeStatus === "live" || checkedInGuests.length > 0) && styles.realtimeDotLive,
-                ]} />
-                <Text style={styles.realtimeStatusText}>
-                  {checkedInGuests.length > 0
-                    ? `${checkedInGuests.length} ${checkedInGuests.length === 1 ? "guest" : "guests"} checked in`
-                    : realtimeStatus === "live"
-                      ? "Waiting for live check-ins"
-                      : "Waiting for check-ins"}
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
+              <SecondaryButton
+                icon="share-social-outline"
+                label="Share check-in link"
                 onPress={() => void shareCheckInLink()}
-                style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
-              >
-                <Ionicons name="share-social-outline" size={16} color="#fff" />
-                <Text style={styles.sheetPrimaryText}>Share check-in link</Text>
-              </Pressable>
-              </CheckInSheetScrollView>
-
-              {checkedInGuests.length > 0 && !guestPopupDismissed ? (
-                <Reanimated.View
-                  entering={FadeIn.duration(180)}
-                  style={styles.checkedInOverlay}
+              />
+              </View>
+              <View style={styles.peopleSection}>
+                <CustomText textStyle="title" style={styles.peopleTitle}>
+                  Checked-In
+                </CustomText>
+                <ScrollView
+                  horizontal
+                  keyboardShouldPersistTaps="handled"
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.peopleStrip}
                 >
-                  <View pointerEvents="none" style={styles.checkedInOverlayWash} />
-                  <View style={styles.checkedInPopup}>
-                    <View style={styles.checkedInStatusPill}>
-                      <Ionicons name="checkmark" size={14} color="#fff" />
-                      <Text style={styles.checkedInStatusText}>
-                        {checkedInGuests.length === 1 ? "Guest checked in" : `${checkedInGuests.length} guests checked in`}
-                      </Text>
-                    </View>
-                    <ScrollView
-                      style={styles.popupScroll}
-                      contentContainerStyle={styles.popupContent}
-                      showsVerticalScrollIndicator={false}
-                      nestedScrollEnabled
+                  {checkedInGuests.map((guest) => (
+                    <View
+                      key={checkedInGuestKey(guest)}
+                      style={styles.personBubbleWrap}
                     >
-                    <View style={styles.checkedInHeadingRow}>
-                      <View style={styles.checkedInHeadingIcon}>
-                        <Ionicons name="person-add-outline" size={22} color={C.green} />
+                      <View style={styles.personBubble}>
+                        <CustomText
+                          textStyle="label"
+                          style={styles.personBubbleText}
+                        >
+                          {guestInitials(guest.name)}
+                        </CustomText>
                       </View>
-                      <View style={styles.flex1}>
-                        <Text style={styles.checkedInTitle}>
-                          {checkedInGuests.length === 1
-                            ? `${checkedInGuests[0]?.firstName || checkedInGuests[0]?.name.split(" ")[0] || "Guest"} is ready`
-                            : `${checkedInGuests.length} guests are ready`}
-                        </Text>
-                        <Text style={styles.checkedInSub}>
-                          Checked in for {property}. Record now, or find this tour on your home screen later.
-                        </Text>
-                      </View>
+                      <CustomText
+                        textStyle="micro"
+                        style={styles.personBubbleName}
+                        numberOfLines={1}
+                      >
+                        {guest.firstName || guest.name.split(" ")[0]}
+                      </CustomText>
                     </View>
-                    <ScrollView
-                      style={styles.checkedInListScroll}
-                      contentContainerStyle={styles.checkedInList}
-                      showsVerticalScrollIndicator={checkedInGuests.length > 2}
-                      nestedScrollEnabled
+                  ))}
+                  <Pressable
+                    onPress={openCheckInForm}
+                    style={({ pressed }) => [
+                      styles.personBubbleWrap,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={styles.addPersonBubble}>
+                      <Ionicons name="add" size={28} color={ACCENT} />
+                    </View>
+                    <CustomText textStyle="micro" style={styles.addPersonLabel}>
+                      Check in
+                    </CustomText>
+                  </Pressable>
+                </ScrollView>
+              </View>
+            </ScrollView>
+          )}
+        </View>
+
+        <View
+          pointerEvents="box-none"
+          style={[styles.pageFooter, { paddingBottom: footerPad }]}
+        >
+          <LinearGradient
+            colors={[
+              "rgba(242, 242, 247, 0)",
+              "rgba(242, 242, 247, 0.62)",
+              BACKGROUND,
+            ]}
+            locations={[0, 0.5, 1]}
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              hasCheckedIn ? "Start Recording Tour" : "Skip Check-In"
+            }
+            accessibilityHint={
+              hasCheckedIn
+                ? "Start recording with checked-in guests"
+                : "Continue to recording without adding guest details"
+            }
+            disabled={submitting || (hasCheckedIn && !resolvedSessionId)}
+            onPress={hasCheckedIn ? finishAndRecord : onSkipCheckIn}
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              (submitting || (hasCheckedIn && !resolvedSessionId)) &&
+                styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              {hasCheckedIn ? "Start Recording Tour" : "Skip Check-In"}
+            </CustomText>
+          </Pressable>
+        </View>
+      </View>
+
+      <GlassNavHeader title="Start New Tour" onBack={onBack} />
+
+      <PageSheetModal
+        visible={formOpen}
+        title="Tour Check-In"
+        onClose={closeCheckInForm}
+        leading={
+          step === "questions" ? (
+            <LiquidGlassIconButton
+              icon="chevron-back"
+              accessibilityLabel="Back to guest details"
+              disabled={submitting}
+              onPress={() => {
+                setError(null);
+                setStep("contact");
+              }}
+            />
+          ) : null
+        }
+      >
+        <View style={styles.flex1}>
+          <View style={styles.formSheet}>
+            {step === "done" ? (
+              <View
+                style={[
+                  styles.donePanel,
+                  {
+                    paddingTop: PAGE_SHEET_HEADER_INSET,
+                    paddingBottom: footerPad,
+                  },
+                ]}
+              >
+                <Reanimated.View
+                  entering={ZoomIn.duration(320).springify()}
+                  style={styles.doneIcon}
+                >
+                  <Ionicons name="checkmark" size={26} color={CARD} />
+                </Reanimated.View>
+                <Reanimated.View entering={FadeIn.delay(80).duration(240)}>
+                  <CustomText textStyle="hero" style={styles.centerTitle}>
+                    {firstName.trim() || "Your guest"} is checked in!
+                  </CustomText>
+                </Reanimated.View>
+              </View>
+            ) : (
+              <>
+                <View
+                  style={styles.formPager}
+                  onLayout={(event) => {
+                    pagerWidth.value = event.nativeEvent.layout.width;
+                  }}
+                >
+                  <Reanimated.View
+                    style={[styles.formPagerTrack, pagerTrackStyle]}
+                  >
+                    <View
+                      style={styles.formPagerPane}
+                      pointerEvents={
+                        step === "questions" ? "none" : "auto"
+                      }
                     >
-                      {checkedInGuests.map((guest) => (
-                        <View key={checkedInGuestKey(guest)} style={styles.checkedInRow}>
-                          <View style={styles.checkedInAvatar}>
-                            <Text style={styles.checkedInAvatarText}>{guestInitials(guest.name)}</Text>
-                          </View>
-                          <View style={styles.flex1}>
-                            <Text style={styles.checkedInName}>{guest.name}</Text>
-                            <Text style={styles.checkedInReady}>Ready for tour</Text>
-                          </View>
-                          <View style={styles.checkedInCheck}>
-                            <Ionicons name="checkmark" size={17} color={C.green} />
+                      <ScrollView
+                        key="contact"
+                        style={styles.flex1}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={[
+                          styles.checkInForm,
+                          {
+                            paddingTop: FORM_TOP_INSET,
+                            paddingBottom: formFooterClearance,
+                          },
+                        ]}
+                        showsVerticalScrollIndicator={false}
+                      >
+                        <View style={styles.formRow2}>
+                          <CheckInField
+                            label="First name"
+                            value={firstName}
+                            onChangeText={setFirstName}
+                            autoComplete="given-name"
+                          />
+                          <CheckInField
+                            label="Last name"
+                            value={lastName}
+                            onChangeText={setLastName}
+                            autoComplete="family-name"
+                          />
+                        </View>
+                        <CheckInField
+                          label="Email"
+                          value={email}
+                          onChangeText={(value) => {
+                            setEmail(value);
+                            if (error) setError(null);
+                          }}
+                          keyboardType="email-address"
+                          autoComplete="email"
+                        />
+                        <View style={styles.fieldGroup}>
+                          <CustomText
+                            textStyle="caption"
+                            style={styles.fieldLabel}
+                          >
+                            Phone number
+                          </CustomText>
+                          <View style={styles.phoneRow}>
+                            <View style={styles.phoneCc}>
+                              <CustomText textStyle="body">🇺🇸</CustomText>
+                              <CustomText textStyle="label">+1</CustomText>
+                            </View>
+                            <View style={styles.flex1}>
+                              <View style={styles.floatingField}>
+                                <TextInput
+                                  value={phone}
+                                  onChangeText={(value) =>
+                                    setPhone(formatCheckInPhone(value))
+                                  }
+                                  placeholder="Phone number"
+                                  placeholderTextColor={C.textMuted}
+                                  keyboardType="phone-pad"
+                                  autoComplete="tel"
+                                  style={styles.floatingInput}
+                                />
+                              </View>
+                            </View>
                           </View>
                         </View>
-                      ))}
-                    </ScrollView>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Record now with checked-in guests"
-                      onPress={finishAndRecord}
-                      style={({ pressed }) => [styles.startSessionButton, pressed && styles.pressed]}
+                        <CheckInField
+                          label="Reason for visit"
+                          value={reason}
+                          onChangeText={setReason}
+                        />
+                        {error && step !== "questions" ? (
+                          <CustomText
+                            accessibilityRole="alert"
+                            textStyle="caption"
+                            style={styles.fieldError}
+                          >
+                            {error}
+                          </CustomText>
+                        ) : null}
+                      </ScrollView>
+                    </View>
+                    <View
+                      style={styles.formPagerPane}
+                      pointerEvents={
+                        step === "questions" ? "auto" : "none"
+                      }
                     >
-                      <Ionicons name="mic-outline" size={19} color="#fff" />
-                      <Text style={styles.startSessionButtonText}>Record now</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={recordLater}
-                      style={({ pressed }) => [styles.recordLaterButton, pressed && styles.pressed]}
-                    >
-                      <Ionicons name="time-outline" size={18} color={C.textSec} />
-                      <Text style={styles.notYetButtonText}>Record later</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setGuestPopupDismissed(true)}
-                      style={({ pressed }) => [styles.notYetButton, pressed && styles.pressed]}
-                    >
-                      <Text style={styles.keepOpenButtonText}>Keep QR open</Text>
-                    </Pressable>
-                    </ScrollView>
-                  </View>
-                </Reanimated.View>
-              ) : null}
-            </View>
-            )
-          ) : step === "done" ? (
-            <CheckInSheetScrollView
-              key="done"
-              visible={visible}
-              dragY={dragY}
-              closing={dragClosing}
-              onDismiss={closeFromSwipe}
-              keyboardShouldPersistTaps="handled"
-              style={styles.flex1}
-              contentContainerStyle={styles.donePanel}
-            >
-              <View style={styles.doneIcon}>
-                <Ionicons name="checkmark" size={26} color="#fff" />
-              </View>
-              <Text style={styles.qrTitle}>{firstName.trim() || "Your guest"} is checked in</Text>
-              <Text style={styles.qrSub}>
-                Ready for {property}. Record now, or find this tour on your home screen later.
-              </Text>
-              {resolvedSessionId ? (
-                <>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={finishAndRecord}
-                  style={({ pressed }) => [styles.startSessionButton, styles.stretch, pressed && styles.pressed]}
-                >
-                  <Ionicons name="mic-outline" size={19} color="#fff" />
-                  <Text style={styles.startSessionButtonText}>Record now</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={recordLater}
-                  style={({ pressed }) => [styles.recordLaterButton, styles.stretch, pressed && styles.pressed]}
-                >
-                  <Ionicons name="time-outline" size={18} color={C.textSec} />
-                  <Text style={styles.notYetButtonText}>Record later</Text>
-                </Pressable>
-                </>
-              ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={addAnotherPerson}
-                  style={({ pressed }) => [styles.notYetButton, styles.addAnotherBtn, pressed && styles.pressed]}
-                >
-                  <Ionicons name="person-add-outline" size={16} color={C.textSec} />
-                  <Text style={styles.keepOpenButtonText}>Add another guest</Text>
-                </Pressable>
-            </CheckInSheetScrollView>
-          ) : step === "questions" ? (
-            <CheckInSheetScrollView
-              key="questions"
-              visible={visible}
-              dragY={dragY}
-              closing={dragClosing}
-              onDismiss={closeFromSwipe}
-              style={styles.flex1}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.checkInForm}
-            >
-              <Text style={styles.questionTitle}>
-                {firstName ? `${firstName}, ` : ""}one last thing before your tour
-              </Text>
-              {CHECK_IN_QUESTIONS.map((question) => (
-                <CheckInQuestionField
-                  key={question.id}
-                  question={question}
-                  value={answers[question.id] ?? ""}
-                  onChange={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
-                />
-              ))}
-              <Pressable onPress={() => setWantsSummary((value) => !value)} style={styles.toggleRow}>
-                <Text style={styles.toggleText}>Send me follow-up notes after the tour</Text>
-                <Ionicons
-                  name={wantsSummary ? "checkbox" : "square-outline"}
-                  size={18}
-                  color={wantsSummary ? C.brand : C.textMuted}
-                />
-              </Pressable>
-              {error ? <Text style={styles.fieldError}>{error}</Text> : null}
-              <View style={styles.buttonRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setStep("contact")}
-                  disabled={submitting}
-                  style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-                >
-                  <Text style={styles.backBtnText}>Back</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: checkInBusy, busy: checkInBusy }}
-                  onPress={() => void submitLead()}
-                  disabled={checkInBusy}
-                  style={({ pressed }) => [
-                    styles.nextButton,
-                    { flex: 1 },
-                    checkInBusy && styles.disabled,
-                    pressed && styles.pressed,
+                      <ScrollView
+                        key="questions"
+                        style={styles.flex1}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={[
+                          styles.questionsForm,
+                          {
+                            paddingTop: FORM_TOP_INSET,
+                            paddingBottom: formFooterClearance,
+                          },
+                        ]}
+                        showsVerticalScrollIndicator={false}
+                      >
+                        <CustomText
+                          textStyle="title"
+                          style={styles.questionsIntro}
+                        >
+                          {firstName ? `${firstName}, ` : ""}one last thing
+                          before your tour
+                        </CustomText>
+                        {CHECK_IN_QUESTIONS.map((question) => (
+                          <CheckInQuestionField
+                            key={question.id}
+                            question={question}
+                            value={answers[question.id] ?? ""}
+                            onChange={(value) =>
+                              setAnswers((current) => ({
+                                ...current,
+                                [question.id]: value,
+                              }))
+                            }
+                          />
+                        ))}
+                        <Pressable
+                          accessibilityRole="switch"
+                          accessibilityState={{ checked: wantsSummary }}
+                          onPress={() =>
+                            setWantsSummary((value) => !value)
+                          }
+                          style={styles.followUpCard}
+                        >
+                          <CustomText
+                            textStyle="body"
+                            style={styles.followUpText}
+                          >
+                            Send me follow up notes
+                          </CustomText>
+                          <View pointerEvents="none">
+                            <Switch
+                              accessible={false}
+                              value={wantsSummary}
+                              trackColor={{
+                                false: "#d1d5db",
+                                true: ACCENT,
+                              }}
+                              ios_backgroundColor="#d1d5db"
+                            />
+                          </View>
+                        </Pressable>
+                        {error && step === "questions" ? (
+                          <CustomText
+                            accessibilityRole="alert"
+                            textStyle="caption"
+                            style={styles.fieldError}
+                          >
+                            {error}
+                          </CustomText>
+                        ) : null}
+                      </ScrollView>
+                    </View>
+                  </Reanimated.View>
+                </View>
+                <View
+                  pointerEvents="box-none"
+                  style={[
+                    styles.pageFooter,
+                    {
+                      bottom: keyboardHeight,
+                      paddingBottom: formFooterPad,
+                    },
                   ]}
                 >
-                  {checkInBusy ? (
-                    <LoadingDots size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name="send-outline" size={16} color="#fff" />
-                  )}
-                  <Text style={styles.nextButtonText}>
-                    {submitting ? "Checking in..." : bindingPending ? "Preparing tour..." : "Check in"}
-                  </Text>
-                </Pressable>
-              </View>
-            </CheckInSheetScrollView>
-          ) : (
-            <CheckInSheetScrollView
-              key="contact"
-              visible={visible}
-              dragY={dragY}
-              closing={dragClosing}
-              onDismiss={closeFromSwipe}
-              style={styles.flex1}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.checkInForm}
-            >
-              <View style={styles.checkInHead}>
-                <View style={styles.formHeadAvatar}>
-                  <Ionicons name="person-outline" size={18} color="#fff" />
-                </View>
-                <Text style={styles.formHeadText}>
-                  Check in for your tour{"\n"}with {repFirst}
-                </Text>
-              </View>
-              <View style={styles.formRow2}>
-                <CheckInField
-                  label="First name"
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  autoComplete="given-name"
-                />
-                <CheckInField
-                  label="Last name"
-                  value={lastName}
-                  onChangeText={setLastName}
-                  autoComplete="family-name"
-                />
-              </View>
-              <CheckInField
-                label="Email"
-                value={email}
-                onChangeText={(value) => {
-                  setEmail(value);
-                  if (error) setError(null);
-                }}
-                keyboardType="email-address"
-                autoComplete="email"
-              />
-              <View style={styles.phoneRow}>
-                <View style={styles.phoneCc}>
-                  <Text style={styles.phoneFlag}>🇺🇸</Text>
-                  <Text style={styles.phoneCcText}>+1</Text>
-                </View>
-                <View style={styles.flex1}>
-                  <CheckInField
-                    label="Phone number"
-                    value={phone}
-                    onChangeText={(value) => setPhone(formatCheckInPhone(value))}
-                    keyboardType="phone-pad"
-                    autoComplete="tel"
+                  <LinearGradient
+                    colors={[
+                      "rgba(242, 242, 247, 0)",
+                      "rgba(242, 242, 247, 0.62)",
+                      BACKGROUND,
+                    ]}
+                    locations={[0, 0.5, 1]}
+                    pointerEvents="none"
+                    style={StyleSheet.absoluteFill}
                   />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: checkInBusy,
+                      busy: checkInBusy,
+                    }}
+                    onPress={
+                      step === "questions"
+                        ? () => void submitLead()
+                        : nextFromContact
+                    }
+                    disabled={checkInBusy}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      checkInBusy && styles.disabled,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    {step === "questions" && checkInBusy ? (
+                      <LoadingDots size="small" color={CARD} />
+                    ) : (
+                      <Ionicons
+                        name={
+                          step === "questions"
+                            ? "checkmark"
+                            : "arrow-forward"
+                        }
+                        size={16}
+                        color={CARD}
+                      />
+                    )}
+                    <CustomText
+                      textStyle="title"
+                      style={styles.primaryBtnText}
+                    >
+                      {step === "questions"
+                        ? submitting
+                          ? "Checking in..."
+                          : bindingPending
+                            ? "Preparing tour..."
+                            : "Check in"
+                        : bindingPending
+                          ? "Preparing tour..."
+                          : "Next"}
+                    </CustomText>
+                  </Pressable>
                 </View>
-              </View>
-              <CheckInField label="Reason for visit" value={reason} onChangeText={setReason} />
-              {error ? <Text style={styles.fieldError}>{error}</Text> : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ disabled: checkInBusy, busy: checkInBusy }}
-                onPress={nextFromContact}
-                disabled={checkInBusy}
-                style={({ pressed }) => [styles.nextButton, checkInBusy && styles.disabled, pressed && styles.pressed]}
-              >
-                <Ionicons name="send-outline" size={16} color="#fff" />
-                <Text style={styles.nextButtonText}>{bindingPending ? "Preparing tour..." : "Next"}</Text>
-              </Pressable>
-            </CheckInSheetScrollView>
-          )}
-          </Reanimated.View>
-          {!hasCheckedIn ? (
-            <View style={styles.skipFooter}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ disabled: submitting, busy: submitting }}
-                accessibilityHint="Continue to recording without adding guest details"
-                disabled={submitting}
-                onPress={onSkipCheckIn}
-                style={({ pressed }) => [styles.skipButton, submitting && styles.disabled, pressed && styles.pressed]}
-              >
-                <Text style={styles.skipButtonText}>Skip check-in for now</Text>
-                <Ionicons name="arrow-forward" size={17} color={C.brand} />
-              </Pressable>
-            </View>
-          ) : null}
-        </Reanimated.View>
-      </View>
-      </KeyboardAvoidingView>
-      </GestureHandlerRootView>
-    </Modal>
+              </>
+            )}
+          </View>
+        </View>
+      </PageSheetModal>
+    </View>
   );
 }
 
@@ -924,19 +972,26 @@ function CheckInField({
   value: string;
   onChangeText: (value: string) => void;
   keyboardType?: "default" | "email-address" | "phone-pad";
-  autoComplete?: "given-name" | "family-name" | "email" | "tel" | "organization-title";
+  autoComplete?:
+    | "given-name"
+    | "family-name"
+    | "email"
+    | "tel"
+    | "organization-title";
   autoFocus?: boolean;
 }) {
   return (
     <View style={styles.fieldGroup}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <CustomText textStyle="caption" style={styles.fieldLabel}>
+        {label}
+      </CustomText>
       <View style={styles.floatingField}>
         <TextInput
           autoFocus={autoFocus}
           value={value}
           onChangeText={onChangeText}
           placeholder={label}
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={C.textMuted}
           keyboardType={keyboardType}
           autoComplete={autoComplete}
           autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
@@ -959,50 +1014,50 @@ function CheckInQuestionField({
   if (question.type === "select") {
     return (
       <View style={styles.questionField}>
-        <Text style={styles.questionLabel}>{question.label}</Text>
-        <ScrollView
-          horizontal
-          keyboardShouldPersistTaps="handled"
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.questionOptions}
-        >
+        <CustomText textStyle="caption" style={styles.fieldLabel}>
+          {question.label}
+        </CustomText>
+        <View style={styles.questionOptions}>
           {(question.options ?? []).map((option) => {
             const active = value === option;
             return (
               <Pressable
                 key={option}
                 onPress={() => onChange(option)}
-                style={[styles.questionOption, active && styles.questionOptionActive]}
+                style={[
+                  styles.questionOption,
+                  active && styles.questionOptionActive,
+                ]}
               >
-                <Text style={[styles.questionOptionText, active && styles.questionOptionTextActive]}>
+                <CustomText
+                  textStyle="label"
+                  style={[
+                    styles.questionOptionText,
+                    active && styles.questionOptionTextActive,
+                  ]}
+                >
                   {option}
-                </Text>
+                </CustomText>
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
       </View>
     );
   }
-  return <CheckInField label={question.label} value={value} onChangeText={onChange} />;
-}
-
-function BrandedQrIcon({ size = 32 }: { size?: number }) {
-  const markSize = Math.max(8, Math.round(size * 0.38));
   return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <Ionicons name="qr-code-outline" size={size} color={C.text} />
-      <View style={[styles.qrBrandCenter, { width: markSize + 3, height: markSize + 3 }]}>
-        <TourMark size={markSize} />
-      </View>
-    </View>
+    <CheckInField
+      label={question.label}
+      value={value}
+      onChangeText={onChange}
+    />
   );
 }
 
-function CheckInPanelSkeleton({ mode }: { mode: "checkin" | "qr" }) {
+function CheckInPanelSkeleton() {
   return (
-    <View style={styles.panelSkeleton} accessibilityLabel={`Loading ${mode === "qr" ? "QR code" : "check-in form"}`}>
-      <View style={mode === "qr" ? styles.skeletonQr : styles.skeletonFormHead} />
+    <View style={styles.panelSkeleton} accessibilityLabel="Loading QR code">
+      <View style={styles.skeletonQr} />
       <View style={styles.skeletonLineWide} />
       <View style={styles.skeletonLineShort} />
       <View style={styles.skeletonButton} />
@@ -1011,227 +1066,171 @@ function CheckInPanelSkeleton({ mode }: { mode: "checkin" | "qr" }) {
 }
 
 const styles = StyleSheet.create({
-  sheetScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.42)" },
-  sheetKeyboard: { flex: 1, justifyContent: "flex-end" },
-  checkInSheet: {
-    width: "100%",
-    maxHeight: "100%",
-    flexShrink: 1,
-    gap: 10,
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 16,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    backgroundColor: "#fff",
-  },
-  sheetBody: {
+  root: {
     flex: 1,
-    minHeight: 0,
+    backgroundColor: BACKGROUND,
+  },
+  page: {
+    flex: 1,
+  },
+  pageFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    paddingHorizontal: 16,
+    paddingTop: FOOTER_FADE,
   },
   panelSkeleton: {
     flex: 1,
-    alignItems: "center",
-    gap: 14,
-    paddingTop: 24,
+    gap: 10,
+    paddingTop: 4,
+    paddingHorizontal: 16,
   },
   skeletonQr: {
-    width: 220,
-    height: 220,
-    borderRadius: 16,
-    backgroundColor: "#eef1f5",
-  },
-  skeletonFormHead: {
     alignSelf: "stretch",
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "#eef1f5",
+    height: 240,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: HINT,
   },
   skeletonLineWide: {
     width: "72%",
     height: 14,
     borderRadius: 7,
-    backgroundColor: "#eef1f5",
+    backgroundColor: HINT,
   },
   skeletonLineShort: {
     width: "48%",
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: CARD,
   },
   skeletonButton: {
     width: "100%",
-    height: 46,
+    height: 58,
     marginTop: "auto",
-    borderRadius: 13,
-    backgroundColor: "#eef1f5",
+    borderRadius: 29,
+    backgroundColor: HINT,
   },
-  sheetHandle: {
-    alignSelf: "center",
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#d1d5db",
-    marginBottom: 2,
-  },
-  dragHeader: { gap: 10, minHeight: 44 },
-  sheetHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
-  tourMarkWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: "#eff6ff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sheetTitle: { color: C.text, fontSize: 21, lineHeight: 26, fontWeight: "900" },
-  sheetSubtitle: { color: C.textSec, fontSize: 12, lineHeight: 17, marginTop: 2 },
-  closeButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  skipFooter: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#e4e7ec", paddingTop: 4 },
-  skipButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  skipButtonText: { color: C.brand, fontSize: 14, fontWeight: "700" },
-  bindingErrorPanel: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 12 },
-  sheetTabs: {
-    position: "relative",
-    flexDirection: "row",
-    gap: 6,
-    padding: 3,
-    borderRadius: 14,
-    backgroundColor: "#f3f4f6",
-    marginBottom: 2,
-  },
-  sheetTab: {
-    zIndex: 1,
+  bindingErrorPanel: {
     flex: 1,
-    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    paddingHorizontal: 16,
+  },
+  formSheet: {
+    flex: 1,
+  },
+  formPager: {
+    flex: 1,
+    overflow: "hidden",
+  },
+  formPagerTrack: {
+    height: "100%",
+    width: "200%",
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderRadius: 11,
   },
-  sheetTabIndicator: {
-    position: "absolute",
-    left: 3,
-    top: 3,
-    bottom: 3,
-    borderRadius: 11,
-    backgroundColor: "#fff",
-    shadowColor: "#101828",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
+  formPagerPane: {
+    width: "50%",
+    height: "100%",
   },
-  sheetTabText: { color: C.textMuted, fontSize: 12, fontWeight: "800" },
-  sheetTabTextActive: { color: C.brand },
-  checkInForm: { gap: 10, paddingBottom: 6 },
-  checkInHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  formHeadAvatar: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 20,
-    backgroundColor: "#111827",
+  checkInForm: {
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  formHeadText: { flex: 1, color: "#111318", fontSize: 16, lineHeight: 21, fontWeight: "800" },
+  questionsForm: {
+    gap: 22,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  questionsIntro: {
+    marginBottom: 12,
+  },
   formRow2: { flexDirection: "row", gap: 8 },
-  fieldGroup: { flex: 1, gap: 5 },
-  fieldLabel: { color: C.text, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  fieldGroup: { flex: 1, gap: 6 },
+  fieldLabel: {
+    color: "rgba(0, 0, 0, 0.45)",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
   floatingField: {
     flex: 1,
-    minHeight: 52,
+    height: 52,
     justifyContent: "center",
     paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#d7dae3",
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
-  floatingInput: { color: "#111318", fontSize: 15, fontWeight: "500", paddingVertical: 0 },
-  phoneRow: { flexDirection: "row", gap: 8 },
+  floatingInput: {
+    color: TEXT,
+    fontFamily: FONT.medium,
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  phoneRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   phoneCc: {
     width: 72,
-    minHeight: 52,
+    height: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 5,
-    borderWidth: 1,
-    borderColor: "#d7dae3",
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
-  phoneFlag: { fontSize: 14 },
-  phoneCcText: { color: "#111318", fontSize: 14, fontWeight: "700" },
-  addJobButton: {
-    minHeight: 42,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    borderWidth: 1,
-    borderColor: "#d7d7d7",
-    borderRadius: 999,
-    backgroundColor: "#fff",
-  },
-  addJobText: { color: "#111318", fontSize: 13, fontWeight: "800" },
-  nextButton: {
-    minHeight: 48,
+  primaryBtn: {
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    borderRadius: 12,
-    backgroundColor: "#111",
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
-  nextButtonText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  questionTitle: { color: C.text, fontSize: 17, lineHeight: 22, fontWeight: "800" },
-  questionField: { gap: 6 },
-  questionLabel: { color: C.text, fontSize: 13, fontWeight: "800" },
-  questionOptions: { gap: 6, paddingRight: 8 },
+  primaryBtnText: { color: CARD },
+  questionField: { gap: 8 },
+  questionOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   questionOption: {
-    minHeight: 34,
+    minHeight: 36,
     justifyContent: "center",
     paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#d7dae3",
-    borderRadius: 999,
-    backgroundColor: "#fff",
+    borderRadius: 18,
+    backgroundColor: CARD,
   },
-  questionOptionActive: { borderColor: C.brand, backgroundColor: "#eff6ff" },
-  questionOptionText: { color: C.textSec, fontSize: 12, fontWeight: "700" },
-  questionOptionTextActive: { color: C.brand },
-  toggleRow: {
-    minHeight: 40,
+  questionOptionActive: { backgroundColor: HINT },
+  questionOptionText: { color: C.textSec },
+  questionOptionTextActive: { color: ACCENT },
+  followUpCard: {
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    paddingHorizontal: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 12,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
-  toggleText: { flex: 1, color: C.text, fontSize: 12, fontWeight: "700" },
-  fieldError: { color: C.red, fontSize: 12, fontWeight: "700" },
-  buttonRow: { flexDirection: "row", gap: 8 },
-  addAnotherBtn: { flexDirection: "row", gap: 6, alignSelf: "stretch" },
-  backBtn: {
-    minWidth: 80,
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#d7dae3",
-    borderRadius: 12,
-    backgroundColor: "#fff",
-  },
-  backBtnText: { color: C.text, fontSize: 14, fontWeight: "800" },
+  followUpText: { flex: 1 },
+  fieldError: { color: C.red },
   donePanel: {
-    flexGrow: 1,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 8,
+    gap: 14,
+    paddingHorizontal: 16,
   },
   doneIcon: {
     width: 56,
@@ -1241,194 +1240,87 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: C.green,
   },
-  sheetPrimary: {
-    minHeight: 48,
-    alignSelf: "stretch",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 2,
-    borderRadius: 12,
-    backgroundColor: "#111",
-  },
-  sheetPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   qrPanel: {
     flex: 1,
     minHeight: 0,
   },
   qrPanelContent: {
-    flexGrow: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingTop: 8,
+    gap: 16,
     paddingBottom: 12,
   },
+  topStack: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
   qrCard: {
-    width: 248,
-    height: 248,
+    alignSelf: "stretch",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 28,
-    backgroundColor: "#fff",
-    shadowColor: "#101828",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 5,
+    paddingVertical: 18,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
-  qrCode: { backgroundColor: "#fff", borderRadius: 22 },
-  qrTitle: { color: C.text, fontSize: 16, fontWeight: "800" },
-  qrSub: {
+  qrCode: { backgroundColor: CARD, borderRadius: 22 },
+  centerTitle: { textAlign: "center" },
+  centerSub: {
     maxWidth: 280,
     color: C.textSec,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "600",
     textAlign: "center",
   },
-  qrLink: {
-    minHeight: 44,
-    maxWidth: 300,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+  peopleSection: {
+    gap: 10,
+    marginTop: 6,
+    paddingTop: 16,
+    paddingBottom: 16,
+    backgroundColor: CARD,
   },
-  qrLinkText: {
-    flexShrink: 1,
-    color: C.brand,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-    textAlign: "center",
-    textDecorationLine: "underline",
+  peopleTitle: {
+    paddingHorizontal: 16,
   },
-  qrBrandCenter: {
-    position: "absolute",
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
+  peopleStrip: {
+    gap: 14,
+    paddingVertical: 4,
+    paddingHorizontal: 16,
   },
-  realtimeStatusRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7 },
-  realtimeDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: C.textMuted },
-  realtimeDotLive: { backgroundColor: C.green },
-  realtimeStatusText: { color: C.textSec, fontSize: 11, fontWeight: "700" },
-  checkedInOverlay: {
-    ...StyleSheet.absoluteFill,
-    zIndex: 5,
-    justifyContent: "flex-end",
-    marginHorizontal: -2,
-    marginVertical: -2,
-  },
-  checkedInOverlayWash: {
-    ...StyleSheet.absoluteFill,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.72)",
-  },
-  checkedInPopup: {
-    position: "relative",
-    maxHeight: "96%",
-    paddingHorizontal: 14,
-    paddingTop: 25,
-    paddingBottom: 10,
-    borderWidth: 1,
-    borderColor: "#d9e2ec",
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    shadowColor: "#101828",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    elevation: 8,
-  },
-  popupScroll: { flexShrink: 1 },
-  popupContent: { gap: 10 },
-  checkedInStatusPill: {
-    position: "absolute",
-    top: -17,
-    alignSelf: "center",
-    minHeight: 34,
-    flexDirection: "row",
+  personBubbleWrap: {
+    width: 62,
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 15,
-    borderRadius: 999,
-    backgroundColor: C.green,
   },
-  checkedInStatusText: { color: "#fff", fontSize: 13, fontWeight: "900" },
-  checkedInHeadingRow: { flexDirection: "row", alignItems: "center", gap: 11 },
-  checkedInHeadingIcon: {
-    width: 44,
-    height: 44,
+  personBubble: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "#ecfdf3",
+    backgroundColor: ACCENT,
   },
-  checkedInTitle: { color: C.text, fontSize: 20, lineHeight: 25, fontWeight: "900" },
-  checkedInSub: { marginTop: 2, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "600" },
-  checkedInListScroll: { maxHeight: 152 },
-  checkedInList: { gap: 7 },
-  checkedInRow: {
-    minHeight: 60,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 15,
-    backgroundColor: "#f8fafc",
+  personBubbleText: {
+    color: CARD,
+    fontSize: 15,
+    fontWeight: "900",
   },
-  checkedInAvatar: {
-    width: 40,
-    height: 40,
+  personBubbleName: {
+    width: 62,
+    color: TEXT,
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  addPersonBubble: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 20,
-    backgroundColor: "#e0f2fe",
+    backgroundColor: HINT,
   },
-  checkedInAvatarText: { color: C.brand, fontSize: 14, fontWeight: "900" },
-  checkedInName: { color: C.text, fontSize: 14, fontWeight: "900" },
-  checkedInReady: { marginTop: 1, color: C.green, fontSize: 12, fontWeight: "800" },
-  checkedInCheck: {
-    width: 34,
-    height: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 17,
-    backgroundColor: "#ecfdf3",
+  addPersonLabel: {
+    color: ACCENT,
+    fontSize: 11,
+    fontWeight: "900",
   },
-  startSessionButton: {
-    minHeight: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 9,
-    borderRadius: 14,
-    backgroundColor: C.brand,
-  },
-  startSessionButtonText: { color: "#fff", fontSize: 17, fontWeight: "900" },
-  recordLaterButton: {
-    minHeight: 46,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    borderWidth: 1,
-    borderColor: "#e4e7ec",
-    borderRadius: 13,
-    backgroundColor: "#f8fafc",
-  },
-  notYetButton: { minHeight: 44, alignItems: "center", justifyContent: "center" },
-  notYetButtonText: { color: C.textSec, fontSize: 14, fontWeight: "800" },
-  keepOpenButtonText: { color: C.textSec, fontSize: 13, fontWeight: "600" },
   stretch: { alignSelf: "stretch" },
   flex1: { flex: 1 },
   disabled: { opacity: 0.5 },

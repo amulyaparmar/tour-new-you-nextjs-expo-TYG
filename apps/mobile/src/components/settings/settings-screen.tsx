@@ -21,6 +21,7 @@ import {
   glassNavContentInset,
 } from "@/components/glass-nav-header";
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
+import { SecondaryButton } from "@/components/secondary-button";
 import { MotionPressable } from "@/components/ui/motion";
 import { useProfileQuery, useUpdateProfileMutation } from "@/queries";
 import { ACCENT, BACKGROUND, CARD, SMALL_CORNER, TEXT } from "@/theme/tokens";
@@ -179,18 +180,14 @@ export function SettingsScreen({
           />
         </View>
 
-        <MotionPressable
-          accessibilityRole="button"
+        <SecondaryButton
+          destructive
+          icon="log-out-outline"
+          label="Logout"
           accessibilityLabel="Log out"
-          haptic="selection"
           onPress={() => setLogoutOpen(true)}
           style={styles.logoutPill}
-        >
-          <Ionicons name="log-out-outline" size={18} color={C.red} />
-          <CustomText textStyle="title" style={styles.logoutPillText}>
-            Logout
-          </CustomText>
-        </MotionPressable>
+        />
         <CustomText textStyle="caption" style={styles.version}>
           Tour mobile 0.1.0 · Host Your Voice
         </CustomText>
@@ -438,16 +435,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   logoutPill: {
-    height: 50,
     marginTop: 22,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 25,
-    backgroundColor: CARD,
   },
-  logoutPillText: { color: C.red },
   version: {
     marginTop: 8,
     color: C.textMuted,

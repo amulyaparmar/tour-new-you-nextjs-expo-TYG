@@ -131,8 +131,12 @@ test("form tap handling is forwarded without changing QR defaults", () => {
   assert.equal(render({ keyboardShouldPersistTaps: "handled" }).scroll.props.keyboardShouldPersistTaps, "handled");
 });
 
-test("QR and all check-in steps use independently keyed dismissible scroll views", () => {
+test("check-in presents as a native page with a page-sheet form modal", () => {
   const sheetSource = readFileSync(new URL("../src/components/check-in/check-in-sheet.tsx", import.meta.url), "utf8");
+  assert.match(sheetSource, /GlassNavHeader/);
+  assert.match(sheetSource, /PageSheetModal/);
+  assert.equal(sheetSource.includes("CheckInSheetScrollView"), false);
+  assert.equal(sheetSource.includes("SessionModeTabs"), false);
   const ast = ts.createSourceFile("check-in-sheet.tsx", sheetSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const wrappers: Record<string, string>[] = [];
   let horizontalOptions = 0;
@@ -147,7 +151,7 @@ test("QR and all check-in steps use independently keyed dismissible scroll views
             : attribute.initializer.expression?.getText(ast) ?? ""
           : "true";
       }
-      if (node.tagName.getText(ast) === "CheckInSheetScrollView") wrappers.push(attributes);
+      if (node.tagName.getText(ast) === "ScrollView" && attributes.key) wrappers.push(attributes);
       if (node.tagName.getText(ast) === "ScrollView" && attributes.horizontal === "true") {
         horizontalOptions++;
         assert.equal(attributes.keyboardShouldPersistTaps, "handled");
@@ -156,12 +160,8 @@ test("QR and all check-in steps use independently keyed dismissible scroll views
     ts.forEachChild(node, visit);
   }
   visit(ast);
-  assert.deepEqual(wrappers.map((props) => props.key).sort(), ["contact", "done", "qr", "questions"]);
+  assert.deepEqual(wrappers.map((props) => props.key).sort(), ["contact", "qr", "questions"]);
   for (const props of wrappers) {
-    assert.equal(props.visible, "visible");
-    assert.equal(props.dragY, "dragY");
-    assert.equal(props.closing, "dragClosing");
-    assert.equal(props.onDismiss, "closeFromSwipe");
     if (props.key !== "qr") assert.equal(props.keyboardShouldPersistTaps, "handled");
   }
   assert.equal(horizontalOptions, 1);

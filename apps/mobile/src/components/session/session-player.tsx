@@ -132,64 +132,68 @@ export function SessionPlayer({
         <CustomText textStyle="caption" style={styles.duration}>{fmt(duration)}</CustomText>
       </View>
       <View style={styles.controls}>
-        <MotionPressable
-          accessibilityRole="button"
-          accessibilityLabel={!ready ? error ? "Recording unavailable" : "Loading recording" : playing ? "Pause recording" : "Play recording"}
-          accessibilityState={{ disabled: !ready, busy: !ready && !error }}
-          disabled={!ready}
-          onPress={onToggle}
-          haptic="light"
-          style={styles.playBtn}
-        >
-          {!ready && !error ? (
-            <LoadingDots color={CARD} size="small" />
-          ) : (
-            <Icon
-              as={playing ? Pause : Play}
-              size={21}
-              color={CARD}
-              fill={CARD}
-              style={!playing ? styles.playIcon : undefined}
-            />
-          )}
-          <CustomText textStyle="label" style={styles.playLabel}>
-            {playing ? "Pause" : "Play"}
-          </CustomText>
-        </MotionPressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Rewind 5 seconds"
-          accessibilityState={{ disabled: !canSeek }}
-          disabled={!canSeek}
-          onPress={() => skip(-5)}
-          style={({ pressed }) => [styles.skipBtn, !canSeek && styles.disabled, pressed && styles.pressed]}
-        >
-          <Icon as={RotateCcw} size={28} color={C.textSec} />
-          <CustomText textStyle="micro" style={styles.skipNumber}>5</CustomText>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Forward 5 seconds"
-          accessibilityState={{ disabled: !canSeek }}
-          disabled={!canSeek}
-          onPress={() => skip(5)}
-          style={({ pressed }) => [styles.skipBtn, !canSeek && styles.disabled, pressed && styles.pressed]}
-        >
-          <Icon as={RotateCw} size={28} color={C.textSec} />
-          <CustomText textStyle="micro" style={styles.skipNumber}>5</CustomText>
-        </Pressable>
-        <View style={styles.spacer} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Playback speed ${speed} times`}
-          accessibilityHint="Cycles through playback speeds"
-          accessibilityState={{ disabled: !ready }}
-          disabled={!ready}
-          onPress={onSpeed}
-          style={({ pressed }) => [styles.speedBtn, !ready && styles.disabled, pressed && styles.pressed]}
-        >
-          <CustomText textStyle="caption" style={styles.speedText}>{speed}×</CustomText>
-        </Pressable>
+        <View style={styles.side} />
+        <View style={styles.transport}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Rewind 5 seconds"
+            accessibilityState={{ disabled: !canSeek }}
+            disabled={!canSeek}
+            onPress={() => skip(-5)}
+            style={({ pressed }) => [styles.skipBtn, !canSeek && styles.disabled, pressed && styles.pressed]}
+          >
+            <Icon as={RotateCcw} size={28} color={C.textSec} />
+            <CustomText textStyle="micro" style={styles.skipNumber}>5</CustomText>
+          </Pressable>
+          <MotionPressable
+            accessibilityRole="button"
+            accessibilityLabel={!ready ? error ? "Recording unavailable" : "Loading recording" : playing ? "Pause recording" : "Play recording"}
+            accessibilityState={{ disabled: !ready, busy: !ready && !error }}
+            disabled={!ready}
+            onPress={onToggle}
+            haptic="light"
+            style={styles.playBtn}
+          >
+            {!ready && !error ? (
+              <LoadingDots color={CARD} size="small" />
+            ) : (
+              <Icon
+                as={playing ? Pause : Play}
+                size={21}
+                color={CARD}
+                fill={CARD}
+                style={!playing ? styles.playIcon : undefined}
+              />
+            )}
+            <CustomText textStyle="label" style={styles.playLabel}>
+              {playing ? "Pause" : "Play"}
+            </CustomText>
+          </MotionPressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Forward 5 seconds"
+            accessibilityState={{ disabled: !canSeek }}
+            disabled={!canSeek}
+            onPress={() => skip(5)}
+            style={({ pressed }) => [styles.skipBtn, !canSeek && styles.disabled, pressed && styles.pressed]}
+          >
+            <Icon as={RotateCw} size={28} color={C.textSec} />
+            <CustomText textStyle="micro" style={styles.skipNumber}>5</CustomText>
+          </Pressable>
+        </View>
+        <View style={styles.side}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Playback speed ${speed} times`}
+            accessibilityHint="Cycles through playback speeds"
+            accessibilityState={{ disabled: !ready }}
+            disabled={!ready}
+            onPress={onSpeed}
+            style={({ pressed }) => [styles.speedBtn, !ready && styles.disabled, pressed && styles.pressed]}
+          >
+            <CustomText textStyle="caption" style={styles.speedText}>{speed}×</CustomText>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -220,8 +224,9 @@ const styles = StyleSheet.create({
   times: { flexDirection: "row", justifyContent: "space-between", marginHorizontal: 8, paddingBottom: 8 },
   elapsed: { color: TEXT, fontVariant: ["tabular-nums"] },
   duration: { color: C.textSec, fontVariant: ["tabular-nums"] },
-  controls: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 8 },
-  spacer: { flex: 1 },
+  controls: { flexDirection: "row", alignItems: "center", paddingBottom: 8 },
+  side: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
+  transport: { flexDirection: "row", alignItems: "center", gap: 8 },
   skipBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
   skipNumber: { position: "absolute", top: 17, fontSize: 10, lineHeight: 12, color: C.textSec },
   playBtn: { minWidth: 96, minHeight: 48, paddingHorizontal: 14, gap: 8, flexDirection: "row", borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: ACCENT },

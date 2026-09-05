@@ -115,7 +115,6 @@ import {
   type TourLibraryLink,
   type PaginatedSessions,
   applyRubricToSession,
-  createCheckInLink,
   createSession,
   type CalendarEvent,
   type SessionComment,
@@ -367,6 +366,7 @@ type Screen =
   | { type: "rubrics" }
   | { type: "settings" }
   | { type: "profile" }
+  | { type: "start-tour" }
   | { type: "tour" };
 
 type TourStep = "contact" | "preferences" | "ready";
@@ -865,6 +865,7 @@ function screenRank(screen: Screen) {
   if (screen.type === "create-session") return 12;
   if (screen.type === "rubrics") return 12;
   if (screen.type === "settings") return 12;
+  if (screen.type === "start-tour") return 12;
   if (screen.type === "profile") return 12;
   if (screen.type === "session-detail") return 13;
   if (screen.type === "session-comments") return 14;
@@ -1144,6 +1145,7 @@ type MainStackParamList = {
   Settings: undefined;
   Profile: undefined;
   Rubrics: undefined;
+  StartTour: undefined;
 };
 
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -1165,6 +1167,7 @@ function MainStackNavigation({
   onStartTour,
   settings,
   rubrics,
+  startTour,
   children,
 }: {
   activeScreen: keyof MainStackParamList;
@@ -1175,6 +1178,7 @@ function MainStackNavigation({
   onStartTour: () => void;
   settings: React.ReactNode;
   rubrics: React.ReactNode;
+  startTour: React.ReactNode;
   children: React.ReactNode;
 }) {
   const navigationRef =
@@ -1238,6 +1242,14 @@ function MainStackNavigation({
           {({ navigation }: { navigation: { goBack: () => void } }) =>
             withNativeBack(rubrics, () => {
               onCloseRubrics();
+              navigation.goBack();
+            })
+          }
+        </MainStack.Screen>
+        <MainStack.Screen name="StartTour">
+          {({ navigation }: { navigation: { goBack: () => void } }) =>
+            withNativeBack(startTour, () => {
+              onCloseToMain();
               navigation.goBack();
             })
           }
@@ -1357,6 +1369,7 @@ export default function App() {
     useState<SlideDirection>("forward");
   const [pendingCreateUpload, setPendingCreateUpload] =
     useState<PendingCreateSessionUpload | null>(null);
+  const [readyTourId, setReadyTourId] = useState<string | null>(null);
   const screenRef = useRef<Screen>(screen);
   const lastMainTabRef = useRef<MainTab>("home");
 
@@ -1387,6 +1400,10 @@ export default function App() {
     void registerForPushNotifications();
   }, [authSession?.workspace.user.id]);
 
+  useEffect(() => {
+    setReadyTourId(null);
+  }, [authSession?.workspace.community.id]);
+
   const tourIdx = useMemo(
     () => tourSteps.findIndex((s) => s.id === tourStep),
     [tourStep],
@@ -1395,6 +1412,7 @@ export default function App() {
     screen.type === "main" ||
     screen.type === "profile" ||
     screen.type === "settings" ||
+    screen.type === "start-tour" ||
     screen.type === "rubrics"
       ? screen.type === "main" && screen.tab === "sessions"
         ? "sessions-stack"
@@ -1487,6 +1505,8 @@ export default function App() {
       }}
       onProfile={() => nav({ type: "profile" })}
       onOpenSettings={() => nav({ type: "settings" })}
+      onOpenStartTour={() => nav({ type: "start-tour" })}
+      readyTourId={readyTourId}
       authSession={authSession}
       onAuthSession={setAuthSession}
       agentName={agentName}
@@ -1517,6 +1537,7 @@ export default function App() {
                 {((screen.type === "main" && screen.tab !== "sessions") ||
                   screen.type === "profile" ||
                   screen.type === "settings" ||
+                  screen.type === "start-tour" ||
                   screen.type === "rubrics") && (
                   <MainStackNavigation
                     activeScreen={
@@ -1526,7 +1547,9 @@ export default function App() {
                           ? "Settings"
                           : screen.type === "profile"
                             ? "Profile"
-                            : "Main"
+                            : screen.type === "start-tour"
+                              ? "StartTour"
+                              : "Main"
                     }
                     onCloseToMain={() =>
                       nav({ type: "main", tab: lastMainTabRef.current })
@@ -1564,6 +1587,51 @@ export default function App() {
                         onSession={(id) =>
                           nav({ type: "session-detail", sessionId: id })
                         }
+                      />
+                    }
+                    startTour={
+                      <CheckInSheet
+                        onBack={() =>
+                          nav({ type: "main", tab: lastMainTabRef.current })
+                        }
+                        property={property}
+                        propertyId={
+                          authSession.workspace.community.propertyTygId ||
+                          authSession.workspace.community.id
+                        }
+                        agentName={agentName}
+                        repSlug={defaultMemberPublicAlias({
+                          alias: authSession.workspace.teamMember?.alias,
+                          name:
+                            authSession.workspace.teamMember?.name ||
+                            authSession.workspace.user.fullName,
+                          email: authSession.workspace.user.email,
+                          id:
+                            authSession.workspace.teamMember?.id ||
+                            authSession.workspace.user.id,
+                        })}
+                        onSkipCheckIn={() => nav({ type: "create-session" })}
+                        onRecordLater={(sessionId) => {
+                          setReadyTourId(sessionId);
+                          void appQueryClient.invalidateQueries({
+                            queryKey: queryKeys.session(sessionId),
+                          });
+                          showToast(
+                            "Tour ready — find it in Upcoming Tours when you're ready to record.",
+                            "success",
+                          );
+                          nav({ type: "main", tab: "home" });
+                        }}
+                        onCheckedIn={(sessionId) => {
+                          void appQueryClient.invalidateQueries({
+                            queryKey: queryKeys.session(sessionId),
+                          });
+                          nav({
+                            type: "session-detail",
+                            sessionId,
+                            autoStartRecording: true,
+                          });
+                        }}
                       />
                     }
                   >
@@ -1827,6 +1895,8 @@ function MainTabs({
   onGuestRegistration,
   onProfile,
   onOpenSettings,
+  onOpenStartTour,
+  readyTourId,
   authSession,
   onAuthSession,
   agentName,
@@ -1842,6 +1912,8 @@ function MainTabs({
   onGuestRegistration: () => void;
   onProfile: () => void;
   onOpenSettings: () => void;
+  onOpenStartTour: () => void;
+  readyTourId: string | null;
   authSession: MobileAuthSession;
   onAuthSession: (session: MobileAuthSession) => void;
   agentName: string;
@@ -1886,10 +1958,6 @@ function MainTabs({
   >(null);
   const [tabTransitionDirection, setTabTransitionDirection] =
     useState<SlideDirection>("forward");
-  const [checkInOpen, setCheckInOpen] = useState(false);
-  const [checkInPending, setCheckInPending] = useState(false);
-  const [checkInError, setCheckInError] = useState<string | null>(null);
-  const [readyTourId, setReadyTourId] = useState<string | null>(null);
   const readyTourQuery = useQuery({
     queryKey: queryKeys.session(readyTourId ?? ""),
     queryFn: () => fetchSession(readyTourId!),
@@ -1897,20 +1965,6 @@ function MainTabs({
   });
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [practiceLive, setPracticeLive] = useState(false);
-  const checkInStartingRef = useRef(false);
-  const checkInRequestRef = useRef(0);
-  const [checkInBinding, setCheckInBinding] = useState<{
-    sessionId: string | null;
-    url: string | null;
-  } | null>(null);
-  const publicMemberAlias = defaultMemberPublicAlias({
-    alias: authSession.workspace.teamMember?.alias,
-    name:
-      authSession.workspace.teamMember?.name ||
-      authSession.workspace.user.fullName,
-    email: authSession.workspace.user.email,
-    id: authSession.workspace.teamMember?.id || authSession.workspace.user.id,
-  });
   const tabIndicatorX = useSharedValue(
     (tabBarWidth / TAB_ITEMS.length) *
       Math.max(
@@ -1945,15 +1999,6 @@ function MainTabs({
     const next = getCurrentSession();
     if (next) onAuthSession(next);
   }, [profile, onAuthSession]);
-
-  useEffect(() => {
-    setCheckInOpen(false);
-    setCheckInBinding(null);
-    setReadyTourId(null);
-    return () => {
-      checkInRequestRef.current += 1;
-    };
-  }, [authSession.workspace.community.id]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -2011,54 +2056,6 @@ function MainTabs({
     [onTab, tab],
   );
 
-  const refreshTourSessions = useCallback(() => {
-    void queryClient.invalidateQueries({
-      queryKey: [...queryKeys.all(), "sessions"],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: [...queryKeys.all(), "sessionPages"],
-    });
-  }, [queryClient]);
-
-  const closeTourSheet = useCallback(() => {
-    checkInRequestRef.current += 1;
-    checkInStartingRef.current = false;
-    setCheckInPending(false);
-    setCheckInOpen(false);
-    refreshTourSessions();
-  }, [refreshTourSessions]);
-
-  const openStartTour = useCallback(async () => {
-    if (checkInStartingRef.current) return;
-
-    const request = ++checkInRequestRef.current;
-    checkInStartingRef.current = true;
-    setCheckInPending(true);
-    setCheckInError(null);
-    setCheckInBinding({ sessionId: null, url: null });
-    setCheckInOpen(true);
-    try {
-      const binding = await createCheckInLink();
-      if (request === checkInRequestRef.current) setCheckInBinding(binding);
-    } catch (caught) {
-      if (request === checkInRequestRef.current) {
-        setCheckInError("Check-in is unavailable. Try again, or skip to recording.");
-      }
-    } finally {
-      if (request === checkInRequestRef.current) {
-        checkInStartingRef.current = false;
-        setCheckInPending(false);
-      }
-    }
-  }, []);
-
-  const skipTourCheckIn = useCallback(() => {
-    // Skipping check-in is local navigation, not a network prerequisite.
-    // Registered guests use the sheet's Record now action and their saved tour.
-    closeTourSheet();
-    onCreate();
-  }, [closeTourSheet, onCreate]);
-
   return (
     <View
       style={[
@@ -2093,7 +2090,7 @@ function MainTabs({
             onRefresh={onRefresh}
             onSession={onSession}
             onProfile={() => setProfileEditorOpen(true)}
-            onStartTour={() => void openStartTour()}
+            onStartTour={onOpenStartTour}
             onAudioTest={onAudioTest}
             onAssets={() => handleTabPress("materials")}
             onCommunityPress={() => setCommunityPickerOpen(true)}
@@ -2129,7 +2126,7 @@ function MainTabs({
             onCommunityPress={() => setCommunityPickerOpen(true)}
             onSession={onSession}
             onSampleSession={onSampleSession}
-            onCreate={() => void openStartTour()}
+            onCreate={onOpenStartTour}
             initialSessions={sessions}
             property={property}
           />
@@ -2161,7 +2158,7 @@ function MainTabs({
             <TourTabScreen
               property={property}
               onCommunityPress={() => setCommunityPickerOpen(true)}
-              onStart={() => void openStartTour()}
+              onStart={onOpenStartTour}
             />
           </ScrollView>
         </ScreenTransition>
@@ -2248,37 +2245,6 @@ function MainTabs({
         }}
         onSelect={(communityId) => void chooseCommunity(communityId)}
       />
-      {checkInBinding ? (
-        <CheckInSheet
-          visible={checkInOpen}
-          onClose={closeTourSheet}
-          bindingPending={checkInPending}
-          bindingError={checkInError}
-          onRetry={() => void openStartTour()}
-          onSkipCheckIn={() => void skipTourCheckIn()}
-          onRecordLater={(sessionId) => {
-            setReadyTourId(sessionId);
-            void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionId) });
-            closeTourSheet();
-            handleTabPress("home");
-            showToast("Tour ready — find it in Upcoming Tours when you're ready to record.", "success");
-          }}
-          property={property}
-          propertyId={
-            authSession.workspace.community.propertyTygId ||
-            authSession.workspace.community.id
-          }
-          agentName={agentName}
-          repSlug={publicMemberAlias}
-          sessionId={checkInBinding.sessionId}
-          checkInUrl={checkInBinding.url}
-          onCheckedIn={(sessionId) => {
-            closeTourSheet();
-            void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionId) });
-            onSession(sessionId, { autoStartRecording: true });
-          }}
-        />
-      ) : null}
     </View>
   );
 }
@@ -2490,7 +2456,7 @@ function DashboardScreen({
       <View style={homeSt.actionPillRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="New tour"
+          accessibilityLabel="Start New Tour"
           accessibilityHint="Check in guests or skip straight to recording"
           onPress={() => {
             impactHaptic(Haptics.ImpactFeedbackStyle.Medium);
@@ -2502,16 +2468,10 @@ function DashboardScreen({
             pressed && homeSt.actionPillPressed,
           ]}
         >
-          <View pointerEvents="none" style={homeSt.newTourLeading}>
-            <Ionicons name="add" size={18} color="#FFFFFF" />
-            <View style={homeSt.newTourDivider} />
-          </View>
-          <View pointerEvents="none" style={homeSt.newTourLabel}>
-            <Ionicons name="play" size={18} color="#FFFFFF" />
-            <CustomText textStyle="title" style={homeSt.newTourText}>
-              New tour
-            </CustomText>
-          </View>
+          <Ionicons name="play" size={18} color="#FFFFFF" />
+          <CustomText textStyle="title" style={homeSt.newTourText}>
+            Start New Tour
+          </CustomText>
         </Pressable>
       </View>
 
@@ -11833,22 +11793,12 @@ const homeSt = StyleSheet.create({
     boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
   newTourPill: {
-    paddingHorizontal: 64,
     backgroundColor: "#175CD3",
     borderWidth: 1,
     borderColor: "#175CD3",
     boxShadow: "0 4px 12px rgba(23, 92, 211, 0.2)",
   },
   newTourText: { color: "#FFFFFF" },
-  newTourLeading: {
-    position: "absolute",
-    left: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  newTourDivider: { width: 1, height: 22, backgroundColor: "rgba(255,255,255,0.25)" },
-  newTourLabel: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
   actionPillPressed: { boxShadow: "none", transform: [{ scale: 0.975 }] },
   checkInPillText: { color: CARD },
   audioTestCard: {

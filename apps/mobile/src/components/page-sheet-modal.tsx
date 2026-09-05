@@ -16,11 +16,13 @@ export function PageSheetModal({
   visible,
   title,
   onClose,
+  leading,
   children,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
+  leading?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -45,6 +47,7 @@ export function PageSheetModal({
             style={StyleSheet.absoluteFill}
           />
           <View pointerEvents="box-none" style={styles.header}>
+            {leading}
             <CustomText textStyle="hero" numberOfLines={1} style={styles.title}>
               {title}
             </CustomText>
