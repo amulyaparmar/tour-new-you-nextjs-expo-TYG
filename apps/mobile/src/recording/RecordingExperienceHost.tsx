@@ -203,7 +203,6 @@ export function RecordingExperienceHost() {
         isPresented={isPresented}
         onSwipeDown={requestMinimize}
         autoStart
-        cancelIcon={liveMeta.source === "session-detail" ? "close" : "chevron-down"}
         minimizeOnClose={liveMeta.source === "session-detail"}
         onCancel={requestCancel}
         onFinish={requestFinish}

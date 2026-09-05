@@ -188,9 +188,12 @@ import {
   RecordingExperienceHost,
   RecordingProvider,
   formatElapsed,
+  localSessionIsPendingUpload,
+  resolveLiveSessionOpen,
   useRecording,
   type LiveRecordingDraft,
   type LiveSessionSnapshot,
+  type RecordingCtx,
 } from "./src/recording";
 import {
   deleteLocalSession,
@@ -916,6 +919,8 @@ let _showToast:
   | ((msg: string, type?: "error" | "success" | "info") => void)
   | null = null;
 
+let openFinishedBoundSession: ((sessionId: string) => void) | null = null;
+
 function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<{
     id: number;
@@ -1343,6 +1348,201 @@ function SessionNavigation({
   );
 }
 
+function sessionHasPendingFinishedRecording(sessionId: string): boolean {
+  return localSessionIsPendingUpload(findLocalSessionByRemoteId(sessionId));
+}
+
+function openBoundSessionRecording(
+  rec: RecordingCtx,
+  options: {
+    sessionId: string;
+    title: string;
+    prospectName: string | null;
+    propertyName: string;
+    agentName?: string | null;
+    guests: SessionLead[];
+    notes?: string;
+    attachments?: SessionAttachment[];
+    assets?: Material[];
+    selectedAssetIds?: string[];
+    rubricId?: string | null;
+  },
+) {
+  if (rec.liveMeta) {
+    rec.expandExperience();
+    return;
+  }
+
+  const {
+    sessionId,
+    title,
+    prospectName,
+    propertyName,
+    agentName,
+    guests,
+    notes = "",
+    attachments = [],
+    assets = [],
+    selectedAssetIds = [],
+    rubricId = null,
+  } = options;
+
+  rec.openExperience({
+    meta: {
+      sessionId,
+      title,
+      prospectName,
+      propertyName,
+      agentName: agentName?.trim() || null,
+      source: "session-detail",
+    },
+    draft: {
+      notes,
+      assets,
+      selectedAssetIds,
+      participants: guests,
+      attachments,
+      prospect: prospectName ?? "",
+      location: propertyName,
+      rubricId,
+    },
+    onBeforeRecordingStart: async () => {
+      if (await isOnline()) {
+        const response = await authenticatedFetch(`/api/sessions/${sessionId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "in_progress" }),
+        });
+        if (!response.ok) throw new Error("Could not activate the tour session");
+      }
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    },
+    onCancel: async (snapshot) => {
+      try {
+        await snapshot.stop();
+        snapshot.clearLiveSession();
+        if (await isOnline()) {
+          const response = await authenticatedFetch(
+            `/api/sessions/${sessionId}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "scheduled" }),
+            },
+          );
+          if (!response.ok) throw new Error("Could not reset the session");
+        }
+        showToast(
+          "Recording cancelled. Session returned to scheduled.",
+          "success",
+        );
+        void appQueryClient.invalidateQueries({
+          queryKey: queryKeys.session(sessionId),
+        });
+      } catch (caught) {
+        showToast(
+          caught instanceof Error
+            ? caught.message
+            : "Could not cancel the session",
+          "error",
+        );
+      }
+    },
+    onFinish: async (snapshot) => {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const result = await snapshot.stop();
+      const localId = snapshot.localId;
+      const fileName = `tour-${Date.now()}.m4a`;
+      if (!result?.uri) {
+        snapshot.clearLiveSession();
+        showToast("Failed to save recording", "error");
+        return;
+      }
+      let durableUri = result.uri;
+      if (localId) {
+        const verifiedUri = await ensureDurableRecording(localId, result.uri);
+        if (!verifiedUri) {
+          snapshot.clearLiveSession();
+          showToast("Failed to save recording", "error");
+          return;
+        }
+        durableUri = verifiedUri;
+        updateLocalSession(localId, {
+          status: "recording",
+          minimized: true,
+          durationSec: result.durationSec,
+          remoteSessionId: sessionId,
+          draft: snapshot.draft,
+          fileName,
+          mimeType: "audio/m4a",
+        });
+      }
+      snapshot.clearLiveSession();
+      let shouldOpenDetail = false;
+      try {
+        if (localId) {
+          beginDirectLocalUpload(localId);
+          markReadyToSync(localId, {
+            durationSec: result.durationSec ?? 1,
+            sourceUri: durableUri,
+            remoteSessionId: sessionId,
+            fileName,
+            mimeType: "audio/m4a",
+          });
+        }
+        if (!(await isOnline())) {
+          showToast("Saved on device — will upload when online", "info");
+          void drainSyncOutbox();
+          void appQueryClient.invalidateQueries({
+            queryKey: queryKeys.session(sessionId),
+          });
+          shouldOpenDetail = true;
+          return;
+        }
+        await uploadRecording(
+          sessionId,
+          durableUri,
+          "audio/m4a",
+          fileName,
+          result.durationSec,
+        );
+        promoteLocalRecordingToCache(sessionId, durableUri);
+        await clearPendingRecordingUpload(sessionId, localId);
+        showToast("Recording uploaded", "success");
+        void appQueryClient.invalidateQueries({
+          queryKey: queryKeys.all(),
+        });
+        shouldOpenDetail = true;
+      } catch (caught) {
+        await savePendingRecordingUpload({
+          sessionId,
+          localId,
+          uri: durableUri,
+          mimeType: "audio/m4a",
+          name: fileName,
+          durationSec: result.durationSec,
+          savedAt: Date.now(),
+        });
+        showToast(
+          caught instanceof Error ? caught.message : "Upload failed",
+          "error",
+        );
+        void drainSyncOutbox();
+        void appQueryClient.invalidateQueries({
+          queryKey: queryKeys.session(sessionId),
+        });
+        shouldOpenDetail = true;
+      } finally {
+        if (localId) endDirectLocalUpload(localId);
+        if (shouldOpenDetail) openFinishedBoundSession?.(sessionId);
+      }
+    },
+  });
+  void appQueryClient.invalidateQueries({
+    queryKey: queryKeys.session(sessionId),
+  });
+}
+
 function CheckInStartTourScreen({
   onBack,
   property,
@@ -1350,7 +1550,7 @@ function CheckInStartTourScreen({
   agentName,
   repSlug,
   onSkipCheckIn,
-  onOpenSession,
+  onLiveOpened,
 }: {
   onBack: () => void;
   property: string;
@@ -1358,7 +1558,7 @@ function CheckInStartTourScreen({
   agentName?: string | null;
   repSlug?: string | null;
   onSkipCheckIn: () => void;
-  onOpenSession: (sessionId: string) => void;
+  onLiveOpened: () => void;
 }) {
   const rec = useRecording();
 
@@ -1372,166 +1572,15 @@ function CheckInStartTourScreen({
       onSkipCheckIn={onSkipCheckIn}
       onCheckedIn={(sessionId, guests = []) => {
         const prospectName = guests[0]?.name ?? null;
-        rec.openExperience({
-          meta: {
-            sessionId,
-            title: `Tour ${property}`,
-            prospectName,
-            propertyName: property,
-            agentName: agentName?.trim() || null,
-            source: "session-detail",
-          },
-          draft: {
-            notes: "",
-            assets: [],
-            selectedAssetIds: [],
-            participants: guests,
-            attachments: [],
-            prospect: prospectName ?? "",
-            location: property,
-            rubricId: null,
-          },
-          onBeforeRecordingStart: async () => {
-            if (await isOnline()) {
-              const response = await authenticatedFetch(
-                `/api/sessions/${sessionId}`,
-                {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ status: "in_progress" }),
-                },
-              );
-              if (!response.ok)
-                throw new Error("Could not activate the tour session");
-            }
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          },
-          onCancel: async (snapshot) => {
-            try {
-              await snapshot.stop();
-              snapshot.clearLiveSession();
-              if (await isOnline()) {
-                const response = await authenticatedFetch(
-                  `/api/sessions/${sessionId}`,
-                  {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "scheduled" }),
-                  },
-                );
-                if (!response.ok)
-                  throw new Error("Could not reset the session");
-              }
-              showToast(
-                "Recording cancelled. Session returned to scheduled.",
-                "success",
-              );
-              void appQueryClient.invalidateQueries({
-                queryKey: queryKeys.session(sessionId),
-              });
-            } catch (caught) {
-              showToast(
-                caught instanceof Error
-                  ? caught.message
-                  : "Could not cancel the session",
-                "error",
-              );
-            }
-          },
-          onFinish: async (snapshot) => {
-            void Haptics.notificationAsync(
-              Haptics.NotificationFeedbackType.Success,
-            );
-            const result = await snapshot.stop();
-            const localId = snapshot.localId;
-            const fileName = `tour-${Date.now()}.m4a`;
-            if (!result?.uri) {
-              snapshot.clearLiveSession();
-              showToast("Failed to save recording", "error");
-              return;
-            }
-            let durableUri = result.uri;
-            if (localId) {
-              const verifiedUri = await ensureDurableRecording(
-                localId,
-                result.uri,
-              );
-              if (!verifiedUri) {
-                snapshot.clearLiveSession();
-                showToast("Failed to save recording", "error");
-                return;
-              }
-              durableUri = verifiedUri;
-              updateLocalSession(localId, {
-                status: "recording",
-                minimized: true,
-                durationSec: result.durationSec,
-                remoteSessionId: sessionId,
-                draft: snapshot.draft,
-                fileName,
-                mimeType: "audio/m4a",
-              });
-            }
-            snapshot.clearLiveSession();
-            try {
-              if (localId) {
-                beginDirectLocalUpload(localId);
-                markReadyToSync(localId, {
-                  durationSec: result.durationSec ?? 1,
-                  sourceUri: durableUri,
-                  remoteSessionId: sessionId,
-                  fileName,
-                  mimeType: "audio/m4a",
-                });
-              }
-              if (!(await isOnline())) {
-                showToast("Saved on device — will upload when online", "info");
-                void drainSyncOutbox();
-                void appQueryClient.invalidateQueries({
-                  queryKey: queryKeys.session(sessionId),
-                });
-                return;
-              }
-              await uploadRecording(
-                sessionId,
-                durableUri,
-                "audio/m4a",
-                fileName,
-                result.durationSec,
-              );
-              promoteLocalRecordingToCache(sessionId, durableUri);
-              await clearPendingRecordingUpload(sessionId, localId);
-              showToast("Recording uploaded", "success");
-              void appQueryClient.invalidateQueries({
-                queryKey: queryKeys.all(),
-              });
-            } catch (caught) {
-              await savePendingRecordingUpload({
-                sessionId,
-                localId,
-                uri: durableUri,
-                mimeType: "audio/m4a",
-                name: fileName,
-                durationSec: result.durationSec,
-                savedAt: Date.now(),
-              });
-              showToast(
-                caught instanceof Error ? caught.message : "Upload failed",
-                "error",
-              );
-              void drainSyncOutbox();
-              void appQueryClient.invalidateQueries({
-                queryKey: queryKeys.session(sessionId),
-              });
-            } finally {
-              if (localId) endDirectLocalUpload(localId);
-            }
-          },
+        openBoundSessionRecording(rec, {
+          sessionId,
+          title: `Tour ${property}`,
+          prospectName,
+          propertyName: property,
+          agentName,
+          guests,
         });
-        void appQueryClient.invalidateQueries({
-          queryKey: queryKeys.session(sessionId),
-        });
-        onOpenSession(sessionId);
+        onLiveOpened();
       }}
     />
   );
@@ -1623,6 +1672,15 @@ export default function App() {
     },
     [screen],
   );
+
+  useEffect(() => {
+    openFinishedBoundSession = (sessionId: string) => {
+      nav({ type: "session-detail", sessionId });
+    };
+    return () => {
+      openFinishedBoundSession = null;
+    };
+  }, [nav]);
 
   useEffect(() => {
     const refreshSessions = () => {
@@ -1805,12 +1863,9 @@ export default function App() {
                             authSession.workspace.user.id,
                         })}
                         onSkipCheckIn={() => nav({ type: "create-session" })}
-                        onOpenSession={(sessionId) => {
-                          nav({
-                            type: "session-detail",
-                            sessionId,
-                          });
-                        }}
+                        onLiveOpened={() =>
+                          nav({ type: "main", tab: lastMainTabRef.current })
+                        }
                       />
                     }
                   >
@@ -2098,6 +2153,7 @@ function MainTabs({
   agentName: string;
   property: string;
 }) {
+  const rec = useRecording();
   const { width: tabBarWidth } = useWindowDimensions();
   const queryClient = useQueryClient();
   // Keep arrivals visible even if a guest submits after the QR sheet closes.
@@ -2190,6 +2246,53 @@ function MainTabs({
     setRefreshing(false);
   }, [materialsQuery, profileQuery, sessionsQuery, upcomingSessionsQuery]);
 
+  const openListedSession = useCallback(
+    (id: string, opts?: { autoStartRecording?: boolean }) => {
+      if (rec.liveMeta?.sessionId === id) {
+        rec.expandExperience();
+        return;
+      }
+      const listed =
+        sessions.find((session) => session.id === id) ??
+        upcomingSessions.find((session) => session.id === id) ??
+        (readyTourQuery.data?.session?.id === id
+          ? readyTourQuery.data.session
+          : undefined);
+      const action = resolveLiveSessionOpen({
+        liveSessionId: rec.liveMeta?.sessionId ?? null,
+        hasLiveExperience: Boolean(rec.liveMeta),
+        session: listed ? { id: listed.id, status: listed.status } : null,
+        autoStartRecording: opts?.autoStartRecording,
+        hasPendingFinishedRecording: sessionHasPendingFinishedRecording(id),
+      });
+      if (action === "expand") {
+        rec.expandExperience();
+        return;
+      }
+      if (action === "open" && listed) {
+        openBoundSessionRecording(rec, {
+          sessionId: listed.id,
+          title: listed.title || `Tour ${property}`,
+          prospectName: listed.prospectName ?? listed.leads[0]?.name ?? null,
+          propertyName: listed.location || property,
+          agentName: listed.agentName ?? agentName,
+          guests: listed.leads ?? [],
+        });
+        return;
+      }
+      onSession(id, opts);
+    },
+    [
+      agentName,
+      onSession,
+      property,
+      rec,
+      readyTourQuery.data?.session,
+      sessions,
+      upcomingSessions,
+    ],
+  );
+
   const chooseCommunity = useCallback(
     async (communityId: string) => {
       if (communityId === authSession.workspace.community.id) {
@@ -2267,7 +2370,7 @@ function MainTabs({
             refreshing={refreshing}
             error={error}
             onRefresh={onRefresh}
-            onSession={onSession}
+            onSession={openListedSession}
             onProfile={() => setProfileEditorOpen(true)}
             onStartTour={onOpenStartTour}
             onAudioTest={onAudioTest}
@@ -2303,7 +2406,7 @@ function MainTabs({
             authSession={authSession}
             onBack={() => handleTabPress("home")}
             onCommunityPress={() => setCommunityPickerOpen(true)}
-            onSession={onSession}
+            onSession={openListedSession}
             onSampleSession={onSampleSession}
             onCreate={onOpenStartTour}
             initialSessions={sessions}
@@ -7411,6 +7514,13 @@ function SessionDetailScreen({
   autoStartRecording?: boolean;
   onBack: () => void;
 }) {
+  const rec = useRecording();
+  const recRef = useRef(rec);
+  recRef.current = rec;
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
+  const liveHandoffRef = useRef(false);
+  const [liveHandoffResolved, setLiveHandoffResolved] = useState(false);
   const [tab, setTab] = useState<DTab>("transcript");
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
@@ -7447,8 +7557,66 @@ function SessionDetailScreen({
     null;
 
   useEffect(() => {
+    liveHandoffRef.current = false;
+    setLiveHandoffResolved(false);
+  }, [sessionId]);
+
+  useEffect(() => {
     void trackAnalyticsEvent("session_view_detail", { sessionId });
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!session || analysis || liveHandoffRef.current) return;
+    if (session.status !== "in_progress" && !autoStartRecording) {
+      setLiveHandoffResolved(true);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const pending =
+        sessionHasPendingFinishedRecording(sessionId) ||
+        Boolean(await loadPendingRecordingUpload(sessionId));
+      if (cancelled || liveHandoffRef.current) return;
+
+      const recording = recRef.current;
+      const action = resolveLiveSessionOpen({
+        liveSessionId: recording.liveMeta?.sessionId ?? null,
+        hasLiveExperience: Boolean(recording.liveMeta),
+        session: { id: session.id, status: session.status },
+        autoStartRecording,
+        hasPendingFinishedRecording: pending,
+      });
+
+      if (action === "detail") {
+        setLiveHandoffResolved(true);
+        return;
+      }
+
+      liveHandoffRef.current = true;
+      if (action === "expand") {
+        recording.expandExperience();
+      } else {
+        openBoundSessionRecording(recording, {
+          sessionId,
+          title: session.title || "Tour conversation",
+          prospectName:
+            session.prospectName ?? session.leads?.[0]?.name ?? null,
+          propertyName: session.location || session.title,
+          agentName: session.agentName,
+          guests: session.leads ?? [],
+          notes: session.notes ?? "",
+          attachments: session.attachments ?? [],
+          rubricId: session.rubricId,
+        });
+      }
+      onBackRef.current();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [analysis, autoStartRecording, session, sessionId]);
 
   const load = useCallback(async () => {
     await Promise.all([
@@ -7505,6 +7673,15 @@ function SessionDetailScreen({
   const sc = STATUS_COLORS[session.status] ?? { bg: "#eaf4ff", text: C.brand };
   const sl = STATUS_LABELS[session.status] ?? session.status;
   const isProcessable = ["uploaded", "failed"].includes(session.status);
+
+  if (
+    !hasAnalysis &&
+    !liveHandoffResolved &&
+    (session.status === "in_progress" || autoStartRecording) &&
+    !sessionHasPendingFinishedRecording(sessionId)
+  ) {
+    return <SessionReviewSkeleton onBack={onBack} />;
+  }
 
   if (hasAnalysis) {
     return (
@@ -7590,10 +7767,10 @@ function SessionDetailScreen({
             prospectName={session.prospectName}
             agentName={session.agentName}
             propertyName={session.location || session.title}
-            autoStartRecording={autoStartRecording}
             initialNotes={session.notes}
             initialLeads={session.leads ?? []}
             initialAttachments={session.attachments ?? []}
+            onLeaveForLiveRecording={onBack}
             onDone={load}
           />
         )}
@@ -9038,10 +9215,10 @@ function UploadProcessCard({
   prospectName,
   agentName,
   propertyName,
-  autoStartRecording = false,
   initialNotes,
   initialLeads,
   initialAttachments,
+  onLeaveForLiveRecording,
   onDone,
 }: {
   sessionId: string;
@@ -9051,10 +9228,10 @@ function UploadProcessCard({
   prospectName?: string | null;
   agentName?: string | null;
   propertyName?: string | null;
-  autoStartRecording?: boolean;
   initialNotes?: string | null;
   initialLeads: SessionLead[];
   initialAttachments: SessionAttachment[];
+  onLeaveForLiveRecording?: () => void;
   onDone: () => void;
 }) {
   const rec = useRecording();
@@ -9090,7 +9267,6 @@ function UploadProcessCard({
   const [rubricOpen, setRubricOpen] = useState(false);
   const [idleOptionsOpen, setIdleOptionsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const autoStartedRef = useRef(false);
 
   useEffect(() => {
     Promise.all([
@@ -9265,129 +9441,21 @@ function UploadProcessCard({
   }
 
   function startSessionRecording() {
-    rec.openExperience({
-      meta: {
-        sessionId,
-        title: dTitle.trim() || sessionTitle?.trim() || "Tour conversation",
-        prospectName: dProspect.trim() || prospectName?.trim() || null,
-        propertyName: dLocation.trim() || propertyName?.trim() || null,
-        agentName: agentName?.trim() || null,
-        source: "session-detail",
-      },
-      draft: {
-        notes: dNotes,
-        assets,
-        selectedAssetIds,
-        participants: initialLeads,
-        attachments: initialAttachments,
-        prospect: dProspect.trim() || prospectName?.trim() || "",
-        location: dLocation.trim() || propertyName?.trim() || "",
-        rubricId,
-      },
-      onBeforeRecordingStart: async () => {
-        if (await isOnline()) {
-          const response = await authenticatedFetch(
-            `/api/sessions/${sessionId}`,
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "in_progress" }),
-            },
-          );
-          if (!response.ok)
-            throw new Error("Could not activate the tour session");
-        }
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      },
-      onCancel: async (snapshot) => {
-        setCancelling(true);
-        try {
-          await snapshot.stop();
-          snapshot.clearLiveSession();
-          setSelectedAssetIds([]);
-          if (await isOnline()) {
-            const response = await authenticatedFetch(
-              `/api/sessions/${sessionId}`,
-              {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "scheduled" }),
-              },
-            );
-            if (!response.ok) throw new Error("Could not reset the session");
-          }
-          showToast(
-            "Recording cancelled. Session returned to scheduled.",
-            "success",
-          );
-          await onDone();
-        } catch (caught) {
-          showToast(
-            caught instanceof Error
-              ? caught.message
-              : "Could not cancel the session",
-            "error",
-          );
-        } finally {
-          setCancelling(false);
-        }
-      },
-      onFinish: async (snapshot) => {
-        void Haptics.notificationAsync(
-          Haptics.NotificationFeedbackType.Success,
-        );
-        const result = await snapshot.stop();
-        const notes = snapshot.draft.notes;
-        const localId = snapshot.localId;
-        if (!result?.uri) {
-          snapshot.clearLiveSession();
-          showToast("Failed to save recording", "error");
-          return;
-        }
-        let durableUri = result.uri;
-        if (localId) {
-          const verifiedUri = await ensureDurableRecording(localId, result.uri);
-          if (!verifiedUri) {
-            snapshot.clearLiveSession();
-            showToast("Failed to save recording", "error");
-            return;
-          }
-          durableUri = verifiedUri;
-          updateLocalSession(localId, {
-            status: "recording",
-            minimized: true,
-            durationSec: result.durationSec,
-            remoteSessionId: sessionId,
-            draft: snapshot.draft,
-            fileName: `tour-${Date.now()}.m4a`,
-            mimeType: "audio/m4a",
-          });
-        }
-        snapshot.clearLiveSession();
-        setDNotes(notes);
-        await uploadPickedFile(
-          {
-            uri: durableUri,
-            mimeType: "audio/m4a",
-            name: `tour-${Date.now()}.m4a`,
-            durationSec: result.durationSec,
-          },
-          localId,
-        );
-      },
+    openBoundSessionRecording(rec, {
+      sessionId,
+      title: dTitle.trim() || sessionTitle?.trim() || "Tour conversation",
+      prospectName: dProspect.trim() || prospectName?.trim() || null,
+      propertyName: dLocation.trim() || propertyName?.trim() || "",
+      agentName,
+      guests: initialLeads,
+      notes: dNotes,
+      attachments: initialAttachments,
+      assets,
+      selectedAssetIds,
+      rubricId,
     });
+    onLeaveForLiveRecording?.();
   }
-
-  useEffect(() => {
-    if (!autoStartRecording || autoStartedRef.current) return;
-    if (!(status === "scheduled" || status === "in_progress")) return;
-    if (phase !== "idle") return;
-    autoStartedRef.current = true;
-    const timer = setTimeout(() => startSessionRecording(), 350);
-    return () => clearTimeout(timer);
-    // Intentionally run once when arriving from check-in.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStartRecording, phase, status]);
 
   async function cancelSessionRecording() {
     setCancelling(true);

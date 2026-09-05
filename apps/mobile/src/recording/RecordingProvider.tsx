@@ -245,7 +245,12 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   const persistCheckpoint = useCallback((forceAudioCopy = false) => {
     const id = localIdRef.current;
     if (!id) return;
-    const sourceUri = recorderRef.current?.uri ?? null;
+    let sourceUri: string | null = null;
+    try {
+      sourceUri = recorderRef.current?.uri ?? null;
+    } catch {
+      // The native recorder can already be released after stop/refresh.
+    }
     writeCheckpoint(id, elapsedRef.current, sourceUri);
     const draftSnapshot = draftRef.current;
     const metaSnapshot = liveMetaRef.current;
@@ -494,10 +499,20 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     stopRecordingLiveActivity(durationSec);
 
     try {
-      const uriBeforeStop = activeRecorder.uri;
+      let uriBeforeStop: string | null = null;
+      try {
+        uriBeforeStop = activeRecorder.uri;
+      } catch {
+        uriBeforeStop = null;
+      }
       await activeRecorder.stop();
       await configureRecordingAudioMode(false);
-      const uri = activeRecorder.uri ?? uriBeforeStop;
+      let uri: string | null = uriBeforeStop;
+      try {
+        uri = activeRecorder.uri ?? uriBeforeStop;
+      } catch {
+        uri = uriBeforeStop;
+      }
       const id = localIdRef.current;
       let durableUri = uri;
       if (id && uri) {

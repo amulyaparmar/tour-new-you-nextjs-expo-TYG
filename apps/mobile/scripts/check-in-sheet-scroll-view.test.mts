@@ -133,14 +133,17 @@ test("form tap handling is forwarded without changing QR defaults", () => {
 
 test("check-in presents as a native page with a page-sheet form modal", () => {
   const sheetSource = readFileSync(new URL("../src/components/check-in/check-in-sheet.tsx", import.meta.url), "utf8");
+  const formSource = readFileSync(new URL("../src/components/check-in/tour-check-in-form-modal.tsx", import.meta.url), "utf8");
   assert.match(sheetSource, /GlassNavHeader/);
-  assert.match(sheetSource, /PageSheetModal/);
+  assert.match(sheetSource, /TourCheckInFormModal/);
+  assert.match(formSource, /PageSheetModal/);
   assert.equal(sheetSource.includes("CheckInSheetScrollView"), false);
   assert.equal(sheetSource.includes("SessionModeTabs"), false);
-  const ast = ts.createSourceFile("check-in-sheet.tsx", sheetSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const sheetAst = ts.createSourceFile("check-in-sheet.tsx", sheetSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const formAst = ts.createSourceFile("tour-check-in-form-modal.tsx", formSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const wrappers: Record<string, string>[] = [];
   let horizontalOptions = 0;
-  function visit(node: any) {
+  function visit(ast: any, node: any) {
     if (ts.isJsxOpeningElement(node)) {
       const attributes: Record<string, string> = {};
       for (const attribute of node.attributes.properties) {
@@ -157,14 +160,31 @@ test("check-in presents as a native page with a page-sheet form modal", () => {
         assert.equal(attributes.keyboardShouldPersistTaps, "handled");
       }
     }
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, (child: any) => visit(ast, child));
   }
-  visit(ast);
+  visit(sheetAst, sheetAst);
+  visit(formAst, formAst);
   assert.deepEqual(wrappers.map((props) => props.key).sort(), ["contact", "qr", "questions"]);
   for (const props of wrappers) {
     if (props.key !== "qr") assert.equal(props.keyboardShouldPersistTaps, "handled");
   }
   assert.equal(horizontalOptions, 1);
+});
+
+test("recording summary check-in uses the shared Tour Check-In modal", () => {
+  const source = readFileSync(new URL("../src/recording/RecordingExperience.tsx", import.meta.url), "utf8");
+  assert.match(source, /TourCheckInFormModal/);
+  assert.match(source, />Checked-In</);
+  assert.equal(source.includes("Add everyone"), false);
+  assert.equal(source.includes("This property"), false);
+  assert.match(source, /setCheckInFormOpen\(true\)/);
+  assert.match(source, /<SecondaryButton\s+label="Assets"/);
+  assert.match(source, /PageSheetModal/);
+  assert.match(source, /title=\{selectedAssetPreview \? selectedAssetPreview\.name : "Assets"\}/);
+  assert.equal(source.includes("useRecordingSheetGesture"), false);
+  assert.match(source, /cancelIcon = "chevron-down"/);
+  assert.match(source, /ShowCheckInQrModal/);
+  assert.match(source, /Show QR\/link/);
 });
 
 test("pulling anywhere in QR content at its top moves the sheet and dismisses once", () => {

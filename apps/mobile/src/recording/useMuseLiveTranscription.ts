@@ -319,31 +319,61 @@ export function useMuseLiveTranscription({
     };
   }, [captureFailed, enabled, internetAvailable, sessionId]);
 
+  const streamStartedRef = useRef(false);
+
   const shouldCapture = enabled
     && internetAvailable
     && !captureFailed
     && (status === "connecting" || status === "streaming");
 
   useEffect(() => {
+    const stopIfStarted = () => {
+      if (!streamStartedRef.current) return;
+      streamStartedRef.current = false;
+      try {
+        audioStream.stop();
+      } catch {
+        // stop() can throw if Fast Refresh already released the native stream.
+      }
+    };
+
     if (!shouldCapture) {
-      audioStream.stop();
+      stopIfStarted();
       return;
     }
 
     let cancelled = false;
     const timer = setTimeout(() => {
-      void audioStream.start().catch(() => {
-        if (cancelled) return;
-        audioStream.stop();
-        setCaptureFailed(true);
-        setStatus("fallback");
-      });
+      void (async () => {
+        try {
+          await audioStream.start();
+          if (cancelled) {
+            try {
+              audioStream.stop();
+            } catch {
+              // The start completed after unmount; the native object may already be gone.
+            }
+            return;
+          }
+          streamStartedRef.current = true;
+        } catch {
+          if (cancelled) return;
+          streamStartedRef.current = false;
+          try {
+            audioStream.stop();
+          } catch {
+            // start() may have already released the native stream.
+          }
+          setCaptureFailed(true);
+          setStatus("fallback");
+        }
+      })();
     }, 400);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      audioStream.stop();
+      stopIfStarted();
     };
   }, [audioStream, shouldCapture]);
 
