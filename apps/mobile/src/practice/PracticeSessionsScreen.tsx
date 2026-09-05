@@ -1,5 +1,6 @@
 import { authenticatedFetch, getCurrentSession } from "@/auth";
 import { CustomText } from "@/components/custom-text";
+import { EmptyStateCard } from "@/components/empty-state-card";
 import { InfoBox } from "@/components/info-box";
 import {
   LargeTitleCopy,
@@ -9,13 +10,12 @@ import {
 import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { MotionPressable } from "@/components/ui/motion";
 import { selectionHaptic } from "@/lib/haptics";
-import { ACCENT, BACKGROUND, CARD, LARGE_CORNER, SMALL_CORNER, TEXT } from "@/theme/tokens";
+import { ACCENT, BACKGROUND, CARD, SMALL_CORNER, TEXT } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Platform, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import Reanimated, {
-  FadeInDown,
   useAnimatedScrollHandler,
   useSharedValue,
 } from "react-native-reanimated";
@@ -246,7 +246,7 @@ export function PracticeSessionsScreen({
             {attempts.length ? (
               attempts.slice(0, 8).map((attempt) => <AttemptRow key={attempt.id} attempt={attempt} />)
             ) : (
-              <PracticeEmpty
+              <EmptyStateCard
                 icon="trophy-outline"
                 title="No practice sessions yet"
                 subtitle="Complete a live scenario to see a score and coaching history here."
@@ -308,28 +308,6 @@ function AttemptRow({ attempt }: { attempt: Attempt }) {
   );
 }
 
-function PracticeEmpty({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <Reanimated.View entering={FadeInDown.duration(260).springify()} style={styles.empty}>
-      <View style={styles.emptyIcon}>
-        <Ionicons name={icon} size={22} color={ACCENT} />
-      </View>
-      <CustomText textStyle="title">{title}</CustomText>
-      <CustomText textStyle="caption" style={styles.emptySub}>
-        {subtitle}
-      </CustomText>
-    </Reanimated.View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BACKGROUND },
   scroll: {
@@ -382,25 +360,4 @@ const styles = StyleSheet.create({
   cardMeta: { marginTop: 5, color: C.textSec },
   attemptScore: { fontVariant: ["tabular-nums"] },
   pending: { color: C.textMuted },
-  empty: {
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    borderRadius: LARGE_CORNER,
-    borderCurve: "continuous",
-    backgroundColor: CARD,
-  },
-  emptyIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "rgba(0, 108, 229, 0.08)",
-  },
-  emptySub: {
-    color: C.textSec,
-    textAlign: "center",
-  },
 });

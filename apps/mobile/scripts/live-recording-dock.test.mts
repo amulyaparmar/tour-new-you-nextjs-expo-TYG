@@ -35,7 +35,6 @@ function createDock(initialProps: Record<string, any> = {}, initialRecording: Re
   let cursor = 0;
   let dirty = false;
   let root: NativeNode | null = null;
-  let props = { resetKey: "main:home", bottomInset: 80, ...initialProps };
   const context: Record<string, any> = {
     isRecording: true,
     isPaused: false,
@@ -93,6 +92,17 @@ function createDock(initialProps: Record<string, any> = {}, initialRecording: Re
       View: "View", Pressable: "Pressable", Text: "Text", ActivityIndicator: "ActivityIndicator",
       Platform: { OS: "ios" },
       StyleSheet: { create: (styles: any) => styles, absoluteFill: { position: "absolute" }, hairlineWidth: 0.5 },
+      Animated: {
+        View: "Animated.View",
+        Value: class MockAnimatedValue {
+          constructor(value) { this.value = value; }
+          stopAnimation() {}
+          setValue(value) { this.value = value; }
+        },
+        timing: (value, config) => ({ value, config }),
+        sequence: (animations) => ({ animations }),
+        loop: (animation) => ({ animation, start() {}, stop() {} }),
+      },
       Alert: { alert: (title: string) => alerts.push(title) },
       AccessibilityInfo: {
         isReduceTransparencyEnabled: () => ({ then: (callback: (enabled: boolean) => void) => {
@@ -106,7 +116,10 @@ function createDock(initialProps: Record<string, any> = {}, initialRecording: Re
       },
     },
     "react-native-safe-area-context": { useSafeAreaInsets: () => ({ bottom: 34 }) },
+    "../components/custom-text": { CustomText: "Text" },
     "../components/liquid-glass": { getLiquidGlassView: () => "GlassView" },
+    "../theme/tokens": { ACCENT: "blue", CARD: "white", HINT: "#E8F1FC", SMALL_CORNER: 16, LARGE_CORNER: 32 },
+    "../theme/tour-brand": { tourColors: { text: "#101828", textSec: "#667085", textMuted: "#8a94a6", border: "rgba(16, 24, 40, 0.08)" } },
     "./formatElapsed": loadHelper("../src/recording/formatElapsed.ts"),
     "./liveSessionLabel": loadHelper("../src/recording/liveSessionLabel.ts"),
     "./RecordingProvider": { useRecording: () => context },
@@ -119,15 +132,14 @@ function createDock(initialProps: Record<string, any> = {}, initialRecording: Re
       return mocks[name];
     },
   });
-  function render(propsPatch: Record<string, any> = {}, recordingPatch: Record<string, any> = {}) {
-    props = { ...props, ...propsPatch };
+  function render(recordingPatch: Record<string, any> = {}) {
     Object.assign(context, recordingPatch);
     let passes = 0;
     do {
       assert.ok(++passes < 10, "Unexpected render loop");
       dirty = false;
       cursor = 0;
-      root = module.exports.LiveRecordingDock(props);
+      root = module.exports.LiveRecordingDock();
       while (pendingEffects.length) pendingEffects.shift()!();
     } while (dirty);
     return root;
@@ -157,107 +169,25 @@ function assertNoRecordingControls(dock: ReturnType<typeof createDock>) {
   assert.deepEqual(dock.alerts, []);
 }
 
-test("hidden dock renders no surface, overlay or controls", () => {
-  const dock = createDock({ hidden: true });
-  assert.equal(dock.root, null);
-  assert.deepEqual(dock.nodes, []);
-  assertNoRecordingControls(dock);
-  assert.equal(dock.context.isRecording, true);
-  assert.equal(dock.context.experienceVisible, false);
-  dock.dispose();
-});
-
-test("hidden defaults false and the normal dock keeps all three controls", () => {
+test("the dock keeps open and pause controls while recording", () => {
   const dock = createDock();
   assert.ok(dock.root);
   assert.deepEqual(dock.nodes.filter((node) => node.props.accessibilityRole === "button")
     .map((node) => node.props.accessibilityLabel), [
-    "Open live tour with Sam", "Pause recording", "Hide live session bar",
+    "Open live tour with Sam", "Pause recording",
   ]);
   assert.ok(dock.text.includes("01:04"));
   assertNoRecordingControls(dock);
   dock.dispose();
 });
 
-test("show then hidden then show restores the mounted dock without touching recording", () => {
-  const dock = createDock();
-  const recording = dock.context;
-  const draft = recording.draft;
-  assert.equal(dock.transparencyListeners.size, 1);
-  dock.render({ hidden: true });
-  assert.equal(dock.root, null);
-  assert.equal(dock.transparencyListeners.size, 1, "Hiding should not unmount the dock");
-  dock.render({ hidden: false });
-  assert.ok(dock.root);
-  assert.ok(dock.find("Pause recording"));
-  assert.equal(dock.context, recording);
-  assert.equal(dock.context.draft, draft);
-  assert.equal(dock.context.localId, "local-tour");
-  assertNoRecordingControls(dock);
-  dock.dispose();
-});
-
-test("hidden dock uses the provider's current elapsed time and paused state when shown again", () => {
-  const dock = createDock();
-  dock.render({ hidden: true }, { elapsed: 90 });
-  dock.render({}, { elapsed: 145, isPaused: true });
-  assert.equal(dock.root, null);
-  assertNoRecordingControls(dock);
-  dock.render({ hidden: false });
-  assert.ok(dock.find("Resume recording"));
-  assert.ok(dock.text.includes("Recording paused"));
-  assert.ok(dock.text.includes("02:25"));
-  dock.render({ hidden: true }, { isPaused: false, elapsed: 146 });
-  dock.render({}, { elapsed: 160 });
-  dock.render({ hidden: false });
-  assert.ok(dock.find("Pause recording"));
-  assert.ok(dock.text.includes("Recording live"));
-  assert.ok(dock.text.includes("02:40"));
-  assertNoRecordingControls(dock);
-  dock.dispose();
-});
-
 test("no recording and absent metadata still suppress the dock", () => {
   for (const provider of [{ isRecording: false }, { liveMeta: null }]) {
-    const dock = createDock({ hidden: false }, provider);
-    assert.equal(dock.root, null);
-    dock.render({ hidden: true });
-    dock.render({ hidden: false });
+    const dock = createDock({}, provider);
     assert.equal(dock.root, null);
     assertNoRecordingControls(dock);
     dock.dispose();
   }
-});
-
-test("explicit X remains local dismissal and a reset key brings the dock back", () => {
-  const dock = createDock();
-  dock.find("Hide live session bar").onPress();
-  dock.render();
-  assert.equal(dock.root, null);
-  assertNoRecordingControls(dock);
-  dock.render({ hidden: true });
-  dock.render({ hidden: false });
-  assert.equal(dock.root, null, "Route suppression alone must not clear explicit dismissal");
-  dock.render({ resetKey: "main:sessions" });
-  assert.ok(dock.root);
-  assert.ok(dock.find("Open live tour with Sam"));
-  assertNoRecordingControls(dock);
-  dock.dispose();
-});
-
-test("explicit dismissal persists while opening and closing; a new recording restores the dock", () => {
-  const dock = createDock();
-  dock.find("Hide live session bar").onPress();
-  dock.render();
-  assert.equal(dock.root, null);
-  dock.render({}, { experienceVisible: true });
-  assert.equal(dock.root, null);
-  dock.render({}, { experienceVisible: false });
-  assert.equal(dock.root, null);
-  dock.render({}, { localId: "local-next-tour" });
-  assert.ok(dock.root);
-  assertNoRecordingControls(dock);
-  dock.dispose();
 });
 
 test("expanded and minimized round trips retain the same dock layout without recording controls", () => {
@@ -266,7 +196,7 @@ test("expanded and minimized round trips retain the same dock layout without rec
   const styles = dock.root!.props.style;
   const nodes = dock.nodes.map((node) => node.type);
   const text = dock.text;
-  dock.render({}, { experienceVisible: true });
+  dock.render({ experienceVisible: true });
   assert.ok(dock.root);
   assert.equal(dock.root.type, type);
   assert.deepEqual(dock.root.props.style, styles);
@@ -275,7 +205,7 @@ test("expanded and minimized round trips retain the same dock layout without rec
   assert.equal(dock.root.props.pointerEvents, "none");
   assert.equal(dock.root.props.accessibilityElementsHidden, true);
   assert.equal(dock.root.props.importantForAccessibility, "no-hide-descendants");
-  dock.render({}, { experienceVisible: false });
+  dock.render({ experienceVisible: false });
   assert.ok(dock.root);
   assert.equal(dock.root.type, type);
   assert.deepEqual(dock.root.props.style, styles);
@@ -291,7 +221,7 @@ test("active and paused docks keep updating behind the expanded recording surfac
   const dock = createDock({}, { experienceVisible: true });
   assert.ok(dock.root);
   assert.ok(dock.text.includes("Recording live"));
-  dock.render({}, { elapsed: 92, isPaused: true });
+  dock.render({ elapsed: 92, isPaused: true });
   assert.ok(dock.root);
   assert.ok(dock.text.includes("Recording paused"));
   assert.ok(dock.text.includes("01:32"));
@@ -301,50 +231,18 @@ test("active and paused docks keep updating behind the expanded recording surfac
   dock.dispose();
 });
 
-test("session-route hiding takes precedence over the expanded recorder", () => {
-  const dock = createDock({ hidden: true }, { experienceVisible: true });
-  assert.equal(dock.root, null);
-  dock.render({}, { experienceVisible: false });
-  assert.equal(dock.root, null);
-  dock.render({ hidden: false }, { experienceVisible: true });
-  assert.ok(dock.root);
-  assert.equal(dock.root.props.pointerEvents, "none");
-  assertNoRecordingControls(dock);
-  dock.dispose();
-});
-
-test("App hides the dock for every session route, but not main tabs or recording creation", () => {
+test("App stacks the live dock with the tab bar inside MainTabs", () => {
   const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
-  const ast = ts.createSourceFile("App.tsx", appSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const routeTypes: string[] = [];
-  const hiddenExpressions: string[] = [];
-  function visit(node: any) {
-    if (ts.isTypeAliasDeclaration(node) && node.name.text === "Screen") {
-      for (const member of node.type.types) {
-        const type = member.members.find((property: any) => property.name?.getText(ast) === "type");
-        assert.ok(type && ts.isLiteralTypeNode(type.type) && ts.isStringLiteral(type.type.literal));
-        routeTypes.push(type.type.literal.text);
-      }
-    }
-    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node))
-      && node.tagName.getText(ast) === "LiveRecordingDock") {
-      const hidden = node.attributes.properties.find((attribute: any) =>
-        ts.isJsxAttribute(attribute) && attribute.name.text === "hidden");
-      assert.ok(hidden?.initializer && ts.isJsxExpression(hidden.initializer), "Dock needs an explicit route visibility prop");
-      hiddenExpressions.push(hidden.initializer.expression.getText(ast));
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(ast);
-  assert.equal(hiddenExpressions.length, 1);
-  assert.ok(routeTypes.filter((route) => route.startsWith("session-")).length >= 7);
-  const hiddenFor = (screen: Record<string, any>) => runInNewContext(hiddenExpressions[0], { screen });
-  for (const type of routeTypes) {
-    assert.equal(hiddenFor({ type }), type.startsWith("session-"), type);
-  }
-  for (const tab of ["home", "sessions", "tour", "materials", "practice"]) {
-    assert.equal(hiddenFor({ type: "main", tab }), false, `main:${tab}`);
-  }
-  assert.equal(hiddenFor({ type: "create-session" }), false);
-  assert.equal(hiddenFor({ type: "session-transcript" }), true, "New session review routes should inherit suppression");
+  const mainTabs = appSource.match(/function MainTabs\([\s\S]*?\nfunction ErrorBanner/);
+  assert.ok(mainTabs, "MainTabs should own the tab bar");
+  const dockIndex = mainTabs[0].indexOf("<LiveRecordingDock");
+  const tabIndex = mainTabs[0].indexOf("st.tabBar");
+  assert.ok(dockIndex >= 0, "LiveRecordingDock should render inside MainTabs");
+  assert.ok(tabIndex >= 0, "MainTabs should still render the tab bar");
+  assert.ok(dockIndex < tabIndex, "The dock should sit directly above the tab bar");
+  assert.match(mainTabs[0], /!practiceLive/);
+  assert.doesNotMatch(
+    appSource,
+    /<RecordingExperienceHost \/>\s*<BulkUploadDock[\s\S]{0,400}<LiveRecordingDock/,
+  );
 });

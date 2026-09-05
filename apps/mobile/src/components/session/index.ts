@@ -13,5 +13,12 @@ export { SessionAudioInsightsScreen } from "./session-audio-insights-screen";
 export { SessionAudioInsightsPanel } from "./session-audio-insights-panel";
 export { ProspectInsightsCard } from "./prospect-insights-card";
 export { TourScreenHeader } from "./tour-screen-header";
+export {
+  ProcessingTimeline,
+  SessionStatusActions,
+  SessionStatusCard,
+  SessionStatusPrimaryButton,
+  SessionStatusSecondaryButton,
+} from "./session-process-status";
 export { CollapsibleSection } from "./collapsible-section";
 export { SESSION_PAGE_PADDING } from "./session-layout";

@@ -20,10 +20,11 @@ test("the live dock stays available on main tabs during a bound tour", () => {
     appSource,
     /onLiveOpened=\{\(\) =>\s*nav\(\{\s*type: "main"/,
   );
-  assert.match(
-    appSource,
-    /hidden=\{screen\.type\.startsWith\("session-"\)\}/,
-  );
+  assert.match(appSource, /function MainTabs\(/);
+  assert.match(appSource, /<LiveRecordingDock \/>/);
+  const mainTabs = appSource.match(/function MainTabs\([\s\S]*?\nfunction ErrorBanner/);
+  assert.ok(mainTabs);
+  assert.ok(mainTabs[0].indexOf("<LiveRecordingDock") < mainTabs[0].indexOf("st.tabBar"));
 });
 
 test("list taps and session detail hand off in-progress tours to the recorder", () => {

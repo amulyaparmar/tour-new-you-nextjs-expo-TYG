@@ -27,6 +27,21 @@ export function segmentTrackColor(track: PhaseTrackSegment): string {
   return tourSegmentColor(track.colorIndex);
 }
 
+export function processingTitle(status: string): string {
+  switch (status) {
+    case "uploaded":
+      return "Preparing your tour";
+    case "transcribing":
+      return "Creating a transcript";
+    case "segmenting":
+      return "Organizing tour moments";
+    case "analyzing":
+      return "Scoring the conversation";
+    default:
+      return "Preparing insights";
+  }
+}
+
 export function processingStatusMessage(status: string): string {
   switch (status) {
     case "transcribing":

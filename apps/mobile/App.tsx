@@ -107,6 +107,7 @@ import {
 import {
   findPhaseForTimestamp,
   processingStatusMessage,
+  processingTitle,
   shortPhaseLabel,
   tourSegmentColor,
 } from "./src/conversationPhases";
@@ -182,6 +183,7 @@ import { LiquidGlassDropdown } from "./src/components/liquid-glass-dropdown";
 import { LiquidGlassIconButton } from "./src/components/liquid-glass-icon-button";
 import { LiquidGlassSearch } from "./src/components/liquid-glass-search";
 import { InfoBox } from "./src/components/info-box";
+import { EmptyStateCard } from "./src/components/empty-state-card";
 import {
   LiveRecordingCard,
   LiveRecordingDock,
@@ -223,6 +225,7 @@ import {
 } from "./src/components/ui/motion";
 import {
   CollapsibleSection,
+  ProcessingTimeline,
   RubricTab,
   ScoreHero,
   SessionAiChatScreen,
@@ -230,6 +233,10 @@ import {
   SessionModeTabs,
   SessionPlayer,
   SessionReviewSkeleton,
+  SessionStatusActions,
+  SessionStatusCard,
+  SessionStatusPrimaryButton,
+  SessionStatusSecondaryButton,
   TourScreenHeader,
   SESSION_PAGE_PADDING,
   type SessionReviewMode,
@@ -480,12 +487,15 @@ const PROCESSING_STATUSES = new Set([
   "segmenting",
   "analyzing",
 ]);
-const SESSION_PROCESS_STEPS = [
-  { id: "uploaded", label: "Uploaded", icon: "cloud-done-outline" },
-  { id: "transcribing", label: "Transcript", icon: "mic-outline" },
-  { id: "segmenting", label: "Segments", icon: "git-branch-outline" },
-  { id: "analyzing", label: "Analysis", icon: "sparkles-outline" },
-] as const;
+const PROCESS_CARD_STATUSES = new Set([
+  "uploaded",
+  "transcribing",
+  "segmenting",
+  "analyzing",
+  "analysis_ready",
+  "reviewed",
+  "failed",
+]);
 
 function pendingUploadKey(sessionId: string) {
   return `tour.pendingRecordingUpload.${sessionId}`;
@@ -763,79 +773,62 @@ function UploadStatusCard({
     : "Waiting for transfer";
   const phaseLabel =
     stats.phase === "preparing"
-      ? "Preparing secure upload"
+      ? "Preparing a secure upload…"
       : stats.phase === "finalizing"
-        ? "Finalizing recording"
-        : "Uploading recording";
+        ? "Finalizing the recording…"
+        : "Uploading the recording…";
 
   return (
-    <View style={[st.card, { padding: 20, gap: 14 }]}>
-      <View style={{ alignItems: "center", gap: 10 }}>
-        <View style={[st.uploadRing, error && { backgroundColor: C.redBg }]}>
-          {error ? (
-            <Ionicons name="cloud-offline-outline" size={28} color={C.red} />
-          ) : (
-            <LoadingDots size="small" color={C.brand} />
-          )}
-        </View>
-        <Text style={st.formTitle}>{error ? "Upload Needs Retry" : title}</Text>
-        <Text style={[st.pageSub, { textAlign: "center", marginTop: -6 }]}>
-          {error || phaseLabel}
-        </Text>
-      </View>
-
+    <SessionStatusCard
+      tone={error ? "failed" : "preparing"}
+      icon={error ? "cloud-offline-outline" : undefined}
+      showSpinner={!error}
+      title={error ? "Failed" : title}
+      body={error || phaseLabel}
+    >
       <View style={st.uploadInfoPanel}>
-        <Text style={st.uploadFileName} numberOfLines={1}>
+        <CustomText textStyle="label" style={st.uploadFileName} numberOfLines={1}>
           {fileName || "Recording file"}
-        </Text>
+        </CustomText>
         <View style={st.progressTrack}>
           <AnimatedProgressFill
             percent={stats.percent}
-            color={error ? C.red : C.brand}
+            color={error ? C.red : ACCENT}
           />
         </View>
         <View style={st.uploadStatsRow}>
-          <Text style={st.uploadStatText}>{stats.percent}%</Text>
-          <Text style={st.uploadStatText}>{uploadedText}</Text>
+          <CustomText textStyle="caption">{stats.percent}%</CustomText>
+          <CustomText textStyle="caption">{uploadedText}</CustomText>
         </View>
         <View style={st.uploadStatsRow}>
-          <Text style={st.uploadSubStatText}>{speedText}</Text>
-          <Text style={st.uploadSubStatText}>
+          <CustomText textStyle="caption" style={st.uploadSubStatText}>
+            {speedText}
+          </CustomText>
+          <CustomText textStyle="caption" style={st.uploadSubStatText}>
             {formatUploadEta(stats.etaSeconds)}
-          </Text>
+          </CustomText>
         </View>
       </View>
 
       {error && (onRetry || onChooseDifferent) ? (
-        <View style={{ flexDirection: "row", gap: 10 }}>
+        <SessionStatusActions>
           {onRetry ? (
-            <Pressable
+            <SessionStatusPrimaryButton
+              label="Retry upload"
+              icon="refresh"
               onPress={onRetry}
-              style={({ pressed }) => [
-                st.primaryBtn,
-                { flex: 1 },
-                pressed && st.pressed,
-              ]}
-            >
-              <Ionicons name="refresh" size={18} color="#fff" />
-              <Text style={st.primaryBtnText}>Retry Upload</Text>
-            </Pressable>
+            />
           ) : null}
           {onChooseDifferent ? (
-            <Pressable
+            <SessionStatusSecondaryButton
+              label="Choose a different file"
+              icon="document-attach-outline"
               onPress={onChooseDifferent}
-              style={({ pressed }) => [
-                st.outlineBtn,
-                { flex: 1 },
-                pressed && st.pressed,
-              ]}
-            >
-              <Text style={st.outlineBtnText}>Choose File</Text>
-            </Pressable>
+            />
           ) : null}
-        </View>
+        </SessionStatusActions>
       ) : null}
-    </View>
+    </SessionStatusCard>
   );
 }
 
@@ -1594,7 +1587,6 @@ export default function App() {
   });
 
   const [screen, setScreen] = useState<Screen>({ type: "main", tab: "home" });
-  const [tabBarHeight, setTabBarHeight] = useState(0);
   const [authSession, setAuthSession] = useState<MobileAuthSession | null>(
     null,
   );
@@ -1738,7 +1730,6 @@ export default function App() {
       key={authSession.workspace.community.id}
       tab={tab}
       onTab={(t) => nav({ type: "main", tab: t })}
-      onTabBarHeightChange={setTabBarHeight}
       onSession={(id, opts) =>
         nav({
           type: "session-detail",
@@ -2043,12 +2034,6 @@ export default function App() {
                 hidden={screen.type === "bulk-upload"}
                 onOpen={(batchId) => nav({ type: "bulk-upload", batchId })}
               />
-              {/* Session review owns the bottom playback controls; don't cover them with the live recorder. */}
-              <LiveRecordingDock
-                resetKey={screenKey(screen)}
-                bottomInset={screen.type === "main" ? tabBarHeight : 0}
-                hidden={screen.type.startsWith("session-")}
-              />
             </KeyboardAvoidingView>
           </ToastProvider>
         </RecordingProvider>
@@ -2121,7 +2106,6 @@ const TAB_ITEMS: Array<{
 function MainTabs({
   tab,
   onTab,
-  onTabBarHeightChange,
   onSession,
   onSampleSession,
   onCreate,
@@ -2138,7 +2122,6 @@ function MainTabs({
 }: {
   tab: MainTab;
   onTab: (t: MainTab) => void;
-  onTabBarHeightChange: (height: number) => void;
   onSession: (id: string, opts?: { autoStartRecording?: boolean }) => void;
   onSampleSession: (id: string) => void;
   onCreate: () => void;
@@ -2224,10 +2207,6 @@ function MainTabs({
   useEffect(() => {
     if (tab !== "practice") setPracticeLive(false);
   }, [tab]);
-
-  useEffect(() => {
-    if (practiceLive) onTabBarHeightChange(0);
-  }, [practiceLive, onTabBarHeightChange]);
 
   useEffect(() => {
     if (!profile) return;
@@ -2349,6 +2328,7 @@ function MainTabs({
           homeSt.pageBg,
       ]}
     >
+      <View style={st.flex1}>
       {tab === "home" && (
         <ScreenTransition
           transitionKey="tab:home"
@@ -2466,10 +2446,14 @@ function MainTabs({
       )}
 
       {!practiceLive ? (
-        <View
-          style={st.tabBar}
-          onLayout={(event) => onTabBarHeightChange(event.nativeEvent.layout.height)}
-        >
+        <View pointerEvents="box-none" style={st.liveDockSlot}>
+          <LiveRecordingDock />
+        </View>
+      ) : null}
+      </View>
+
+      {!practiceLive ? (
+        <View style={st.tabBar}>
           <Reanimated.View
             pointerEvents="none"
             style={[st.tabBarIndicator, tabIndicatorStyle]}
@@ -2655,6 +2639,9 @@ function DashboardScreen({
     () => selectUpcomingTours(sessions, upcomingSessions, { preferredSessionId: readyTourId }),
     [sessions, upcomingSessions, readyTourId],
   );
+  const tourLibraryAssetCount = materials.filter((material) =>
+    material.id.startsWith("tour-api-"),
+  ).length;
   const initials = agentName
     .split(" ")
     .map((name) => name[0])
@@ -2819,18 +2806,11 @@ function DashboardScreen({
               ))}
             </View>
           ) : (
-            <Reanimated.View
-              entering={FadeInDown.duration(260).springify()}
-              style={homeSt.emptyCard}
-            >
-              <View style={homeSt.emptyIcon}>
-                <Ionicons name="calendar-outline" size={22} color={ACCENT} />
-              </View>
-              <CustomText textStyle="title">No upcoming tours</CustomText>
-              <CustomText textStyle="caption" style={homeSt.emptySub}>
-                Checked-in guests and scheduled tours will appear here.
-              </CustomText>
-            </Reanimated.View>
+            <EmptyStateCard
+              icon="calendar-outline"
+              title="No upcoming tours"
+              subtitle="Checked-in guests and scheduled tours will appear here."
+            />
           )}
         </HomeSection>
 
@@ -2951,38 +2931,50 @@ function DashboardScreen({
               </ScrollView>
             ) : null}
 
-            <MotionPressable
-              accessibilityLabel="Open property assets"
-              onPress={onAssets}
-              haptic="selection"
-              style={homeSt.assetLinkCard}
-            >
-              <View
-                style={[
-                  homeSt.assetLinkIcon,
-                  tourLibrary && homeSt.assetLinkIconConnected,
+            {tourLibrary ? (
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel="Open the connected Tour Library"
+                onPress={() => void Linking.openURL(tourLibrary.url)}
+                style={({ pressed }) => [
+                  assetSt.tourLibraryFooter,
+                  pressed && st.pressed,
                 ]}
               >
-                <Ionicons
-                  name={tourLibrary ? "play" : "folder-outline"}
-                  size={22}
-                  color={tourLibrary ? CARD : ACCENT}
-                />
-              </View>
-              <View style={st.flex1}>
-                <CustomText textStyle="title">
-                  {tourLibrary
-                    ? "Tour Library connected"
-                    : "Local property assets"}
-                </CustomText>
-                <CustomText textStyle="micro" style={homeSt.assetLinkMeta}>
-                  {tourLibrary
-                    ? `${materialCount} local and Tour.video resources`
-                    : `${materialCount} resources stored for this property`}
-                </CustomText>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-            </MotionPressable>
+                <View style={assetSt.tourLibraryFooterIcon}>
+                  <Ionicons name="checkmark" size={15} color={ACCENT} />
+                </View>
+                <View style={st.flex1}>
+                  <CustomText textStyle="title">Connected Tour Library</CustomText>
+                  <CustomText
+                    textStyle="micro"
+                    style={assetSt.tourLibraryFooterMeta}
+                  >
+                    {tourLibraryAssetCount} synced{" "}
+                    {tourLibraryAssetCount === 1 ? "asset" : "assets"}
+                  </CustomText>
+                </View>
+                <Ionicons name="open-outline" size={17} color={C.textMuted} />
+              </Pressable>
+            ) : (
+              <MotionPressable
+                accessibilityLabel="Open property assets"
+                onPress={onAssets}
+                haptic="selection"
+                style={homeSt.assetLinkCard}
+              >
+                <View style={homeSt.assetLinkIcon}>
+                  <Ionicons name="folder-outline" size={22} color={ACCENT} />
+                </View>
+                <View style={st.flex1}>
+                  <CustomText textStyle="title">Local property assets</CustomText>
+                  <CustomText textStyle="micro" style={homeSt.assetLinkMeta}>
+                    {materialCount} resources stored for this property
+                  </CustomText>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+              </MotionPressable>
+            )}
           </View>
         </HomeSection>
       </View>
@@ -3854,7 +3846,7 @@ function SessionsListScreen({
     }
     if (showSamples) {
       return (
-        <EmptyState
+        <EmptyStateCard
           icon="albums-outline"
           title="Samples unavailable"
           subtitle="The curated examples could not be loaded."
@@ -3863,19 +3855,11 @@ function SessionsListScreen({
     }
     if (!search && statusFilter === "all") {
       return (
-        <Reanimated.View
-          entering={FadeInDown.duration(280).springify()}
-          style={slst.sampleEmptyCard}
+        <EmptyStateCard
+          icon="albums-outline"
+          title="No sessions yet"
+          subtitle="Start a new tour to get started."
         >
-          <View style={slst.sampleEmptyIcon}>
-            <Ionicons name="sparkles" size={25} color={C.purple} />
-          </View>
-          <CustomText textStyle="hero" style={slst.sampleEmptyTitle}>
-            No sessions yet
-          </CustomText>
-          <CustomText textStyle="body" style={slst.sampleEmptySub}>
-            Start a new tour to get started.
-          </CustomText>
           <View style={slst.emptyActions}>
             <MotionPressable
               onPress={() => setShowSamples(true)}
@@ -3900,11 +3884,11 @@ function SessionsListScreen({
               <Ionicons name="arrow-forward" size={18} color={ACCENT} />
             </MotionPressable>
           </View>
-        </Reanimated.View>
+        </EmptyStateCard>
       );
     }
     return (
-      <EmptyState
+      <EmptyStateCard
         icon={
           search || statusFilter !== "all" ? "search-outline" : "albums-outline"
         }
@@ -4331,33 +4315,7 @@ const slst = StyleSheet.create({
     lineHeight: 15,
   },
   sampleModeAction: { color: ACCENT },
-  sampleEmptyCard: {
-    alignItems: "center",
-    gap: 12,
-    marginTop: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    borderRadius: LARGE_CORNER,
-    borderCurve: "continuous",
-    backgroundColor: CARD,
-  },
-  sampleEmptyIcon: {
-    width: 54,
-    height: 54,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 18,
-    backgroundColor: C.purpleBg,
-  },
-  sampleEmptyTitle: {
-    letterSpacing: -0.25,
-  },
-  sampleEmptySub: {
-    maxWidth: 330,
-    color: C.textSec,
-    textAlign: "center",
-  },
-  emptyActions: { alignSelf: "stretch", gap: 9, marginTop: 3 },
+  emptyActions: { gap: 9 },
   samplePrimaryButton: {
     alignSelf: "stretch",
     minHeight: 50,
@@ -5713,7 +5671,7 @@ function MaterialsScreen({
         {loading ? (
           <LoadingBox />
         ) : visibleMaterials.length === 0 ? (
-          <EmptyState
+          <EmptyStateCard
             icon={searchQuery.trim() ? "search-outline" : "folder-open-outline"}
             title={searchQuery.trim() ? "No matches" : "No materials"}
             subtitle={
@@ -7731,9 +7689,21 @@ function SessionDetailScreen({
             onRetry={load}
           />
         )}
-        <View style={[st.badge, { backgroundColor: sc.bg, alignSelf: "flex-start" }]}>
-          <CustomText textStyle="micro" style={[st.badgeText, { color: sc.text }]}>{sl}</CustomText>
-        </View>
+        {PROCESS_CARD_STATUSES.has(session.status) ? null : (
+          <View
+            style={[
+              st.sessionStatusChip,
+              { backgroundColor: sc.bg, alignSelf: "flex-start" },
+            ]}
+          >
+            <CustomText
+              textStyle="micro"
+              style={[st.sessionStatusChipText, { color: sc.text }]}
+            >
+              {sl}
+            </CustomText>
+          </View>
+        )}
 
         <View style={{ gap: 3 }}>
           {session.scheduledAt && (
@@ -9141,68 +9111,6 @@ function RubricPicker({
   );
 }
 
-function ProcessingTimeline({ status }: { status: string }) {
-  const activeIndex = Math.max(
-    0,
-    SESSION_PROCESS_STEPS.findIndex((step) => step.id === status),
-  );
-  const isComplete = status === "analysis_ready" || status === "reviewed";
-
-  return (
-    <View style={reviewSt.processingTimeline}>
-      {SESSION_PROCESS_STEPS.map((step, index) => {
-        const done = isComplete || index < activeIndex;
-        const active = !isComplete && index === activeIndex;
-        const color = done ? C.green : active ? C.brand : C.textMuted;
-        return (
-          <View key={step.id} style={reviewSt.processingStep}>
-            <View
-              style={[
-                reviewSt.processingStepIcon,
-                active && reviewSt.processingStepIconActive,
-                done && reviewSt.processingStepIconDone,
-              ]}
-            >
-              {active ? (
-                <PulseDot color={C.brand} />
-              ) : (
-                <Ionicons
-                  name={(done ? "checkmark" : step.icon) as any}
-                  size={16}
-                  color={color}
-                />
-              )}
-            </View>
-            <Text
-              style={[
-                reviewSt.processingStepText,
-                (active || done) && { color },
-              ]}
-            >
-              {step.label}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function processingTitle(status: string) {
-  switch (status) {
-    case "uploaded":
-      return "Preparing Your Tour";
-    case "transcribing":
-      return "Creating Transcript";
-    case "segmenting":
-      return "Organizing Tour Moments";
-    case "analyzing":
-      return "Scoring Conversation";
-    default:
-      return "Preparing Insights";
-  }
-}
-
 // ═══════════════════════════════════════
 // Upload & Process Card
 // ═══════════════════════════════════════
@@ -9842,47 +9750,33 @@ function UploadProcessCard({
       ? (pickedFile.size / 1024 / 1024).toFixed(1)
       : null;
     return (
-      <View style={[st.card, { overflow: "hidden" }]}>
+      <View style={st.syncedDetailsCard}>
         {/* Upload success header */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 10,
-            padding: 14,
-            backgroundColor: C.greenBg,
-            borderBottomWidth: 1,
-            borderBottomColor: "#e2e8f0",
-          }}
-        >
-          <Ionicons name="checkmark-circle" size={20} color={C.green} />
+        <View style={st.syncedUploadHeader}>
+          <View style={st.syncedUploadIcon}>
+            <Ionicons name="checkmark-circle" size={20} color={C.green} />
+          </View>
           <View style={st.flex1}>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: C.green }}>
-              Recording uploaded
-            </Text>
-            <Text
-              style={{ fontSize: 12, fontWeight: "600", color: C.textSec }}
+            <CustomText textStyle="title" style={st.syncedUploadTitle}>
+              Synced
+            </CustomText>
+            <CustomText
+              textStyle="caption"
+              style={st.syncedUploadFile}
               numberOfLines={1}
             >
               {pickedFile?.name}
               {fileSizeMB ? ` (${fileSizeMB} MB)` : ""}
-            </Text>
+            </CustomText>
           </View>
         </View>
 
         {/* Session details form */}
         <View style={{ padding: 18, gap: 14 }}>
-          <Text style={st.formTitle}>Session Details</Text>
-          <Text
-            style={{
-              fontSize: 13,
-              fontWeight: "600",
-              color: C.textSec,
-              marginTop: -8,
-            }}
-          >
-            Add context before processing (optional)
-          </Text>
+          <CustomText textStyle="title">Session details</CustomText>
+          <CustomText textStyle="caption" style={{ color: C.textSec, marginTop: -6 }}>
+            Add context before processing — optional.
+          </CustomText>
           <Input
             placeholder="Session title"
             value={dTitle}
@@ -9957,25 +9851,26 @@ function UploadProcessCard({
   // ── Processing ──
   if (phase === "processing") {
     return (
-      <View style={[st.card, { padding: 20, gap: 14, alignItems: "center" }]}>
-        <LoadingDots size="large" color={C.brand} />
-        <Text style={st.formTitle}>{processingTitle(status)}</Text>
-        <Text style={[st.pageSub, { textAlign: "center" }]}>
-          {processingStatusMessage(status)}
-        </Text>
+      <SessionStatusCard
+        tone="preparing"
+        showSpinner
+        title={processingTitle(status)}
+        body={processingStatusMessage(status)}
+      >
         <ProcessingTimeline status={status} />
-      </View>
+      </SessionStatusCard>
     );
   }
 
   // ── Done ──
   if (phase === "done") {
     return (
-      <View style={[st.card, { padding: 20, gap: 10, alignItems: "center" }]}>
-        <Ionicons name="checkmark-circle" size={44} color={C.green} />
-        <Text style={st.formTitle}>Analysis Complete</Text>
-        <Text style={st.pageSub}>Loading results...</Text>
-      </View>
+      <SessionStatusCard
+        tone="synced"
+        icon="checkmark-circle"
+        title="Synced"
+        body="Analysis complete. Opening results…"
+      />
     );
   }
 
@@ -9996,67 +9891,52 @@ function UploadProcessCard({
         onChooseDifferent={() => void pickAndUpload()}
       />
     ) : (
-      <View style={[st.card, { padding: 20, gap: 12 }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Ionicons name="alert-circle" size={24} color={C.red} />
-          <Text style={[st.formTitle, { color: C.red }]}>
-            Processing Failed
-          </Text>
-        </View>
-        {errMsg && (
-          <Text style={{ fontSize: 13, fontWeight: "600", color: C.textSec }}>
-            {errMsg}
-          </Text>
-        )}
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Pressable
+      <SessionStatusCard
+        tone="failed"
+        icon="alert-circle"
+        title="Failed"
+        body={
+          errMsg ??
+          "Analysis did not complete. Retry when you have a stable connection."
+        }
+      >
+        <SessionStatusActions>
+          <SessionStatusPrimaryButton
+            label="Retry analysis"
+            icon="refresh"
             onPress={startProcess}
-            style={({ pressed }) => [
-              st.primaryBtn,
-              { flex: 1 },
-              pressed && st.pressed,
-            ]}
-          >
-            <Text style={st.primaryBtnText}>Retry Analysis</Text>
-          </Pressable>
-          <Pressable
+          />
+          <SessionStatusSecondaryButton
+            label="Upload a different recording"
+            icon="document-attach-outline"
             onPress={pickAndUpload}
-            style={({ pressed }) => [
-              st.outlineBtn,
-              { flex: 1 },
-              pressed && st.pressed,
-            ]}
-          >
-            <Text style={st.outlineBtnText}>Upload Different</Text>
-          </Pressable>
-        </View>
-      </View>
+          />
+        </SessionStatusActions>
+      </SessionStatusCard>
     );
   }
 
   // Fallback: uploaded but not yet processing
   return (
-    <View style={[st.card, { padding: 20, gap: 12 }]}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Ionicons name="checkmark-circle" size={20} color={C.green} />
-        <Text style={{ fontSize: 14, fontWeight: "700", color: C.green }}>
-          Recording uploaded
-        </Text>
-      </View>
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <PrimaryBtn
-          label="Process Now"
-          onPress={startProcess}
+    <SessionStatusCard
+      tone="synced"
+      icon="checkmark-circle"
+      title="Synced"
+      body="Recording uploaded. Start analysis when you're ready."
+    >
+      <SessionStatusActions>
+        <SessionStatusPrimaryButton
+          label="Start analysis"
           icon="analytics-outline"
+          onPress={startProcess}
         />
-        <Pressable
+        <SessionStatusSecondaryButton
+          label="Re-upload"
+          icon="cloud-upload-outline"
           onPress={pickAndUpload}
-          style={({ pressed }) => [st.outlineBtn, pressed && st.pressed]}
-        >
-          <Text style={st.outlineBtnText}>Re-upload</Text>
-        </Pressable>
-      </View>
-    </View>
+        />
+      </SessionStatusActions>
+    </SessionStatusCard>
   );
 }
 
@@ -12271,27 +12151,6 @@ const homeSt = StyleSheet.create({
   },
   mediaLabel: { color: TEXT },
   emptyInline: { color: C.textSec },
-  emptyCard: {
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    borderRadius: LARGE_CORNER,
-    borderCurve: "continuous",
-    backgroundColor: CARD,
-  },
-  emptyIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "rgba(0, 108, 229, 0.08)",
-  },
-  emptySub: {
-    color: C.textSec,
-    textAlign: "center",
-  },
   assetLinkCard: {
     minHeight: 78,
     flexDirection: "row",
@@ -12310,7 +12169,6 @@ const homeSt = StyleSheet.create({
     borderRadius: 15,
     backgroundColor: "#eef4ff",
   },
-  assetLinkIconConnected: { backgroundColor: ACCENT },
   assetLinkTitle: { color: TEXT, fontSize: 14, fontFamily: FONT.extrabold },
   assetLinkMeta: { color: C.textSec, lineHeight: 16, marginTop: 3 },
   statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
@@ -13605,40 +13463,6 @@ const reviewSt = StyleSheet.create({
     backgroundColor: C.brand,
   },
   commentModalSubmitText: { color: "#fff", fontSize: 14, fontWeight: "900" },
-  processingTimeline: {
-    alignSelf: "stretch",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-    marginTop: 2,
-    paddingTop: 8,
-  },
-  processingStep: { flex: 1, alignItems: "center", gap: 6, minWidth: 58 },
-  processingStepIcon: {
-    width: 34,
-    height: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#fff",
-  },
-  processingStepIconActive: {
-    borderColor: "#bfdbfe",
-    backgroundColor: "#eff6ff",
-  },
-  processingStepIconDone: {
-    borderColor: "#bbf7d0",
-    backgroundColor: C.greenBg,
-  },
-  processingStepText: {
-    color: C.textMuted,
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: "800",
-    textAlign: "center",
-  },
   playerDock: {
     position: "absolute",
     left: 0,
@@ -13725,6 +13549,13 @@ const reviewSt = StyleSheet.create({
 const st = StyleSheet.create({
   root: { backgroundColor: C.bg, flex: 1 },
   flex1: { flex: 1 },
+  liveDockSlot: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 4,
+  },
   center: { alignItems: "center", justifyContent: "center" },
   screenTransition: { flex: 1 },
   scroll: { gap: 14, paddingHorizontal: 18, paddingTop: 56, paddingBottom: 32 },
@@ -13975,6 +13806,43 @@ const st = StyleSheet.create({
   },
   badge: { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 },
   badgeText: { fontSize: 11, fontWeight: "800" },
+  sessionStatusChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: HINT,
+  },
+  sessionStatusChipText: {
+    color: ACCENT,
+  },
+  syncedUploadHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 16,
+    backgroundColor: C.greenBg,
+  },
+  syncedUploadIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: CARD,
+  },
+  syncedUploadTitle: {
+    color: C.green,
+  },
+  syncedUploadFile: {
+    marginTop: 2,
+    color: C.textSec,
+  },
+  syncedDetailsCard: {
+    overflow: "hidden",
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
   scoreNum: { fontSize: 15, fontWeight: "900", marginLeft: 4 },
 
   // Section title
@@ -14092,33 +13960,21 @@ const st = StyleSheet.create({
   progressTrack: {
     height: 6,
     borderRadius: 99,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: CARD,
     overflow: "hidden",
     alignSelf: "stretch",
   },
-  progressFill: { height: "100%", borderRadius: 99, backgroundColor: C.brand },
-  uploadRing: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: C.brand + "10",
-  },
+  progressFill: { height: "100%", borderRadius: 99, backgroundColor: ACCENT },
   uploadInfoPanel: {
     alignSelf: "stretch",
     gap: 9,
     padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 14,
-    backgroundColor: "#f8fafc",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
   },
   uploadFileName: {
     color: C.text,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: "900",
   },
   uploadStatsRow: {
     flexDirection: "row",
@@ -14126,8 +13982,7 @@ const st = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
-  uploadStatText: { color: C.text, fontSize: 12, fontWeight: "900" },
-  uploadSubStatText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
+  uploadSubStatText: { color: C.textSec },
 
   // Tabs
   tabsRow: {

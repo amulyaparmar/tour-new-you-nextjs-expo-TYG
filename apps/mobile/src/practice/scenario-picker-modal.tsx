@@ -19,7 +19,7 @@ import { BottomSheetModal } from "@/components/bottom-sheet-modal";
 import { CustomText } from "@/components/custom-text";
 import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { selectionHaptic } from "@/lib/haptics";
-import { ACCENT, BACKGROUND, CARD, LARGE_CORNER, SMALL_CORNER } from "@/theme/tokens";
+import { BACKGROUND, CARD, LARGE_CORNER } from "@/theme/tokens";
 import { tourColors } from "@/theme/tour-brand";
 
 const SHEET_HEIGHT_RATIO = 0.72;
@@ -107,10 +107,10 @@ export function ScenarioPickerModal({
           <View style={styles.stack}>
             {Array.from({ length: 4 }).map((_, index) => (
               <View key={index} style={styles.skeletonRow}>
-                <View style={styles.skeletonIcon} />
                 <View style={styles.skeletonBody}>
                   <View style={styles.skeletonLine} />
                   <View style={styles.skeletonLineShort} />
+                  <View style={styles.skeletonLineTiny} />
                 </View>
               </View>
             ))}
@@ -143,25 +143,24 @@ export function ScenarioPickerModal({
                 }}
                 style={styles.row}
               >
-                <View style={styles.rowIcon}>
-                  <Ionicons name="chatbubbles-outline" size={18} color={ACCENT} />
-                </View>
                 <View style={styles.rowBody}>
-                  <View style={styles.rowTitleLine}>
-                    <CustomText textStyle="title" numberOfLines={1} style={styles.rowName}>
-                      {item.name}
-                    </CustomText>
-                    {item.difficulty ? <DifficultyBadge difficulty={item.difficulty} /> : null}
-                  </View>
+                  <CustomText textStyle="title" style={styles.rowName}>
+                    {item.name}
+                  </CustomText>
                   {item.description ? (
-                    <CustomText textStyle="caption" numberOfLines={2} style={styles.rowMeta}>
+                    <CustomText textStyle="caption" style={styles.rowMeta}>
                       {item.description}
                     </CustomText>
                   ) : null}
-                  {item.passThreshold != null ? (
-                    <CustomText textStyle="micro" style={styles.rowThreshold}>
-                      Pass at {item.passThreshold}%
-                    </CustomText>
+                  {item.difficulty || item.passThreshold != null ? (
+                    <View style={styles.rowFooter}>
+                      {item.difficulty ? <DifficultyBadge difficulty={item.difficulty} /> : null}
+                      {item.passThreshold != null ? (
+                        <CustomText textStyle="micro" style={styles.rowThreshold}>
+                          Pass at {item.passThreshold}%
+                        </CustomText>
+                      ) : null}
+                    </View>
                   ) : null}
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={tourColors.textMuted} />
@@ -225,33 +224,27 @@ const styles = StyleSheet.create({
   listPad: { gap: 8, paddingTop: HEADER_INSET, paddingBottom: 12 },
   stack: { gap: 8, paddingTop: HEADER_INSET },
   row: {
-    minHeight: 62,
+    minHeight: 96,
     flexDirection: "row",
     alignItems: "center",
-    gap: 11,
-    paddingHorizontal: 11,
-    paddingVertical: 12,
-    borderRadius: SMALL_CORNER,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    borderRadius: LARGE_CORNER,
     borderCurve: "continuous",
     backgroundColor: CARD,
   },
-  rowIcon: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: BACKGROUND,
-  },
-  rowBody: { flex: 1, minWidth: 0 },
-  rowTitleLine: {
+  rowBody: { flex: 1, minWidth: 0, gap: 6 },
+  rowName: { color: tourColors.text },
+  rowMeta: { color: tourColors.textMuted, lineHeight: 18 },
+  rowFooter: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
+    marginTop: 4,
   },
-  rowName: { flex: 1, color: tourColors.text },
-  rowMeta: { marginTop: 2, color: tourColors.textMuted, lineHeight: 14 },
-  rowThreshold: { marginTop: 4, color: tourColors.textMuted },
+  rowThreshold: { color: tourColors.textMuted },
   difficulty: {
     paddingHorizontal: 7,
     paddingVertical: 3,
@@ -272,31 +265,29 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   skeletonRow: {
-    minHeight: 62,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    paddingHorizontal: 11,
-    paddingVertical: 12,
-    borderRadius: SMALL_CORNER,
+    minHeight: 96,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    borderRadius: LARGE_CORNER,
     borderCurve: "continuous",
     backgroundColor: CARD,
   },
-  skeletonIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+  skeletonBody: { gap: 8 },
+  skeletonLine: {
+    width: "72%",
+    height: 14,
+    borderRadius: 7,
     backgroundColor: BACKGROUND,
   },
-  skeletonBody: { flex: 1, gap: 7 },
-  skeletonLine: {
-    width: "62%",
+  skeletonLineShort: {
+    width: "92%",
     height: 12,
     borderRadius: 6,
     backgroundColor: BACKGROUND,
   },
-  skeletonLineShort: {
-    width: "40%",
+  skeletonLineTiny: {
+    width: "36%",
     height: 10,
     borderRadius: 5,
     backgroundColor: BACKGROUND,
