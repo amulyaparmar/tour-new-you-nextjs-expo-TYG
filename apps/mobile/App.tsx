@@ -304,6 +304,7 @@ import {
   BulkUploadFlow,
 } from "./src/bulk-upload/BulkUploadFlow";
 import { SessionReportScreen } from "./src/reports/SessionReportScreen";
+import { PracticeSessionsScreen } from "./src/practice/PracticeSessionsScreen";
 
 const loginBackground = require("./assets/videos/login-bg.mp4");
 
@@ -315,7 +316,7 @@ type ProspectData = {
   bedrooms: string;
   budget: string;
 };
-type MainTab = "home" | "sessions" | "tour" | "materials";
+type MainTab = "home" | "sessions" | "tour" | "materials" | "practice";
 type Screen =
   | { type: "main"; tab: MainTab }
   | {
@@ -1791,6 +1792,12 @@ const TAB_ITEMS: Array<{
     icon: "folder-outline",
     iconActive: "folder",
   },
+  {
+    id: "practice",
+    label: "Practice",
+    icon: "sparkles-outline",
+    iconActive: "sparkles",
+  },
 ];
 
 function MainTabs({
@@ -1862,6 +1869,7 @@ function MainTabs({
     useState<SlideDirection>("forward");
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [practiceLive, setPracticeLive] = useState(false);
   const checkInStartingRef = useRef(false);
   const [checkInBinding, setCheckInBinding] = useState<{
     sessionId: string | null;
@@ -1895,6 +1903,10 @@ function MainTabs({
       { duration: 220, easing: Easing.out(Easing.cubic) },
     );
   }, [tab, tabBarWidth, tabIndicatorX]);
+
+  useEffect(() => {
+    if (tab !== "practice") setPracticeLive(false);
+  }, [tab]);
 
   useEffect(() => {
     if (!profile) return;
@@ -1985,7 +1997,10 @@ function MainTabs({
     <View
       style={[
         st.flex1,
-        (tab === "home" || tab === "materials" || tab === "sessions") &&
+        (tab === "home" ||
+          tab === "materials" ||
+          tab === "sessions" ||
+          tab === "practice") &&
           homeSt.pageBg,
       ]}
     >
@@ -2051,6 +2066,18 @@ function MainTabs({
         </ScreenTransition>
       )}
 
+      {tab === "practice" && (
+        <ScreenTransition
+          transitionKey="tab:practice"
+          direction={tabTransitionDirection}
+        >
+          <PracticeSessionsScreen
+            property={property}
+            onLiveChange={setPracticeLive}
+          />
+        </ScreenTransition>
+      )}
+
       {tab === "tour" && (
         <ScreenTransition
           transitionKey="tab:tour"
@@ -2089,37 +2116,39 @@ function MainTabs({
         </ScreenTransition>
       )}
 
-      <View style={st.tabBar}>
-        <Reanimated.View
-          pointerEvents="none"
-          style={[st.tabBarIndicator, tabIndicatorStyle]}
-        >
-          <View style={st.tabBarIndicatorPill} />
-        </Reanimated.View>
-        {TAB_ITEMS.map((t) => (
-          <Pressable
-            key={t.id}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === t.id }}
-            onPress={() => {
-              selectionHaptic();
-              handleTabPress(t.id);
-            }}
-            style={st.tabBarItem}
+      {!practiceLive ? (
+        <View style={st.tabBar}>
+          <Reanimated.View
+            pointerEvents="none"
+            style={[st.tabBarIndicator, tabIndicatorStyle]}
           >
-            <Ionicons
-              name={tab === t.id ? t.iconActive : t.icon}
-              size={22}
-              color={tab === t.id ? C.brand : C.textMuted}
-            />
-            <Text
-              style={[st.tabBarLabel, tab === t.id && st.tabBarLabelActive]}
+            <View style={st.tabBarIndicatorPill} />
+          </Reanimated.View>
+          {TAB_ITEMS.map((t) => (
+            <Pressable
+              key={t.id}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === t.id }}
+              onPress={() => {
+                selectionHaptic();
+                handleTabPress(t.id);
+              }}
+              style={st.tabBarItem}
             >
-              {t.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+              <Ionicons
+                name={tab === t.id ? t.iconActive : t.icon}
+                size={22}
+                color={tab === t.id ? C.brand : C.textMuted}
+              />
+              <Text
+                style={[st.tabBarLabel, tab === t.id && st.tabBarLabelActive]}
+              >
+                {t.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <ProfileEditorModal
         visible={profileEditorOpen}
         session={authSession}
