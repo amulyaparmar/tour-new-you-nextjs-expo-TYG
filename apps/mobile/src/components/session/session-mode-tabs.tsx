@@ -10,26 +10,26 @@ import { SESSION_PAGE_PADDING } from "./session-layout";
 
 export type SessionReviewMode = "transcript" | "ai";
 
-const MODES: Array<{
-  id: SessionReviewMode;
+export type SessionModeTabItem<T extends string = string> = {
+  id: T;
   label: string;
-}> = [
+};
+
+const REVIEW_MODES: SessionModeTabItem<SessionReviewMode>[] = [
   { id: "transcript", label: "Transcript" },
   { id: "ai", label: "AI Chat" },
 ];
 
-export function SessionModeTabs({
+export function SessionModeTabs<T extends string = SessionReviewMode>({
   value,
   onChange,
-  modes,
+  items,
 }: {
-  value: SessionReviewMode;
-  onChange: (mode: SessionReviewMode) => void;
-  modes?: SessionReviewMode[];
+  value: T;
+  onChange: (mode: T) => void;
+  items?: SessionModeTabItem<T>[];
 }) {
-  const visibleModes = modes
-    ? MODES.filter((mode) => modes.includes(mode.id))
-    : MODES;
+  const visibleModes = items ?? (REVIEW_MODES as SessionModeTabItem<T>[]);
   return (
     <View style={styles.wrap}>
       <View style={styles.track}>

@@ -41,9 +41,13 @@ type NativePracticeSessionProps = {
   onBack: () => void;
 };
 
-const NativePracticeSession = Platform.OS !== "web" && !isExpoGo()
-  ? (require("./NativePracticeSession").NativePracticeSession as React.ComponentType<NativePracticeSessionProps>)
-  : null;
+const canUseNativePractice = Platform.OS !== "web" && !isExpoGo();
+
+function NativePracticeSessionHost(props: NativePracticeSessionProps) {
+  const NativePracticeSession = require("./NativePracticeSession")
+    .NativePracticeSession as React.ComponentType<NativePracticeSessionProps>;
+  return <NativePracticeSession {...props} />;
+}
 
 export function PracticeSessionsScreen({
   onBack,
@@ -104,7 +108,7 @@ export function PracticeSessionsScreen({
   useEffect(() => { void load(); }, [load]);
 
   const openPicker = useCallback(() => {
-    if (!NativePracticeSession) {
+    if (!canUseNativePractice) {
       Alert.alert(
         "Development build required",
         "Live AI practice uses the Daily native call SDK. You can test the rest of Tour—including 360° capture—in Expo Go.",
@@ -119,7 +123,7 @@ export function PracticeSessionsScreen({
   }, []);
 
   const openPractice = useCallback((scenario: Scenario) => {
-    if (!NativePracticeSession) {
+    if (!canUseNativePractice) {
       Alert.alert(
         "Development build required",
         "Live AI practice uses the Daily native call SDK. You can test the rest of Tour—including 360° capture—in Expo Go.",
@@ -150,9 +154,9 @@ export function PracticeSessionsScreen({
     setRefreshing(false);
   };
 
-  if (livePractice && NativePracticeSession) {
+  if (livePractice && canUseNativePractice) {
     return (
-      <NativePracticeSession
+      <NativePracticeSessionHost
         scenario={selectedScenario}
         onBack={() => {
           setLivePractice(false);

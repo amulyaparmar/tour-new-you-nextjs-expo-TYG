@@ -3,7 +3,7 @@ export { ScoreHero, ScoreCompact } from "./score-hero";
 export { SectionScoreOverview } from "./section-score-overview";
 export { RubricTab } from "./rubric-tab";
 export { SessionLoading, SessionReviewSkeleton } from "./session-loading";
-export { SessionModeTabs, type SessionReviewMode } from "./session-mode-tabs";
+export { SessionModeTabs, type SessionModeTabItem, type SessionReviewMode } from "./session-mode-tabs";
 export { SessionPlayer } from "./session-player";
 export { SessionSummaryStrip } from "./session-summary-strip";
 export { SessionInsightCards } from "./session-insight-cards";

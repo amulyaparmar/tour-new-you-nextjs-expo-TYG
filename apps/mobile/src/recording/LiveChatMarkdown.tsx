@@ -1,15 +1,10 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Linking, StyleSheet, Text, View } from "react-native";
+import { Animated, Linking, StyleSheet, View } from "react-native";
 
+import { CustomText } from "@/components/custom-text";
+import { ACCENT, HINT, SMALL_CORNER, TEXT } from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 import { linkifyTimestampsInMarkdown, parseSeekHref } from "../session-ai-timestamps";
-
-const C = {
-  brand: "#006CE5",
-  text: "#101828",
-  textMuted: "#94A3B8",
-  codeBg: "#F1F5F9",
-  border: "rgba(16,24,40,0.08)",
-} as const;
 
 type InlinePart =
   | { type: "text"; value: string }
@@ -136,34 +131,35 @@ function parseMarkdown(content: string): Block[] {
 
 function InlineText({ parts, onSeek }: { parts: InlinePart[]; onSeek?: (seconds: number) => void }) {
   return (
-    <Text style={styles.body}>
+    <CustomText textStyle="body" style={styles.body}>
       {parts.map((part, index) => {
         if (part.type === "bold") {
           return (
-            <Text key={index} style={styles.bold}>
+            <CustomText key={index} textStyle="body" style={styles.bold}>
               {part.value}
-            </Text>
+            </CustomText>
           );
         }
         if (part.type === "italic") {
           return (
-            <Text key={index} style={styles.italic}>
+            <CustomText key={index} textStyle="body" style={styles.italic}>
               {part.value}
-            </Text>
+            </CustomText>
           );
         }
         if (part.type === "code") {
           return (
-            <Text key={index} style={styles.codeInline}>
+            <CustomText key={index} textStyle="label" style={styles.codeInline}>
               {part.value}
-            </Text>
+            </CustomText>
           );
         }
         if (part.type === "link") {
           const seekSeconds = parseSeekHref(part.href);
           return (
-            <Text
+            <CustomText
               key={index}
+              textStyle="label"
               style={styles.link}
               onPress={() => {
                 if (seekSeconds != null) {
@@ -174,12 +170,16 @@ function InlineText({ parts, onSeek }: { parts: InlinePart[]; onSeek?: (seconds:
               }}
             >
               {part.label}
-            </Text>
+            </CustomText>
           );
         }
-        return <Text key={index}>{part.value}</Text>;
+        return (
+          <CustomText key={index} textStyle="body">
+            {part.value}
+          </CustomText>
+        );
       })}
-    </Text>
+    </CustomText>
   );
 }
 
@@ -200,27 +200,28 @@ export function LiveChatMarkdown({ content, streaming = false, onSeek }: LiveCha
         if (block.type === "code") {
           return (
             <View key={index} style={styles.codeBlock}>
-              <Text style={styles.codeText}>{block.value}</Text>
+              <CustomText textStyle="label" style={styles.codeText}>{block.value}</CustomText>
             </View>
           );
         }
         if (block.type === "heading") {
           return (
-            <Text
+            <CustomText
               key={index}
+              textStyle="title"
               style={[
                 styles.body,
                 block.level === 1 ? styles.h1 : block.level === 2 ? styles.h2 : styles.h3,
               ]}
             >
               <InlineText parts={block.parts} onSeek={onSeek} />
-            </Text>
+            </CustomText>
           );
         }
         if (block.type === "bullet") {
           return (
             <View key={index} style={styles.listRow}>
-              <Text style={styles.bullet}>•</Text>
+              <CustomText textStyle="title" style={styles.bullet}>•</CustomText>
               <View style={styles.listBody}>
                 <InlineText parts={block.parts} onSeek={onSeek} />
               </View>
@@ -230,7 +231,7 @@ export function LiveChatMarkdown({ content, streaming = false, onSeek }: LiveCha
         if (block.type === "ordered") {
           return (
             <View key={index} style={styles.listRow}>
-              <Text style={styles.ordered}>{block.index}.</Text>
+              <CustomText textStyle="label" style={styles.ordered}>{block.index}.</CustomText>
               <View style={styles.listBody}>
                 <InlineText parts={block.parts} onSeek={onSeek} />
               </View>
@@ -272,7 +273,7 @@ export function ChatTypingIndicator() {
       <Animated.View style={[typing.dot, { opacity: a }]} />
       <Animated.View style={[typing.dot, { opacity: b }]} />
       <Animated.View style={[typing.dot, { opacity: c }]} />
-      <Text style={typing.label}>Thinking</Text>
+      <CustomText textStyle="label" style={typing.label}>Thinking</CustomText>
     </View>
   );
 }
@@ -296,39 +297,36 @@ function StreamingCaret() {
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
   paragraph: { marginBottom: 2 },
-  body: { color: C.text, fontSize: 15, lineHeight: 22, fontWeight: "600" },
-  bold: { fontWeight: "900", color: C.text },
+  body: { color: TEXT, lineHeight: 22 },
+  bold: { fontWeight: "700", color: TEXT },
   italic: { fontStyle: "italic" },
   codeInline: {
-    backgroundColor: C.codeBg,
-    color: C.text,
+    backgroundColor: HINT,
+    color: TEXT,
     borderRadius: 6,
     overflow: "hidden",
-    fontSize: 13,
-    fontWeight: "700",
   },
-  link: { color: C.brand, fontWeight: "800" },
-  h1: { fontSize: 18, fontWeight: "900", marginBottom: 2 },
-  h2: { fontSize: 16, fontWeight: "900", marginBottom: 2 },
-  h3: { fontSize: 15, fontWeight: "900", marginBottom: 2 },
+  link: { color: ACCENT },
+  h1: { marginBottom: 2 },
+  h2: { marginBottom: 2 },
+  h3: { marginBottom: 2 },
   listRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
-  bullet: { color: C.brand, fontSize: 16, lineHeight: 22, fontWeight: "900", width: 12 },
-  ordered: { color: C.brand, fontSize: 14, lineHeight: 22, fontWeight: "800", minWidth: 18 },
+  bullet: { color: ACCENT, lineHeight: 22, width: 12 },
+  ordered: { color: ACCENT, lineHeight: 22, minWidth: 18 },
   listBody: { flex: 1, minWidth: 0 },
   codeBlock: {
-    backgroundColor: C.codeBg,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 10,
+    backgroundColor: HINT,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
     padding: 10,
   },
-  codeText: { color: C.text, fontSize: 13, fontWeight: "600", lineHeight: 18 },
+  codeText: { color: TEXT, lineHeight: 18 },
 });
 
 const typing = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.brand },
-  label: { marginLeft: 4, color: C.textMuted, fontSize: 13, fontWeight: "700" },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: ACCENT },
+  label: { marginLeft: 4, color: C.textMuted },
 });
 
 const caret = StyleSheet.create({
@@ -337,6 +335,6 @@ const caret = StyleSheet.create({
     height: 16,
     marginTop: 2,
     borderRadius: 2,
-    backgroundColor: C.brand,
+    backgroundColor: ACCENT,
   },
 });

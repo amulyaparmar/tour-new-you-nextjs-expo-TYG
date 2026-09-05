@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Dimensions,
   KeyboardAvoidingView,
@@ -11,7 +17,11 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
 import Reanimated, {
   cancelAnimation,
   Easing,
@@ -96,7 +106,7 @@ export function BottomSheetModal({
       setRendered(false);
       if (notifyParent) onClose();
     },
-    [onClose]
+    [onClose],
   );
 
   const animateDismiss = useCallback(
@@ -105,12 +115,16 @@ export function BottomSheetModal({
       isClosing.current = true;
       cancelAnimation(translateY);
       cancelAnimation(backdropOpacity);
-      translateY.value = withTiming(sheetHeight, { duration: 220, easing: SHEET_EASING }, (finished) => {
-        if (finished) runOnJS(finishDismiss)(notifyParent);
-      });
+      translateY.value = withTiming(
+        sheetHeight,
+        { duration: 220, easing: SHEET_EASING },
+        (finished) => {
+          if (finished) runOnJS(finishDismiss)(notifyParent);
+        },
+      );
       backdropOpacity.value = withTiming(0, { duration: 180 });
     },
-    [backdropOpacity, finishDismiss, sheetHeight, translateY]
+    [backdropOpacity, finishDismiss, sheetHeight, translateY],
   );
 
   const animatePresent = useCallback(() => {
@@ -119,7 +133,10 @@ export function BottomSheetModal({
     cancelAnimation(backdropOpacity);
     translateY.value = sheetHeight;
     translateY.value = withTiming(0, { duration: 260, easing: SHEET_EASING });
-    backdropOpacity.value = withTiming(1, { duration: 220, easing: SHEET_EASING });
+    backdropOpacity.value = withTiming(1, {
+      duration: 220,
+      easing: SHEET_EASING,
+    });
   }, [backdropOpacity, sheetHeight, translateY]);
 
   useEffect(() => {
@@ -139,8 +156,12 @@ export function BottomSheetModal({
 
   useEffect(() => {
     if (!keyboardAvoiding || Platform.OS !== "ios") return;
-    const show = Keyboard.addListener("keyboardWillShow", () => setKeyboardVisible(true));
-    const hide = Keyboard.addListener("keyboardWillHide", () => setKeyboardVisible(false));
+    const show = Keyboard.addListener("keyboardWillShow", () =>
+      setKeyboardVisible(true),
+    );
+    const hide = Keyboard.addListener("keyboardWillHide", () =>
+      setKeyboardVisible(false),
+    );
     return () => {
       show.remove();
       hide.remove();
@@ -160,18 +181,37 @@ export function BottomSheetModal({
         .onUpdate((event) => {
           if (dismissDisabledValue.value || event.translationY <= 0) return;
           translateY.value = event.translationY;
-          backdropOpacity.value = Math.max(0, 1 - event.translationY / sheetHeightValue.value);
+          backdropOpacity.value = Math.max(
+            0,
+            1 - event.translationY / sheetHeightValue.value,
+          );
         })
         .onEnd((event) => {
           if (dismissDisabledValue.value) return;
-          if (event.translationY > DISMISS_DISTANCE || event.velocityY > DISMISS_VELOCITY) {
+          if (
+            event.translationY > DISMISS_DISTANCE ||
+            event.velocityY > DISMISS_VELOCITY
+          ) {
             runOnJS(animateDismiss)(true);
             return;
           }
-          translateY.value = withTiming(0, { duration: 200, easing: SHEET_EASING });
-          backdropOpacity.value = withTiming(1, { duration: 160, easing: SHEET_EASING });
+          translateY.value = withTiming(0, {
+            duration: 200,
+            easing: SHEET_EASING,
+          });
+          backdropOpacity.value = withTiming(1, {
+            duration: 160,
+            easing: SHEET_EASING,
+          });
         }),
-    [animateDismiss, backdropOpacity, dismissDisabled, dismissDisabledValue, sheetHeightValue, translateY]
+    [
+      animateDismiss,
+      backdropOpacity,
+      dismissDisabled,
+      dismissDisabledValue,
+      sheetHeightValue,
+      translateY,
+    ],
   );
 
   const horizontalBackGesture = useMemo(
@@ -185,12 +225,12 @@ export function BottomSheetModal({
             runOnJS(onSwipeBack!)();
           }
         }),
-    [onSwipeBack, swipeBackEnabled]
+    [onSwipeBack, swipeBackEnabled],
   );
 
   const sheetGesture = useMemo(
     () => Gesture.Simultaneous(panGesture, horizontalBackGesture),
-    [horizontalBackGesture, panGesture]
+    [horizontalBackGesture, panGesture],
   );
 
   const backdropStyle = useAnimatedStyle(() => ({
@@ -205,7 +245,10 @@ export function BottomSheetModal({
 
   const body = (
     <GestureHandlerRootView style={styles.root}>
-      <AnimatedView pointerEvents="none" style={[styles.backdrop, backdropStyle]} />
+      <AnimatedView
+        pointerEvents="none"
+        style={[styles.backdrop, backdropStyle]}
+      />
       <Pressable
         accessibilityLabel="Close sheet"
         disabled={dismissDisabled}
@@ -214,7 +257,9 @@ export function BottomSheetModal({
       />
 
       <KeyboardAvoidingView
-        behavior={keyboardAvoiding && Platform.OS === "ios" ? "padding" : undefined}
+        behavior={
+          keyboardAvoiding && Platform.OS === "ios" ? "padding" : undefined
+        }
         pointerEvents="box-none"
         style={styles.keyboardAvoiding}
       >
@@ -226,7 +271,9 @@ export function BottomSheetModal({
               sheetAnimatedStyle,
               {
                 height: sheetHeight,
-                paddingBottom: keyboardVisible ? 0 : Math.max(insets.bottom, 16),
+                paddingBottom: keyboardVisible
+                  ? 0
+                  : Math.max(insets.bottom, 16),
               },
             ]}
           >
@@ -262,9 +309,13 @@ export function BottomSheetModal({
 
 const styles = StyleSheet.create({
   overlayHost: {
-    ...StyleSheet.absoluteFill,
-    zIndex: 40,
-    elevation: 40,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 80,
+    elevation: 80,
   },
   root: {
     flex: 1,
