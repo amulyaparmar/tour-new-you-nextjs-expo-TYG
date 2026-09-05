@@ -4,7 +4,6 @@ import { authenticatedFetch } from "@/auth";
 import { LoadingDots } from "@/components/loading-dots";
 import { TourBackButton as BackBtn, TourEmptyState as EmptyState } from "@/components/tour";
 import { tourColors as C } from "@/theme/tour-brand";
-import Daily from "@daily-co/react-native-daily-js";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -48,6 +47,18 @@ type Scorecard = {
 // retries, then continue at a calm interval while the result screen is open.
 const POLL_DELAYS_MS = [2000, 3000, 5000, 8000, 10000, 15000, 20000, 30000, 45000];
 const SLOW_ANALYSIS_POLL_DELAY_MS = 30000;
+
+function loadDaily() {
+  const loaded = require("@daily-co/react-native-daily-js") as {
+    default?: { createCallObject: (options: { audioSource: boolean; videoSource: boolean }) => any };
+    createCallObject?: (options: { audioSource: boolean; videoSource: boolean }) => any;
+  };
+  const Daily = loaded.default ?? loaded;
+  if (typeof Daily.createCallObject !== "function") {
+    throw new Error("Live practice could not load the call SDK.");
+  }
+  return Daily;
+}
 
 const elapsed = (startedAt: number | null) =>
   startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 1000)) : 0;
@@ -327,7 +338,7 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
       }
       callIdRef.current = call.id;
 
-      const daily = Daily.createCallObject({ audioSource: true, videoSource: false });
+      const daily = loadDaily().createCallObject({ audioSource: true, videoSource: false });
       dailyCallRef.current = daily;
       const subscribeToAudio = (event: any) => {
         const participant = event?.participant;

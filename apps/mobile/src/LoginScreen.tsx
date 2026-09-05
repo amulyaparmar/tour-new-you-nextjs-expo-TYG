@@ -6,26 +6,29 @@ import {
   Alert,
   AppState,
   BackHandler,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
 import Reanimated, {
   Easing,
-  LinearTransition,
-  SlideInLeft,
-  SlideInRight,
-  SlideOutLeft,
-  SlideOutRight,
+  withTiming,
+  type EntryAnimationsValues,
+  type ExitAnimationsValues,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CommunityPickerModal } from "@/components/community-picker-modal";
+import { CustomText, customTextVariants } from "@/components/custom-text";
+import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
+import { LiquidGlassTextButton } from "@/components/liquid-glass-text-button";
 import { LoadingDots } from "@/components/loading-dots";
+import { MotionPressable } from "@/components/ui/motion";
+import { ACCENT, BACKGROUND, CARD, LARGE_CORNER, SMALL_CORNER, TEXT } from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 
 import {
   type MobileAuthSession,
@@ -35,20 +38,57 @@ import {
 } from "./auth";
 import { TourLogo } from "./components/TourLogo";
 
-const TOUR_BLUE = "#1674ff";
 const RESEND_COOLDOWN_SECONDS = 30;
 
 type LoginStep = "welcome" | "email" | "code" | "property";
 type TransitionDirection = "forward" | "back";
 
-const CARD_LAYOUT_TRANSITION = LinearTransition.springify()
-  .damping(24)
-  .stiffness(220)
-  .mass(0.8);
-const FORWARD_ENTERING = SlideInRight.duration(360).easing(Easing.out(Easing.cubic));
-const FORWARD_EXITING = SlideOutLeft.duration(260).easing(Easing.inOut(Easing.cubic));
-const BACK_ENTERING = SlideInLeft.duration(340).easing(Easing.out(Easing.cubic));
-const BACK_EXITING = SlideOutRight.duration(240).easing(Easing.inOut(Easing.cubic));
+const STEP_SLIDE_DURATION = 280;
+const CARD_HEIGHT = 300;
+const STEP_SLIDE_TIMING = {
+  duration: STEP_SLIDE_DURATION,
+  easing: Easing.out(Easing.cubic),
+} as const;
+
+function forwardEntering(values: EntryAnimationsValues) {
+  "worklet";
+  return {
+    initialValues: { transform: [{ translateX: values.targetWidth }] },
+    animations: {
+      transform: [{ translateX: withTiming(0, STEP_SLIDE_TIMING) }],
+    },
+  };
+}
+
+function forwardExiting(values: ExitAnimationsValues) {
+  "worklet";
+  return {
+    initialValues: { transform: [{ translateX: 0 }] },
+    animations: {
+      transform: [{ translateX: withTiming(-values.currentWidth, STEP_SLIDE_TIMING) }],
+    },
+  };
+}
+
+function backEntering(values: EntryAnimationsValues) {
+  "worklet";
+  return {
+    initialValues: { transform: [{ translateX: -values.targetWidth }] },
+    animations: {
+      transform: [{ translateX: withTiming(0, STEP_SLIDE_TIMING) }],
+    },
+  };
+}
+
+function backExiting(values: ExitAnimationsValues) {
+  "worklet";
+  return {
+    initialValues: { transform: [{ translateX: 0 }] },
+    animations: {
+      transform: [{ translateX: withTiming(values.currentWidth, STEP_SLIDE_TIMING) }],
+    },
+  };
+}
 
 export function LoginScreen({
   player,
@@ -59,7 +99,8 @@ export function LoginScreen({
 }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<LoginStep>("welcome");
-  const [transitionDirection, setTransitionDirection] = useState<TransitionDirection>("forward");
+  const [transitionDirection, setTransitionDirection] =
+    useState<TransitionDirection>("forward");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [challengeId, setChallengeId] = useState("");
@@ -70,18 +111,32 @@ export function LoginScreen({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
-  const transitionTo = useCallback((nextStep: LoginStep, direction: TransitionDirection) => {
-    setTransitionDirection(direction);
-    setStep(nextStep);
-  }, []);
+  const transitionTo = useCallback(
+    (nextStep: LoginStep, direction: TransitionDirection) => {
+      setTransitionDirection(direction);
+      requestAnimationFrame(() => {
+        setStep(nextStep);
+      });
+    },
+    [],
+  );
+
+  const goBack = useCallback(() => {
+    setError(null);
+    if (step === "code") transitionTo("email", "back");
+    else if (step === "email") transitionTo("welcome", "back");
+  }, [step, transitionTo]);
 
   useEffect(() => {
+    player.audioMixingMode = "mixWithOthers";
     player.loop = true;
     player.muted = true;
     player.play();
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
+        player.audioMixingMode = "mixWithOthers";
         player.muted = true;
         player.play();
       }
@@ -95,12 +150,11 @@ export function LoginScreen({
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       if (step === "welcome") return false;
-      if (step === "email") transitionTo("welcome", "back");
-      if (step === "code") transitionTo("email", "back");
+      goBack();
       return true;
     });
     return () => subscription.remove();
-  }, [step, transitionTo]);
+  }, [goBack, step]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -109,6 +163,17 @@ export function LoginScreen({
     }, 1000);
     return () => clearInterval(timer);
   }, [resendCooldown]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   async function sendCode() {
     if (!email.trim() || submitting) return;
@@ -122,7 +187,7 @@ export function LoginScreen({
       setEmailSent(challenge.emailSent);
       setCode("");
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
-      transitionTo("code", "forward");
+      if (step !== "code") transitionTo("code", "forward");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not send a sign-in code.");
     } finally {
@@ -187,34 +252,42 @@ export function LoginScreen({
             styles.content,
             {
               paddingTop: insets.top + 16,
-              paddingBottom: Math.max(24, insets.bottom + 12),
+              paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 10),
             },
           ]}
         >
           <View style={styles.cardShadow}>
-            <Reanimated.View layout={CARD_LAYOUT_TRANSITION} style={styles.card}>
+            <View style={styles.card}>
               <Reanimated.View
                 key={step}
-                entering={transitionDirection === "forward" ? FORWARD_ENTERING : BACK_ENTERING}
-                exiting={transitionDirection === "forward" ? FORWARD_EXITING : BACK_EXITING}
+                entering={
+                  transitionDirection === "forward"
+                    ? forwardEntering
+                    : backEntering
+                }
+                exiting={
+                  transitionDirection === "forward"
+                    ? forwardExiting
+                    : backExiting
+                }
                 style={styles.stepContent}
               >
               {step === "welcome" ? (
               <>
                 <View style={styles.brandBlock}>
-                  <TourLogo width={97} />
-                  <Text style={styles.tagline}>
+                  <TourLogo width={97} color={TEXT} />
+                  <CustomText textStyle="body" style={styles.tagline}>
                     Every great business deserves a great tour. Build yours today.
-                  </Text>
+                  </CustomText>
                 </View>
                 <PrimaryButton label="Login with Email" onPress={() => transitionTo("email", "forward")} />
               </>
             ) : step === "email" ? (
               <>
                 <LoginHeader
-                  icon="mail-outline"
                   title="Enter your work email"
                   subtitle="We’ll send a one-time verification code."
+                  onBack={goBack}
                 />
                 <View style={styles.formBlock}>
                   <Field
@@ -241,36 +314,28 @@ export function LoginScreen({
                     loading={submitting}
                     disabled={!email.trim()}
                   />
-                  <BackLink label="Back" onPress={() => { setError(null); transitionTo("welcome", "back"); }} />
                 </View>
               </>
             ) : step === "code" ? (
               <>
                 <LoginHeader
-                  icon="key-outline"
                   title="Check your email"
                   subtitle={
                     emailSent
                       ? `We sent a sign-in code to ${email}.`
                       : `We could not deliver a sign-in code to ${email}.`
                   }
+                  onBack={goBack}
+                  right={
+                    <LiquidGlassTextButton
+                      label={resendCooldown > 0 ? `${resendCooldown}s` : "Resend"}
+                      disabled={submitting || resendCooldown > 0}
+                      accessibilityLabel="Resend code"
+                      onPress={() => void sendCode()}
+                    />
+                  }
                 />
                 <View style={styles.formBlock}>
-                  <View style={styles.deliveryCard}>
-                    <View style={styles.deliveryDotWrap}>
-                      <View style={[styles.deliveryDot, !emailSent && styles.deliveryDotWarn]} />
-                    </View>
-                    <View style={styles.deliveryCopy}>
-                      <Text style={styles.deliveryTitle}>
-                        {emailSent ? "Waiting for your 6-digit code" : "Code delivery failed"}
-                      </Text>
-                      <Text style={styles.deliveryText}>
-                        {emailSent
-                          ? "Look for an email from Tour. Delivery can take up to a minute."
-                          : "Check the address, then use Resend code to try again."}
-                      </Text>
-                    </View>
-                  </View>
                   <Field
                     value={code}
                     onChangeText={(value) => {
@@ -281,8 +346,6 @@ export function LoginScreen({
                     keyboardType="number-pad"
                     autoComplete="one-time-code"
                     textContentType="oneTimeCode"
-                    returnKeyType="go"
-                    onSubmitEditing={() => void verifyCode()}
                     editable={!submitting}
                     autoFocus
                     style={styles.codeInput}
@@ -294,28 +357,16 @@ export function LoginScreen({
                     loading={submitting}
                     disabled={code.length !== 6}
                   />
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={submitting || resendCooldown > 0}
-                    onPress={() => void sendCode()}
-                    style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}
-                  >
-                    <Text style={[styles.linkText, resendCooldown > 0 && styles.linkTextDisabled]}>
-                      {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}
-                    </Text>
-                  </Pressable>
-                  <BackLink label="Use a different email" onPress={() => { setError(null); transitionTo("email", "back"); }} />
                 </View>
               </>
             ) : (
               <LoginHeader
-                icon="business-outline"
                 title="Choose your property"
                 subtitle="Select the property you’re working from today."
               />
               )}
               </Reanimated.View>
-            </Reanimated.View>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -341,21 +392,36 @@ export function LoginScreen({
 }
 
 function LoginHeader({
-  icon,
   title,
   subtitle,
+  onBack,
+  right,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
+  onBack?: () => void;
+  right?: React.ReactNode;
 }) {
   return (
     <View style={styles.headerBlock}>
-      <View style={styles.headerIcon}>
-        <Ionicons name={icon} size={22} color={TOUR_BLUE} />
+      <View style={styles.titleRow}>
+        {onBack ? (
+          <LiquidGlassIconButton
+            icon="chevron-back"
+            accessibilityLabel="Back"
+            onPress={onBack}
+          />
+        ) : null}
+        <View style={styles.headerCopy}>
+          <CustomText textStyle="hero" numberOfLines={2}>
+            {title}
+          </CustomText>
+        </View>
+        {right}
       </View>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      <CustomText textStyle="body" style={styles.subtitle}>
+        {subtitle}
+      </CustomText>
     </View>
   );
 }
@@ -364,9 +430,9 @@ function Field(props: React.ComponentProps<typeof TextInput>) {
   return (
     <TextInput
       {...props}
-      placeholderTextColor="#98a2b3"
-      selectionColor={TOUR_BLUE}
-      style={[styles.input, props.style]}
+      placeholderTextColor="rgba(0, 0, 0, 0.45)"
+      selectionColor={ACCENT}
+      style={[customTextVariants.title, styles.input, props.style]}
     />
   );
 }
@@ -383,35 +449,22 @@ function PrimaryButton({
   disabled?: boolean;
 }) {
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
+      accessibilityLabel={label}
+      haptic="selection"
       disabled={disabled || loading}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.primaryButton,
-        (disabled || loading) && styles.primaryButtonDisabled,
-        pressed && styles.primaryButtonPressed,
-      ]}
+      style={styles.primaryButton}
     >
       {loading ? (
-        <LoadingDots color="#fff" />
+        <LoadingDots size="small" color={CARD} />
       ) : (
-        <Text style={styles.primaryButtonText}>{label}</Text>
+        <CustomText textStyle="title" style={styles.primaryButtonText}>
+          {label}
+        </CustomText>
       )}
-    </Pressable>
-  );
-}
-
-function BackLink({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}
-    >
-      <Ionicons name="arrow-back" size={15} color="#667085" />
-      <Text style={styles.backText}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -419,128 +472,109 @@ function LoginError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
     <View style={styles.errorRow} accessibilityRole="alert">
-      <Ionicons name="alert-circle-outline" size={17} color="#d92d20" />
-      <Text style={styles.errorText}>{message}</Text>
+      <Ionicons name="alert-circle-outline" size={17} color={C.red} />
+      <CustomText textStyle="caption" style={styles.errorText}>
+        {message}
+      </CustomText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#000" },
+  root: { flex: 1, backgroundColor: TEXT },
   keyboardView: { flex: 1 },
   content: {
     flex: 1,
     justifyContent: "flex-end",
-    paddingHorizontal: 24,
+    paddingHorizontal: 12,
   },
   cardShadow: {
     width: "100%",
-    borderRadius: 16,
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 5,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+    boxShadow: "0 10px 28px rgba(0, 0, 0, 0.18)",
   },
   card: {
     width: "100%",
+    height: CARD_HEIGHT,
     overflow: "hidden",
-    paddingHorizontal: 16,
-    paddingVertical: 32,
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
-  stepContent: { gap: 24 },
-  brandBlock: { alignItems: "center", gap: 12 },
+  stepContent: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    justifyContent: "space-between",
+    gap: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  brandBlock: {
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 28,
+  },
   tagline: {
     width: 265,
-    color: "#666",
-    fontSize: 16,
-    lineHeight: 26,
-    fontWeight: "500",
+    color: "rgba(0, 0, 0, 0.45)",
+    lineHeight: 22,
     textAlign: "center",
   },
-  headerBlock: { alignItems: "center", gap: 8, paddingHorizontal: 8 },
-  headerIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 22,
-    backgroundColor: "#eaf2ff",
-  },
-  title: { color: "#312a2a", fontSize: 22, lineHeight: 28, fontWeight: "800", textAlign: "center" },
-  subtitle: { maxWidth: 285, color: "#667085", fontSize: 14, lineHeight: 20, fontWeight: "500", textAlign: "center" },
-  formBlock: { gap: 12 },
-  deliveryCard: {
+  headerBlock: { gap: 10 },
+  titleRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#abefc6",
-    borderRadius: 10,
-    backgroundColor: "#ecfdf3",
-  },
-  deliveryDotWrap: {
-    width: 24,
-    height: 24,
     alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: "#d1fadf",
+    gap: 12,
+    overflow: "visible",
   },
-  deliveryDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#17b26a" },
-  deliveryDotWarn: { backgroundColor: "#f79009" },
-  deliveryCopy: { flex: 1, gap: 2 },
-  deliveryTitle: { color: "#067647", fontSize: 12, lineHeight: 17, fontWeight: "800" },
-  deliveryText: { color: "#027a48", fontSize: 11, lineHeight: 16, fontWeight: "500" },
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  subtitle: {
+    color: "rgba(0, 0, 0, 0.45)",
+  },
+  formBlock: { gap: 12 },
   input: {
     width: "100%",
     minHeight: 52,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#d0d5dd",
-    borderRadius: 8,
-    backgroundColor: "#fff",
-    color: "#101828",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  codeInput: { fontSize: 24, fontWeight: "800", letterSpacing: 8, textAlign: "center" },
-  primaryButton: {
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: TOUR_BLUE,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+    color: TEXT,
   },
-  primaryButtonDisabled: { opacity: 0.45 },
-  primaryButtonPressed: { opacity: 0.86, transform: [{ scale: 0.995 }] },
-  primaryButtonText: { color: "#fff", fontSize: 16, fontWeight: "500" },
-  linkButton: {
-    minHeight: 36,
+  codeInput: {
+    fontSize: 24,
+    letterSpacing: 8,
+    textAlign: "center",
+  },
+  primaryButton: {
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
-  linkText: { color: TOUR_BLUE, fontSize: 13, fontWeight: "700" },
-  linkTextDisabled: { color: "#98a2b3" },
-  backText: { color: "#667085", fontSize: 13, fontWeight: "700" },
-  pressed: { opacity: 0.65 },
+  primaryButtonText: { color: CARD },
   errorRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 8,
     paddingHorizontal: 11,
     paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: "#fef3f2",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: C.redBg,
   },
-  errorText: { flex: 1, color: "#b42318", fontSize: 12, lineHeight: 17, fontWeight: "600" },
+  errorText: { flex: 1, color: C.red },
 });

@@ -44,9 +44,36 @@ type NativePracticeSessionProps = {
 const canUseNativePractice = Platform.OS !== "web" && !isExpoGo();
 
 function NativePracticeSessionHost(props: NativePracticeSessionProps) {
-  const NativePracticeSession = require("./NativePracticeSession")
-    .NativePracticeSession as React.ComponentType<NativePracticeSessionProps>;
-  return <NativePracticeSession {...props} />;
+  const Session = React.useMemo(() => {
+    try {
+      const loaded = require("./NativePracticeSession") as {
+        NativePracticeSession?: React.ComponentType<NativePracticeSessionProps>;
+      };
+      return loaded.NativePracticeSession ?? null;
+    } catch (error) {
+      console.error("NativePracticeSession failed to load", error);
+      return null;
+    }
+  }, []);
+
+  if (!Session) {
+    return (
+      <View style={styles.nativeUnavailable}>
+        <EmptyStateCard
+          icon="alert-circle-outline"
+          title="Practice unavailable"
+          subtitle="Live practice could not start. Go back and try again after the app reloads."
+        />
+        <Pressable onPress={props.onBack} style={styles.startBtn} accessibilityRole="button">
+          <CustomText textStyle="title" style={styles.startBtnText}>
+            Back to practice
+          </CustomText>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return <Session {...props} />;
 }
 
 export function PracticeSessionsScreen({
@@ -310,6 +337,13 @@ function AttemptRow({ attempt }: { attempt: Attempt }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BACKGROUND },
+  nativeUnavailable: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 18,
+    paddingHorizontal: 16,
+    backgroundColor: BACKGROUND,
+  },
   scroll: {
     gap: 18,
     paddingHorizontal: 16,

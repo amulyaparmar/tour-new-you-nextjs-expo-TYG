@@ -4,6 +4,11 @@ const path = require("path");
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, "../..");
 const workletsRoot = path.resolve(projectRoot, "node_modules/react-native-worklets");
+const legacyNativeModulesShim = path.resolve(
+  projectRoot,
+  "src/practice/native-shims/react-native-legacy-modules.js",
+);
+const { isDailyNativeBridgeOrigin } = require("./src/practice/native-shims/dailyNativeBridgeOrigin");
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(projectRoot);
@@ -33,6 +38,12 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
         { paths: [workletsRoot, projectRoot] }
       ),
     };
+  }
+  // Daily/WebRTC construct NativeEventEmitter(NativeModules.*) at import time.
+  // On RN New Architecture those RCT modules are undefined on NativeModules
+  // until TurboModuleRegistry.get() initializes them.
+  if (moduleName === "react-native" && isDailyNativeBridgeOrigin(context.originModulePath)) {
+    return { type: "sourceFile", filePath: legacyNativeModulesShim };
   }
   if (upstreamResolveRequest) {
     return upstreamResolveRequest(context, moduleName, platform);

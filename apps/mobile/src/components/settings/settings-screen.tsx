@@ -1,6 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
+  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -45,7 +46,6 @@ export function SettingsScreen({
   const insets = useSafeAreaInsets();
   const profileQuery = useProfileQuery();
   const updateProfileMutation = useUpdateProfileMutation();
-  const [logoutOpen, setLogoutOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [savingPrivacy, setSavingPrivacy] = useState(false);
@@ -53,6 +53,13 @@ export function SettingsScreen({
     profileQuery.data?.aiTrainingDataFeedback ??
     session.workspace.user.aiTrainingDataFeedback ??
     false;
+
+  function confirmSignOut() {
+    Alert.alert("Log out of Tour?", "Your account will be removed from this device.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: onSignOut },
+    ]);
+  }
 
   async function sendFeedback() {
     const message = feedbackText.trim();
@@ -185,7 +192,7 @@ export function SettingsScreen({
           icon="log-out-outline"
           label="Logout"
           accessibilityLabel="Log out"
-          onPress={() => setLogoutOpen(true)}
+          onPress={confirmSignOut}
           style={styles.logoutPill}
         />
         <CustomText textStyle="caption" style={styles.version}>
@@ -252,50 +259,6 @@ export function SettingsScreen({
           >
             <CustomText textStyle="label" style={styles.cancelText}>
               Not now
-            </CustomText>
-          </MotionPressable>
-        </View>
-      </BottomSheetModal>
-      <BottomSheetModal
-        visible={logoutOpen}
-        onClose={() => setLogoutOpen(false)}
-        sheetHeight={310}
-        dragHeader={
-          <View style={styles.sheetHeader}>
-            <View style={[styles.iconWrap, styles.iconWrapDestructive]}>
-              <Ionicons name="log-out-outline" size={20} color={C.red} />
-            </View>
-            <View style={styles.flex}>
-              <CustomText textStyle="title">Log out of Tour?</CustomText>
-              <CustomText textStyle="caption" style={styles.rowSub}>
-                Your account will be removed from this device.
-              </CustomText>
-            </View>
-          </View>
-        }
-      >
-        <View style={styles.sheetBody}>
-          <CustomText textStyle="caption" style={styles.sheetNote}>
-            You’ll need a new email verification code the next time you sign in.
-          </CustomText>
-          <MotionPressable
-            accessibilityRole="button"
-            haptic="medium"
-            onPress={onSignOut}
-            style={styles.logoutButton}
-          >
-            <CustomText textStyle="title" style={styles.primaryButtonText}>
-              Log out
-            </CustomText>
-          </MotionPressable>
-          <MotionPressable
-            accessibilityRole="button"
-            haptic="selection"
-            onPress={() => setLogoutOpen(false)}
-            style={styles.cancelButton}
-          >
-            <CustomText textStyle="label" style={styles.cancelText}>
-              Cancel
             </CustomText>
           </MotionPressable>
         </View>
@@ -424,7 +387,6 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     backgroundColor: BACKGROUND,
   },
-  iconWrapDestructive: { backgroundColor: C.redBg },
   rowSub: { marginTop: 3, color: C.textSec },
   sectionHeader: {
     color: "rgba(0, 0, 0, 0.45)",
@@ -444,7 +406,6 @@ const styles = StyleSheet.create({
   },
   sheetHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   sheetBody: { flex: 1, gap: 10, paddingTop: 16 },
-  sheetNote: { color: C.textSec, lineHeight: 19 },
   input: {
     flex: 1,
     minHeight: 120,
@@ -472,13 +433,6 @@ const styles = StyleSheet.create({
     boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
   primaryButtonText: { color: CARD },
-  logoutButton: {
-    minHeight: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 25,
-    backgroundColor: C.red,
-  },
   cancelButton: {
     minHeight: 44,
     alignItems: "center",

@@ -1614,6 +1614,7 @@ function CheckInStartTourScreen({
 export default function App() {
   useEasUpdateCheck();
   const player = useVideoPlayer(loginBackground, (vp) => {
+    vp.audioMixingMode = "mixWithOthers";
     vp.loop = true;
     vp.muted = true;
   });
