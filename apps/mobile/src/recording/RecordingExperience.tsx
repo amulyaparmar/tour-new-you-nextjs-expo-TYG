@@ -904,15 +904,11 @@ export function RecordingExperience({
       : completedTranscriptLines,
     [completedTranscriptLines, currentTranscriptLine]
   );
-  const transcriptFocus = currentTranscriptLine ?? completedTranscriptLines.at(-1) ?? null;
-  const transcriptHistory = currentTranscriptLine
-    ? completedTranscriptLines
-    : completedTranscriptLines.slice(0, -1);
 
   useEffect(() => {
     if (activeTab !== "transcript" || liveTranscript.length === 0 || pullProgress.value > 0 || sheetClosing.value) return;
     listRef.current?.scrollToEnd({ animated: true });
-  }, [activeTab, liveTranscript.length, liveSpeech.text, listRef, pullProgress, sheetClosing]);
+  }, [activeTab, currentTranscriptLine?.text, liveTranscript.length, listRef, pullProgress, sheetClosing]);
 
   useEffect(() => {
     const latest = [...liveTranscript].reverse().find((line) => line.text.trim());
@@ -1542,7 +1538,16 @@ export function RecordingExperience({
           {activeTab === "transcript" && (
             <GestureDetector gesture={transcriptDrag.gesture}>
             <View style={s.transcriptPane}>
-              <View style={s.liveTranscriptStage}>
+              <View style={s.liveTranscriptToolbar}>
+                <View style={s.liveTranscriptWave}>
+                  {[...waveformBars.left, ...waveformBars.right].map((height, index) => (
+                    <LiveWaveBar
+                      key={`transcript-wave-${index}`}
+                      height={height}
+                      opacity={hasStarted ? (sessionPaused ? 0.36 : 0.82) : 0.28}
+                    />
+                  ))}
+                </View>
                 <View
                   accessible
                   accessibilityLabel={
@@ -1577,28 +1582,6 @@ export function RecordingExperience({
                     ]}
                   />
                 </View>
-
-                <View style={s.liveTranscriptFocusRow}>
-                  <CustomText textStyle="caption" style={s.liveTranscriptSpeaker} numberOfLines={2}>
-                    {transcriptFocus?.speaker ?? ""}
-                  </CustomText>
-                  <CustomText
-                    textStyle="hero"
-                    style={[s.liveTranscriptCopy, transcriptFocus?.isInterim && s.liveTranscriptCopyInterim]}
-                  >
-                    {transcriptFocus?.text ?? ""}
-                  </CustomText>
-                </View>
-
-                <View style={s.liveTranscriptWave}>
-                  {[...waveformBars.left, ...waveformBars.right].map((height, index) => (
-                    <LiveWaveBar
-                      key={`transcript-wave-${index}`}
-                      height={height}
-                      opacity={hasStarted ? (sessionPaused ? 0.36 : 0.82) : 0.28}
-                    />
-                  ))}
-                </View>
               </View>
 
               <Reanimated.FlatList
@@ -1609,7 +1592,7 @@ export function RecordingExperience({
                 alwaysBounceVertical={false}
                 overScrollMode="never"
                 onAccessibilityEscape={minimizeSheet}
-                data={transcriptHistory}
+                data={liveTranscript}
                 renderItem={renderTranscript}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={s.transcriptList}
@@ -2544,19 +2527,17 @@ const s = StyleSheet.create({
   promptCard: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: CARD },
   promptCardText: { flex: 1, color: TEXT, fontSize: 13, fontWeight: "800" },
   transcriptPane: { flex: 1, minHeight: 0 },
-  liveTranscriptStage: {
-    minHeight: 176,
-    paddingHorizontal: 18,
-    paddingTop: 20,
-    paddingBottom: 14,
+  liveTranscriptToolbar: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: C.border,
     backgroundColor: BACKGROUND,
   },
   liveConnectionIndicator: {
-    position: "absolute",
-    top: 14,
-    right: 18,
     minWidth: 34,
     height: 28,
     flexDirection: "row",
@@ -2567,20 +2548,9 @@ const s = StyleSheet.create({
   liveConnectionDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: C.textMuted },
   liveConnectionDotActive: { backgroundColor: ACCENT },
   liveConnectionDotOffline: { backgroundColor: C.amber },
-  liveTranscriptFocusRow: {
-    flex: 1,
-    minHeight: 102,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    paddingTop: 10,
-    paddingRight: 26,
-  },
-  liveTranscriptSpeaker: { width: 64, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "800" },
-  liveTranscriptCopy: { flex: 1, color: TEXT, fontSize: 24, lineHeight: 32, fontWeight: "600" },
-  liveTranscriptCopyInterim: { color: C.textSec },
   liveTranscriptWave: {
-    height: 30,
+    flex: 1,
+    height: 24,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

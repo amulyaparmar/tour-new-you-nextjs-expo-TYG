@@ -201,7 +201,7 @@ export function useMuseLiveTranscription({
             const turn = turnId === null ? null : openTurnsRef.current.get(turnId);
             partialTurnIdRef.current = turnId;
             setPartial({
-              id: `muse-partial-${connectionNumber}-${turnId ?? "active"}`,
+              id: `muse-${connectionNumber}-${turnId ?? "active"}`,
               speaker: turn?.speaker ?? "Speaker",
               text: message.transcript.trim(),
               time: Math.max(0, (turn?.startMs ?? timelineMs) / 1000),
