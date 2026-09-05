@@ -1,101 +1,12 @@
-diff --git a/node_modules/expo-speech-transcriber/android/src/main/java/expo/modules/speechtranscriber/ExpoSpeechTranscriberModule.kt b/node_modules/expo-speech-transcriber/android/src/main/java/expo/modules/speechtranscriber/ExpoSpeechTranscriberModule.kt
-index 9857dc9..25c489a 100644
---- a/node_modules/expo-speech-transcriber/android/src/main/java/expo/modules/speechtranscriber/ExpoSpeechTranscriberModule.kt
-+++ b/node_modules/expo-speech-transcriber/android/src/main/java/expo/modules/speechtranscriber/ExpoSpeechTranscriberModule.kt
-@@ -4,11 +4,13 @@ import android.Manifest
- import android.content.Intent
- import android.content.pm.PackageManager
- import android.os.Bundle
-+import android.os.Build
- import android.os.Handler
- import android.os.Looper
- import android.speech.RecognitionListener
- import android.speech.RecognizerIntent
- import android.speech.SpeechRecognizer
-+import android.util.Base64
- import android.util.Log
- import androidx.core.app.ActivityCompat
- import androidx.core.content.ContextCompat
-@@ -27,7 +29,7 @@ class ExpoSpeechTranscriberModule : Module() {
-
-   override fun definition() = ModuleDefinition {
-     Name("ExpoSpeechTranscriber")
--    Events("onTranscriptionProgress", "onTranscriptionError")
-+    Events("onTranscriptionProgress", "onTranscriptionError", "onAudioBuffer")
-
-     AsyncFunction("recordRealTimeAndTranscribe") { promise: Promise ->
-       mainHandler.post {
-@@ -82,7 +84,14 @@ class ExpoSpeechTranscriberModule : Module() {
-     speechRecognizer?.destroy()
-     speechRecognizer = null
-
--    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-+    speechRecognizer = if (
-+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-+      SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-+    ) {
-+      SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-+    } else {
-+      SpeechRecognizer.createSpeechRecognizer(context)
-+    }
-
-     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-       putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-@@ -124,7 +133,22 @@ class ExpoSpeechTranscriberModule : Module() {
-       }
-
-       override fun onRmsChanged(rmsdB: Float) {}
--      override fun onBufferReceived(buffer: ByteArray?) {}
-+      override fun onBufferReceived(buffer: ByteArray?) {
-+        if (buffer == null || buffer.size < 2) return
-+
-+        // Android recognizers expose big-endian PCM. Muse expects little-endian PCM16.
-+        val littleEndian = ByteArray(buffer.size - (buffer.size % 2))
-+        var index = 0
-+        while (index < littleEndian.size) {
-+          littleEndian[index] = buffer[index + 1]
-+          littleEndian[index + 1] = buffer[index]
-+          index += 2
-+        }
-+        sendEvent("onAudioBuffer", mapOf(
-+          "data" to Base64.encodeToString(littleEndian, Base64.NO_WRAP),
-+          "sampleRate" to 16000
-+        ))
-+      }
-
-       override fun onEndOfSpeech() {
-         Log.d("ExpoSpeechTranscriber", "Speech ended")
 diff --git a/node_modules/expo-speech-transcriber/ios/ExpoSpeechTranscriberModule.swift b/node_modules/expo-speech-transcriber/ios/ExpoSpeechTranscriberModule.swift
-index e333bc5..e39674a 100644
+index e333bc5..e8eab3b 100644
 --- a/node_modules/expo-speech-transcriber/ios/ExpoSpeechTranscriberModule.swift
 +++ b/node_modules/expo-speech-transcriber/ios/ExpoSpeechTranscriberModule.swift
-@@ -9,11 +9,18 @@ public class ExpoSpeechTranscriberModule: Module {
-     private var recognitionTask: SFSpeechRecognitionTask?
-     private var bufferRecognitionTask: SFSpeechRecognitionTask?
-     private var startedListening = false
-+    private let streamAudioQueue = DispatchQueue(label: "expo.speech-transcriber.stream-audio")
-+    private var pendingStreamAudio = Data()
-+    private var streamAudioConverter: AVAudioConverter?
-+    private var liveSpeechRecognizer: SFSpeechRecognizer?
-+    private var recognitionGeneration = 0
-+    private let streamSampleRate = 16_000.0
-+    private let streamChunkBytes = 3_200
-
-     public func definition() -> ModuleDefinition {
-         Name("ExpoSpeechTranscriber")
-
--        Events("onTranscriptionProgress", "onTranscriptionError")
-+        Events("onTranscriptionProgress", "onTranscriptionError", "onAudioBuffer")
-
-         // expose realtime recording/transcription
-         AsyncFunction("recordRealTimeAndTranscribe") { () async -> Void in
-@@ -149,20 +156,73 @@ public class ExpoSpeechTranscriberModule: Module {
-
+@@ -149,18 +149,73 @@ public class ExpoSpeechTranscriberModule: Module {
+     
      // startRecordingAndTranscription using SFSpeechRecognizer
      private func recordRealTimeAndTranscribe() async -> Void  {
 -        let speechRecognizer = SFSpeechRecognizer()!
--        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
--        guard let recognitionRequest = recognitionRequest else {
 +        // Tear down any previous session first — overlapping installTap aborts the process.
 +        stopListening()
 +
@@ -136,20 +47,24 @@ index e333bc5..e39674a 100644
 +            return
 +        }
 +
-+        liveSpeechRecognizer = speechRecognizer
-+        recognitionRequest = makeLiveRecognitionRequest(using: speechRecognizer)
-+        guard recognitionRequest != nil else {
+         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+         guard let recognitionRequest = recognitionRequest else {
              self.sendEvent("onTranscriptionError", ["message": "Unable to create recognition request"])
              return
          }
--        recognitionRequest.shouldReportPartialResults = true
-
+         recognitionRequest.shouldReportPartialResults = true
++        recognitionRequest.taskHint = .dictation
++        if #available(iOS 13, *) {
++            // Simulator often lacks on-device assets; force cloud path when possible.
++            recognitionRequest.requiresOnDeviceRecognition = false
++        }
+ 
 +        // Recreate the engine so inputNode format is valid after session activation.
 +        audioEngine = AVAudioEngine()
          let inputNode = audioEngine.inputNode
          let recordingFormat = inputNode.outputFormat(forBus: 0)
 -        inputNode.removeTap(onBus: 0)
-
+ 
 +        // installTap throws NSException (uncaught → SIGABRT) when sampleRate is 0.
 +        guard recordingFormat.sampleRate > 0, recordingFormat.channelCount > 0 else {
 +            self.sendEvent(
@@ -159,17 +74,11 @@ index e333bc5..e39674a 100644
 +            return
 +        }
 +
-+        streamAudioConverter = makeStreamAudioConverter(from: recordingFormat)
-+
 +        inputNode.removeTap(onBus: 0)
          inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, when in
--            recognitionRequest.append(buffer)
-+            self.recognitionRequest?.append(buffer)
-+            self.emitStreamAudio(from: buffer)
+             recognitionRequest.append(buffer)
          }
-
-         audioEngine.prepare()
-@@ -170,11 +230,38 @@ public class ExpoSpeechTranscriberModule: Module {
+@@ -170,6 +225,7 @@ public class ExpoSpeechTranscriberModule: Module {
              try audioEngine.start()
              startedListening = true
          } catch {
@@ -177,55 +86,11 @@ index e333bc5..e39674a 100644
              self.sendEvent("onTranscriptionError", ["message": error.localizedDescription])
              return
          }
-
-+        startLiveRecognitionTask(using: speechRecognizer)
-+    }
-+
-+    private func makeLiveRecognitionRequest(using speechRecognizer: SFSpeechRecognizer) -> SFSpeechAudioBufferRecognitionRequest {
-+        let request = SFSpeechAudioBufferRecognitionRequest()
-+        request.shouldReportPartialResults = true
-+        request.taskHint = .dictation
-+        if #available(iOS 13, *) {
-+            #if targetEnvironment(simulator)
-+            request.requiresOnDeviceRecognition = false
-+            #else
-+            request.requiresOnDeviceRecognition = speechRecognizer.supportsOnDeviceRecognition
-+            #endif
-+        }
-+        return request
-+    }
-+
-+    private func startLiveRecognitionTask(using speechRecognizer: SFSpeechRecognizer) {
-+        guard let recognitionRequest else {
-+            return
-+        }
-+        recognitionGeneration += 1
-+        let generation = recognitionGeneration
-         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { result, error in
-+            guard generation == self.recognitionGeneration else {
-+                return
-+            }
-             if let error = error {
-                 self.stopListening()
-                 self.sendEvent("onTranscriptionError", ["message": error.localizedDescription])
-@@ -191,19 +278,30 @@ public class ExpoSpeechTranscriberModule: Module {
-                 ["text": recognizedText, "isFinal": result.isFinal]
-             )
-
--            if result.isFinal {
--                self.stopListening()
-+            if result.isFinal && self.startedListening {
-+                self.recognitionTask = nil
-+                self.recognitionRequest = self.makeLiveRecognitionRequest(using: speechRecognizer)
-+                self.startLiveRecognitionTask(using: speechRecognizer)
-             }
-         }
+@@ -198,12 +254,15 @@ public class ExpoSpeechTranscriberModule: Module {
      }
-
+ 
      private func stopListening() {
 -        audioEngine.stop()
-+        startedListening = false
-+        recognitionGeneration += 1
 +        if audioEngine.isRunning {
 +            audioEngine.stop()
 +        }
@@ -235,79 +100,7 @@ index e333bc5..e39674a 100644
          recognitionRequest = nil
          recognitionTask?.cancel()
          recognitionTask = nil
-+        liveSpeechRecognizer = nil
-+        streamAudioConverter = nil
-+        streamAudioQueue.async {
-+            self.pendingStreamAudio.removeAll(keepingCapacity: true)
-+        }
++        startedListening = false
      }
-
-
-@@ -211,6 +309,62 @@ public class ExpoSpeechTranscriberModule: Module {
-         return audioEngine.isRunning
-     }
-
-+    private func makeStreamAudioConverter(from sourceFormat: AVAudioFormat) -> AVAudioConverter? {
-+        guard let targetFormat = AVAudioFormat(
-+            commonFormat: .pcmFormatInt16,
-+            sampleRate: streamSampleRate,
-+            channels: 1,
-+            interleaved: false
-+        ) else {
-+            return nil
-+        }
-+        return AVAudioConverter(from: sourceFormat, to: targetFormat)
-+    }
-+
-+    private func emitStreamAudio(from sourceBuffer: AVAudioPCMBuffer) {
-+        guard let converter = streamAudioConverter else {
-+            return
-+        }
-+        let targetFormat = converter.outputFormat
-+
-+        let ratio = targetFormat.sampleRate / sourceBuffer.format.sampleRate
-+        let capacity = AVAudioFrameCount(ceil(Double(sourceBuffer.frameLength) * ratio)) + 8
-+        guard let converted = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else {
-+            return
-+        }
-+
-+        var suppliedInput = false
-+        var conversionError: NSError?
-+        let status = converter.convert(to: converted, error: &conversionError) { _, inputStatus in
-+            if suppliedInput {
-+                inputStatus.pointee = .noDataNow
-+                return nil
-+            }
-+            suppliedInput = true
-+            inputStatus.pointee = .haveData
-+            return sourceBuffer
-+        }
-+        guard status != .error, converted.frameLength > 0, let channel = converted.int16ChannelData?[0] else {
-+            return
-+        }
-+
-+        let data = Data(bytes: channel, count: Int(converted.frameLength) * MemoryLayout<Int16>.size)
-+        streamAudioQueue.async {
-+            self.pendingStreamAudio.append(data)
-+            while self.pendingStreamAudio.count >= self.streamChunkBytes {
-+                let chunk = Data(self.pendingStreamAudio.prefix(self.streamChunkBytes))
-+                self.pendingStreamAudio.removeFirst(self.streamChunkBytes)
-+                let encoded = chunk.base64EncodedString()
-+                DispatchQueue.main.async {
-+                    self.sendEvent(
-+                        "onAudioBuffer",
-+                        ["data": encoded, "sampleRate": Int(self.streamSampleRate)]
-+                    )
-+                }
-+            }
-+        }
-+    }
-+
-
-
-     // Implemetation for URL transcription with SFSpeechRecognizer
-@@ -367,4 +521,3 @@ public class ExpoSpeechTranscriberModule: Module {
-         }
-     }
- }
--
+     
+     

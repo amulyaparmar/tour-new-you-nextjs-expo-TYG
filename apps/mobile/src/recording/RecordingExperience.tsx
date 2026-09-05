@@ -73,7 +73,6 @@ import { useRecording } from "./RecordingProvider";
 import { useRecordingSheetGesture } from "./useRecordingSheetGesture";
 import {
   useMuseLiveTranscription,
-  type NativeSpeechAudioSource,
   type RealtimeTranscriptLine,
 } from "./useMuseLiveTranscription";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
@@ -133,7 +132,7 @@ type SpeechTranscriberModule = {
   isRecording: () => boolean;
   ExpoSpeechTranscriberModule?: {
     addListener: (
-      event: "onTranscriptionProgress" | "onTranscriptionError" | "onAudioBuffer",
+      event: "onTranscriptionProgress" | "onTranscriptionError",
       listener: (payload: Record<string, unknown>) => void
     ) => { remove: () => void };
     isRecording: () => boolean;
@@ -614,8 +613,11 @@ export function RecordingExperience({
     enabled: transcriptionRequested && hasStarted && !sessionPaused,
     sessionId: resolvedSessionId,
     elapsed: sessionElapsed,
-    audioSource: (SpeechTranscriber?.ExpoSpeechTranscriberModule ?? null) as unknown as NativeSpeechAudioSource | null,
   });
+  const nativeFallbackRequested = transcriptionRequested
+    && hasStarted
+    && !sessionPaused
+    && muse.shouldUseNativeFallback;
   const chatFocused = activeTab === "ai";
   const chatComposerMode = chatFocused && hasStarted;
   const keyboardOpen = keyboardHeight > 0;
@@ -744,12 +746,10 @@ export function RecordingExperience({
   }, []);
 
   useEffect(() => {
-    if (!transcriptionRequested) return;
-
-    if (sessionPaused) {
+    if (!nativeFallbackRequested) {
       stopSpeechEngineSafely();
       speechStartedRef.current = false;
-      setTranscriptionStatus("Transcription paused. Resume to continue.");
+      if (sessionPaused) setTranscriptionStatus("Transcription paused. Resume to continue.");
       return;
     }
 
@@ -774,20 +774,24 @@ export function RecordingExperience({
     return () => {
       cancelled = true;
     };
-  }, [transcriptionRequested, sessionPaused, liveSpeech.isRecording]);
+  }, [nativeFallbackRequested, sessionPaused, liveSpeech.isRecording]);
 
   useEffect(() => {
+    if (!nativeFallbackRequested) return;
     const text = liveSpeech.text.trim();
     if (!text || liveSpeech.isFinal || localUtteranceStartedAtRef.current !== null) return;
     localUtteranceStartedAtRef.current = sessionElapsed;
-  }, [liveSpeech.isFinal, liveSpeech.text, sessionElapsed]);
+  }, [liveSpeech.isFinal, liveSpeech.text, nativeFallbackRequested, sessionElapsed]);
 
   // Apple may not emit a final utterance before its engine is stopped. Promote
   // the visible interim text to durable history exactly once when pausing.
+  const wasNativeFallbackRequestedRef = useRef(nativeFallbackRequested);
   useEffect(() => {
     const justPaused = sessionPaused && !wasSessionPausedRef.current;
+    const fallbackWasActive = wasNativeFallbackRequestedRef.current;
     wasSessionPausedRef.current = sessionPaused;
-    if (!justPaused) return;
+    wasNativeFallbackRequestedRef.current = nativeFallbackRequested;
+    if (!justPaused || !fallbackWasActive) return;
 
     const text = liveSpeech.text.trim();
     if (!text || text === lastFinalTextRef.current) return;
@@ -802,12 +806,12 @@ export function RecordingExperience({
       },
     ]);
     localUtteranceStartedAtRef.current = null;
-  }, [liveSpeech.text, sessionElapsed, sessionPaused]);
+  }, [liveSpeech.text, nativeFallbackRequested, sessionElapsed, sessionPaused]);
 
-  // Some Android recognizers stop after each final utterance. Restart only after
-  // the engine reports stopped; iOS keeps its shared audio tap running for Muse.
+  // Some native recognizers stop after each final utterance. Restart only while
+  // local fallback owns transcription and the engine reports stopped.
   useEffect(() => {
-    if (!transcriptionRequested || !SpeechTranscriber || sessionPaused) return;
+    if (!nativeFallbackRequested || !SpeechTranscriber || sessionPaused) return;
     if (!liveSpeech.isFinal) return;
     if (liveSpeech.isRecording) return;
     if (isFatalSpeechInitError(liveSpeech.error) || isFatalSpeechInitError(transcriptionStatus)) return;
@@ -817,7 +821,7 @@ export function RecordingExperience({
 
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (cancelled || sessionPaused || !transcriptionRequested) return;
+      if (cancelled || sessionPaused || !nativeFallbackRequested) return;
       if (SpeechTranscriber.isRecording()) return;
       void startSpeechEngine().then((engineError) => {
         if (cancelled) return;
@@ -836,7 +840,7 @@ export function RecordingExperience({
       clearTimeout(timer);
     };
   }, [
-    transcriptionRequested,
+    nativeFallbackRequested,
     liveSpeech.isFinal,
     liveSpeech.isRecording,
     liveSpeech.error,
@@ -845,25 +849,26 @@ export function RecordingExperience({
   ]);
 
   useEffect(() => {
+    if (!nativeFallbackRequested) return;
     if (!liveSpeech.error) return;
     if (isRecoverableSpeechSilence(liveSpeech.error)) return;
     setTranscriptionStatus(liveSpeech.error);
     if (isFatalSpeechInitError(liveSpeech.error)) {
       // Don't keep hammering Apple's recognizer — it won't recover without device setup.
       speechStartedRef.current = false;
-      setTranscriptionRequested(false);
     }
-  }, [liveSpeech.error]);
+  }, [liveSpeech.error, nativeFallbackRequested]);
 
   useEffect(() => {
-    if (!transcriptionRequested) return;
+    if (!nativeFallbackRequested) return;
     if (liveSpeech.isRecording) {
       speechStartedRef.current = true;
       setTranscriptionStatus(null);
     }
-  }, [transcriptionRequested, liveSpeech.isRecording]);
+  }, [nativeFallbackRequested, liveSpeech.isRecording]);
 
   useEffect(() => {
+    if (!nativeFallbackRequested) return;
     const text = liveSpeech.text.trim();
     if (!text || !liveSpeech.isFinal || text === lastFinalTextRef.current) return;
 
@@ -878,7 +883,7 @@ export function RecordingExperience({
       },
     ]);
     localUtteranceStartedAtRef.current = null;
-  }, [liveSpeech.isFinal, liveSpeech.text, sessionElapsed]);
+  }, [liveSpeech.isFinal, liveSpeech.text, nativeFallbackRequested, sessionElapsed]);
 
   const completedTranscriptLines = useMemo(
     () => mergeTranscriptLines(finalTranscriptLines, muse.turns),
@@ -887,7 +892,8 @@ export function RecordingExperience({
   const currentTranscriptLine = useMemo<LiveTranscriptLine | null>(() => {
     if (muse.partial?.text.trim()) return muse.partial;
     const currentText = liveSpeech.text.trim();
-    const shouldShowLocalInterim = currentText
+    const shouldShowLocalInterim = nativeFallbackRequested
+      && currentText
       && (!liveSpeech.isFinal || currentText !== lastFinalTextRef.current);
     if (!shouldShowLocalInterim) return null;
     return {
@@ -897,7 +903,7 @@ export function RecordingExperience({
       text: currentText,
       isInterim: true,
     };
-  }, [liveSpeech.isFinal, liveSpeech.text, muse.partial, sessionElapsed]);
+  }, [liveSpeech.isFinal, liveSpeech.text, muse.partial, nativeFallbackRequested, sessionElapsed]);
   const liveTranscript = useMemo<LiveTranscriptLine[]>(
     () => currentTranscriptLine
       ? [...completedTranscriptLines, currentTranscriptLine]
@@ -1231,8 +1237,7 @@ export function RecordingExperience({
           setStartError(error instanceof Error ? error.message : "Recording started, but the session could not be updated.");
         });
 
-      // Start file recording first. Speech starts afterward via effect (single-flight).
-      // Starting both AVAudioEngine + AVAudioRecorder at once can native-crash.
+      // Start file recording first. Live capture starts afterward via its own lifecycle.
       const started = await rec.start();
       if (!started) {
         setStartError("Could not start recording.");
@@ -1242,7 +1247,7 @@ export function RecordingExperience({
       setHasStarted(true);
       void activationPromise;
       void ensureLiveSessionId();
-      // Let the recorder settle before sharing the mic with SFSpeechRecognizer.
+      // Let the recorder settle before opening the live PCM stream.
       await new Promise((resolve) => setTimeout(resolve, 400));
       if (cancelledRef.current) return;
       setTranscriptionRequested(true);

@@ -1,5 +1,6 @@
 import NetInfo from "@react-native-community/netinfo";
-import { useEffect, useRef, useState } from "react";
+import { useAudioStream, type AudioStreamBuffer } from "expo-audio";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type RealtimeTranscriptionStatus = "idle" | "connecting" | "streaming" | "fallback";
 
@@ -9,18 +10,6 @@ export type RealtimeTranscriptLine = {
   text: string;
   time: number;
   isInterim?: boolean;
-};
-
-type NativeAudioBufferPayload = {
-  data?: unknown;
-  sampleRate?: unknown;
-};
-
-export type NativeSpeechAudioSource = {
-  addListener: (
-    event: "onAudioBuffer",
-    listener: (payload: NativeAudioBufferPayload) => void
-  ) => { remove: () => void };
 };
 
 type MuseServerEvent = {
@@ -52,15 +41,14 @@ export function useMuseLiveTranscription({
   enabled,
   sessionId,
   elapsed,
-  audioSource,
 }: {
   enabled: boolean;
   sessionId: string | null;
   elapsed: number;
-  audioSource: NativeSpeechAudioSource | null;
 }) {
   const [status, setStatus] = useState<RealtimeTranscriptionStatus>("idle");
   const [internetAvailable, setInternetAvailable] = useState(true);
+  const [captureFailed, setCaptureFailed] = useState(false);
   const [turns, setTurns] = useState<RealtimeTranscriptLine[]>([]);
   const [partial, setPartial] = useState<RealtimeTranscriptLine | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -78,15 +66,59 @@ export function useMuseLiveTranscription({
 
   elapsedRef.current = elapsed;
 
+  const handleAudioBuffer = useCallback((buffer: AudioStreamBuffer) => {
+    if (buffer.sampleRate !== 16_000 || buffer.channels !== 1) {
+      setCaptureFailed(true);
+      setStatus("fallback");
+      return;
+    }
+
+    const audio = buffer.data.slice(0);
+    if (!audio.byteLength) return;
+
+    const socket = socketRef.current;
+    const durationMs = audio.byteLength / 32;
+    const recordedAtMs = Math.max(0, elapsedRef.current * 1_000 - durationMs);
+
+    if (!upstreamReadyRef.current || socket?.readyState !== WebSocket.OPEN) {
+      bufferedAudioRef.current.push({ audio, recordedAtMs });
+      bufferedAudioBytesRef.current += audio.byteLength;
+      while (
+        bufferedAudioBytesRef.current > MAX_RECONNECT_AUDIO_BYTES
+        && bufferedAudioRef.current.length > 1
+      ) {
+        const removed = bufferedAudioRef.current.shift();
+        bufferedAudioBytesRef.current -= removed?.audio.byteLength ?? 0;
+      }
+      return;
+    }
+
+    if (!hasSentAudioRef.current) {
+      hasSentAudioRef.current = true;
+      connectionOffsetMsRef.current = recordedAtMs;
+    }
+    socket.send(audio);
+    lastAudioSentAtRef.current = Date.now();
+  }, []);
+
+  const { stream: audioStream } = useAudioStream({
+    sampleRate: 16_000,
+    channels: 1,
+    encoding: "int16",
+    onBuffer: handleAudioBuffer,
+  });
+
   useEffect(() => {
     setTurns([]);
     setPartial(null);
+    setCaptureFailed(false);
     bufferedAudioRef.current = [];
     bufferedAudioBytesRef.current = 0;
   }, [sessionId]);
 
   useEffect(() => {
     if (enabled) return;
+    setCaptureFailed(false);
     bufferedAudioRef.current = [];
     bufferedAudioBytesRef.current = 0;
   }, [enabled]);
@@ -96,7 +128,7 @@ export function useMuseLiveTranscription({
   }), []);
 
   useEffect(() => {
-    if (!enabled || !sessionId || !internetAvailable) {
+    if (!enabled || !sessionId || !internetAvailable || captureFailed) {
       setStatus(enabled ? "fallback" : "idle");
       setPartial(null);
       const socket = socketRef.current;
@@ -111,7 +143,7 @@ export function useMuseLiveTranscription({
     let reconnectAttempt = 0;
 
     const connect = async () => {
-      setStatus(reconnectAttempt === 0 ? "connecting" : "fallback");
+      setStatus("connecting");
       try {
         if (!MUSE_API_KEY) {
           setStatus("fallback");
@@ -156,6 +188,7 @@ export function useMuseLiveTranscription({
           if (!message.type && message.sessionId) {
             upstreamReadyRef.current = true;
             reconnectAttempt = 0;
+            setStatus("connecting");
             const buffered = bufferedAudioRef.current;
             bufferedAudioRef.current = [];
             bufferedAudioBytesRef.current = 0;
@@ -284,39 +317,35 @@ export function useMuseLiveTranscription({
         socket?.close();
       }
     };
-  }, [enabled, internetAvailable, sessionId]);
+  }, [captureFailed, enabled, internetAvailable, sessionId]);
+
+  const shouldCapture = enabled
+    && internetAvailable
+    && !captureFailed
+    && (status === "connecting" || status === "streaming");
 
   useEffect(() => {
-    if (!audioSource || !enabled) return;
-    const subscription = audioSource.addListener("onAudioBuffer", (payload) => {
-      const socket = socketRef.current;
-      if (typeof payload.data !== "string") return;
-      const audio = decodeBase64(payload.data);
-      if (!audio.byteLength) return;
-      const durationMs = audio.byteLength / 32;
-      const recordedAtMs = Math.max(0, elapsedRef.current * 1_000 - durationMs);
+    if (!shouldCapture) {
+      audioStream.stop();
+      return;
+    }
 
-      if (!upstreamReadyRef.current || socket?.readyState !== WebSocket.OPEN) {
-        bufferedAudioRef.current.push({ audio, recordedAtMs });
-        bufferedAudioBytesRef.current += audio.byteLength;
-        while (
-          bufferedAudioBytesRef.current > MAX_RECONNECT_AUDIO_BYTES
-          && bufferedAudioRef.current.length > 1
-        ) {
-          const removed = bufferedAudioRef.current.shift();
-          bufferedAudioBytesRef.current -= removed?.audio.byteLength ?? 0;
-        }
-        return;
-      }
-      if (!hasSentAudioRef.current) {
-        hasSentAudioRef.current = true;
-        connectionOffsetMsRef.current = recordedAtMs;
-      }
-      socket.send(audio);
-      lastAudioSentAtRef.current = Date.now();
-    });
-    return () => subscription.remove();
-  }, [audioSource, enabled]);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void audioStream.start().catch(() => {
+        if (cancelled) return;
+        audioStream.stop();
+        setCaptureFailed(true);
+        setStatus("fallback");
+      });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      audioStream.stop();
+    };
+  }, [audioStream, shouldCapture]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -336,19 +365,12 @@ export function useMuseLiveTranscription({
     return () => clearInterval(interval);
   }, [enabled]);
 
-  return { status, internetAvailable, turns, partial };
+  const shouldUseNativeFallback = enabled && status === "fallback";
+
+  return { status, internetAvailable, shouldUseNativeFallback, turns, partial };
 }
 
 function speakerLabel(label: unknown) {
   const normalized = typeof label === "string" ? label.trim().toUpperCase() : "";
   return normalized ? `Speaker ${normalized}` : "Speaker";
-}
-
-function decodeBase64(value: string) {
-  const binary = globalThis.atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes.buffer;
 }
