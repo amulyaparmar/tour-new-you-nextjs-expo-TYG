@@ -1,31 +1,37 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { AnalysisResult, AnalysisRunSummary, SessionDetail } from "@tour/shared";
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 import Reanimated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
+import { CustomText } from "@/components/custom-text";
 import { LoadingDots } from "@/components/loading-dots";
+import { PAGE_SHEET_HEADER_INSET } from "@/components/page-sheet-modal";
+import { MotionPressable } from "@/components/ui/motion";
+import { TourLogo } from "@/components/TourLogo";
+import {
+  ACCENT,
+  BACKGROUND,
+  CARD,
+  HINT,
+  LARGE_CORNER,
+  SMALL_CORNER,
+} from "@/theme/tokens";
+import { tourColors as C, scoreColor, scoreLabel } from "@/theme/tour-brand";
+
 import { fetchAnalysis, fetchAnalysisRuns, fetchSession } from "../api";
-import { TourLogo } from "../components/TourLogo";
-import { tourColors as C, scoreColor, scoreLabel } from "../theme/tour-brand";
 import { prepareSessionReport, type CachedSessionReport } from "./report-cache";
 
 export function SessionReportScreen({
   sessionId,
   onBack,
   onNotify,
+  presentation = "page",
 }: {
   sessionId: string;
   onBack: () => void;
   onNotify?: (message: string, kind?: "success" | "error" | "info") => void;
+  presentation?: "page" | "sheet";
 }) {
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -117,23 +123,40 @@ export function SessionReportScreen({
     }
   }
 
+  const sheet = presentation === "sheet";
+  const busy = preparing || sharing;
+
   if (loading) {
     return (
-      <View style={styles.loading}>
-        <LoadingDots size="large" color={C.brand} />
-        <Text style={styles.loadingTitle}>Building your report workspace</Text>
-        <Text style={styles.loadingCopy}>Loading the latest analysis and available versions…</Text>
+      <View style={[styles.centered, sheet && { paddingTop: PAGE_SHEET_HEADER_INSET }]}>
+        <LoadingDots size="large" color={ACCENT} />
+        <CustomText textStyle="title" style={styles.centeredTitle}>
+          Preparing report
+        </CustomText>
+        <CustomText textStyle="caption" style={styles.centeredCopy}>
+          Loading the latest analysis and available versions.
+        </CustomText>
       </View>
     );
   }
 
   if (!session || !analysis) {
     return (
-      <View style={styles.loading}>
-        <Ionicons name="document-text-outline" size={46} color={C.textMuted} />
-        <Text style={styles.loadingTitle}>Report unavailable</Text>
-        <Text style={styles.loadingCopy}>{error ?? "This session does not have a completed analysis yet."}</Text>
-        <Pressable onPress={onBack} style={styles.compactButton}><Text style={styles.compactButtonText}>Go back</Text></Pressable>
+      <View style={[styles.centered, sheet && { paddingTop: PAGE_SHEET_HEADER_INSET }]}>
+        <View style={styles.emptyIcon}>
+          <Ionicons name="document-text-outline" size={22} color={ACCENT} />
+        </View>
+        <CustomText textStyle="title">Report unavailable</CustomText>
+        <CustomText textStyle="caption" style={styles.centeredCopy}>
+          {error ?? "This session does not have a completed analysis yet."}
+        </CustomText>
+        {sheet ? null : (
+          <MotionPressable onPress={onBack} style={styles.primaryBtn}>
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              Go back
+            </CustomText>
+          </MotionPressable>
+        )}
       </View>
     );
   }
@@ -141,55 +164,105 @@ export function SessionReportScreen({
   return (
     <View style={styles.root}>
       <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior={sheet ? "never" : "automatic"}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scroll,
+          sheet && { paddingTop: PAGE_SHEET_HEADER_INSET },
+        ]}
       >
-        <View style={styles.nav}>
-          <Pressable accessibilityLabel="Back to session" onPress={onBack} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
+        {sheet ? (
+          <Pressable
+            accessibilityLabel="Refresh report"
+            disabled={preparing}
+            onPress={() => void prepare(true)}
+            style={styles.refreshLink}
+          >
+            {preparing ? (
+              <LoadingDots size="small" color={ACCENT} />
+            ) : (
+              <>
+                <Ionicons name="refresh" size={16} color={ACCENT} />
+                <CustomText textStyle="caption" style={styles.refreshLinkText}>
+                  Refresh
+                </CustomText>
+              </>
+            )}
           </Pressable>
-          <View style={styles.navBrand}><TourLogo width={62} /></View>
-          <Pressable accessibilityLabel="Refresh report" disabled={preparing} onPress={() => void prepare(true)} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed, preparing && styles.disabled]}>
-            {preparing ? <LoadingDots size="small" color={C.brand} /> : <Ionicons name="refresh" size={19} color={C.textSec} />}
-          </Pressable>
-        </View>
+        ) : (
+          <View style={styles.nav}>
+            <Pressable
+              accessibilityLabel="Back to session"
+              onPress={onBack}
+              style={styles.navIcon}
+            >
+              <Ionicons name="chevron-back" size={22} color={C.text} />
+            </Pressable>
+            <View style={styles.navBrand}>
+              <TourLogo width={62} />
+            </View>
+            <Pressable
+              accessibilityLabel="Refresh report"
+              disabled={preparing}
+              onPress={() => void prepare(true)}
+              style={styles.navIcon}
+            >
+              {preparing ? (
+                <LoadingDots size="small" color={ACCENT} />
+              ) : (
+                <Ionicons name="refresh" size={19} color={C.textSec} />
+              )}
+            </Pressable>
+          </View>
+        )}
 
-        <Reanimated.View entering={FadeInDown.duration(280).springify()}>
-          <Text style={styles.eyebrow}>SESSION REPORT</Text>
-          <Text style={styles.pageTitle}>A polished report, ready wherever work happens.</Text>
-          <Text style={styles.pageCopy}>Preview the report details here, then open the PDF to review, share, AirDrop, print, or save it to your device.</Text>
+        <Reanimated.View entering={FadeInDown.duration(280).springify()} style={styles.intro}>
+          <CustomText textStyle="caption" style={styles.introKicker}>
+            {session.title}
+          </CustomText>
+          <CustomText textStyle="body" style={styles.introCopy}>
+            Preview this evaluation, then open the PDF to share, AirDrop, or save it.
+          </CustomText>
         </Reanimated.View>
 
         {runs.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.versionRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.versionRow}
+          >
             {[...runs]
               .sort((left, right) => right.version - left.version)
-              .map((run) => (
-                <Pressable
-                  key={run.id}
-                  onPress={() => {
-                    setSelectedVersion(run.version);
-                    void HapticsCompat.selection();
-                  }}
-                  style={({ pressed }) => [
-                    styles.versionPill,
-                    selectedVersion === run.version && styles.versionPillActive,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={[styles.versionText, selectedVersion === run.version && styles.versionTextActive]}>
-                    Version {run.version}{run.isCurrent ? " · Current" : ""}
-                  </Text>
-                </Pressable>
-              ))}
+              .map((run) => {
+                const active = selectedVersion === run.version;
+                return (
+                  <Pressable
+                    key={run.id}
+                    onPress={() => {
+                      setSelectedVersion(run.version);
+                      void HapticsCompat.selection();
+                    }}
+                    style={[styles.versionPill, active && styles.versionPillActive]}
+                  >
+                    <CustomText
+                      textStyle="micro"
+                      style={[styles.versionText, active && styles.versionTextActive]}
+                    >
+                      Version {run.version}
+                      {run.isCurrent ? " · Current" : ""}
+                    </CustomText>
+                  </Pressable>
+                );
+              })}
           </ScrollView>
         ) : null}
 
         {error ? (
           <Reanimated.View entering={FadeIn.duration(180)} style={styles.errorBanner}>
             <Ionicons name="alert-circle" size={18} color={C.red} />
-            <Text style={styles.errorText}>{error}</Text>
+            <CustomText textStyle="caption" style={styles.errorText}>
+              {error}
+            </CustomText>
           </Reanimated.View>
         ) : null}
 
@@ -200,23 +273,33 @@ export function SessionReportScreen({
           score={score}
         />
 
-        <Pressable
-          disabled={preparing || sharing}
+        <MotionPressable
+          disabled={busy}
+          haptic="medium"
           onPress={() => void openNativeReport()}
-          style={({ pressed }) => [styles.primaryAction, pressed && styles.primaryActionPressed, (preparing || sharing) && styles.disabled]}
+          style={styles.primaryBtn}
         >
-          {preparing || sharing ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="eye-outline" size={20} color="#fff" />}
-          <Text style={styles.primaryActionText}>
+          {busy ? (
+            <LoadingDots size="small" color={CARD} />
+          ) : (
+            <Ionicons name="eye-outline" size={21} color={CARD} />
+          )}
+          <CustomText textStyle="title" style={styles.primaryBtnText}>
             {preparing ? "Preparing PDF…" : sharing ? "Opening…" : "Preview & share PDF"}
-          </Text>
-        </Pressable>
-        <View style={styles.actionHint}>
-          <Ionicons name={report ? "checkmark-circle" : "cloud-download-outline"} size={17} color={report ? C.green : C.textMuted} />
-          <Text style={styles.actionHintText}>
+          </CustomText>
+        </MotionPressable>
+
+        <View style={styles.hintRow}>
+          <Ionicons
+            name={report ? "checkmark-circle" : "cloud-download-outline"}
+            size={16}
+            color={report ? C.green : C.textMuted}
+          />
+          <CustomText textStyle="caption" style={styles.hintText}>
             {report
               ? `Cached on this device · ${new Date(report.createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
               : "The PDF will be cached securely on this device."}
-          </Text>
+          </CustomText>
         </View>
       </ScrollView>
     </View>
@@ -243,58 +326,84 @@ function ReportPreview({
 }) {
   const showingCurrentAnalysis = !selectedRun || selectedRun.isCurrent;
   const focus = analysis.sectionScores.length
-    ? analysis.sectionScores.reduce((lowest, section) => section.score < lowest.score ? section : lowest)
+    ? analysis.sectionScores.reduce((lowest, section) =>
+        section.score < lowest.score ? section : lowest,
+      )
     : null;
+  const tone = score == null ? C.textMuted : scoreColor(score);
+
   return (
-    <View style={styles.previewShell}>
-      <LinearGradient colors={["#ffffff", "#f7fbff"]} style={styles.paper}>
-        <View style={styles.paperHeader}>
-          <TourLogo width={72} />
-          <View style={styles.confidentialPill}><Text style={styles.confidentialText}>PRIVATE REPORT</Text></View>
+    <View style={styles.preview}>
+      <View style={styles.previewHeader}>
+        <TourLogo width={72} />
+        <View style={styles.privatePill}>
+          <CustomText textStyle="micro" style={styles.privatePillText}>
+            Private
+          </CustomText>
         </View>
-        <View style={styles.paperRule} />
-        <Text style={styles.paperKicker}>TOUR EVALUATION</Text>
-        <Text style={styles.paperTitle}>{session.title}</Text>
-        <Text style={styles.paperMeta}>
-          {[session.prospectName, session.location, session.scheduledAt ? new Date(session.scheduledAt).toLocaleDateString() : null]
-            .filter(Boolean)
-            .join(" · ")}
-        </Text>
-        <View style={styles.scorePanel}>
-          <View style={[styles.scoreOrb, { borderColor: score == null ? C.textMuted : scoreColor(score) }]}>
-            <Text style={[styles.scoreValue, { color: score == null ? C.textMuted : scoreColor(score) }]}>{score == null ? "—" : score}</Text>
-            <Text style={styles.scoreSuffix}>/ 100</Text>
-          </View>
-          <View style={styles.scoreCopy}>
-            <Text style={styles.scoreLabel}>{score == null ? "Evaluation" : scoreLabel(score)}</Text>
-            <Text style={styles.scoreSummary} numberOfLines={4}>
-              {showingCurrentAnalysis
-                ? analysis.summary
-                : `Historical analysis version ${selectedRun.version}. Open the PDF for the complete versioned evaluation.`}
-            </Text>
-          </View>
+      </View>
+      <CustomText textStyle="hero" style={styles.previewTitle}>
+        {session.title}
+      </CustomText>
+      <CustomText textStyle="caption" style={styles.previewMeta}>
+        {[
+          session.prospectName,
+          session.location,
+          session.scheduledAt
+            ? new Date(session.scheduledAt).toLocaleDateString()
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </CustomText>
+
+      <View style={styles.scoreRow}>
+        <View style={[styles.scoreOrb, { backgroundColor: `${tone}18` }]}>
+          <CustomText textStyle="hero" style={[styles.scoreValue, { color: tone }]}>
+            {score == null ? "—" : score}
+          </CustomText>
+          <CustomText textStyle="micro" style={styles.scoreSuffix}>
+            / 100
+          </CustomText>
         </View>
-        <View style={styles.previewColumns}>
-          <PreviewFact
-            icon="ribbon-outline"
-            label="Top strengths"
-            value={showingCurrentAnalysis ? `${analysis.strengths.length} documented` : "See versioned PDF"}
-          />
-          <PreviewFact
-            icon="trending-up-outline"
-            label="Coaching focus"
-            value={showingCurrentAnalysis ? focus?.section ?? "Included in report" : "See versioned PDF"}
-          />
+        <View style={styles.scoreCopy}>
+          <CustomText textStyle="title">
+            {score == null ? "Evaluation" : scoreLabel(score)}
+          </CustomText>
+          <CustomText textStyle="caption" numberOfLines={4} style={styles.scoreSummary}>
+            {showingCurrentAnalysis
+              ? analysis.summary
+              : `Historical analysis version ${selectedRun.version}. Open the PDF for the complete versioned evaluation.`}
+          </CustomText>
         </View>
-        <View style={styles.paperFooter}>
-          <Text style={styles.paperFooterText}>
-            {selectedRun ? `Analysis version ${selectedRun.version}` : "Current analysis"}
-          </Text>
-          <Text style={styles.paperFooterText}>PDF · Ready to share</Text>
-        </View>
-      </LinearGradient>
-      <View style={styles.paperStackOne} />
-      <View style={styles.paperStackTwo} />
+      </View>
+
+      <View style={styles.factRow}>
+        <PreviewFact
+          icon="ribbon-outline"
+          label="Top strengths"
+          value={
+            showingCurrentAnalysis
+              ? `${analysis.strengths.length} documented`
+              : "See versioned PDF"
+          }
+        />
+        <PreviewFact
+          icon="trending-up-outline"
+          label="Coaching focus"
+          value={
+            showingCurrentAnalysis
+              ? focus?.section ?? "Included in report"
+              : "See versioned PDF"
+          }
+        />
+      </View>
+
+      <CustomText textStyle="micro" style={styles.previewFooter}>
+        {selectedRun ? `Analysis version ${selectedRun.version}` : "Current analysis"}
+        {" · "}
+        PDF ready to share
+      </CustomText>
     </View>
   );
 }
@@ -309,65 +418,186 @@ function PreviewFact({
   value: string;
 }) {
   return (
-    <View style={styles.previewFact}>
-      <View style={styles.previewFactIcon}><Ionicons name={icon} size={16} color={C.brand} /></View>
-      <Text style={styles.previewFactLabel}>{label}</Text>
-      <Text style={styles.previewFactValue} numberOfLines={2}>{value}</Text>
+    <View style={styles.fact}>
+      <View style={styles.factIcon}>
+        <Ionicons name={icon} size={16} color={ACCENT} />
+      </View>
+      <CustomText textStyle="micro" style={styles.factLabel}>
+        {label}
+      </CustomText>
+      <CustomText textStyle="label" numberOfLines={2}>
+        {value}
+      </CustomText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
-  scrollContent: { padding: 18, paddingBottom: 52, gap: 16 },
-  loading: { flex: 1, padding: 28, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: C.bg },
-  loadingTitle: { marginTop: 6, color: C.text, fontSize: 19, fontWeight: "900", textAlign: "center" },
-  loadingCopy: { maxWidth: 300, color: C.textSec, fontSize: 13, lineHeight: 19, fontWeight: "600", textAlign: "center" },
-  compactButton: { minHeight: 44, marginTop: 8, paddingHorizontal: 18, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: C.brand },
-  compactButtonText: { color: "#fff", fontSize: 13, fontWeight: "900" },
-  nav: { minHeight: 44, flexDirection: "row", alignItems: "center" },
+  root: { flex: 1, backgroundColor: BACKGROUND },
+  scroll: {
+    gap: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 52,
+  },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingHorizontal: 28,
+    backgroundColor: BACKGROUND,
+  },
+  centeredTitle: { textAlign: "center" },
+  centeredCopy: {
+    maxWidth: 300,
+    color: C.textSec,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  emptyIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 108, 229, 0.08)",
+  },
+  nav: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+  },
   navBrand: { flex: 1, alignItems: "center", justifyContent: "center" },
-  iconButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
-  eyebrow: { color: C.brand, fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.1 },
-  pageTitle: { marginTop: 5, color: C.text, fontSize: 27, lineHeight: 33, fontWeight: "900", letterSpacing: -0.6 },
-  pageCopy: { marginTop: 7, color: C.textSec, fontSize: 13, lineHeight: 20, fontWeight: "600" },
+  navIcon: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: CARD,
+  },
+  refreshLink: {
+    alignSelf: "flex-end",
+    minHeight: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  refreshLinkText: { color: ACCENT },
+  intro: { gap: 6 },
+  introKicker: {
+    color: C.textMuted,
+  },
+  introCopy: {
+    color: C.textSec,
+    lineHeight: 20,
+  },
   versionRow: { gap: 8, paddingRight: 12 },
-  versionPill: { minHeight: 38, paddingHorizontal: 13, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
-  versionPillActive: { borderColor: C.brand, backgroundColor: "#eaf4ff" },
-  versionText: { color: C.textSec, fontSize: 11, fontWeight: "800" },
-  versionTextActive: { color: C.brand },
-  errorBanner: { padding: 13, borderRadius: 15, flexDirection: "row", alignItems: "flex-start", gap: 9, borderWidth: 1, borderColor: "rgba(185,28,28,0.12)", backgroundColor: C.redBg },
-  errorText: { flex: 1, color: C.red, fontSize: 12, lineHeight: 17, fontWeight: "700" },
-  previewShell: { paddingBottom: 14 },
-  paper: { zIndex: 3, minHeight: 430, padding: 22, borderRadius: 22, borderWidth: 1, borderColor: "rgba(16,24,40,0.08)", shadowColor: "#101828", shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.10, shadowRadius: 24, elevation: 6 },
-  paperStackOne: { position: "absolute", zIndex: 2, left: 10, right: 10, bottom: 6, height: 28, borderRadius: 19, borderWidth: 1, borderColor: C.border, backgroundColor: "#f8fafc" },
-  paperStackTwo: { position: "absolute", zIndex: 1, left: 20, right: 20, bottom: 0, height: 24, borderRadius: 18, backgroundColor: "#eef2f7" },
-  paperHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  confidentialPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "#eef2ff" },
-  confidentialText: { color: "#4338ca", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
-  paperRule: { height: 1, marginVertical: 18, backgroundColor: "#e2e8f0" },
-  paperKicker: { color: C.brand, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
-  paperTitle: { marginTop: 7, color: C.text, fontSize: 24, lineHeight: 29, fontWeight: "900", letterSpacing: -0.5 },
-  paperMeta: { marginTop: 5, color: C.textMuted, fontSize: 10, lineHeight: 15, fontWeight: "700" },
-  scorePanel: { marginTop: 22, padding: 15, borderRadius: 18, flexDirection: "row", alignItems: "center", gap: 15, backgroundColor: "#f8fafc" },
-  scoreOrb: { width: 78, height: 78, borderRadius: 39, alignItems: "center", justifyContent: "center", borderWidth: 5, backgroundColor: "#fff" },
-  scoreValue: { fontSize: 22, lineHeight: 25, fontWeight: "900" },
-  scoreSuffix: { color: C.textMuted, fontSize: 8, fontWeight: "800" },
-  scoreCopy: { flex: 1, minWidth: 0 },
-  scoreLabel: { color: C.text, fontSize: 16, fontWeight: "900" },
-  scoreSummary: { marginTop: 4, color: C.textSec, fontSize: 10, lineHeight: 15, fontWeight: "600" },
-  previewColumns: { marginTop: 14, flexDirection: "row", gap: 9 },
-  previewFact: { flex: 1, minHeight: 98, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: "#e2e8f0" },
-  previewFactIcon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#eaf4ff" },
-  previewFactLabel: { marginTop: 9, color: C.textMuted, fontSize: 8, fontWeight: "800", textTransform: "uppercase" },
-  previewFactValue: { marginTop: 2, color: C.text, fontSize: 11, lineHeight: 15, fontWeight: "900" },
-  paperFooter: { marginTop: "auto", paddingTop: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  paperFooterText: { color: C.textMuted, fontSize: 8, fontWeight: "700" },
-  primaryAction: { minHeight: 56, paddingHorizontal: 18, borderRadius: 17, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, backgroundColor: C.brand, shadowColor: C.brand, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 5 },
-  primaryActionPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  primaryActionText: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  actionHint: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  actionHintText: { color: C.textMuted, fontSize: 10, fontWeight: "700" },
-  pressed: { opacity: 0.75 },
-  disabled: { opacity: 0.55 },
+  versionPill: {
+    minHeight: 36,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: CARD,
+  },
+  versionPillActive: { backgroundColor: HINT },
+  versionText: { color: C.textSec },
+  versionTextActive: { color: ACCENT },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    padding: 14,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: C.redBg,
+  },
+  errorText: { flex: 1, color: C.red, lineHeight: 17 },
+  preview: {
+    gap: 12,
+    padding: 18,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  previewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  privatePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(0, 108, 229, 0.08)",
+  },
+  privatePillText: {
+    color: ACCENT,
+    textTransform: "uppercase",
+  },
+  previewTitle: { letterSpacing: -0.4 },
+  previewMeta: { color: C.textMuted },
+  scoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 14,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+  },
+  scoreOrb: {
+    width: 72,
+    height: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 36,
+  },
+  scoreValue: { fontVariant: ["tabular-nums"], lineHeight: 26 },
+  scoreSuffix: { color: C.textMuted },
+  scoreCopy: { flex: 1, minWidth: 0, gap: 4 },
+  scoreSummary: { color: C.textSec, lineHeight: 16 },
+  factRow: { flexDirection: "row", gap: 8 },
+  fact: {
+    flex: 1,
+    gap: 6,
+    minHeight: 98,
+    padding: 12,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+  },
+  factIcon: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: CARD,
+  },
+  factLabel: {
+    textTransform: "uppercase",
+    color: C.textMuted,
+  },
+  previewFooter: { color: C.textMuted },
+  primaryBtn: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+  },
+  primaryBtnText: { color: CARD },
+  hintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  hintText: { color: C.textMuted },
 });

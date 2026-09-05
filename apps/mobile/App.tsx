@@ -158,6 +158,7 @@ import { trackAnalyticsEvent, setAnalyticsUserId } from "./src/analytics";
 import { LoginScreen } from "./src/LoginScreen";
 import { TourLogo, TourMark } from "./src/components/TourLogo";
 import { CustomText } from "./src/components/custom-text";
+import { SessionAiChat } from "./src/components/SessionAiChat";
 import { SettingsScreen } from "./src/components/settings/settings-screen";
 import {
   LargeTitleCopy,
@@ -215,7 +216,6 @@ import {
   ScoreHero,
   SessionAiChatScreen,
   SessionAudioInsightsScreen,
-  ProspectInsightsCard,
   SessionModeTabs,
   SessionPlayer,
   SessionReviewSkeleton,
@@ -233,6 +233,7 @@ import {
   BACKGROUND,
   CARD,
   FONT,
+  HINT,
   LARGE_CORNER,
   SMALL_CORNER,
   TEXT,
@@ -249,6 +250,10 @@ import {
 } from "./src/components/tour";
 import { CommunityPickerModal } from "@/components/community-picker-modal";
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
+import {
+  PAGE_SHEET_HEADER_INSET,
+  PageSheetModal,
+} from "@/components/page-sheet-modal";
 import { CheckInSheet } from "./src/components/check-in/check-in-sheet";
 import { ProfileEditorModal } from "./src/components/profile/profile-editor-modal";
 import {
@@ -320,6 +325,18 @@ type Screen =
       autoStartRecording?: boolean;
     }
   | { type: "session-comments"; sessionId: string; sessionTitle?: string }
+  | {
+      type: "session-coaching";
+      sessionId: string;
+      sessionTitle?: string;
+      sample?: boolean;
+    }
+  | {
+      type: "session-rubric";
+      sessionId: string;
+      sessionTitle?: string;
+      sample?: boolean;
+    }
   | {
       type: "session-ai-chat";
       sessionId: string;
@@ -814,6 +831,10 @@ function screenKey(screen: Screen) {
   if (screen.type === "session-detail") return `session:${screen.sessionId}`;
   if (screen.type === "session-comments")
     return `session-comments:${screen.sessionId}`;
+  if (screen.type === "session-coaching")
+    return `session-coaching:${screen.sessionId}`;
+  if (screen.type === "session-rubric")
+    return `session-rubric:${screen.sessionId}`;
   if (screen.type === "session-ai-chat")
     return `session-ai:${screen.sessionId}`;
   if (screen.type === "session-audio-insights")
@@ -837,6 +858,8 @@ function screenRank(screen: Screen) {
   if (screen.type === "profile") return 12;
   if (screen.type === "session-detail") return 13;
   if (screen.type === "session-comments") return 14;
+  if (screen.type === "session-coaching") return 14;
+  if (screen.type === "session-rubric") return 14;
   if (screen.type === "session-ai-chat") return 14;
   if (screen.type === "session-audio-insights") return 14;
   if (screen.type === "session-report") return 14;
@@ -1228,10 +1251,6 @@ function SessionNavigation({
   sample,
   onClose,
   children,
-  onOpenComments,
-  onOpenAiChat,
-  onOpenAudioInsights,
-  onOpenReport,
 }: {
   showDetail: boolean;
   sessionId: string | null;
@@ -1239,19 +1258,6 @@ function SessionNavigation({
   sample?: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  onOpenComments: (meta: { sessionId: string; sessionTitle?: string }) => void;
-  onOpenAiChat: (meta: {
-    sessionId: string;
-    sessionTitle?: string;
-    prospectName?: string;
-  }) => void;
-  onOpenAudioInsights: (meta: {
-    sessionId: string;
-    sessionTitle?: string;
-    initialStatus?: AudioInsightsStatus;
-    initialInsights?: AudioInsights | null;
-  }) => void;
-  onOpenReport: (sessionId: string) => void;
 }) {
   const navigationRef =
     useRef<NavigationContainerRef<SessionStackParamList>>(null);
@@ -1306,10 +1312,6 @@ function SessionNavigation({
                 sessionId={sessionId}
                 autoStartRecording={Boolean(autoStartRecording)}
                 onBack={back}
-                onOpenComments={onOpenComments}
-                onOpenAiChat={onOpenAiChat}
-                onOpenAudioInsights={onOpenAudioInsights}
-                onOpenReport={onOpenReport}
               />
             );
           }}
@@ -1576,18 +1578,6 @@ export default function App() {
                       screen.type === "session-detail" ? screen.sample : false
                     }
                     onClose={() => nav({ type: "main", tab: "sessions" })}
-                    onOpenComments={(meta) =>
-                      nav({ type: "session-comments", ...meta })
-                    }
-                    onOpenAiChat={(meta) =>
-                      nav({ type: "session-ai-chat", ...meta })
-                    }
-                    onOpenAudioInsights={(meta) =>
-                      nav({ type: "session-audio-insights", ...meta })
-                    }
-                    onOpenReport={(sessionId) =>
-                      nav({ type: "session-report", sessionId })
-                    }
                   >
                     {renderMainTabs("sessions")}
                   </SessionNavigation>
@@ -1600,6 +1590,34 @@ export default function App() {
                       nav({
                         type: "session-detail",
                         sessionId: screen.sessionId,
+                      })
+                    }
+                  />
+                )}
+                {screen.type === "session-coaching" && (
+                  <SessionCoachingScreen
+                    sessionId={screen.sessionId}
+                    sessionTitle={screen.sessionTitle}
+                    sample={screen.sample}
+                    onBack={() =>
+                      nav({
+                        type: "session-detail",
+                        sessionId: screen.sessionId,
+                        sample: screen.sample,
+                      })
+                    }
+                  />
+                )}
+                {screen.type === "session-rubric" && (
+                  <SessionRubricScreen
+                    sessionId={screen.sessionId}
+                    sessionTitle={screen.sessionTitle}
+                    sample={screen.sample}
+                    onBack={() =>
+                      nav({
+                        type: "session-detail",
+                        sessionId: screen.sessionId,
+                        sample: screen.sample,
                       })
                     }
                   />
@@ -5056,6 +5074,146 @@ function AssetTypeMenuItem({
   );
 }
 
+function SessionOptionsMenu({
+  visible,
+  onClose,
+  readOnly,
+  commentCount,
+  onOpenReport,
+  onOpenRubric,
+  onOpenComments,
+  onOpenCoaching,
+  onOpenAudioInsights,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  readOnly: boolean;
+  commentCount: number;
+  onOpenReport: () => void;
+  onOpenRubric: () => void;
+  onOpenComments: () => void;
+  onOpenCoaching: () => void;
+  onOpenAudioInsights: () => void;
+}) {
+  const { height: windowHeight } = useWindowDimensions();
+
+  function run(action: () => void) {
+    onClose();
+    action();
+  }
+
+  const rubricItem = {
+    key: "rubric",
+    icon: "clipboard-outline" as const,
+    iconStyle: [assetSt.assetMenuIcon, { backgroundColor: "#eff6ff" }],
+    iconColor: ACCENT,
+    title: "Rubric",
+    meta: "Scorecard and question breakdown",
+    onPress: () => run(onOpenRubric),
+  };
+
+  const items = readOnly
+    ? [
+        rubricItem,
+        {
+          key: "coaching",
+          icon: "rocket-outline" as const,
+          iconStyle: [assetSt.assetMenuIcon, assetSt.assetMenuIconVideo],
+          iconColor: C.purple,
+          title: "Coaching",
+          meta: "Follow-up actions from this session",
+          onPress: () => run(onOpenCoaching),
+        },
+      ]
+    : [
+        {
+          key: "pdf",
+          icon: "document-text-outline" as const,
+          iconStyle: assetSt.assetMenuIcon,
+          iconColor: ACCENT,
+          title: "PDF report",
+          meta: "Download or share this session",
+          onPress: () => run(onOpenReport),
+        },
+        rubricItem,
+        {
+          key: "comments",
+          icon: "chatbubbles-outline" as const,
+          iconStyle: [assetSt.assetMenuIcon, { backgroundColor: "#eff6ff" }],
+          iconColor: ACCENT,
+          title:
+            commentCount > 0 ? `Comments (${commentCount})` : "Comments",
+          meta: "View and add comments",
+          onPress: () => run(onOpenComments),
+        },
+        {
+          key: "coaching",
+          icon: "rocket-outline" as const,
+          iconStyle: [assetSt.assetMenuIcon, assetSt.assetMenuIconVideo],
+          iconColor: C.purple,
+          title: "Coaching",
+          meta: "Follow-up actions from this session",
+          onPress: () => run(onOpenCoaching),
+        },
+        {
+          key: "audio",
+          icon: "pulse-outline" as const,
+          iconStyle: [assetSt.assetMenuIcon, assetSt.assetMenuIcon360],
+          iconColor: "#059669",
+          title: "Audio insights",
+          meta: "Voice and conversation insights",
+          onPress: () => run(onOpenAudioInsights),
+        },
+      ];
+
+  const sheetHeight = Math.min(
+    150 + items.length * 64,
+    Math.round(windowHeight * 0.62),
+  );
+
+  return (
+    <BottomSheetModal
+      visible={visible}
+      onClose={onClose}
+      host="overlay"
+      sheetHeight={sheetHeight}
+      sheetStyle={assetSt.addSheet}
+      dragHeader={
+        <View style={assetSt.addTitleRow}>
+          <View style={assetSt.addHeaderCopy}>
+            <CustomText textStyle="hero">Session options</CustomText>
+          </View>
+          <LiquidGlassIconButton
+            icon="close"
+            accessibilityLabel="Close session options"
+            onPress={onClose}
+          />
+        </View>
+      }
+    >
+      <ScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 8 }}
+      >
+        <View style={assetSt.addOptions}>
+          {items.map((item) => (
+            <AssetTypeMenuItem
+              key={item.key}
+              icon={item.icon}
+              iconStyle={item.iconStyle}
+              iconColor={item.iconColor}
+              title={item.title}
+              meta={item.meta}
+              onPress={item.onPress}
+            />
+          ))}
+        </View>
+      </ScrollView>
+    </BottomSheetModal>
+  );
+}
+
 function MaterialsScreen({
   materials,
   tourLibrary,
@@ -6967,10 +7125,6 @@ function SampleSessionDetailScreen({
       sessionId={sessionId}
       onBack={onBack}
       onReload={() => void sampleQuery.refetch()}
-      onOpenComments={() => undefined}
-      onOpenAiChat={() => undefined}
-      onOpenAudioInsights={() => undefined}
-      onOpenReport={() => undefined}
       readOnly
     />
   );
@@ -7022,27 +7176,10 @@ function SessionDetailScreen({
   sessionId,
   autoStartRecording = false,
   onBack,
-  onOpenComments,
-  onOpenAiChat,
-  onOpenAudioInsights,
-  onOpenReport,
 }: {
   sessionId: string;
   autoStartRecording?: boolean;
   onBack: () => void;
-  onOpenComments: (meta: { sessionId: string; sessionTitle?: string }) => void;
-  onOpenAiChat: (meta: {
-    sessionId: string;
-    sessionTitle?: string;
-    prospectName?: string;
-  }) => void;
-  onOpenReport: (sessionId: string) => void;
-  onOpenAudioInsights: (meta: {
-    sessionId: string;
-    sessionTitle?: string;
-    initialStatus?: AudioInsightsStatus;
-    initialInsights?: AudioInsights | null;
-  }) => void;
 }) {
   const [tab, setTab] = useState<DTab>("transcript");
   const [refreshing, setRefreshing] = useState(false);
@@ -7151,28 +7288,8 @@ function SessionDetailScreen({
         sessionId={sessionId}
         onBack={onBack}
         onReload={load}
-        onOpenComments={() =>
-          onOpenComments({
-            sessionId,
-            sessionTitle: session.title,
-          })
-        }
-        onOpenAiChat={() =>
-          onOpenAiChat({
-            sessionId,
-            sessionTitle: session.title,
-            prospectName: session.prospectName ?? undefined,
-          })
-        }
-        onOpenAudioInsights={() =>
-          onOpenAudioInsights({
-            sessionId,
-            sessionTitle: session.title,
-            initialStatus: audioInsightsStatus,
-            initialInsights: audioInsights,
-          })
-        }
-        onOpenReport={() => onOpenReport(sessionId)}
+        audioInsightsStatus={audioInsightsStatus}
+        audioInsights={audioInsights}
       />
     );
   }
@@ -7341,15 +7458,12 @@ function SessionReviewExperience({
   transcript,
   phases,
   comments,
-  actions,
   sessionId,
   onBack,
   onReload,
-  onOpenComments,
-  onOpenAiChat,
-  onOpenAudioInsights,
-  onOpenReport,
   readOnly = false,
+  audioInsightsStatus = "pending",
+  audioInsights = null,
 }: {
   session: any;
   analysis: AnalysisResult;
@@ -7360,13 +7474,10 @@ function SessionReviewExperience({
   sessionId: string;
   onBack: () => void;
   onReload: () => void;
-  onOpenComments: () => void;
-  onOpenAiChat: () => void;
-  onOpenAudioInsights: () => void;
-  onOpenReport: () => void;
   readOnly?: boolean;
+  audioInsightsStatus?: AudioInsightsStatus;
+  audioInsights?: AudioInsights | null;
 }) {
-  const [localActions, setLocalActions] = useState(actions);
   const [sound, setSound] = useState<ExpoAudioPlayer | null>(null);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
@@ -7383,7 +7494,11 @@ function SessionReviewExperience({
   >("comment");
   const [selectionComment, setSelectionComment] = useState("");
   const [selectionBusy, setSelectionBusy] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
+  const [optionSheet, setOptionSheet] = useState<
+    "comments" | "coaching" | "rubric" | "audio" | "pdf" | null
+  >(null);
+  const optionSheetTitleRef = useRef("Comments");
   const [followPlayback, setFollowPlayback] = useState(true);
   const [expandedAnnotation, setExpandedAnnotation] = useState<{
     segmentId: string;
@@ -7402,9 +7517,6 @@ function SessionReviewExperience({
   const longPressedSegmentRef = useRef<string | null>(null);
   const lastTranscriptTapRef = useRef<{ id: string; at: number } | null>(null);
 
-  useEffect(() => {
-    setLocalActions(actions);
-  }, [actions]);
   useEffect(() => {
     reviewModeRef.current = reviewMode;
   }, [reviewMode]);
@@ -7525,12 +7637,6 @@ function SessionReviewExperience({
   }
 
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
-  const focusSection = useMemo(() => {
-    const sections = analysis.sectionScores;
-    if (!sections.length) return null;
-    return sections.reduce((min, sec) => (sec.score < min.score ? sec : min))
-      .section;
-  }, [analysis.sectionScores]);
   const coachingMoments = useMemo(() => {
     return analysis.exactMoments
       .map((moment, index) => ({
@@ -7575,15 +7681,6 @@ function SessionReviewExperience({
     const end = Math.max(...selectedSegments.map((segment) => segment.endTime));
     return { start, end };
   }, [selectedSegments]);
-  const searchResults = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return [];
-    return transcript.filter(
-      (segment) =>
-        segment.text?.toLowerCase().includes(query) ||
-        segment.speaker?.toLowerCase().includes(query),
-    );
-  }, [searchQuery, transcript]);
   function beginSegmentSelection(segmentId: string) {
     impactHaptic();
     longPressedSegmentRef.current = segmentId;
@@ -7632,14 +7729,6 @@ function SessionReviewExperience({
         ? current.filter((id) => id !== segmentId)
         : [...current, segmentId],
     );
-  }
-
-  function openTranscriptAtSegment(segment: any) {
-    reviewModeRef.current = "transcript";
-    setReviewMode("transcript");
-    setPlaybackFollowing(true);
-    void seekToSeconds(segment.startTime, true);
-    requestAnimationFrame(() => scrollToSegment(segment));
   }
 
   async function saveSelectionAnnotation() {
@@ -7713,16 +7802,29 @@ function SessionReviewExperience({
   }
 
   function openSessionMoreMenu() {
-    Alert.alert("Session options", undefined, [
-      { text: "PDF report", onPress: onOpenReport },
-      {
-        text:
-          comments.length > 0 ? `Comments (${comments.length})` : "Comments",
-        onPress: onOpenComments,
-      },
-      { text: "Audio insights", onPress: onOpenAudioInsights },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    selectionHaptic();
+    setSessionMenuOpen(true);
+  }
+
+  function openOptionSheet(
+    sheet: "comments" | "coaching" | "rubric" | "audio" | "pdf",
+  ) {
+    optionSheetTitleRef.current =
+      sheet === "coaching"
+        ? "Coaching"
+        : sheet === "rubric"
+          ? "Rubric"
+          : sheet === "audio"
+            ? "Audio insights"
+            : sheet === "pdf"
+              ? "PDF report"
+              : "Comments";
+    sound?.pause();
+    setOptionSheet(sheet);
+  }
+
+  function closeOptionSheet() {
+    setOptionSheet(null);
   }
 
   const transcriptGroups = useMemo(() => {
@@ -7765,6 +7867,22 @@ function SessionReviewExperience({
 
   return (
     <View style={reviewSt.root}>
+      <View style={reviewSt.tabSticky}>
+        <View style={{ height: glassNavContentInset(insets.top) }} />
+        {readOnly ? null : (
+          <SessionModeTabs value={reviewMode} onChange={setReviewMode} />
+        )}
+      </View>
+      {reviewMode === "ai" ? (
+        <View style={reviewSt.aiChatPane}>
+          <SessionAiChat
+            sessionId={sessionId}
+            analysis={analysis}
+            showHeader={false}
+            onSeek={(seconds) => void seekToSeconds(seconds, true)}
+          />
+        </View>
+      ) : (
       <ScrollView
         ref={scrollRef}
         scrollEnabled
@@ -7773,7 +7891,6 @@ function SessionReviewExperience({
         style={reviewSt.scrollBody}
         contentContainerStyle={reviewSt.scrollContent}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[0]}
         scrollEventThrottle={16}
         onScrollBeginDrag={() => {
           if (reviewMode === "transcript") {
@@ -7788,28 +7905,6 @@ function SessionReviewExperience({
           userDragging.current = false;
         }}
       >
-        <View style={reviewSt.tabSticky}>
-          <View style={{ height: glassNavContentInset(insets.top) }} />
-          <SessionModeTabs
-            value={reviewMode}
-            modes={
-              readOnly
-                ? ["rubric", "prospect", "transcript", "search", "coaching"]
-                : undefined
-            }
-            commentCount={
-              comments.filter((comment) => !comment.parentId).length
-            }
-            onChange={(mode) => {
-              if (mode === "ai") {
-                onOpenAiChat();
-                return;
-              }
-              setReviewMode(mode);
-            }}
-          />
-        </View>
-
         <View
           style={reviewSt.tabBody}
           onLayout={(event) => {
@@ -7838,147 +7933,6 @@ function SessionReviewExperience({
               description={`${session.leads.length} ${session.leads.length === 1 ? "visitor" : "visitors"} joined this session`}
             />
           ) : null}
-          {reviewMode === "rubric" && (
-            <AnimatedTabContent tabKey="rubric">
-              <View style={{ gap: 12 }}>
-                {focusSection ? (
-                  <View style={reviewSt.focusBanner}>
-                    <CustomText style={reviewSt.focusBannerLabel}>Focus area</CustomText>
-                    <CustomText style={reviewSt.focusBannerValue}>
-                      {focusSection}
-                    </CustomText>
-                  </View>
-                ) : null}
-                <RubricTab analysis={analysis} />
-                <CollapsibleSection title="Analysis summary">
-                  <CustomText
-                    textStyle="body"
-                    style={{
-                      color: C.textSec,
-                      lineHeight: 21,
-                    }}
-                  >
-                    {analysis.summary}
-                  </CustomText>
-                </CollapsibleSection>
-                {analysis.strengths.length > 0 ? (
-                  <CollapsibleSection
-                    title="Strengths"
-                    defaultOpen={analysis.overallScore >= 70}
-                  >
-                    {analysis.strengths.map((strength, index) => (
-                      <BulletItem
-                        key={index}
-                        text={strength}
-                        color={C.textSec}
-                      />
-                    ))}
-                  </CollapsibleSection>
-                ) : null}
-              </View>
-            </AnimatedTabContent>
-          )}
-          {reviewMode === "prospect" && (
-            <AnimatedTabContent tabKey="prospect">
-              <ProspectInsightsCard
-                analysis={analysis}
-                providedInterests={session.customerInterests ?? []}
-              />
-            </AnimatedTabContent>
-          )}
-          {reviewMode === "search" && (
-            <AnimatedTabContent tabKey="search">
-              <View style={reviewSt.searchPanel}>
-                <View style={reviewSt.searchInputWrap}>
-                  <Ionicons name="search" size={18} color={C.textMuted} />
-                  <TextInput
-                    autoFocus
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Search transcript or speaker"
-                    placeholderTextColor={C.textMuted}
-                    returnKeyType="search"
-                    style={reviewSt.searchInput}
-                  />
-                  {searchQuery ? (
-                    <Pressable onPress={() => setSearchQuery("")} hitSlop={10}>
-                      <Ionicons
-                        name="close-circle"
-                        size={18}
-                        color={C.textMuted}
-                      />
-                    </Pressable>
-                  ) : null}
-                </View>
-                {!searchQuery.trim() ? (
-                  <CustomText style={reviewSt.searchHint}>
-                    Search names, phrases, questions, or moments from this
-                    session.
-                  </CustomText>
-                ) : searchResults.length === 0 ? (
-                  <EmptyState
-                    icon="search-outline"
-                    title="No matches"
-                    subtitle="Try another word or phrase."
-                  />
-                ) : (
-                  <View style={reviewSt.searchResults}>
-                    <CustomText style={reviewSt.searchCount}>
-                      {searchResults.length} result
-                      {searchResults.length === 1 ? "" : "s"}
-                    </CustomText>
-                    {searchResults.map((segment) => (
-                      <Pressable
-                        key={segment.id}
-                        onPress={() => openTranscriptAtSegment(segment)}
-                        style={reviewSt.searchResult}
-                      >
-                        <View style={reviewSt.searchResultIcon}>
-                          <Ionicons name="play" size={13} color={C.brand} />
-                        </View>
-                        <View style={st.flex1}>
-                          <View style={reviewSt.searchResultMeta}>
-                            <CustomText style={reviewSt.searchResultSpeaker}>
-                              {segment.speaker}
-                            </CustomText>
-                            <CustomText style={reviewSt.searchResultTime}>
-                              {fmtSec(segment.startTime)}
-                            </CustomText>
-                          </View>
-                          <CustomText
-                            style={reviewSt.searchResultText}
-                            numberOfLines={3}
-                          >
-                            {segment.text}
-                          </CustomText>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </AnimatedTabContent>
-          )}
-          {reviewMode === "coaching" && (
-            <AnimatedTabContent tabKey="coaching">
-              <ActionsTab
-                actions={localActions}
-                sessionId={sessionId}
-                onUpdate={onReload}
-                onActionsChange={setLocalActions}
-                readOnly={readOnly}
-              />
-            </AnimatedTabContent>
-          )}
-          {reviewMode === "comments" && (
-            <AnimatedTabContent tabKey="comments">
-              <CommentsTab
-                comments={comments}
-                sessionId={sessionId}
-                onUpdate={onReload}
-              />
-            </AnimatedTabContent>
-          )}
           {reviewMode === "transcript" && transcript.length === 0 && (
             <AnimatedTabContent tabKey="transcript-empty">
               <EmptyState
@@ -8371,13 +8325,77 @@ function SessionReviewExperience({
             ))}
         </View>
       </ScrollView>
+      )}
 
       <TourScreenHeader
         onBack={onBack}
         title={session.title}
-        onMorePress={readOnly ? undefined : openSessionMoreMenu}
+        onMorePress={openSessionMoreMenu}
         moreAccessibilityLabel="Session options"
       />
+      <SessionOptionsMenu
+        visible={sessionMenuOpen}
+        onClose={() => setSessionMenuOpen(false)}
+        readOnly={readOnly}
+        commentCount={comments.length}
+        onOpenReport={() => openOptionSheet("pdf")}
+        onOpenRubric={() => openOptionSheet("rubric")}
+        onOpenComments={() => openOptionSheet("comments")}
+        onOpenCoaching={() => openOptionSheet("coaching")}
+        onOpenAudioInsights={() => openOptionSheet("audio")}
+      />
+      {optionSheet ? (
+        <PageSheetModal
+          visible
+          title={optionSheetTitleRef.current}
+          onClose={closeOptionSheet}
+        >
+          {optionSheet === "comments" ? (
+            <SessionCommentsScreen
+              sessionId={sessionId}
+              sessionTitle={session.title}
+              onBack={closeOptionSheet}
+              presentation="sheet"
+            />
+          ) : null}
+          {optionSheet === "coaching" ? (
+            <SessionCoachingScreen
+              sessionId={sessionId}
+              sessionTitle={session.title}
+              sample={readOnly}
+              onBack={closeOptionSheet}
+              presentation="sheet"
+            />
+          ) : null}
+          {optionSheet === "rubric" ? (
+            <SessionRubricScreen
+              sessionId={sessionId}
+              sessionTitle={session.title}
+              sample={readOnly}
+              onBack={closeOptionSheet}
+              presentation="sheet"
+            />
+          ) : null}
+          {optionSheet === "audio" ? (
+            <SessionAudioInsightsScreen
+              sessionId={sessionId}
+              sessionTitle={session.title}
+              initialStatus={audioInsightsStatus}
+              initialInsights={audioInsights}
+              onBack={closeOptionSheet}
+              presentation="sheet"
+            />
+          ) : null}
+          {optionSheet === "pdf" ? (
+            <SessionReportScreen
+              sessionId={sessionId}
+              onBack={closeOptionSheet}
+              onNotify={showToast}
+              presentation="sheet"
+            />
+          ) : null}
+        </PageSheetModal>
+      ) : null}
 
       {!readOnly && selectedSegmentIds.length > 0 && selectionRange ? (
         <View style={reviewSt.selectionBar}>
@@ -8430,17 +8448,19 @@ function SessionReviewExperience({
           </CustomText>
         </Pressable>
       ) : null}
-      <SessionPlayer
-        position={position}
-        duration={duration}
-        playing={playing}
-        speed={speed}
-        ready={!!sound}
-        progressPercent={pct}
-        onToggle={() => void togglePlayback()}
-        onSpeed={() => void changeSpeed()}
-        onSeek={(ratio) => void seekToSeconds(ratio * duration)}
-      />
+      {reviewMode === "ai" ? null : (
+        <SessionPlayer
+          position={position}
+          duration={duration}
+          playing={playing}
+          speed={speed}
+          ready={!!sound}
+          progressPercent={pct}
+          onToggle={() => void togglePlayback()}
+          onSpeed={() => void changeSpeed()}
+          onSeek={(ratio) => void seekToSeconds(ratio * duration)}
+        />
+      )}
 
       <Modal
         visible={commentComposerOpen}
@@ -10133,17 +10153,38 @@ function BulletItem({ text, color }: { text: string; color: string }) {
         color={color}
         style={{ marginTop: 7 }}
       />
-      <Text
+      <CustomText
+        textStyle="body"
         style={{
           flex: 1,
-          fontSize: 14,
-          fontWeight: "600",
           color: C.textSec,
           lineHeight: 21,
         }}
       >
         {text}
-      </Text>
+      </CustomText>
+    </View>
+  );
+}
+
+function SheetEmpty({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <View style={reviewSt.sheetEmpty}>
+      <View style={reviewSt.sheetEmptyIcon}>
+        <Ionicons name={icon} size={22} color={ACCENT} />
+      </View>
+      <CustomText textStyle="title">{title}</CustomText>
+      <CustomText textStyle="caption" style={reviewSt.sheetEmptySub}>
+        {subtitle}
+      </CustomText>
     </View>
   );
 }
@@ -10272,7 +10313,7 @@ function ActionsTab({
 
   if (!actions.length)
     return (
-      <EmptyState
+      <SheetEmpty
         icon="rocket-outline"
         title="No actions"
         subtitle="Follow-up actions will appear after analysis"
@@ -10296,18 +10337,20 @@ function ActionsTab({
     <View style={{ gap: 12 }}>
       {actions.length > 0 ? (
         <View style={reviewSt.focusBanner}>
-          <Text style={reviewSt.focusBannerLabel}>Progress</Text>
-          <Text style={reviewSt.focusBannerValue}>
+          <CustomText textStyle="caption" style={reviewSt.focusBannerLabel}>
+            Progress
+          </CustomText>
+          <CustomText textStyle="title" style={reviewSt.focusBannerValue}>
             {done.length} of {actions.length} complete
-          </Text>
+          </CustomText>
         </View>
       ) : null}
       {open.length > 0 &&
         open.map((a) => {
           const pi = priorityIcon[a.priority] ?? defaultPi;
           return (
-            <View key={a.id} style={st.card}>
-              <View style={{ padding: 16, gap: 10 }}>
+            <View key={a.id} style={reviewSt.sheetCard}>
+              <View style={reviewSt.sheetCardBody}>
                 <View
                   style={{
                     flexDirection: "row",
@@ -10322,94 +10365,69 @@ function ActionsTab({
                     style={{ marginTop: 1 }}
                   />
                   <View style={st.flex1}>
-                    <Text
-                      style={{ fontSize: 15, fontWeight: "800", color: C.text }}
-                      numberOfLines={2}
-                    >
+                    <CustomText textStyle="title" numberOfLines={2}>
                       {a.title}
-                    </Text>
-                    <Text
+                    </CustomText>
+                    <CustomText
+                      textStyle="body"
                       style={{
-                        fontSize: 13,
-                        fontWeight: "600",
                         color: C.textSec,
                         lineHeight: 20,
                         marginTop: 2,
                       }}
                     >
                       {a.description}
-                    </Text>
+                    </CustomText>
                   </View>
                 </View>
                 {a.suggestedMessage && (
-                  <View
-                    style={{
-                      backgroundColor: "#f8fafc",
-                      borderRadius: 12,
-                      padding: 12,
-                    }}
-                  >
-                    <Text
+                  <View style={reviewSt.actionSuggested}>
+                    <CustomText
+                      textStyle="micro"
                       style={{
-                        fontSize: 11,
-                        fontWeight: "800",
                         color: C.textMuted,
                         textTransform: "uppercase",
-                        marginBottom: 4,
                       }}
                     >
                       Suggested message
-                    </Text>
-                    <Text
+                    </CustomText>
+                    <CustomText
+                      textStyle="body"
                       style={{
-                        fontSize: 13,
-                        fontWeight: "600",
-                        color: C.text,
+                        color: C.textSec,
                         lineHeight: 20,
                         fontStyle: "italic",
                       }}
                     >
                       {a.suggestedMessage}
-                    </Text>
+                    </CustomText>
                   </View>
                 )}
                 {!readOnly && (
-                  <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={reviewSt.actionRow}>
                     <Pressable
                       onPress={() => handleStatus(a.id, "completed")}
                       disabled={updatingId === a.id}
                       style={({ pressed }) => [
-                        {
-                          flex: 1,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                          backgroundColor: C.green,
-                          borderRadius: 12,
-                          paddingVertical: 10,
-                        },
+                        reviewSt.actionCompleteBtn,
                         pressed && st.pressed,
                       ]}
                     >
                       {updatingId === a.id ? (
-                        <LoadingDots size="small" color="#fff" />
+                        <LoadingDots size="small" color={CARD} />
                       ) : (
                         <>
                           <Ionicons
                             name="checkmark-circle-outline"
-                            size={16}
-                            color="#fff"
+                            size={18}
+                            color={CARD}
                           />
-                          <Text
-                            style={{
-                              color: "#fff",
-                              fontSize: 14,
-                              fontWeight: "800",
-                            }}
+                          <CustomText
+                            textStyle="title"
+                            style={reviewSt.sheetPrimaryBtnText}
                           >
                             Complete
-                          </Text>
+                          </CustomText>
                         </>
                       )}
                     </Pressable>
@@ -10417,33 +10435,21 @@ function ActionsTab({
                       onPress={() => handleStatus(a.id, "dismissed")}
                       disabled={updatingId === a.id}
                       style={({ pressed }) => [
-                        {
-                          flex: 1,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                          backgroundColor: "#f1f5f9",
-                          borderRadius: 12,
-                          paddingVertical: 10,
-                        },
+                        reviewSt.actionDismissBtn,
                         pressed && st.pressed,
                       ]}
                     >
                       <Ionicons
                         name="close-circle-outline"
-                        size={16}
+                        size={18}
                         color={C.textSec}
                       />
-                      <Text
-                        style={{
-                          color: C.textSec,
-                          fontSize: 14,
-                          fontWeight: "800",
-                        }}
+                      <CustomText
+                        textStyle="title"
+                        style={{ color: C.textSec }}
                       >
                         Dismiss
-                      </Text>
+                      </CustomText>
                     </Pressable>
                   </View>
                 )}
@@ -10454,15 +10460,7 @@ function ActionsTab({
       {done.length > 0 ? (
         <CollapsibleSection title={`Completed (${done.length})`}>
           {done.map((a) => (
-            <View
-              key={a.id}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 10,
-                opacity: 0.7,
-              }}
-            >
+            <View key={a.id} style={reviewSt.completedRow}>
               <Ionicons
                 name={
                   a.status === "completed" ? "checkmark-circle" : "close-circle"
@@ -10470,17 +10468,13 @@ function ActionsTab({
                 size={18}
                 color={a.status === "completed" ? C.green : C.textMuted}
               />
-              <Text
-                style={{
-                  flex: 1,
-                  fontSize: 14,
-                  fontWeight: "700",
-                  color: C.text,
-                }}
+              <CustomText
+                textStyle="body"
                 numberOfLines={1}
+                style={st.flex1}
               >
                 {a.title}
-              </Text>
+              </CustomText>
             </View>
           ))}
         </CollapsibleSection>
@@ -10497,10 +10491,12 @@ function SessionCommentsScreen({
   sessionId,
   sessionTitle,
   onBack,
+  presentation = "page",
 }: {
   sessionId: string;
   sessionTitle?: string;
   onBack: () => void;
+  presentation?: "page" | "sheet";
 }) {
   const [title, setTitle] = useState(sessionTitle);
   const [refreshing, setRefreshing] = useState(false);
@@ -10543,7 +10539,16 @@ function SessionCommentsScreen({
         }
         contentContainerStyle={[
           reviewSt.commentsPageContent,
-          { paddingTop: glassNavContentInset(insets.top) },
+          {
+            paddingTop:
+              presentation === "sheet"
+                ? PAGE_SHEET_HEADER_INSET
+                : glassNavContentInset(insets.top),
+            paddingBottom:
+              presentation === "sheet"
+                ? Math.max(insets.bottom, 16) + 24
+                : 130,
+          },
         ]}
       >
         {error ? (
@@ -10564,7 +10569,230 @@ function SessionCommentsScreen({
           />
         )}
       </ScrollView>
-      <TourScreenHeader onBack={onBack} title="Comments" />
+      {presentation === "sheet" ? null : (
+        <TourScreenHeader onBack={onBack} title="Comments" />
+      )}
+    </View>
+  );
+}
+
+function SessionCoachingScreen({
+  sessionId,
+  sample = false,
+  onBack,
+  presentation = "page",
+}: {
+  sessionId: string;
+  sessionTitle?: string;
+  sample?: boolean;
+  onBack: () => void;
+  presentation?: "page" | "sheet";
+}) {
+  const [refreshing, setRefreshing] = useState(false);
+  const [localActions, setLocalActions] = useState<FollowUpAction[]>([]);
+  const sampleQuery = useSampleSessionQuery(sessionId, sample);
+  const actionsQuery = useActionsQuery(sessionId, !sample);
+  const actions = sample
+    ? (sampleQuery.data?.actions ?? [])
+    : (actionsQuery.data?.actions ?? []);
+  const loading = sample ? sampleQuery.isLoading : actionsQuery.isLoading;
+  const error = sample ? sampleQuery.error : actionsQuery.error;
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    setLocalActions(actions);
+  }, [actions]);
+
+  const load = useCallback(async () => {
+    await (sample ? sampleQuery.refetch() : actionsQuery.refetch());
+  }, [actionsQuery, sample, sampleQuery]);
+
+  async function refresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  return (
+    <View style={reviewSt.root}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
+            tintColor={ACCENT}
+          />
+        }
+        contentContainerStyle={[
+          reviewSt.commentsPageContent,
+          {
+            paddingTop:
+              presentation === "sheet"
+                ? PAGE_SHEET_HEADER_INSET
+                : glassNavContentInset(insets.top),
+            paddingBottom:
+              presentation === "sheet"
+                ? Math.max(insets.bottom, 16) + 24
+                : 130,
+          },
+        ]}
+      >
+        {error ? (
+          <ErrorBanner
+            message={
+              error instanceof Error ? error.message : "Could not load coaching"
+            }
+            onRetry={load}
+          />
+        ) : null}
+        {loading && localActions.length === 0 ? (
+          <LoadingBox />
+        ) : (
+          <ActionsTab
+            actions={localActions}
+            sessionId={sessionId}
+            onUpdate={load}
+            onActionsChange={setLocalActions}
+            readOnly={sample}
+          />
+        )}
+      </ScrollView>
+      {presentation === "sheet" ? null : (
+        <TourScreenHeader onBack={onBack} title="Coaching" />
+      )}
+    </View>
+  );
+}
+
+function SessionRubricPanel({ analysis }: { analysis: AnalysisResult }) {
+  const focusSection = useMemo(() => {
+    const sections = analysis.sectionScores;
+    if (!sections.length) return null;
+    return sections.reduce((min, sec) => (sec.score < min.score ? sec : min))
+      .section;
+  }, [analysis.sectionScores]);
+
+  return (
+    <View style={{ gap: 12 }}>
+      {focusSection ? (
+        <View style={reviewSt.focusBanner}>
+          <CustomText textStyle="caption" style={reviewSt.focusBannerLabel}>
+            Focus area
+          </CustomText>
+          <CustomText textStyle="title" style={reviewSt.focusBannerValue}>
+            {focusSection}
+          </CustomText>
+        </View>
+      ) : null}
+      <RubricTab analysis={analysis} />
+      <CollapsibleSection title="Analysis summary">
+        <CustomText
+          textStyle="body"
+          style={{
+            color: C.textSec,
+            lineHeight: 21,
+          }}
+        >
+          {analysis.summary}
+        </CustomText>
+      </CollapsibleSection>
+      {analysis.strengths.length > 0 ? (
+        <CollapsibleSection
+          title="Strengths"
+          defaultOpen={analysis.overallScore >= 70}
+        >
+          {analysis.strengths.map((strength, index) => (
+            <BulletItem key={index} text={strength} color={C.textSec} />
+          ))}
+        </CollapsibleSection>
+      ) : null}
+    </View>
+  );
+}
+
+function SessionRubricScreen({
+  sessionId,
+  sample = false,
+  onBack,
+  presentation = "page",
+}: {
+  sessionId: string;
+  sessionTitle?: string;
+  sample?: boolean;
+  onBack: () => void;
+  presentation?: "page" | "sheet";
+}) {
+  const [refreshing, setRefreshing] = useState(false);
+  const sampleQuery = useSampleSessionQuery(sessionId, sample);
+  const analysisQuery = useAnalysisQuery(sessionId, !sample);
+  const analysis = sample
+    ? (sampleQuery.data?.analysis ?? null)
+    : (analysisQuery.data?.analysis ?? null);
+  const loading = sample ? sampleQuery.isLoading : analysisQuery.isLoading;
+  const error = sample ? sampleQuery.error : analysisQuery.error;
+  const insets = useSafeAreaInsets();
+
+  const load = useCallback(async () => {
+    await (sample ? sampleQuery.refetch() : analysisQuery.refetch());
+  }, [analysisQuery, sample, sampleQuery]);
+
+  async function refresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  return (
+    <View style={reviewSt.root}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
+            tintColor={ACCENT}
+          />
+        }
+        contentContainerStyle={[
+          reviewSt.commentsPageContent,
+          {
+            paddingTop:
+              presentation === "sheet"
+                ? PAGE_SHEET_HEADER_INSET
+                : glassNavContentInset(insets.top),
+            paddingBottom:
+              presentation === "sheet"
+                ? Math.max(insets.bottom, 16) + 24
+                : 130,
+          },
+        ]}
+      >
+        {error ? (
+          <ErrorBanner
+            message={
+              error instanceof Error ? error.message : "Could not load rubric"
+            }
+            onRetry={load}
+          />
+        ) : null}
+        {loading && !analysis ? (
+          <LoadingBox />
+        ) : analysis ? (
+          <SessionRubricPanel analysis={analysis} />
+        ) : (
+          <SheetEmpty
+            icon="clipboard-outline"
+            title="No rubric yet"
+            subtitle="The scorecard will appear after analysis."
+          />
+        )}
+      </ScrollView>
+      {presentation === "sheet" ? null : (
+        <TourScreenHeader onBack={onBack} title="Rubric" />
+      )}
     </View>
   );
 }
@@ -10626,157 +10854,100 @@ function CommentsTab({
 
   return (
     <View style={{ gap: 12 }}>
-      {/* Compose */}
-      <View style={st.card}>
-        <View style={{ padding: 14, gap: 10 }}>
-          {replyToId && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                backgroundColor: C.brand + "10",
-                borderRadius: 8,
-                padding: 8,
-              }}
-            >
+      <View style={reviewSt.sheetCard}>
+        <View style={reviewSt.sheetCardBody}>
+          {replyToId ? (
+            <View style={reviewSt.commentReplyBar}>
               <Ionicons
                 name="return-down-forward-outline"
                 size={14}
-                color={C.brand}
+                color={ACCENT}
               />
-              <Text
-                style={{
-                  flex: 1,
-                  fontSize: 12,
-                  fontWeight: "700",
-                  color: C.brand,
-                }}
+              <CustomText
+                textStyle="caption"
+                style={{ flex: 1, color: ACCENT }}
               >
                 Replying to comment
-              </Text>
+              </CustomText>
               <Pressable onPress={() => setReplyToId(null)}>
                 <Ionicons name="close-circle" size={18} color={C.textMuted} />
               </Pressable>
             </View>
-          )}
+          ) : null}
           <TextInput
             placeholder="Add a comment..."
             placeholderTextColor={C.textMuted}
             value={body}
             onChangeText={setBody}
             multiline
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: C.text,
-              minHeight: 60,
-              textAlignVertical: "top",
-            }}
+            style={reviewSt.commentComposerInput}
           />
           <Pressable
             onPress={handlePost}
             disabled={!body.trim() || submitting}
             style={({ pressed }) => [
-              st.primaryBtn,
-              { minHeight: 42 },
+              reviewSt.sheetPrimaryBtn,
               pressed && st.pressed,
               (!body.trim() || submitting) && { opacity: 0.5 },
             ]}
           >
-            <Ionicons name="send-outline" size={16} color="#fff" />
-            <Text style={[st.primaryBtnText, { fontSize: 14 }]}>
-              {submitting ? "Posting..." : "Post Comment"}
-            </Text>
+            <Ionicons name="send-outline" size={18} color={CARD} />
+            <CustomText textStyle="title" style={reviewSt.sheetPrimaryBtnText}>
+              {submitting ? "Posting..." : "Post comment"}
+            </CustomText>
           </Pressable>
         </View>
       </View>
 
-      {/* Comments list */}
       {topLevel.length === 0 ? (
-        <EmptyState
+        <SheetEmpty
           icon="chatbubbles-outline"
           title="No comments yet"
           subtitle="Be the first to add feedback on this session"
         />
       ) : (
         topLevel.map((c) => (
-          <View key={c.id} style={st.card}>
-            <View style={{ padding: 14, gap: 8 }}>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                <View
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
-                    backgroundColor: C.brand + "15",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text
-                    style={{ fontSize: 12, fontWeight: "900", color: C.brand }}
-                  >
+          <View key={c.id} style={reviewSt.sheetCard}>
+            <View style={reviewSt.sheetCardBody}>
+              <View style={reviewSt.commentMetaRow}>
+                <View style={reviewSt.commentAvatar}>
+                  <CustomText textStyle="caption" style={{ color: ACCENT }}>
                     {c.authorName[0]?.toUpperCase()}
-                  </Text>
+                  </CustomText>
                 </View>
-                <Text
-                  style={{ fontSize: 13, fontWeight: "800", color: C.text }}
-                >
-                  {c.authorName}
-                </Text>
+                <CustomText textStyle="label">{c.authorName}</CustomText>
                 <View style={reviewSt.commentKindBadge}>
                   <Ionicons
                     name={
                       c.kind === "key_moment" ? "star" : "chatbubble-outline"
                     }
                     size={10}
-                    color={c.kind === "key_moment" ? C.purple : C.brand}
+                    color={c.kind === "key_moment" ? C.purple : ACCENT}
                   />
-                  <Text
+                  <CustomText
+                    textStyle="micro"
                     style={[
                       reviewSt.commentKindText,
                       c.kind === "key_moment" && { color: C.purple },
                     ]}
                   >
                     {c.kind === "key_moment" ? "Key moment" : "Manual"}
-                  </Text>
+                  </CustomText>
                 </View>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "600",
-                    color: C.textMuted,
-                  }}
+                <CustomText
+                  textStyle="caption"
+                  style={{ color: C.textMuted }}
                 >
                   {relativeTime(c.createdAt)}
-                </Text>
-                {c.timestampSec !== null && (
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 3,
-                      backgroundColor: C.brand + "10",
-                      borderRadius: 99,
-                      paddingHorizontal: 6,
-                      paddingVertical: 2,
-                    }}
-                  >
-                    <Ionicons name="time-outline" size={10} color={C.brand} />
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: "800",
-                        color: C.brand,
-                      }}
-                    >
+                </CustomText>
+                {c.timestampSec !== null ? (
+                  <View style={reviewSt.commentTimeChip}>
+                    <Ionicons name="time-outline" size={10} color={ACCENT} />
+                    <CustomText textStyle="micro" style={{ color: ACCENT }}>
                       {fmtSec(c.timestampSec)}
-                    </Text>
+                    </CustomText>
                   </View>
-                )}
+                ) : null}
                 <View style={{ flex: 1 }} />
                 <Pressable
                   onPress={() => setReplyToId(c.id)}
@@ -10799,71 +10970,25 @@ function CommentsTab({
                   />
                 </Pressable>
               </View>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: C.textSec,
-                  lineHeight: 21,
-                }}
-              >
+              <CustomText textStyle="body" style={reviewSt.commentBody}>
                 {c.body}
-              </Text>
+              </CustomText>
 
-              {/* Replies */}
               {getReplies(c.id).map((r) => (
-                <View
-                  key={r.id}
-                  style={{
-                    marginLeft: 28,
-                    marginTop: 8,
-                    paddingLeft: 10,
-                    borderLeftWidth: 2,
-                    borderLeftColor: C.brand + "20",
-                    gap: 6,
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: 11,
-                        backgroundColor: C.brand + "10",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 9,
-                          fontWeight: "900",
-                          color: C.brand,
-                        }}
-                      >
+                <View key={r.id} style={reviewSt.commentReply}>
+                  <View style={reviewSt.commentMetaRow}>
+                    <View style={reviewSt.commentAvatarSm}>
+                      <CustomText textStyle="micro" style={{ color: ACCENT }}>
                         {r.authorName[0]?.toUpperCase()}
-                      </Text>
+                      </CustomText>
                     </View>
-                    <Text
-                      style={{ fontSize: 12, fontWeight: "800", color: C.text }}
-                    >
-                      {r.authorName}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: "600",
-                        color: C.textMuted,
-                      }}
+                    <CustomText textStyle="caption">{r.authorName}</CustomText>
+                    <CustomText
+                      textStyle="caption"
+                      style={{ color: C.textMuted }}
                     >
                       {relativeTime(r.createdAt)}
-                    </Text>
+                    </CustomText>
                     <View style={{ flex: 1 }} />
                     <Pressable
                       onPress={() => handleDelete(r.id)}
@@ -10876,16 +11001,12 @@ function CommentsTab({
                       />
                     </Pressable>
                   </View>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "600",
-                      color: C.textSec,
-                      lineHeight: 20,
-                    }}
+                  <CustomText
+                    textStyle="body"
+                    style={{ color: C.textSec, lineHeight: 20 }}
                   >
                     {r.body}
-                  </Text>
+                  </CustomText>
                 </View>
               ))}
             </View>
@@ -12444,6 +12565,11 @@ const reviewSt = StyleSheet.create({
     backgroundColor: BACKGROUND,
   },
   scrollBody: { flex: 1 },
+  aiChatPane: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: SESSION_PAGE_PADDING,
+  },
   scrollContent: { paddingBottom: 150 },
   commentsPageContent: {
     gap: 12,
@@ -12489,68 +12615,151 @@ const reviewSt = StyleSheet.create({
     color: C.textSec,
   },
   focusBannerValue: {},
-  searchPanel: { gap: 12, paddingTop: 4 },
-  searchInputWrap: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-    paddingHorizontal: 13,
+  sheetCard: {
+    backgroundColor: CARD,
     borderRadius: SMALL_CORNER,
     borderCurve: "continuous",
-    backgroundColor: CARD,
+    overflow: "hidden",
   },
-  searchInput: { flex: 1, color: TEXT, fontSize: 15, fontWeight: "600" },
-  searchHint: {
-    paddingHorizontal: 4,
-    color: C.textMuted,
-    lineHeight: 18,
-  },
-  searchResults: { gap: 8 },
-  searchCount: {
-    color: C.textMuted,
-    textTransform: "uppercase",
-  },
-  searchResult: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+  sheetCardBody: {
     gap: 10,
-    padding: 12,
-    borderRadius: SMALL_CORNER,
-    borderCurve: "continuous",
-    backgroundColor: CARD,
+    padding: 14,
   },
-  searchResultIcon: {
-    width: 30,
-    height: 30,
+  sheetPrimaryBtn: {
+    minHeight: 58,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
-    backgroundColor: "#eff6ff",
+    gap: 9,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
-  searchResultMeta: {
+  sheetPrimaryBtnText: { color: CARD },
+  sheetSecondaryBtn: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: BACKGROUND,
+  },
+  sheetEmpty: {
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  sheetEmptyIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 108, 229, 0.08)",
+  },
+  sheetEmptySub: {
+    color: C.textSec,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  commentReplyBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    padding: 8,
+    borderRadius: SMALL_CORNER,
+    backgroundColor: HINT,
+  },
+  commentComposerInput: {
+    minHeight: 60,
+    fontSize: 14,
+    fontWeight: "600",
+    color: TEXT,
+    textAlignVertical: "top",
+  },
+  commentMetaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 3,
   },
-  searchResultSpeaker: {
-    flex: 1,
-    color: C.brand,
-    fontSize: 11,
-    fontWeight: "900",
+  commentAvatar: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: HINT,
   },
-  searchResultTime: {
-    color: C.textMuted,
-    fontSize: 10,
-    fontWeight: "800",
-    fontVariant: ["tabular-nums"],
+  commentAvatarSm: {
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    backgroundColor: HINT,
   },
-  searchResultText: {
+  commentTimeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: HINT,
+  },
+  commentBody: {
     color: C.textSec,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "600",
+    lineHeight: 21,
+  },
+  commentReply: {
+    gap: 6,
+    marginLeft: 28,
+    marginTop: 8,
+    paddingLeft: 10,
+  },
+  actionSuggested: {
+    gap: 4,
+    padding: 12,
+    borderRadius: SMALL_CORNER,
+    backgroundColor: BACKGROUND,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionCompleteBtn: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 26,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+  },
+  actionDismissBtn: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 26,
+    backgroundColor: BACKGROUND,
+  },
+  completedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    opacity: 0.7,
   },
   header: {
     minHeight: 50,
@@ -12845,15 +13054,13 @@ const reviewSt = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: "#f4f7fb",
+    backgroundColor: BACKGROUND,
   },
   commentKindText: {
-    color: C.brand,
-    fontSize: 8,
-    fontWeight: "900",
+    color: ACCENT,
     textTransform: "uppercase",
   },
   coachingMoment: {

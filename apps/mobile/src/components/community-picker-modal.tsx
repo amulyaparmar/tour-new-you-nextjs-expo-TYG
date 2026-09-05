@@ -30,12 +30,11 @@ import {
   type PropertyOnboardingCandidate,
 } from "../auth";
 import { tourColors } from "@/theme/tour-brand";
-import { ACCENT, BACKGROUND, CARD, LARGE_CORNER } from "@/theme/tokens";
+import { ACCENT, BACKGROUND, CARD, LARGE_CORNER, SMALL_CORNER } from "@/theme/tokens";
 
 const SHEET_HEIGHT_RATIO = 0.72;
 const SHEET_MAX_HEIGHT = 650;
 const SHEET_GUTTER = 18;
-const ROW_HEIGHT = 59;
 const SKELETON_ROWS = 9;
 
 type Community = MobileAuthSession["workspace"]["communities"][number];
@@ -245,7 +244,7 @@ export function CommunityPickerModal({
           disabled={switchLocked}
           onPress={() => onSelect(item.id)}
         >
-          <View style={styles.row}>
+          <View style={[styles.row, active && styles.rowActive]}>
             <View style={[styles.rowIcon, active && styles.rowIconActive]}>
               <Ionicons
                 name="business-outline"
@@ -254,7 +253,7 @@ export function CommunityPickerModal({
               />
             </View>
             <View style={styles.rowBody}>
-              <CustomText textStyle="label" numberOfLines={1} style={styles.rowName}>
+              <CustomText textStyle="title" numberOfLines={1} style={styles.rowName}>
                 {propertyDisplayName(item.name)}
               </CustomText>
               <View style={styles.rowMetadata}>
@@ -295,7 +294,7 @@ export function CommunityPickerModal({
               <Ionicons name="location-outline" size={19} color={tourColors.brand} />
             </View>
             <View style={styles.rowBody}>
-              <CustomText textStyle="label" numberOfLines={1} style={styles.rowName}>{item.name}</CustomText>
+              <CustomText textStyle="title" numberOfLines={1} style={styles.rowName}>{item.name}</CustomText>
               <CustomText textStyle="micro" numberOfLines={2} style={styles.candidateAddress}>{item.address || "Google business listing"}</CustomText>
               <View style={styles.rowMetadata}>
                 <CandidateBadge state={item.state} />
@@ -373,7 +372,7 @@ export function CommunityPickerModal({
               />
             </View>
             {!listReady ? (
-              <View style={styles.list}>
+              <View style={[styles.list, styles.listStack]}>
                 {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
                   <View key={index} style={styles.skeletonRow}>
                     <View style={styles.skeletonIcon} />
@@ -413,7 +412,7 @@ export function CommunityPickerModal({
                 renderItem={renderCommunity}
                 keyExtractor={(item) => item.id}
                 style={styles.list}
-                contentContainerStyle={{ paddingBottom: keyboardHeight }}
+                contentContainerStyle={[styles.listStack, { paddingBottom: keyboardHeight }]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 showsVerticalScrollIndicator
@@ -422,7 +421,6 @@ export function CommunityPickerModal({
                 updateCellsBatchingPeriod={30}
                 windowSize={7}
                 removeClippedSubviews
-                getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
               />
             )}
             {onPropertyAdded ? (
@@ -549,7 +547,7 @@ export function CommunityPickerModal({
                 renderItem={renderCandidate}
                 keyExtractor={(item) => item.placeId}
                 style={styles.list}
-                contentContainerStyle={{ paddingBottom: keyboardHeight }}
+                contentContainerStyle={[styles.listStack, { paddingBottom: keyboardHeight }]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 showsVerticalScrollIndicator
@@ -670,28 +668,39 @@ const styles = StyleSheet.create({
   listContent: {
     overflow: "visible",
   },
+  listStack: {
+    gap: 8,
+  },
   row: {
+    minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
-    height: ROW_HEIGHT,
-    paddingHorizontal: 4,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 15,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    backgroundColor: CARD,
+  },
+  rowActive: {
+    borderColor: tourColors.green,
   },
   candidateRow: {
-    minHeight: 86,
+    minHeight: 96,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 4,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 15,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   candidateIcon: {
     width: 38,
     height: 38,
-    marginRight: 11,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -716,7 +725,6 @@ const styles = StyleSheet.create({
   rowIcon: {
     width: 34,
     height: 34,
-    marginRight: 11,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -728,7 +736,6 @@ const styles = StyleSheet.create({
   rowBody: {
     flex: 1,
     minWidth: 0,
-    marginRight: 8,
   },
   rowName: {
     color: tourColors.text,
@@ -942,16 +949,19 @@ const styles = StyleSheet.create({
   findPropertyPressed: { boxShadow: "none", transform: [{ scale: 0.975 }] },
   findPropertyText: { color: CARD },
   skeletonRow: {
-    height: ROW_HEIGHT,
+    minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 4,
-    paddingVertical: 10,
+    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 15,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   skeletonIcon: {
     width: 34,
     height: 34,
-    marginRight: 11,
     borderRadius: 8,
     backgroundColor: "#eef2f7",
   },

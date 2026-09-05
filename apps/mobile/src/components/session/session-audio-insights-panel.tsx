@@ -62,25 +62,30 @@ export function SessionAudioInsightsPanel({
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[styles.content, { paddingTop: contentInsetTop }]}
     >
-      <View style={styles.headerRow}>
-        <CustomText textStyle="title" style={styles.heading}>Overview</CustomText>
-        <View
-          style={[
-            styles.sentimentBadge,
-            { backgroundColor: `${SENTIMENT_COLORS[insights.overallSentiment]}18` },
-          ]}
-        >
-          <CustomText style={[styles.sentimentText, { color: SENTIMENT_COLORS[insights.overallSentiment] }]}>
-            {SENTIMENT_LABELS[insights.overallSentiment]}
-          </CustomText>
+      <View style={styles.section}>
+        <View style={styles.headerRow}>
+          <CustomText textStyle="title">Overview</CustomText>
+          <View
+            style={[
+              styles.sentimentBadge,
+              { backgroundColor: `${SENTIMENT_COLORS[insights.overallSentiment]}18` },
+            ]}
+          >
+            <CustomText
+              textStyle="micro"
+              style={{ color: SENTIMENT_COLORS[insights.overallSentiment] }}
+            >
+              {SENTIMENT_LABELS[insights.overallSentiment]}
+            </CustomText>
+          </View>
         </View>
-      </View>
 
-      <CustomText style={styles.summary}>{insights.summary}</CustomText>
+        <CustomText textStyle="body" style={styles.summary}>{insights.summary}</CustomText>
 
-      <View style={styles.metaRow}>
-        <MetaPill icon={Sparkles} label={insights.model.replace("gemini-", "Gemini ")} />
-        <MetaPill icon={Mic2} label={`${insights.segments.length} segments`} />
+        <View style={styles.metaRow}>
+          <MetaPill icon={Sparkles} label={insights.model.replace("gemini-", "Gemini ")} />
+          <MetaPill icon={Mic2} label={`${insights.segments.length} segments`} />
+        </View>
       </View>
 
       {conversationStats ? (
@@ -99,13 +104,13 @@ export function SessionAudioInsightsPanel({
               return (
                 <View key={speaker.speaker} style={styles.speakerCard}>
                   <View style={styles.speakerHead}>
-                    <CustomText style={styles.speakerName}>{labelFor(speaker.speaker)}</CustomText>
-                    <CustomText style={styles.speakerTime}>{fmtSec(speaker.talkTimeSeconds)}</CustomText>
+                    <CustomText textStyle="label" style={styles.speakerName}>{labelFor(speaker.speaker)}</CustomText>
+                    <CustomText textStyle="caption" style={styles.speakerTime}>{fmtSec(speaker.talkTimeSeconds)}</CustomText>
                   </View>
                   <View style={styles.talkTrack}>
                     <View style={[styles.talkFill, { width: `${share}%` }]} />
                   </View>
-                  <CustomText style={styles.speakerNotes}>{speaker.notes}</CustomText>
+                  <CustomText textStyle="caption" style={styles.speakerNotes}>{speaker.notes}</CustomText>
                 </View>
               );
             })}
@@ -123,10 +128,10 @@ export function SessionAudioInsightsPanel({
                 style={styles.highlightCard}
               >
                 <View style={styles.highlightHead}>
-                  <CustomText style={styles.highlightLabel}>{highlight.label}</CustomText>
-                  <CustomText style={styles.highlightTime}>{fmtSec(highlight.timestamp)}</CustomText>
+                  <CustomText textStyle="label" style={styles.highlightLabel}>{highlight.label}</CustomText>
+                  <CustomText textStyle="caption" style={styles.highlightTime}>{fmtSec(highlight.timestamp)}</CustomText>
                 </View>
-                <CustomText style={styles.highlightBody}>{highlight.explanation}</CustomText>
+                <CustomText textStyle="caption" style={styles.highlightBody}>{highlight.explanation}</CustomText>
               </Pressable>
             ))}
           </View>
@@ -197,7 +202,7 @@ export function ConversationStatsSection({
           <Stat key={item.label} label={item.label} value={item.value} />
         ))}
       </View>
-      <CustomText style={styles.statsSource}>
+      <CustomText textStyle="caption" style={styles.statsSource}>
         {source === "transcript"
           ? "Transcript estimate · Gemini may replace these measurements after listening to the recording."
           : "Measured by Gemini from the recording."}
@@ -226,8 +231,8 @@ function Section({
     <View style={styles.section}>
       <Pressable onPress={() => setOpen((value) => !value)} style={styles.sectionHead}>
         <Icon as={icon} size={15} color={C.textSec} />
-        <CustomText style={styles.sectionTitle}>{title}</CustomText>
-        <CustomText style={styles.sectionToggle}>{open ? "−" : "+"}</CustomText>
+        <CustomText textStyle="title" style={styles.sectionTitle}>{title}</CustomText>
+        <CustomText textStyle="caption" style={styles.sectionToggle}>{open ? "Hide" : "Show"}</CustomText>
       </Pressable>
       {open ? children : null}
     </View>
@@ -238,7 +243,7 @@ function MetaPill({ icon, label }: { icon: typeof Sparkles; label: string }) {
   return (
     <View style={styles.metaPill}>
       <Icon as={icon} size={12} color={C.textSec} />
-      <CustomText style={styles.metaPillText}>{label}</CustomText>
+      <CustomText textStyle="caption" style={styles.metaPillText}>{label}</CustomText>
     </View>
   );
 }
@@ -246,8 +251,8 @@ function MetaPill({ icon, label }: { icon: typeof Sparkles; label: string }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.statCard}>
-      <CustomText style={styles.statLabel}>{label}</CustomText>
-      <CustomText style={styles.statValue}>{value}</CustomText>
+      <CustomText textStyle="micro" style={styles.statLabel}>{label}</CustomText>
+      <CustomText textStyle="title" style={styles.statValue}>{value}</CustomText>
     </View>
   );
 }
@@ -265,13 +270,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
-  heading: {},
   sentimentBadge: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  sentimentText: {},
   summary: {
     lineHeight: 21,
     color: C.textSec,

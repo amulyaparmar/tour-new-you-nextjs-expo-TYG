@@ -21,7 +21,8 @@ import { CustomText } from "@/components/custom-text";
 import { Icon } from "@/components/ui/icon";
 import { LoadingDots } from "@/components/loading-dots";
 import { glassNavContentInset } from "@/components/glass-nav-header";
-import { ACCENT, BACKGROUND, CARD } from "@/theme/tokens";
+import { PAGE_SHEET_HEADER_INSET } from "@/components/page-sheet-modal";
+import { ACCENT, BACKGROUND, CARD, LARGE_CORNER } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
 import { useSessionPlayback } from "@/hooks/use-session-playback";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -41,12 +42,14 @@ export function SessionAudioInsightsScreen({
   initialStatus = "pending",
   initialInsights = null,
   onBack,
+  presentation = "page",
 }: {
   sessionId: string;
   sessionTitle?: string;
   initialStatus?: AudioInsightsStatus;
   initialInsights?: AudioInsights | null;
   onBack: () => void;
+  presentation?: "page" | "sheet";
 }) {
   const [status, setStatus] = useState(initialStatus);
   const [insights, setInsights] = useState(initialInsights);
@@ -100,6 +103,10 @@ export function SessionAudioInsightsScreen({
     : transcriptConversationStats
       ? "transcript"
       : null;
+  const contentInsetTop =
+    presentation === "sheet"
+      ? PAGE_SHEET_HEADER_INSET
+      : glassNavContentInset(insets.top);
 
   async function handleStart() {
     setStarting(true);
@@ -125,7 +132,7 @@ export function SessionAudioInsightsScreen({
             fallbackConversationStats={transcriptConversationStats}
             fallbackConversationStatsSource={transcriptConversationStats ? "transcript" : null}
             onSeek={(seconds) => void playback.seekToSeconds(seconds, true)}
-            contentInsetTop={glassNavContentInset(insets.top)}
+            contentInsetTop={contentInsetTop}
           />
           <SessionPlayer
             position={playback.position}
@@ -149,7 +156,7 @@ export function SessionAudioInsightsScreen({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[
             styles.enrichmentBody,
-            { paddingTop: glassNavContentInset(insets.top) },
+            { paddingTop: contentInsetTop },
           ]}
         >
           {conversationStats ? (
@@ -163,13 +170,15 @@ export function SessionAudioInsightsScreen({
               <>
                 <LoadingDots size="large" color={ACCENT} />
                 <CustomText textStyle="title" style={styles.emptyTitle}>{AUDIO_INSIGHTS_STATUS_LABELS[status]}</CustomText>
-                <CustomText textStyle="body" style={styles.emptyHint}>
+                <CustomText textStyle="caption" style={styles.emptyHint}>
                   Gemini is adding sentiment, speaker dynamics, ambience, and semantic interactivity.
                 </CustomText>
               </>
             ) : (
               <>
-                <Icon as={Activity} size={28} color={C.textSec} />
+                <View style={styles.emptyIcon}>
+                  <Icon as={Activity} size={22} color={ACCENT} />
+                </View>
                 <CustomText textStyle="title" style={styles.emptyTitle}>
                   {status === "failed"
                     ? "Gemini enrichment could not be generated"
@@ -177,7 +186,7 @@ export function SessionAudioInsightsScreen({
                       ? "Gemini enrichment is not configured"
                       : "No Gemini enrichment yet"}
                 </CustomText>
-                <CustomText textStyle="body" style={styles.emptyHint}>
+                <CustomText textStyle="caption" style={styles.emptyHint}>
                   {error ??
                     (status === "unavailable"
                       ? "Transcript measurements remain available. Configure GEMINI_API_KEY to add audio understanding."
@@ -190,7 +199,7 @@ export function SessionAudioInsightsScreen({
                 <LoadingDots color={CARD} size="small" />
               ) : (
                 <>
-                  <Icon as={RefreshCw} size={14} color={CARD} />
+                  <Icon as={RefreshCw} size={18} color={CARD} />
                   <CustomText textStyle="title" style={styles.actionText}>Run audio insights</CustomText>
                 </>
               )}
@@ -198,7 +207,9 @@ export function SessionAudioInsightsScreen({
           </View>
         </ScrollView>
       )}
-      <TourScreenHeader onBack={onBack} title={sessionTitle ?? "Audio insights"} />
+      {presentation === "sheet" ? null : (
+        <TourScreenHeader onBack={onBack} title={sessionTitle ?? "Audio insights"} />
+      )}
     </View>
   );
 }
@@ -209,12 +220,22 @@ const styles = StyleSheet.create({
     backgroundColor: BACKGROUND,
   },
   empty: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    paddingHorizontal: 28,
-    paddingBottom: 80,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  emptyIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 108, 229, 0.08)",
   },
   enrichmentBody: {
     flexGrow: 1,
@@ -245,14 +266,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   actionBtn: {
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
+    gap: 9,
     marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 25,
+    paddingHorizontal: 14,
+    borderRadius: 29,
     backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+    alignSelf: "stretch",
   },
   actionText: {
     color: CARD,

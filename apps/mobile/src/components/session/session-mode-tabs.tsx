@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { CustomText } from "@/components/custom-text";
 import { selectionHaptic } from "@/lib/haptics";
@@ -8,14 +8,7 @@ import { tourColors as C } from "@/theme/tour-brand";
 
 import { SESSION_PAGE_PADDING } from "./session-layout";
 
-export type SessionReviewMode =
-  | "rubric"
-  | "prospect"
-  | "transcript"
-  | "search"
-  | "coaching"
-  | "comments"
-  | "ai";
+export type SessionReviewMode = "transcript" | "ai";
 
 const MODES: Array<{
   id: SessionReviewMode;
@@ -23,40 +16,25 @@ const MODES: Array<{
 }> = [
   { id: "transcript", label: "Transcript" },
   { id: "ai", label: "AI Chat" },
-  { id: "rubric", label: "Rubric" },
-  { id: "prospect", label: "Prospect" },
-  { id: "search", label: "Search" },
-  { id: "coaching", label: "Coaching" },
-  { id: "comments", label: "Comments" },
 ];
 
 export function SessionModeTabs({
   value,
   onChange,
   modes,
-  commentCount = 0,
 }: {
   value: SessionReviewMode;
   onChange: (mode: SessionReviewMode) => void;
   modes?: SessionReviewMode[];
-  commentCount?: number;
 }) {
   const visibleModes = modes
     ? MODES.filter((mode) => modes.includes(mode.id))
     : MODES;
   return (
     <View style={styles.wrap}>
-      <ScrollView
-        horizontal
-        nestedScrollEnabled
-        directionalLockEnabled
-        keyboardShouldPersistTaps="handled"
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.track}
-      >
+      <View style={styles.track}>
         {visibleModes.map((mode) => {
           const active = value === mode.id;
-          const showCommentBadge = mode.id === "comments" && commentCount > 0;
           return (
             <Pressable
               key={mode.id}
@@ -75,17 +53,10 @@ export function SessionModeTabs({
               >
                 {mode.label}
               </CustomText>
-              {showCommentBadge ? (
-                <View style={[styles.badge, active && styles.badgeActive]}>
-                  <CustomText textStyle="micro" style={styles.badgeText}>
-                    {commentCount > 99 ? "99+" : String(commentCount)}
-                  </CustomText>
-                </View>
-              ) : null}
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -101,14 +72,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 2,
-    gap: 0,
   },
   segment: {
+    flex: 1,
     minHeight: 32,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
     paddingHorizontal: 12,
     borderRadius: 8,
   },
@@ -126,21 +96,5 @@ const styles = StyleSheet.create({
   },
   labelActive: {
     color: TEXT,
-  },
-  badge: {
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 5,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(60, 60, 67, 0.18)",
-  },
-  badgeActive: {
-    backgroundColor: "rgba(60, 60, 67, 0.12)",
-  },
-  badgeText: {
-    color: TEXT,
-    fontVariant: ["tabular-nums"],
   },
 });

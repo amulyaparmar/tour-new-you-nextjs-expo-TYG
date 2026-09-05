@@ -3,6 +3,7 @@ import { ArrowUp, Sparkles } from "lucide-react-native";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { fetch as expoFetch } from "expo/fetch";
+import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Keyboard,
@@ -11,7 +12,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -27,18 +27,11 @@ import {
 } from "../session-ai-prompts";
 import { AiChatText } from "./AiChatText";
 import { ElevenLabsDictationButton } from "./ElevenLabsDictationButton";
+import { CustomText } from "@/components/custom-text";
 import { Icon } from "@/components/ui/icon";
 import { LoadingDots } from "@/components/loading-dots";
-
-const C = {
-  brand: "#006CE5",
-  brandSoft: "#EAF4FF",
-  text: "#101828",
-  textSec: "#667085",
-  textMuted: "#94A3B8",
-  border: "rgba(16, 24, 40, 0.08)",
-  card: "#FFFFFF",
-};
+import { ACCENT, BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER, TEXT } from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 
 function messageText(parts: { type: string; text?: string }[]) {
   return parts
@@ -161,10 +154,12 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
       <View style={[styles.head, !showHeader && styles.headHidden]}>
         {showHeader ? (
           <>
-            <Text style={styles.title}>Tour AI</Text>
+            <CustomText textStyle="title">Tour AI</CustomText>
             {messages.length > 0 && (
               <Pressable disabled={isBusy} onPress={() => setMessages([])}>
-                <Text style={styles.clear}>Clear</Text>
+                <CustomText textStyle="label" style={styles.clear}>
+                  Clear
+                </CustomText>
               </Pressable>
             )}
           </>
@@ -175,81 +170,100 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
         ref={listRef}
         nestedScrollEnabled
         style={styles.list}
-        contentContainerStyle={[styles.listContent, { paddingBottom: 8 + bottomInset }]}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: 8 + Math.max(insets.bottom, bottomInset, 10) + 148 },
+        ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
       >
         {messages.length === 0 ? (
-          <View style={styles.starter}>
-            <Icon as={Sparkles} size={26} color={C.brand} />
-            <Text style={styles.emptyTitle}>Ask Tour AI about this tour</Text>
-            <Text style={styles.emptyBody}>
-              It uses the session, scorecard, transcript, coaching moments, and community context.
-            </Text>
-            <View style={styles.emptyPromptGrid}>
-              {SESSION_AI_DEFAULT_PROMPTS.map((prompt) => (
-                <Pressable
-                  key={prompt.id}
-                  disabled={isBusy}
-                  onPress={() => submitText(prompt.text)}
-                  style={({ pressed }) => [
-                    styles.emptyPromptBubble,
-                    pressed && { opacity: 0.76, transform: [{ scale: 0.99 }] },
-                    isBusy && { opacity: 0.6 },
-                  ]}
-                >
-                  <Text style={styles.emptyPromptText}>{prompt.label}</Text>
-                </Pressable>
-              ))}
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Icon as={Sparkles} size={22} color={ACCENT} />
             </View>
+            <CustomText textStyle="title" style={styles.emptyTitle}>
+              Ask Tour AI about this tour
+            </CustomText>
+            <CustomText textStyle="caption" style={styles.emptyBody}>
+              It uses the session, scorecard, transcript, coaching moments, and
+              community context.
+            </CustomText>
           </View>
         ) : (
           messages.map((message) => (
             <View
               key={message.id}
-              style={[styles.message, message.role === "user" ? styles.messageUser : styles.messageAssistant]}
+              style={[
+                styles.message,
+                message.role === "user" ? styles.messageUser : styles.messageAssistant,
+              ]}
             >
-              <Text style={styles.role}>{message.role === "user" ? "You" : "Tour AI"}</Text>
+              <CustomText textStyle="micro" style={styles.role}>
+                {message.role === "user" ? "You" : "Tour AI"}
+              </CustomText>
               {message.role === "assistant" ? (
                 <>
                   <AiChatText content={messageText(message.parts)} onSeek={onSeek} />
                   {isBusy &&
                     message.id === messages[messages.length - 1]?.id &&
                     !messageText(message.parts) && (
-                      <Text style={styles.typing}>Thinking...</Text>
+                      <CustomText textStyle="caption" style={styles.typing}>
+                        Thinking...
+                      </CustomText>
                     )}
                 </>
               ) : (
-                <Text style={styles.userText}>{messageText(message.parts)}</Text>
+                <CustomText textStyle="body" style={styles.userText}>
+                  {messageText(message.parts)}
+                </CustomText>
               )}
             </View>
           ))
         )}
         {(error || dictationError) && (
-          <Text style={styles.error}>
+          <CustomText textStyle="caption" style={styles.error}>
             {dictationError || error?.message || "Something went wrong."}
-          </Text>
+          </CustomText>
         )}
       </ScrollView>
 
-      <View
+      <LinearGradient
+        pointerEvents="box-none"
+        colors={[
+          "rgba(242, 242, 247, 0)",
+          "rgba(242, 242, 247, 0.72)",
+          BACKGROUND,
+        ]}
+        locations={[0, 0.4, 1]}
         style={[
           styles.composer,
           {
-            paddingBottom: keyboardHeight > 0 ? 8 : Math.max(insets.bottom, bottomInset, 10),
+            paddingBottom:
+              keyboardHeight > 0 ? 8 : Math.max(insets.bottom, bottomInset, 10),
           },
         ]}
       >
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.prompts}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.prompts}
+        >
           {SESSION_AI_DEFAULT_PROMPTS.map((prompt) => (
             <Pressable
               key={prompt.id}
               disabled={isBusy}
               onPress={() => submitText(prompt.text)}
-              style={({ pressed }) => [styles.prompt, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [
+                styles.prompt,
+                pressed && styles.promptPressed,
+                isBusy && styles.promptDisabled,
+              ]}
             >
-              <Text style={styles.promptText}>{prompt.label}</Text>
+              <CustomText textStyle="label" style={styles.promptText}>
+                {prompt.label}
+              </CustomText>
             </Pressable>
           ))}
         </ScrollView>
@@ -261,9 +275,12 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
                 <Pressable
                   key={prompt.id}
                   onPress={() => insertPrompt(prompt)}
-                  style={[styles.mentionItem, index === mentionIndex && styles.mentionItemActive]}
+                  style={[
+                    styles.mentionItem,
+                    index === mentionIndex && styles.mentionItemActive,
+                  ]}
                 >
-                  <Text style={styles.mentionLabel}>@{prompt.label}</Text>
+                  <CustomText textStyle="label">@{prompt.label}</CustomText>
                 </Pressable>
               ))}
             </View>
@@ -275,80 +292,114 @@ export function SessionAiChat({ sessionId, analysis, onSeek, showHeader = true, 
             placeholderTextColor={C.textMuted}
             style={styles.input}
             multiline
+            textAlignVertical="top"
             editable={!isBusy}
           />
-          <ElevenLabsDictationButton
-            disabled={isBusy}
-            onError={setDictationError}
-            onTranscript={(text) => {
-              setInput((current) => appendDictationText(current, text));
-            }}
-          />
-          <Pressable
-            disabled={!input.trim() || isBusy}
-            onPress={() => submitText(input)}
-            style={[styles.send, (!input.trim() || isBusy) && styles.sendDisabled]}
-          >
-            {isBusy ? (
-              <LoadingDots size="small" color="#fff" />
-            ) : (
-              <Icon as={ArrowUp} size={18} color="#fff" />
-            )}
-          </Pressable>
+          <View style={styles.inputActions}>
+            <ElevenLabsDictationButton
+              disabled={isBusy}
+              onError={setDictationError}
+              onTranscript={(text) => {
+                setInput((current) => appendDictationText(current, text));
+              }}
+            />
+            <Pressable
+              disabled={!input.trim() || isBusy}
+              onPress={() => submitText(input)}
+              style={[styles.send, (!input.trim() || isBusy) && styles.sendDisabled]}
+            >
+              {isBusy ? (
+                <LoadingDots size="small" color={CARD} />
+              ) : (
+                <Icon as={ArrowUp} size={18} color={CARD} />
+              )}
+            </Pressable>
+          </View>
         </View>
-      </View>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, gap: 8 },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
-  headHidden: { minHeight: 0, height: 0, overflow: "hidden" },
-  title: { fontSize: 17, fontWeight: "900", color: C.text },
-  clear: { fontSize: 13, fontWeight: "700", color: C.brand },
-  list: { flex: 1 },
-  listContent: { gap: 10, paddingBottom: 8 },
-  starter: { alignItems: "center", gap: 8, paddingHorizontal: 22, paddingTop: 24 },
-  emptyTitle: { color: C.text, fontSize: 19, fontWeight: "900", textAlign: "center" },
-  emptyBody: { color: C.textSec, fontSize: 14, lineHeight: 20, fontWeight: "700", textAlign: "center" },
-  emptyPromptGrid: { alignSelf: "stretch", gap: 10, marginTop: 14 },
-  emptyPromptBubble: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: "rgba(0,108,229,0.18)",
-    borderRadius: 18,
-    backgroundColor: "#F8FBFF",
-  },
-  emptyPromptText: { color: C.text, fontSize: 14, lineHeight: 18, fontWeight: "900", textAlign: "center" },
-  message: { borderRadius: 12, padding: 12, gap: 4 },
-  messageUser: { backgroundColor: C.brandSoft, alignSelf: "flex-end", maxWidth: "92%" },
-  messageAssistant: { backgroundColor: "#f8fafc", alignSelf: "flex-start", maxWidth: "96%" },
-  role: { fontSize: 10, fontWeight: "900", color: C.textMuted, textTransform: "uppercase" },
-  userText: { fontSize: 14, fontWeight: "600", color: C.text, lineHeight: 20 },
-  typing: { fontSize: 13, fontWeight: "600", color: C.textMuted, fontStyle: "italic" },
-  error: { fontSize: 13, fontWeight: "700", color: "#DC2626" },
-  composer: { gap: 8, paddingTop: 4 },
-  prompts: { gap: 8, paddingBottom: 4 },
-  prompt: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  promptText: { fontSize: 12, fontWeight: "700", color: C.textSec },
-  inputWrap: {
+  head: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  headHidden: { minHeight: 0, height: 0, overflow: "hidden" },
+  clear: { color: ACCENT },
+  list: { flex: 1 },
+  listContent: { gap: 10, paddingBottom: 8, paddingTop: 8 },
+  emptyCard: {
+    alignItems: "center",
     gap: 8,
-    backgroundColor: C.card,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  emptyIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 8,
+    backgroundColor: "rgba(0, 108, 229, 0.08)",
+  },
+  emptyTitle: { textAlign: "center" },
+  emptyBody: {
+    color: C.textSec,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  message: {
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    padding: 12,
+    gap: 4,
+  },
+  messageUser: { backgroundColor: HINT, alignSelf: "flex-end", maxWidth: "92%" },
+  messageAssistant: { backgroundColor: CARD, alignSelf: "flex-start", maxWidth: "96%" },
+  role: {
+    color: C.textSec,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  userText: { lineHeight: 20 },
+  typing: { color: C.textMuted, fontStyle: "italic" },
+  error: { color: C.red },
+  composer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    gap: 10,
+    paddingTop: 28,
+  },
+  prompts: { gap: 8, paddingBottom: 2 },
+  prompt: {
+    minHeight: 40,
+    justifyContent: "center",
+    backgroundColor: CARD,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  promptPressed: { opacity: 0.8 },
+  promptDisabled: { opacity: 0.6 },
+  promptText: { color: TEXT },
+  inputWrap: {
+    minHeight: 80,
+    backgroundColor: CARD,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
   },
   mentionMenu: {
     position: "absolute",
@@ -356,22 +407,34 @@ const styles = StyleSheet.create({
     right: 8,
     bottom: "100%",
     marginBottom: 6,
-    backgroundColor: C.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
+    backgroundColor: CARD,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
     overflow: "hidden",
     zIndex: 10,
   },
   mentionItem: { paddingHorizontal: 12, paddingVertical: 10 },
-  mentionItemActive: { backgroundColor: C.brandSoft },
-  mentionLabel: { fontSize: 13, fontWeight: "700", color: C.text },
-  input: { flex: 1, fontSize: 15, fontWeight: "600", color: C.text, maxHeight: 100, minHeight: 36 },
+  mentionItemActive: { backgroundColor: HINT },
+  input: {
+    minHeight: 58,
+    paddingRight: 88,
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT,
+  },
+  inputActions: {
+    position: "absolute",
+    right: 8,
+    bottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   send: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: C.brand,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
   },

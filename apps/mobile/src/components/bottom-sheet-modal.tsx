@@ -31,6 +31,8 @@ const AnimatedView = Reanimated.View;
 type BottomSheetModalProps = {
   visible: boolean;
   onClose: () => void;
+  /** iOS: fires after the native modal has finished dismissing. */
+  onDismiss?: () => void;
   children: React.ReactNode;
   dragHeader?: React.ReactNode;
   header?: React.ReactNode;
@@ -42,11 +44,18 @@ type BottomSheetModalProps = {
   /** Enables a right-swipe back action inside a nested sheet state. */
   swipeBackEnabled?: boolean;
   onSwipeBack?: () => void;
+  /**
+   * `overlay` renders in-place instead of a native Modal. Use this when
+   * another native Modal (e.g. a page sheet) must be presented from a
+   * menu item — iOS will drop the second presentation if a Modal is already up.
+   */
+  host?: "modal" | "overlay";
 };
 
 export function BottomSheetModal({
   visible,
   onClose,
+  onDismiss,
   children,
   dragHeader,
   header,
@@ -57,6 +66,7 @@ export function BottomSheetModal({
   keyboardAvoiding = false,
   swipeBackEnabled = false,
   onSwipeBack,
+  host = "modal",
 }: BottomSheetModalProps) {
   const insets = useSafeAreaInsets();
   const [rendered, setRendered] = useState(visible);
@@ -191,55 +201,71 @@ export function BottomSheetModal({
     transform: [{ translateY: translateY.value }],
   }));
 
+  if (!rendered) return null;
+
+  const body = (
+    <GestureHandlerRootView style={styles.root}>
+      <AnimatedView pointerEvents="none" style={[styles.backdrop, backdropStyle]} />
+      <Pressable
+        accessibilityLabel="Close sheet"
+        disabled={dismissDisabled}
+        onPress={() => animateDismiss(true)}
+        style={styles.scrim}
+      />
+
+      <KeyboardAvoidingView
+        behavior={keyboardAvoiding && Platform.OS === "ios" ? "padding" : undefined}
+        pointerEvents="box-none"
+        style={styles.keyboardAvoiding}
+      >
+        <GestureDetector gesture={sheetGesture}>
+          <AnimatedView
+            style={[
+              styles.sheet,
+              sheetStyle,
+              sheetAnimatedStyle,
+              {
+                height: sheetHeight,
+                paddingBottom: keyboardVisible ? 0 : Math.max(insets.bottom, 16),
+              },
+            ]}
+          >
+            <View style={styles.dragZone}>
+              <View style={styles.handle} />
+              {dragHeader}
+            </View>
+            {header}
+            <View style={[styles.body, contentStyle]}>{children}</View>
+          </AnimatedView>
+        </GestureDetector>
+      </KeyboardAvoidingView>
+    </GestureHandlerRootView>
+  );
+
+  if (host === "overlay") {
+    return <View style={styles.overlayHost}>{body}</View>;
+  }
+
   return (
     <Modal
       visible={rendered}
       transparent
       animationType="none"
       presentationStyle="overFullScreen"
+      onDismiss={onDismiss}
       onRequestClose={() => animateDismiss(true)}
     >
-      <GestureHandlerRootView style={styles.root}>
-        <AnimatedView pointerEvents="none" style={[styles.backdrop, backdropStyle]} />
-        <Pressable
-          accessibilityLabel="Close sheet"
-          disabled={dismissDisabled}
-          onPress={() => animateDismiss(true)}
-          style={styles.scrim}
-        />
-
-        <KeyboardAvoidingView
-          behavior={keyboardAvoiding && Platform.OS === "ios" ? "padding" : undefined}
-          pointerEvents="box-none"
-          style={styles.keyboardAvoiding}
-        >
-          <GestureDetector gesture={sheetGesture}>
-            <AnimatedView
-              style={[
-                styles.sheet,
-                sheetStyle,
-                sheetAnimatedStyle,
-                {
-                  height: sheetHeight,
-                  paddingBottom: keyboardVisible ? 0 : Math.max(insets.bottom, 16),
-                },
-              ]}
-            >
-              <View style={styles.dragZone}>
-                <View style={styles.handle} />
-                {dragHeader}
-              </View>
-              {header}
-              <View style={[styles.body, contentStyle]}>{children}</View>
-            </AnimatedView>
-          </GestureDetector>
-        </KeyboardAvoidingView>
-      </GestureHandlerRootView>
+      {body}
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  overlayHost: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 40,
+    elevation: 40,
+  },
   root: {
     flex: 1,
     justifyContent: "flex-end",
