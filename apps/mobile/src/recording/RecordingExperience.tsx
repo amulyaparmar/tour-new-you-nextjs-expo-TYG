@@ -71,6 +71,10 @@ import { isExpoGo, isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
 import { useRecording } from "./RecordingProvider";
 import { useRecordingSheetGesture } from "./useRecordingSheetGesture";
+import {
+  useMuseLiveTranscription,
+  type RealtimeTranscriptLine,
+} from "./useMuseLiveTranscription";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
 import {
   useSessionParticipantRealtime,
@@ -207,7 +211,7 @@ function isRecoverableSpeechSilence(message: string | null | undefined): boolean
 
 type LiveTranscriptLine = {
   id: string;
-  speaker: "Agent" | "Prospect" | "Live";
+  speaker: string;
   text: string;
   time: number;
   isInterim?: boolean;
@@ -260,11 +264,60 @@ type RecordingExperienceProps = {
 };
 
 function speakerInitial(speaker: LiveTranscriptLine["speaker"]) {
-  return speaker === "Prospect" ? "P" : speaker === "Agent" ? "A" : "•";
+  if (speaker === "Prospect") return "P";
+  if (speaker === "Agent") return "A";
+  if (speaker.startsWith("Speaker ")) return speaker.slice("Speaker ".length, "Speaker ".length + 1);
+  return "•";
 }
 
 function transcriptText(lines: LiveTranscriptLine[]) {
   return lines.map((line) => `[${formatElapsed(line.time)}] ${line.speaker}: ${line.text}`).join("\n");
+}
+
+function normalizedTranscript(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function transcriptsOverlap(a: LiveTranscriptLine, b: LiveTranscriptLine) {
+  if (Math.abs(a.time - b.time) > 5) return false;
+  const aText = normalizedTranscript(a.text);
+  const bText = normalizedTranscript(b.text);
+  if (!aText || !bText) return false;
+  if (aText === bText) return true;
+  const aWords = new Set(aText.split(" "));
+  const bWords = new Set(bText.split(" "));
+  if (!aWords.size || !bWords.size) return false;
+  let shared = 0;
+  for (const word of aWords) if (bWords.has(word)) shared += 1;
+  return Math.min(aWords.size, bWords.size) >= 3
+    && shared / Math.min(aWords.size, bWords.size) >= 0.72;
+}
+
+function mergeTranscriptLines(local: LiveTranscriptLine[], muse: RealtimeTranscriptLine[]) {
+  const matchedMuse = new Set<number>();
+  const localWithoutMuseDuplicates = local.filter((localLine) => {
+    let nearestIndex = -1;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < muse.length; index += 1) {
+      const museLine = muse[index];
+      if (!museLine || matchedMuse.has(index) || !transcriptsOverlap(localLine, museLine)) continue;
+      const distance = Math.abs(localLine.time - museLine.time);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    }
+    if (nearestIndex < 0) return true;
+    matchedMuse.add(nearestIndex);
+    return false;
+  });
+  return [...localWithoutMuseDuplicates, ...muse].sort((a, b) => a.time - b.time);
+}
+
+function estimatedUtteranceStart(text: string, elapsed: number) {
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  const estimatedDuration = Math.min(8, Math.max(0.8, wordCount / 2.5));
+  return Math.max(0, elapsed - estimatedDuration);
 }
 
 function personInitials(name: string) {
@@ -546,6 +599,7 @@ export function RecordingExperience({
   const listRef = useAnimatedRef<FlatList<LiveTranscriptLine>>();
   const chatListRef = useAnimatedRef<ScrollView>();
   const lastFinalTextRef = useRef("");
+  const localUtteranceStartedAtRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
   const speechStartedRef = useRef(false);
@@ -555,6 +609,15 @@ export function RecordingExperience({
   const sessionPaused = rec.isPaused;
   const wasSessionPausedRef = useRef(sessionPaused);
   const sessionElapsed = rec.elapsed;
+  const muse = useMuseLiveTranscription({
+    enabled: transcriptionRequested && hasStarted && !sessionPaused,
+    sessionId: resolvedSessionId,
+    elapsed: sessionElapsed,
+  });
+  const nativeFallbackRequested = transcriptionRequested
+    && hasStarted
+    && !sessionPaused
+    && muse.shouldUseNativeFallback;
   const chatFocused = activeTab === "ai";
   const chatComposerMode = chatFocused && hasStarted;
   const keyboardOpen = keyboardHeight > 0;
@@ -683,12 +746,10 @@ export function RecordingExperience({
   }, []);
 
   useEffect(() => {
-    if (!transcriptionRequested) return;
-
-    if (sessionPaused) {
+    if (!nativeFallbackRequested) {
       stopSpeechEngineSafely();
       speechStartedRef.current = false;
-      setTranscriptionStatus("Transcription paused. Resume to continue.");
+      if (sessionPaused) setTranscriptionStatus("Transcription paused. Resume to continue.");
       return;
     }
 
@@ -713,14 +774,24 @@ export function RecordingExperience({
     return () => {
       cancelled = true;
     };
-  }, [transcriptionRequested, sessionPaused, liveSpeech.isRecording]);
+  }, [nativeFallbackRequested, sessionPaused, liveSpeech.isRecording]);
+
+  useEffect(() => {
+    if (!nativeFallbackRequested) return;
+    const text = liveSpeech.text.trim();
+    if (!text || liveSpeech.isFinal || localUtteranceStartedAtRef.current !== null) return;
+    localUtteranceStartedAtRef.current = sessionElapsed;
+  }, [liveSpeech.isFinal, liveSpeech.text, nativeFallbackRequested, sessionElapsed]);
 
   // Apple may not emit a final utterance before its engine is stopped. Promote
   // the visible interim text to durable history exactly once when pausing.
+  const wasNativeFallbackRequestedRef = useRef(nativeFallbackRequested);
   useEffect(() => {
     const justPaused = sessionPaused && !wasSessionPausedRef.current;
+    const fallbackWasActive = wasNativeFallbackRequestedRef.current;
     wasSessionPausedRef.current = sessionPaused;
-    if (!justPaused) return;
+    wasNativeFallbackRequestedRef.current = nativeFallbackRequested;
+    if (!justPaused || !fallbackWasActive) return;
 
     const text = liveSpeech.text.trim();
     if (!text || text === lastFinalTextRef.current) return;
@@ -729,17 +800,18 @@ export function RecordingExperience({
       ...current,
       {
         id: `pause-final-${Date.now()}-${current.length}`,
-        speaker: "Live",
-        time: sessionElapsed,
+        speaker: "Speaker",
+        time: localUtteranceStartedAtRef.current ?? estimatedUtteranceStart(text, sessionElapsed),
         text,
       },
     ]);
-  }, [liveSpeech.text, sessionElapsed, sessionPaused]);
+    localUtteranceStartedAtRef.current = null;
+  }, [liveSpeech.text, nativeFallbackRequested, sessionElapsed, sessionPaused]);
 
-  // Native module stops after each final utterance. Restart only after the engine
-  // reports stopped — never while isRecording (overlapping installTap = SIGABRT).
+  // Some native recognizers stop after each final utterance. Restart only while
+  // local fallback owns transcription and the engine reports stopped.
   useEffect(() => {
-    if (!transcriptionRequested || !SpeechTranscriber || sessionPaused) return;
+    if (!nativeFallbackRequested || !SpeechTranscriber || sessionPaused) return;
     if (!liveSpeech.isFinal) return;
     if (liveSpeech.isRecording) return;
     if (isFatalSpeechInitError(liveSpeech.error) || isFatalSpeechInitError(transcriptionStatus)) return;
@@ -749,7 +821,7 @@ export function RecordingExperience({
 
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (cancelled || sessionPaused || !transcriptionRequested) return;
+      if (cancelled || sessionPaused || !nativeFallbackRequested) return;
       if (SpeechTranscriber.isRecording()) return;
       void startSpeechEngine().then((engineError) => {
         if (cancelled) return;
@@ -768,7 +840,7 @@ export function RecordingExperience({
       clearTimeout(timer);
     };
   }, [
-    transcriptionRequested,
+    nativeFallbackRequested,
     liveSpeech.isFinal,
     liveSpeech.isRecording,
     liveSpeech.error,
@@ -777,25 +849,26 @@ export function RecordingExperience({
   ]);
 
   useEffect(() => {
+    if (!nativeFallbackRequested) return;
     if (!liveSpeech.error) return;
     if (isRecoverableSpeechSilence(liveSpeech.error)) return;
     setTranscriptionStatus(liveSpeech.error);
     if (isFatalSpeechInitError(liveSpeech.error)) {
       // Don't keep hammering Apple's recognizer — it won't recover without device setup.
       speechStartedRef.current = false;
-      setTranscriptionRequested(false);
     }
-  }, [liveSpeech.error]);
+  }, [liveSpeech.error, nativeFallbackRequested]);
 
   useEffect(() => {
-    if (!transcriptionRequested) return;
+    if (!nativeFallbackRequested) return;
     if (liveSpeech.isRecording) {
       speechStartedRef.current = true;
       setTranscriptionStatus(null);
     }
-  }, [transcriptionRequested, liveSpeech.isRecording]);
+  }, [nativeFallbackRequested, liveSpeech.isRecording]);
 
   useEffect(() => {
+    if (!nativeFallbackRequested) return;
     const text = liveSpeech.text.trim();
     if (!text || !liveSpeech.isFinal || text === lastFinalTextRef.current) return;
 
@@ -804,61 +877,47 @@ export function RecordingExperience({
       ...current,
       {
         id: `final-${Date.now()}-${current.length}`,
-        speaker: "Live",
-        time: sessionElapsed,
+        speaker: "Speaker",
+        time: localUtteranceStartedAtRef.current ?? estimatedUtteranceStart(text, sessionElapsed),
         text,
       },
     ]);
-  }, [liveSpeech.isFinal, liveSpeech.text, sessionElapsed]);
+    localUtteranceStartedAtRef.current = null;
+  }, [liveSpeech.isFinal, liveSpeech.text, nativeFallbackRequested, sessionElapsed]);
 
-  const liveTranscript = useMemo<LiveTranscriptLine[]>(() => {
+  const completedTranscriptLines = useMemo(
+    () => mergeTranscriptLines(finalTranscriptLines, muse.turns),
+    [finalTranscriptLines, muse.turns]
+  );
+  const currentTranscriptLine = useMemo<LiveTranscriptLine | null>(() => {
+    if (muse.partial?.text.trim()) return muse.partial;
     const currentText = liveSpeech.text.trim();
-    const shouldShowInterim = currentText && (!liveSpeech.isFinal || currentText !== lastFinalTextRef.current);
-    if (shouldShowInterim) {
-      return [
-        ...finalTranscriptLines,
-        {
-          id: "live-interim",
-          speaker: "Live",
-          time: sessionElapsed,
-          text: currentText,
-          isInterim: true,
-        },
-      ];
-    }
-    if (finalTranscriptLines.length > 0) return finalTranscriptLines;
-    return [
-      {
-        id: "live-ready",
-        speaker: "Live",
-        time: Math.max(0, sessionElapsed - 1),
-        text:
-          transcriptionStatus ||
-          (sessionPaused
-            ? "Transcription paused. Resume to keep capturing speech."
-            : liveSpeech.isRecording
-              ? "Listening for the tour. Speech will appear here as it is recognized."
-              : "Waiting for speech recognition…"),
-        isInterim: true,
-      },
-    ];
-  }, [
-    finalTranscriptLines,
-    liveSpeech.isFinal,
-    liveSpeech.isRecording,
-    liveSpeech.text,
-    sessionElapsed,
-    sessionPaused,
-    transcriptionStatus,
-  ]);
+    const shouldShowLocalInterim = nativeFallbackRequested
+      && currentText
+      && (!liveSpeech.isFinal || currentText !== lastFinalTextRef.current);
+    if (!shouldShowLocalInterim) return null;
+    return {
+      id: "local-interim",
+      speaker: "Speaker",
+      time: localUtteranceStartedAtRef.current ?? sessionElapsed,
+      text: currentText,
+      isInterim: true,
+    };
+  }, [liveSpeech.isFinal, liveSpeech.text, muse.partial, nativeFallbackRequested, sessionElapsed]);
+  const liveTranscript = useMemo<LiveTranscriptLine[]>(
+    () => currentTranscriptLine
+      ? [...completedTranscriptLines, currentTranscriptLine]
+      : completedTranscriptLines,
+    [completedTranscriptLines, currentTranscriptLine]
+  );
 
   useEffect(() => {
     if (activeTab !== "transcript" || liveTranscript.length === 0 || pullProgress.value > 0 || sheetClosing.value) return;
     listRef.current?.scrollToEnd({ animated: true });
-  }, [activeTab, liveTranscript.length, liveSpeech.text, listRef, pullProgress, sheetClosing]);
+  }, [activeTab, currentTranscriptLine?.text, liveTranscript.length, listRef, pullProgress, sheetClosing]);
 
   useEffect(() => {
-    const latest = [...liveTranscript].reverse().find((line) => line.text.trim() && !line.id.startsWith("live-ready"));
+    const latest = [...liveTranscript].reverse().find((line) => line.text.trim());
     if (!latest) {
       rec.setTranscriptPreview("");
       return;
@@ -1178,8 +1237,7 @@ export function RecordingExperience({
           setStartError(error instanceof Error ? error.message : "Recording started, but the session could not be updated.");
         });
 
-      // Start file recording first. Speech starts afterward via effect (single-flight).
-      // Starting both AVAudioEngine + AVAudioRecorder at once can native-crash.
+      // Start file recording first. Live capture starts afterward via its own lifecycle.
       const started = await rec.start();
       if (!started) {
         setStartError("Could not start recording.");
@@ -1189,7 +1247,7 @@ export function RecordingExperience({
       setHasStarted(true);
       void activationPromise;
       void ensureLiveSessionId();
-      // Let the recorder settle before sharing the mic with SFSpeechRecognizer.
+      // Let the recorder settle before opening the live PCM stream.
       await new Promise((resolve) => setTimeout(resolve, 400));
       if (cancelledRef.current) return;
       setTranscriptionRequested(true);
@@ -1484,47 +1542,69 @@ export function RecordingExperience({
 
           {activeTab === "transcript" && (
             <GestureDetector gesture={transcriptDrag.gesture}>
-            <Reanimated.FlatList
-              ref={listRef}
-              onScroll={transcriptDrag.onScroll}
-              scrollEventThrottle={16}
-              bounces={false}
-              alwaysBounceVertical={false}
-              overScrollMode="never"
-              onAccessibilityEscape={minimizeSheet}
-              data={liveTranscript}
-              renderItem={renderTranscript}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={s.transcriptList}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              ListHeaderComponent={
-                <View style={s.notice}>
+            <View style={s.transcriptPane}>
+              <View style={s.liveTranscriptToolbar}>
+                <View style={s.liveTranscriptWave}>
+                  {[...waveformBars.left, ...waveformBars.right].map((height, index) => (
+                    <LiveWaveBar
+                      key={`transcript-wave-${index}`}
+                      height={height}
+                      opacity={hasStarted ? (sessionPaused ? 0.36 : 0.82) : 0.28}
+                    />
+                  ))}
+                </View>
+                <View
+                  accessible
+                  accessibilityLabel={
+                    !muse.internetAvailable
+                      ? "Offline. Using device transcription."
+                      : muse.status === "streaming"
+                        ? "Internet transcription active."
+                        : muse.status === "connecting"
+                          ? "Connecting internet transcription."
+                          : "Using device transcription."
+                  }
+                  style={s.liveConnectionIndicator}
+                >
                   <Ionicons
                     name={
-                      liveSpeech.error || isFatalSpeechInitError(transcriptionStatus)
-                        ? "mic-off-outline"
-                        : liveSpeech.isRecording
+                      !muse.internetAvailable
+                        ? "cloud-offline-outline"
+                        : muse.status === "streaming"
                           ? "radio-outline"
-                          : "mic-outline"
+                          : muse.status === "connecting"
+                            ? "sync-outline"
+                            : "phone-portrait-outline"
                     }
-                    size={18}
-                    color={ACCENT}
+                    size={16}
+                    color={muse.status === "streaming" ? ACCENT : C.textMuted}
                   />
-                  <CustomText textStyle="label" style={s.noticeText}>
-                    {liveSpeech.error ||
-                      transcriptionStatus ||
-                      (sessionPaused
-                        ? "Transcription paused. Resume to continue."
-                        : liveSpeech.isRecording
-                          ? "Live transcription is listening."
-                          : hasStarted
-                            ? "Connecting speech recognition…"
-                            : "Transcript starts after recording begins.")}
-                  </CustomText>
+                  <View
+                    style={[
+                      s.liveConnectionDot,
+                      muse.status === "streaming" && s.liveConnectionDotActive,
+                      !muse.internetAvailable && s.liveConnectionDotOffline,
+                    ]}
+                  />
                 </View>
-              }
-            />
+              </View>
+
+              <Reanimated.FlatList
+                ref={listRef}
+                onScroll={transcriptDrag.onScroll}
+                scrollEventThrottle={16}
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
+                onAccessibilityEscape={minimizeSheet}
+                data={liveTranscript}
+                renderItem={renderTranscript}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={s.transcriptList}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              />
+            </View>
             </GestureDetector>
           )}
 
@@ -2451,9 +2531,38 @@ const s = StyleSheet.create({
   promptGrid: { gap: 8 },
   promptCard: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: CARD },
   promptCardText: { flex: 1, color: TEXT, fontSize: 13, fontWeight: "800" },
-  transcriptList: { padding: 16, gap: 8, paddingBottom: 20 },
-  notice: { flexDirection: "row", gap: 9, padding: 11, borderRadius: 12, backgroundColor: HINT, marginBottom: 4 },
-  noticeText: { flex: 1, color: C.textSec, fontSize: 13, lineHeight: 18, fontWeight: "700" },
+  transcriptPane: { flex: 1, minHeight: 0 },
+  liveTranscriptToolbar: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.border,
+    backgroundColor: BACKGROUND,
+  },
+  liveConnectionIndicator: {
+    minWidth: 34,
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  liveConnectionDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: C.textMuted },
+  liveConnectionDotActive: { backgroundColor: ACCENT },
+  liveConnectionDotOffline: { backgroundColor: C.amber },
+  liveTranscriptWave: {
+    flex: 1,
+    height: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 3,
+    overflow: "hidden",
+  },
+  transcriptList: { paddingHorizontal: 16, paddingTop: 6, gap: 4, paddingBottom: 20 },
   transcriptRow: { flexDirection: "row", gap: 10, paddingVertical: 9 },
   transcriptRowInterim: { opacity: 0.84 },
   speakerDot: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: HINT },
