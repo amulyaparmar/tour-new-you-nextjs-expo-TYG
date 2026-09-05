@@ -652,6 +652,22 @@ export type LiveSessionChatMessage = {
   content: string;
 };
 
+export async function createLiveTranscriptionSocket(sessionId: string) {
+  const response = await authenticatedFetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/live-transcription`,
+    { method: "POST", cache: "no-store" }
+  );
+  const body = await response.json().catch(() => null) as {
+    url?: string;
+    expiresAt?: number;
+    error?: string;
+  } | null;
+  if (!response.ok || !body?.url) {
+    throw new Error(body?.error ?? "Live transcription is unavailable.");
+  }
+  return { url: body.url, expiresAt: body.expiresAt ?? 0 };
+}
+
 function liveChatAuthHeaders(responseMode: "stream" | "json" = "stream"): Record<string, string> {
   const session = getCurrentSession();
   if (!session) throw new Error("Sign in is required.");

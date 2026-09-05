@@ -71,6 +71,11 @@ import { isExpoGo, isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
 import { useRecording } from "./RecordingProvider";
 import { useRecordingSheetGesture } from "./useRecordingSheetGesture";
+import {
+  useMuseLiveTranscription,
+  type NativeSpeechAudioSource,
+  type RealtimeTranscriptLine,
+} from "./useMuseLiveTranscription";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
 import {
   useSessionParticipantRealtime,
@@ -128,7 +133,7 @@ type SpeechTranscriberModule = {
   isRecording: () => boolean;
   ExpoSpeechTranscriberModule?: {
     addListener: (
-      event: "onTranscriptionProgress" | "onTranscriptionError",
+      event: "onTranscriptionProgress" | "onTranscriptionError" | "onAudioBuffer",
       listener: (payload: Record<string, unknown>) => void
     ) => { remove: () => void };
     isRecording: () => boolean;
@@ -207,7 +212,7 @@ function isRecoverableSpeechSilence(message: string | null | undefined): boolean
 
 type LiveTranscriptLine = {
   id: string;
-  speaker: "Agent" | "Prospect" | "Live";
+  speaker: string;
   text: string;
   time: number;
   isInterim?: boolean;
@@ -260,11 +265,60 @@ type RecordingExperienceProps = {
 };
 
 function speakerInitial(speaker: LiveTranscriptLine["speaker"]) {
-  return speaker === "Prospect" ? "P" : speaker === "Agent" ? "A" : "•";
+  if (speaker === "Prospect") return "P";
+  if (speaker === "Agent") return "A";
+  if (speaker.startsWith("Speaker ")) return speaker.slice("Speaker ".length, "Speaker ".length + 1);
+  return "•";
 }
 
 function transcriptText(lines: LiveTranscriptLine[]) {
   return lines.map((line) => `[${formatElapsed(line.time)}] ${line.speaker}: ${line.text}`).join("\n");
+}
+
+function normalizedTranscript(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function transcriptsOverlap(a: LiveTranscriptLine, b: LiveTranscriptLine) {
+  if (Math.abs(a.time - b.time) > 5) return false;
+  const aText = normalizedTranscript(a.text);
+  const bText = normalizedTranscript(b.text);
+  if (!aText || !bText) return false;
+  if (aText === bText) return true;
+  const aWords = new Set(aText.split(" "));
+  const bWords = new Set(bText.split(" "));
+  if (!aWords.size || !bWords.size) return false;
+  let shared = 0;
+  for (const word of aWords) if (bWords.has(word)) shared += 1;
+  return Math.min(aWords.size, bWords.size) >= 3
+    && shared / Math.min(aWords.size, bWords.size) >= 0.72;
+}
+
+function mergeTranscriptLines(local: LiveTranscriptLine[], muse: RealtimeTranscriptLine[]) {
+  const matchedMuse = new Set<number>();
+  const localWithoutMuseDuplicates = local.filter((localLine) => {
+    let nearestIndex = -1;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < muse.length; index += 1) {
+      const museLine = muse[index];
+      if (!museLine || matchedMuse.has(index) || !transcriptsOverlap(localLine, museLine)) continue;
+      const distance = Math.abs(localLine.time - museLine.time);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    }
+    if (nearestIndex < 0) return true;
+    matchedMuse.add(nearestIndex);
+    return false;
+  });
+  return [...localWithoutMuseDuplicates, ...muse].sort((a, b) => a.time - b.time);
+}
+
+function estimatedUtteranceStart(text: string, elapsed: number) {
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  const estimatedDuration = Math.min(8, Math.max(0.8, wordCount / 2.5));
+  return Math.max(0, elapsed - estimatedDuration);
 }
 
 function personInitials(name: string) {
@@ -546,6 +600,7 @@ export function RecordingExperience({
   const listRef = useAnimatedRef<FlatList<LiveTranscriptLine>>();
   const chatListRef = useAnimatedRef<ScrollView>();
   const lastFinalTextRef = useRef("");
+  const localUtteranceStartedAtRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
   const speechStartedRef = useRef(false);
@@ -555,6 +610,12 @@ export function RecordingExperience({
   const sessionPaused = rec.isPaused;
   const wasSessionPausedRef = useRef(sessionPaused);
   const sessionElapsed = rec.elapsed;
+  const muse = useMuseLiveTranscription({
+    enabled: transcriptionRequested && hasStarted && !sessionPaused,
+    sessionId: resolvedSessionId,
+    elapsed: sessionElapsed,
+    audioSource: (SpeechTranscriber?.ExpoSpeechTranscriberModule ?? null) as unknown as NativeSpeechAudioSource | null,
+  });
   const chatFocused = activeTab === "ai";
   const chatComposerMode = chatFocused && hasStarted;
   const keyboardOpen = keyboardHeight > 0;
@@ -715,6 +776,12 @@ export function RecordingExperience({
     };
   }, [transcriptionRequested, sessionPaused, liveSpeech.isRecording]);
 
+  useEffect(() => {
+    const text = liveSpeech.text.trim();
+    if (!text || liveSpeech.isFinal || localUtteranceStartedAtRef.current !== null) return;
+    localUtteranceStartedAtRef.current = sessionElapsed;
+  }, [liveSpeech.isFinal, liveSpeech.text, sessionElapsed]);
+
   // Apple may not emit a final utterance before its engine is stopped. Promote
   // the visible interim text to durable history exactly once when pausing.
   useEffect(() => {
@@ -729,15 +796,16 @@ export function RecordingExperience({
       ...current,
       {
         id: `pause-final-${Date.now()}-${current.length}`,
-        speaker: "Live",
-        time: sessionElapsed,
+        speaker: "Speaker",
+        time: localUtteranceStartedAtRef.current ?? estimatedUtteranceStart(text, sessionElapsed),
         text,
       },
     ]);
+    localUtteranceStartedAtRef.current = null;
   }, [liveSpeech.text, sessionElapsed, sessionPaused]);
 
-  // Native module stops after each final utterance. Restart only after the engine
-  // reports stopped — never while isRecording (overlapping installTap = SIGABRT).
+  // Some Android recognizers stop after each final utterance. Restart only after
+  // the engine reports stopped; iOS keeps its shared audio tap running for Muse.
   useEffect(() => {
     if (!transcriptionRequested || !SpeechTranscriber || sessionPaused) return;
     if (!liveSpeech.isFinal) return;
@@ -804,53 +872,42 @@ export function RecordingExperience({
       ...current,
       {
         id: `final-${Date.now()}-${current.length}`,
-        speaker: "Live",
-        time: sessionElapsed,
+        speaker: "Speaker",
+        time: localUtteranceStartedAtRef.current ?? estimatedUtteranceStart(text, sessionElapsed),
         text,
       },
     ]);
+    localUtteranceStartedAtRef.current = null;
   }, [liveSpeech.isFinal, liveSpeech.text, sessionElapsed]);
 
-  const liveTranscript = useMemo<LiveTranscriptLine[]>(() => {
+  const completedTranscriptLines = useMemo(
+    () => mergeTranscriptLines(finalTranscriptLines, muse.turns),
+    [finalTranscriptLines, muse.turns]
+  );
+  const currentTranscriptLine = useMemo<LiveTranscriptLine | null>(() => {
+    if (muse.partial?.text.trim()) return muse.partial;
     const currentText = liveSpeech.text.trim();
-    const shouldShowInterim = currentText && (!liveSpeech.isFinal || currentText !== lastFinalTextRef.current);
-    if (shouldShowInterim) {
-      return [
-        ...finalTranscriptLines,
-        {
-          id: "live-interim",
-          speaker: "Live",
-          time: sessionElapsed,
-          text: currentText,
-          isInterim: true,
-        },
-      ];
-    }
-    if (finalTranscriptLines.length > 0) return finalTranscriptLines;
-    return [
-      {
-        id: "live-ready",
-        speaker: "Live",
-        time: Math.max(0, sessionElapsed - 1),
-        text:
-          transcriptionStatus ||
-          (sessionPaused
-            ? "Transcription paused. Resume to keep capturing speech."
-            : liveSpeech.isRecording
-              ? "Listening for the tour. Speech will appear here as it is recognized."
-              : "Waiting for speech recognition…"),
-        isInterim: true,
-      },
-    ];
-  }, [
-    finalTranscriptLines,
-    liveSpeech.isFinal,
-    liveSpeech.isRecording,
-    liveSpeech.text,
-    sessionElapsed,
-    sessionPaused,
-    transcriptionStatus,
-  ]);
+    const shouldShowLocalInterim = currentText
+      && (!liveSpeech.isFinal || currentText !== lastFinalTextRef.current);
+    if (!shouldShowLocalInterim) return null;
+    return {
+      id: "local-interim",
+      speaker: "Speaker",
+      time: localUtteranceStartedAtRef.current ?? sessionElapsed,
+      text: currentText,
+      isInterim: true,
+    };
+  }, [liveSpeech.isFinal, liveSpeech.text, muse.partial, sessionElapsed]);
+  const liveTranscript = useMemo<LiveTranscriptLine[]>(
+    () => currentTranscriptLine
+      ? [...completedTranscriptLines, currentTranscriptLine]
+      : completedTranscriptLines,
+    [completedTranscriptLines, currentTranscriptLine]
+  );
+  const transcriptFocus = currentTranscriptLine ?? completedTranscriptLines.at(-1) ?? null;
+  const transcriptHistory = currentTranscriptLine
+    ? completedTranscriptLines
+    : completedTranscriptLines.slice(0, -1);
 
   useEffect(() => {
     if (activeTab !== "transcript" || liveTranscript.length === 0 || pullProgress.value > 0 || sheetClosing.value) return;
@@ -858,7 +915,7 @@ export function RecordingExperience({
   }, [activeTab, liveTranscript.length, liveSpeech.text, listRef, pullProgress, sheetClosing]);
 
   useEffect(() => {
-    const latest = [...liveTranscript].reverse().find((line) => line.text.trim() && !line.id.startsWith("live-ready"));
+    const latest = [...liveTranscript].reverse().find((line) => line.text.trim());
     if (!latest) {
       rec.setTranscriptPreview("");
       return;
@@ -1484,47 +1541,82 @@ export function RecordingExperience({
 
           {activeTab === "transcript" && (
             <GestureDetector gesture={transcriptDrag.gesture}>
-            <Reanimated.FlatList
-              ref={listRef}
-              onScroll={transcriptDrag.onScroll}
-              scrollEventThrottle={16}
-              bounces={false}
-              alwaysBounceVertical={false}
-              overScrollMode="never"
-              onAccessibilityEscape={minimizeSheet}
-              data={liveTranscript}
-              renderItem={renderTranscript}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={s.transcriptList}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              ListHeaderComponent={
-                <View style={s.notice}>
+            <View style={s.transcriptPane}>
+              <View style={s.liveTranscriptStage}>
+                <View
+                  accessible
+                  accessibilityLabel={
+                    !muse.internetAvailable
+                      ? "Offline. Using device transcription."
+                      : muse.status === "streaming"
+                        ? "Internet transcription active."
+                        : muse.status === "connecting"
+                          ? "Connecting internet transcription."
+                          : "Using device transcription."
+                  }
+                  style={s.liveConnectionIndicator}
+                >
                   <Ionicons
                     name={
-                      liveSpeech.error || isFatalSpeechInitError(transcriptionStatus)
-                        ? "mic-off-outline"
-                        : liveSpeech.isRecording
+                      !muse.internetAvailable
+                        ? "cloud-offline-outline"
+                        : muse.status === "streaming"
                           ? "radio-outline"
-                          : "mic-outline"
+                          : muse.status === "connecting"
+                            ? "sync-outline"
+                            : "phone-portrait-outline"
                     }
-                    size={18}
-                    color={ACCENT}
+                    size={16}
+                    color={muse.status === "streaming" ? ACCENT : C.textMuted}
                   />
-                  <CustomText textStyle="label" style={s.noticeText}>
-                    {liveSpeech.error ||
-                      transcriptionStatus ||
-                      (sessionPaused
-                        ? "Transcription paused. Resume to continue."
-                        : liveSpeech.isRecording
-                          ? "Live transcription is listening."
-                          : hasStarted
-                            ? "Connecting speech recognition…"
-                            : "Transcript starts after recording begins.")}
+                  <View
+                    style={[
+                      s.liveConnectionDot,
+                      muse.status === "streaming" && s.liveConnectionDotActive,
+                      !muse.internetAvailable && s.liveConnectionDotOffline,
+                    ]}
+                  />
+                </View>
+
+                <View style={s.liveTranscriptFocusRow}>
+                  <CustomText textStyle="caption" style={s.liveTranscriptSpeaker} numberOfLines={2}>
+                    {transcriptFocus?.speaker ?? ""}
+                  </CustomText>
+                  <CustomText
+                    textStyle="hero"
+                    style={[s.liveTranscriptCopy, transcriptFocus?.isInterim && s.liveTranscriptCopyInterim]}
+                  >
+                    {transcriptFocus?.text ?? ""}
                   </CustomText>
                 </View>
-              }
-            />
+
+                <View style={s.liveTranscriptWave}>
+                  {[...waveformBars.left, ...waveformBars.right].map((height, index) => (
+                    <LiveWaveBar
+                      key={`transcript-wave-${index}`}
+                      height={height}
+                      opacity={hasStarted ? (sessionPaused ? 0.36 : 0.82) : 0.28}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <Reanimated.FlatList
+                ref={listRef}
+                onScroll={transcriptDrag.onScroll}
+                scrollEventThrottle={16}
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
+                onAccessibilityEscape={minimizeSheet}
+                data={transcriptHistory}
+                renderItem={renderTranscript}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={s.transcriptList}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              />
+            </View>
             </GestureDetector>
           )}
 
@@ -2451,9 +2543,51 @@ const s = StyleSheet.create({
   promptGrid: { gap: 8 },
   promptCard: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: CARD },
   promptCardText: { flex: 1, color: TEXT, fontSize: 13, fontWeight: "800" },
-  transcriptList: { padding: 16, gap: 8, paddingBottom: 20 },
-  notice: { flexDirection: "row", gap: 9, padding: 11, borderRadius: 12, backgroundColor: HINT, marginBottom: 4 },
-  noticeText: { flex: 1, color: C.textSec, fontSize: 13, lineHeight: 18, fontWeight: "700" },
+  transcriptPane: { flex: 1, minHeight: 0 },
+  liveTranscriptStage: {
+    minHeight: 176,
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.border,
+    backgroundColor: BACKGROUND,
+  },
+  liveConnectionIndicator: {
+    position: "absolute",
+    top: 14,
+    right: 18,
+    minWidth: 34,
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  liveConnectionDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: C.textMuted },
+  liveConnectionDotActive: { backgroundColor: ACCENT },
+  liveConnectionDotOffline: { backgroundColor: C.amber },
+  liveTranscriptFocusRow: {
+    flex: 1,
+    minHeight: 102,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingTop: 10,
+    paddingRight: 26,
+  },
+  liveTranscriptSpeaker: { width: 64, color: C.textSec, fontSize: 12, lineHeight: 17, fontWeight: "800" },
+  liveTranscriptCopy: { flex: 1, color: TEXT, fontSize: 24, lineHeight: 32, fontWeight: "600" },
+  liveTranscriptCopyInterim: { color: C.textSec },
+  liveTranscriptWave: {
+    height: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 3,
+    overflow: "hidden",
+  },
+  transcriptList: { paddingHorizontal: 16, paddingTop: 6, gap: 4, paddingBottom: 20 },
   transcriptRow: { flexDirection: "row", gap: 10, paddingVertical: 9 },
   transcriptRowInterim: { opacity: 0.84 },
   speakerDot: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: HINT },
