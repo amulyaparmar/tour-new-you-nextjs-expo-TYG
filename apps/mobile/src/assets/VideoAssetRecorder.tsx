@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Asset } from "expo-asset";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import * as MediaLibrary from "expo-media-library";
+import { Asset as MediaLibraryAsset, requestPermissionsAsync } from "expo-media-library";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -11,14 +12,19 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CustomText, customTextVariants } from "@/components/custom-text";
+import { GlassNavHeader, glassNavContentInset } from "@/components/glass-nav-header";
+import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { LoadingDots } from "@/components/loading-dots";
+import { SecondaryButton } from "@/components/secondary-button";
+import { ACCENT, BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER } from "@/theme/tokens";
 import { formatElapsed } from "../recording";
 import { isSimulator } from "../runtime";
 import { tourColors as C } from "../theme/tour-brand";
@@ -86,8 +92,10 @@ function SimulatorCameraPreview({ position }: { position: "back" | "front" }) {
       />
       <View pointerEvents="none" style={styles.simulatorPreviewTint} />
       <View pointerEvents="none" style={styles.simulatorBadge}>
-        <Ionicons name="construct-outline" size={13} color="#fff" />
-        <Text style={styles.simulatorBadgeText}>SIMULATOR CAMERA</Text>
+        <Ionicons name="construct-outline" size={13} color={CARD} />
+        <CustomText textStyle="micro" style={styles.simulatorBadgeText}>
+          Simulator camera
+        </CustomText>
       </View>
     </View>
   );
@@ -106,29 +114,59 @@ function PermissionGate({
   onRequest: () => void;
   onClose: () => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const footerPad = Math.max(insets.bottom, 16);
   const canRequest = ["undetermined", "not-determined"].includes(cameraStatus)
     || ["undetermined", "not-determined"].includes(microphoneStatus);
   return (
-    <View style={styles.permissionPage}>
-      <Pressable accessibilityLabel="Close video recorder" onPress={onClose} style={styles.permissionClose}>
-        <Ionicons name="close" size={23} color={C.text} />
-      </Pressable>
-      <View style={styles.permissionIcon}>
-        <Ionicons name="videocam" size={34} color={C.brand} />
+    <View style={styles.page}>
+      <View style={[styles.permissionBody, { paddingTop: glassNavContentInset(insets.top), paddingBottom: 58 + footerPad }]}>
+        <View style={styles.permissionIcon}>
+          <Ionicons name="videocam" size={28} color={ACCENT} />
+        </View>
+        <CustomText textStyle="hero" style={styles.centered}>
+          Camera and microphone
+        </CustomText>
+        <CustomText textStyle="body" style={styles.permissionCopy}>
+          Tour uses your camera and microphone only while you record a video asset.
+        </CustomText>
       </View>
-      <Text style={styles.permissionTitle}>Camera and microphone access</Text>
-      <Text style={styles.permissionBody}>
-        Tour uses your camera and microphone only while you record a video asset.
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        disabled={requesting}
-        onPress={canRequest ? onRequest : () => void Linking.openSettings()}
-        style={({ pressed }) => [styles.permissionButton, pressed && styles.pressed, requesting && styles.disabled]}
-      >
-        {requesting ? <LoadingDots color="#fff" /> : null}
-        <Text style={styles.permissionButtonText}>{canRequest ? "Allow access" : "Open Settings"}</Text>
-      </Pressable>
+      <View pointerEvents="box-none" style={[styles.pageFooter, { paddingBottom: footerPad }]}>
+        <LinearGradient
+          colors={["rgba(242, 242, 247, 0)", "rgba(242, 242, 247, 0.62)", BACKGROUND]}
+          locations={[0, 0.5, 1]}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+        />
+        <Pressable
+          accessibilityRole="button"
+          disabled={requesting}
+          onPress={canRequest ? onRequest : () => void Linking.openSettings()}
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            requesting && styles.disabled,
+            pressed && !requesting && styles.pressed,
+          ]}
+        >
+          {requesting ? (
+            <LoadingDots size="small" color={CARD} />
+          ) : (
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              {canRequest ? "Allow access" : "Open Settings"}
+            </CustomText>
+          )}
+        </Pressable>
+      </View>
+      <GlassNavHeader
+        title="Video"
+        backButton={
+          <LiquidGlassIconButton
+            icon="close"
+            accessibilityLabel="Close video recorder"
+            onPress={onClose}
+          />
+        }
+      />
     </View>
   );
 }
@@ -162,83 +200,127 @@ function RecordedVideoReview({
   const player = useVideoPlayer(uri, (instance) => {
     instance.loop = true;
   });
+  const footerPad = Math.max(insets.bottom, 16);
+  const busy = saving || uploading;
 
   return (
-    <View style={styles.reviewPage}>
-      <View style={[styles.reviewHeader, { paddingTop: insets.top + 8 }]}>
-        <Pressable accessibilityLabel="Close video review" onPress={onClose} style={styles.headerButton}>
-          <Ionicons name="close" size={22} color={C.text} />
-        </Pressable>
-        <View style={styles.reviewHeading}>
-          <Text style={styles.reviewEyebrow}>NEW ASSET</Text>
-          <Text style={styles.reviewTitle}>View your video</Text>
+    <View style={styles.page}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.reviewContent,
+          {
+            paddingTop: glassNavContentInset(insets.top),
+            paddingBottom: 58 + 58 + 18 + footerPad + 24,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.playerFrame}>
+          <VideoView
+            player={player}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            nativeControls
+            fullscreenOptions={{ enable: true }}
+          />
+          <View pointerEvents="none" style={styles.durationBadge}>
+            <Ionicons name="videocam" size={13} color={CARD} />
+            <CustomText textStyle="micro" style={styles.durationBadgeText}>
+              {formatElapsed(durationSec)}
+            </CustomText>
+          </View>
         </View>
-        <Pressable accessibilityLabel="Record video again" disabled={uploading} onPress={onRetake} style={styles.headerButton}>
-          <Ionicons name="refresh" size={20} color={C.text} />
-        </Pressable>
-      </View>
 
-      <View style={styles.playerFrame}>
-        <VideoView
-          player={player}
+        <View style={styles.form}>
+          <View style={styles.field}>
+            <CustomText textStyle="caption" style={styles.fieldLabel}>
+              Asset name
+            </CustomText>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              editable={!uploading}
+              placeholder="Name this video"
+              placeholderTextColor="rgba(0, 0, 0, 0.45)"
+              style={[customTextVariants.title, styles.input]}
+            />
+          </View>
+          <View style={styles.separator} />
+          <View style={styles.field}>
+            <CustomText textStyle="caption" style={styles.fieldLabel}>
+              Description
+            </CustomText>
+            <TextInput
+              value={description}
+              onChangeText={setDescription}
+              editable={!uploading}
+              multiline
+              placeholder="Add the script, shot details, or context for your team"
+              placeholderTextColor="rgba(0, 0, 0, 0.45)"
+              style={[customTextVariants.body, styles.input, styles.descriptionInput]}
+            />
+          </View>
+        </View>
+        {error ? (
+          <CustomText textStyle="caption" style={styles.errorText}>
+            {error}
+          </CustomText>
+        ) : null}
+      </ScrollView>
+
+      <View pointerEvents="box-none" style={[styles.pageFooter, { paddingBottom: footerPad }]}>
+        <LinearGradient
+          colors={["rgba(242, 242, 247, 0)", "rgba(242, 242, 247, 0.62)", BACKGROUND]}
+          locations={[0, 0.5, 1]}
+          pointerEvents="none"
           style={StyleSheet.absoluteFill}
-          contentFit="cover"
-          nativeControls
-          fullscreenOptions={{ enable: true }}
         />
-        <View pointerEvents="none" style={styles.durationBadge}>
-          <Ionicons name="videocam" size={13} color="#fff" />
-          <Text style={styles.durationBadgeText}>{formatElapsed(durationSec)}</Text>
-        </View>
-      </View>
-
-      <View style={styles.reviewForm}>
-        <Text style={styles.inputLabel}>Asset name</Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          editable={!uploading}
-          placeholder="Name this video"
-          placeholderTextColor={C.textMuted}
-          style={styles.input}
-        />
-        <Text style={styles.inputLabel}>Description or script notes</Text>
-        <TextInput
-          value={description}
-          onChangeText={setDescription}
-          editable={!uploading}
-          multiline
-          placeholder="Add the script, shot details, or context for your team"
-          placeholderTextColor={C.textMuted}
-          style={[styles.input, styles.descriptionInput]}
-        />
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      </View>
-
-      <View style={[styles.reviewActions, { paddingBottom: Math.max(insets.bottom, 18) }]}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={saving || uploading}
+        <SecondaryButton
+          label={saved ? "Saved to Photos" : "Save to Photos"}
+          icon={saved ? "checkmark-circle" : "images-outline"}
+          disabled={busy || saved}
           onPress={onSave}
-          style={({ pressed }) => [styles.saveButton, pressed && styles.pressed, (saving || uploading) && styles.disabled]}
-        >
-          {saving ? (
-            <LoadingDots size="small" color={C.brand} />
-          ) : (
-            <Ionicons name={saved ? "checkmark-circle" : "images-outline"} size={19} color={C.brand} />
-          )}
-          <Text style={styles.saveButtonText}>{saved ? "Saved to Photos" : "Save to Photos"}</Text>
-        </Pressable>
+        />
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Upload video asset"
           disabled={uploading || !name.trim()}
           onPress={() => onUpload(name.trim(), description.trim())}
-          style={({ pressed }) => [styles.uploadButton, pressed && styles.pressed, (uploading || !name.trim()) && styles.disabled]}
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            (uploading || !name.trim()) && styles.disabled,
+            pressed && !uploading && Boolean(name.trim()) && styles.pressed,
+          ]}
         >
-          {uploading ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="cloud-upload-outline" size={19} color="#fff" />}
-          <Text style={styles.uploadButtonText}>{uploading ? "Uploading…" : "Upload asset"}</Text>
+          {uploading ? (
+            <LoadingDots size="small" color={CARD} />
+          ) : (
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              Add video
+            </CustomText>
+          )}
         </Pressable>
       </View>
+
+      <GlassNavHeader
+        title="Review video"
+        backButton={
+          <LiquidGlassIconButton
+            icon="close"
+            accessibilityLabel="Close video review"
+            onPress={onClose}
+          />
+        }
+        right={
+          <LiquidGlassIconButton
+            icon="refresh"
+            accessibilityLabel="Record video again"
+            disabled={uploading}
+            onPress={onRetake}
+          />
+        }
+      />
     </View>
   );
 }
@@ -433,7 +515,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
     setSaving(true);
     setError(null);
     try {
-      const permission = await MediaLibrary.requestPermissionsAsync(true, ["video"]);
+      const permission = await requestPermissionsAsync(true, ["video"]);
       if (!permission.granted) {
         Alert.alert(
           "Photos access is off",
@@ -445,7 +527,7 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
         );
         return;
       }
-      await MediaLibrary.saveToLibraryAsync(recordedUri);
+      await MediaLibraryAsset.create(recordedUri);
       setSaved(true);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (caught) {
@@ -535,32 +617,37 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
             />
           )}
 
-          <View style={[styles.cameraHeader, { paddingTop: insets.top + 8 }]}>
-            <Pressable accessibilityLabel="Close video recorder" onPress={requestClose} style={styles.cameraButton}>
-              <Ionicons name="close" size={23} color="#fff" />
-            </Pressable>
-            <View style={[styles.recordingPill, isRecording && styles.recordingPillActive]}>
-              <View style={[styles.recordingDot, isRecording && styles.recordingDotActive]} />
-              <Text style={styles.recordingTime}>{isRecording ? formatElapsed(durationSec) : "VIDEO ASSET"}</Text>
+          <View pointerEvents="box-none" style={[styles.cameraHeader, { paddingTop: insets.top }]}>
+            <View style={styles.cameraBar}>
+              <LiquidGlassIconButton
+                icon="close"
+                accessibilityLabel="Close video recorder"
+                onPress={requestClose}
+              />
+              <View style={[styles.recordingPill, isRecording && styles.recordingPillActive]}>
+                <View style={[styles.recordingDot, isRecording && styles.recordingDotActive]} />
+                <CustomText textStyle="micro" style={styles.recordingTime}>
+                  {isRecording ? formatElapsed(durationSec) : "Video"}
+                </CustomText>
+              </View>
+              <LiquidGlassIconButton
+                icon={torchEnabled ? "flash" : "flash-off"}
+                accessibilityLabel={torchEnabled ? "Turn flash off" : "Turn flash on"}
+                disabled={USE_SIMULATOR_CAMERA || isRecording}
+                onPress={() => setTorchEnabled((current) => !current)}
+              />
             </View>
-            <Pressable
-              accessibilityLabel={torchEnabled ? "Turn flash off" : "Turn flash on"}
-              disabled={USE_SIMULATOR_CAMERA || isRecording}
-              onPress={() => setTorchEnabled((current) => !current)}
-              style={[
-                styles.cameraButton,
-                (USE_SIMULATOR_CAMERA || isRecording) && styles.cameraButtonDisabled,
-              ]}
-            >
-              <Ionicons name={torchEnabled ? "flash" : "flash-off"} size={20} color="#fff" />
-            </Pressable>
           </View>
 
           <View style={styles.captureGuide} pointerEvents="none">
-            <Text style={styles.captureGuideTitle}>{isRecording ? "Recording…" : "Frame your tour"}</Text>
-            <Text style={styles.captureGuideBody}>
-              {isRecording ? "Tap stop when the walkthrough is complete." : "Capture a walkthrough, amenity, or community highlight."}
-            </Text>
+            <CustomText textStyle="hero" style={styles.captureGuideTitle}>
+              {isRecording ? "Recording…" : "Frame your tour"}
+            </CustomText>
+            <CustomText textStyle="caption" style={styles.captureGuideBody}>
+              {isRecording
+                ? "Tap stop when the walkthrough is complete."
+                : "Capture a walkthrough, amenity, or community highlight."}
+            </CustomText>
           </View>
 
           <View style={[styles.cameraFooter, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 18 : 24) }]}>
@@ -580,19 +667,19 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
               <View style={[styles.captureButtonInner, isRecording && styles.captureButtonStop]} />
             </Pressable>
             <View style={styles.footerSide}>
-              <Pressable
+              <LiquidGlassIconButton
+                icon="camera-reverse-outline"
                 accessibilityLabel="Switch camera"
                 disabled={isRecording}
-                onPress={() => setPosition((current) => current === "back" ? "front" : "back")}
-                style={[styles.cameraButton, isRecording && styles.cameraButtonDisabled]}
-              >
-                <Ionicons name="camera-reverse-outline" size={24} color="#fff" />
-              </Pressable>
+                onPress={() => setPosition((current) => (current === "back" ? "front" : "back"))}
+              />
             </View>
           </View>
           {error ? (
             <View style={[styles.cameraError, { bottom: Math.max(insets.bottom, 18) + 112 }]}>
-              <Text style={styles.cameraErrorText}>{error}</Text>
+              <CustomText textStyle="caption" style={styles.cameraErrorText}>
+                {error}
+              </CustomText>
             </View>
           ) : null}
         </View>
@@ -604,52 +691,73 @@ export function VideoAssetRecorder({ visible, onClose, onUpload }: VideoAssetRec
 export type { RecordedVideoAsset };
 
 const styles = StyleSheet.create({
-  pressed: { opacity: 0.78 },
-  disabled: { opacity: 0.5 },
-  permissionPage: {
+  page: { flex: 1, backgroundColor: BACKGROUND },
+  pressed: { opacity: 0.72 },
+  disabled: { opacity: 0.45 },
+  permissionBody: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 30,
-    backgroundColor: "#f8fafc",
-  },
-  permissionClose: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 58 : 24,
-    right: 20,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 22,
-    backgroundColor: "#fff",
+    gap: 12,
+    paddingHorizontal: 28,
   },
   permissionIcon: {
-    width: 76,
-    height: 76,
+    width: 64,
+    height: 64,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 24,
-    backgroundColor: "#eaf4ff",
+    borderRadius: SMALL_CORNER,
+    backgroundColor: HINT,
   },
-  permissionTitle: { marginTop: 22, color: C.text, fontSize: 24, fontWeight: "900", textAlign: "center" },
-  permissionBody: { maxWidth: 330, marginTop: 10, color: C.textSec, fontSize: 15, lineHeight: 22, textAlign: "center" },
-  permissionButton: {
-    minWidth: 190,
-    minHeight: 52,
-    marginTop: 26,
+  permissionCopy: {
+    maxWidth: 330,
+    color: "rgba(0, 0, 0, 0.45)",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  centered: { textAlign: "center" },
+  reviewContent: { gap: 16, paddingHorizontal: 16 },
+  form: {
+    overflow: "hidden",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  field: { paddingHorizontal: 16, paddingVertical: 12, gap: 6 },
+  fieldLabel: { color: "rgba(0, 0, 0, 0.45)", textTransform: "uppercase", letterSpacing: 0.4 },
+  input: { paddingVertical: 4 },
+  descriptionInput: { minHeight: 72, textAlignVertical: "top" },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 16,
+    backgroundColor: "rgba(60, 60, 67, 0.18)",
+  },
+  errorText: { color: C.red, textAlign: "center" },
+  pageFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 56,
+  },
+  primaryBtn: {
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingHorizontal: 22,
-    borderRadius: 17,
-    backgroundColor: C.brand,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
-  permissionButtonText: { color: "#fff", fontSize: 15, fontWeight: "900" },
-  cameraPage: { flex: 1, overflow: "hidden", backgroundColor: "#020617" },
+  primaryBtnText: { color: CARD },
+  cameraPage: { flex: 1, overflow: "hidden", backgroundColor: "#000" },
   simulatorPreviewFront: { transform: [{ scaleX: -1 }] },
-  simulatorPreviewTint: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(2,6,23,0.1)" },
+  simulatorPreviewTint: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.1)" },
   simulatorBadge: {
     position: "absolute",
     top: Platform.OS === "ios" ? 116 : 84,
@@ -660,59 +768,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: "rgba(2,6,23,0.58)",
+    backgroundColor: "rgba(0,0,0,0.58)",
   },
-  simulatorBadgeText: { color: "#fff", fontSize: 10, fontWeight: "900", letterSpacing: 0.7 },
-  cameraLoading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: "#020617" },
-  cameraLoadingText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  simulatorBadgeText: { color: CARD, letterSpacing: 0.4 },
   cameraHeader: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
+    zIndex: 20,
+  },
+  cameraBar: {
+    height: 52,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-    backgroundColor: "rgba(2,6,23,0.28)",
+    paddingHorizontal: 16,
   },
-  cameraButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 22,
-    backgroundColor: "rgba(2,6,23,0.48)",
-  },
-  cameraButtonDisabled: { opacity: 0.38 },
   recordingPill: {
+    flex: 1,
     minWidth: 110,
-    height: 38,
+    height: 36,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
+    marginHorizontal: 12,
     paddingHorizontal: 13,
-    borderRadius: 19,
-    backgroundColor: "rgba(2,6,23,0.48)",
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.42)",
   },
   recordingPillActive: { backgroundColor: "rgba(185,28,28,0.86)" },
-  recordingDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#94a3b8" },
-  recordingDotActive: { backgroundColor: "#fff" },
-  recordingTime: { color: "#fff", fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
+  recordingDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.55)" },
+  recordingDotActive: { backgroundColor: CARD },
+  recordingTime: { color: CARD },
   captureGuide: {
     position: "absolute",
     left: 24,
     right: 24,
     bottom: 152,
     alignItems: "center",
-    padding: 14,
-    borderRadius: 17,
-    backgroundColor: "rgba(2,6,23,0.42)",
   },
-  captureGuideTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  captureGuideBody: { marginTop: 4, color: "rgba(255,255,255,0.82)", fontSize: 12, lineHeight: 17, textAlign: "center" },
+  captureGuideTitle: {
+    color: CARD,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowRadius: 8,
+  },
+  captureGuideBody: {
+    marginTop: 6,
+    color: "rgba(255,255,255,0.84)",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowRadius: 7,
+  },
   cameraFooter: {
     position: "absolute",
     left: 0,
@@ -724,7 +832,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     paddingTop: 18,
     paddingHorizontal: 24,
-    backgroundColor: "rgba(2,6,23,0.42)",
   },
   footerSide: { width: 56, alignItems: "center" },
   captureButton: {
@@ -733,7 +840,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 5,
-    borderColor: "#fff",
+    borderColor: CARD,
     borderRadius: 42,
     backgroundColor: "rgba(255,255,255,0.22)",
   },
@@ -746,34 +853,17 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     padding: 12,
-    borderRadius: 13,
+    borderRadius: SMALL_CORNER,
     backgroundColor: "rgba(127,29,29,0.92)",
   },
-  cameraErrorText: { color: "#fff", fontSize: 12, fontWeight: "700", textAlign: "center" },
-  reviewPage: { flex: 1, backgroundColor: "#f8fafc" },
-  reviewHeader: {
-    minHeight: 88,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 18,
-    paddingBottom: 12,
-    backgroundColor: "#fff",
+  cameraErrorText: { color: CARD, textAlign: "center" },
+  playerFrame: {
+    height: 280,
+    overflow: "hidden",
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: "#000",
   },
-  headerButton: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 21,
-    backgroundColor: "#fff",
-  },
-  reviewHeading: { flex: 1, alignItems: "center" },
-  reviewEyebrow: { color: C.brand, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
-  reviewTitle: { marginTop: 2, color: C.text, fontSize: 18, fontWeight: "900" },
-  playerFrame: { height: "39%", overflow: "hidden", backgroundColor: "#020617" },
   durationBadge: {
     position: "absolute",
     right: 12,
@@ -783,59 +873,8 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 9,
     paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: "rgba(2,6,23,0.72)",
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.72)",
   },
-  durationBadgeText: { color: "#fff", fontSize: 11, fontWeight: "900" },
-  reviewForm: { flex: 1, padding: 18 },
-  inputLabel: { marginBottom: 6, color: C.textSec, fontSize: 12, fontWeight: "800" },
-  input: {
-    minHeight: 48,
-    marginBottom: 13,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#dbe3ef",
-    borderRadius: 14,
-    color: C.text,
-    fontSize: 14,
-    fontWeight: "700",
-    backgroundColor: "#fff",
-  },
-  descriptionInput: { minHeight: 74, paddingTop: 13, textAlignVertical: "top", fontWeight: "600" },
-  errorText: { color: "#b42318", fontSize: 12, fontWeight: "700" },
-  reviewActions: {
-    flexDirection: "row",
-    gap: 10,
-    paddingTop: 12,
-    paddingHorizontal: 18,
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-    backgroundColor: "#fff",
-  },
-  saveButton: {
-    flex: 1,
-    minHeight: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-    borderRadius: 16,
-    backgroundColor: "#eff6ff",
-  },
-  saveButtonText: { color: C.brand, fontSize: 13, fontWeight: "900" },
-  uploadButton: {
-    flex: 1,
-    minHeight: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    backgroundColor: C.brand,
-  },
-  uploadButtonText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  durationBadgeText: { color: CARD },
 });

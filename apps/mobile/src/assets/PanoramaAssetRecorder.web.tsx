@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 
-import { tourColors as C } from "../theme/tour-brand";
+import { CustomText } from "@/components/custom-text";
+import { ACCENT, BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER } from "@/theme/tokens";
 
 type PanoramaShot = {
   uri: string;
@@ -30,17 +31,25 @@ type PanoramaAssetRecorderProps = {
 export function PanoramaAssetRecorder({ visible, onClose }: PanoramaAssetRecorderProps) {
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.scrim}>
+      <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.icon}>
-            <Ionicons name="scan-outline" size={31} color={C.brand} />
+            <Ionicons name="scan-outline" size={28} color={ACCENT} />
           </View>
-          <Text style={styles.title}>Capture 360° in the mobile app</Text>
-          <Text style={styles.body}>
+          <CustomText textStyle="hero" style={styles.centered}>
+            Capture 360° in the mobile app
+          </CustomText>
+          <CustomText textStyle="body" style={styles.copy}>
             The six-photo panorama uses the phone camera and motion sensors, so it is available on a physical iOS or Android device.
-          </Text>
-          <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.button, pressed && { opacity: 0.82 }]}>
-            <Text style={styles.buttonText}>Got it</Text>
+          </CustomText>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onClose}
+            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+          >
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              Close
+            </CustomText>
           </Pressable>
         </View>
       </View>
@@ -51,11 +60,42 @@ export function PanoramaAssetRecorder({ visible, onClose }: PanoramaAssetRecorde
 export type { PanoramaShot, RecordedPanoramaAsset };
 
 const styles = StyleSheet.create({
-  scrim: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "rgba(15,23,42,0.52)" },
-  card: { width: "100%", maxWidth: 420, alignItems: "center", padding: 28, borderRadius: 24, backgroundColor: "#fff" },
-  icon: { width: 62, height: 62, alignItems: "center", justifyContent: "center", marginBottom: 18, borderRadius: 20, backgroundColor: "#eef4ff" },
-  title: { color: C.text, fontSize: 20, fontWeight: "900", textAlign: "center" },
-  body: { marginTop: 10, color: C.textSec, fontSize: 14, fontWeight: "600", lineHeight: 21, textAlign: "center" },
-  button: { minWidth: 132, minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 24, paddingHorizontal: 22, borderRadius: 999, backgroundColor: C.brand },
-  buttonText: { color: "#fff", fontSize: 14, fontWeight: "900" },
+  backdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "rgba(16,24,40,0.52)",
+  },
+  card: {
+    width: "100%",
+    maxWidth: 420,
+    alignItems: "center",
+    gap: 12,
+    padding: 28,
+    borderRadius: LARGE_CORNER,
+    backgroundColor: BACKGROUND,
+  },
+  icon: {
+    width: 64,
+    height: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: SMALL_CORNER,
+    backgroundColor: HINT,
+  },
+  centered: { textAlign: "center" },
+  copy: { color: "rgba(0, 0, 0, 0.45)", textAlign: "center", lineHeight: 20 },
+  primaryBtn: {
+    alignSelf: "stretch",
+    minHeight: 58,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+  },
+  primaryBtnText: { color: CARD },
+  pressed: { opacity: 0.72 },
 });

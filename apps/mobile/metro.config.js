@@ -4,11 +4,26 @@ const path = require("path");
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, "../..");
 const workletsRoot = path.resolve(projectRoot, "node_modules/react-native-worklets");
+const {
+  isBackgroundTimerEntryPath,
+  isDailyNativeBridgeOrigin,
+  isNativeShimPath,
+  isReactNativeEntryPath,
+  isWebRtcEventEmitterPath,
+} = require("./src/practice/native-shims/dailyNativeBridgeOrigin");
+
 const legacyNativeModulesShim = path.resolve(
   projectRoot,
   "src/practice/native-shims/react-native-legacy-modules.js",
 );
-const { isDailyNativeBridgeOrigin } = require("./src/practice/native-shims/dailyNativeBridgeOrigin");
+const webrtcEventEmitterShim = path.resolve(
+  projectRoot,
+  "src/practice/native-shims/webrtc-EventEmitter.js",
+);
+const backgroundTimerShim = path.resolve(
+  projectRoot,
+  "src/practice/native-shims/background-timer.js",
+);
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(projectRoot);
@@ -39,16 +54,34 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       ),
     };
   }
-  // Daily/WebRTC construct NativeEventEmitter(NativeModules.*) at import time.
-  // On RN New Architecture those RCT modules are undefined on NativeModules
-  // until TurboModuleRegistry.get() initializes them.
-  if (moduleName === "react-native" && isDailyNativeBridgeOrigin(context.originModulePath)) {
+
+  const origin = context.originModulePath;
+  if (moduleName === "react-native" && isDailyNativeBridgeOrigin(origin) && !isNativeShimPath(origin)) {
     return { type: "sourceFile", filePath: legacyNativeModulesShim };
   }
-  if (upstreamResolveRequest) {
-    return upstreamResolveRequest(context, moduleName, platform);
+
+  const resolved = upstreamResolveRequest
+    ? upstreamResolveRequest(context, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform);
+
+  if (resolved?.type !== "sourceFile" || !resolved.filePath || isNativeShimPath(origin)) {
+    return resolved;
   }
-  return context.resolveRequest(context, moduleName, platform);
+
+  // Daily/WebRTC construct NativeEventEmitter(NativeModules.*) at import time.
+  // On RN New Architecture those RCT modules are null until looked up by name
+  // through TurboModuleRegistry / the bridgeless interop proxy.
+  if (isDailyNativeBridgeOrigin(origin) && isReactNativeEntryPath(resolved.filePath)) {
+    return { type: "sourceFile", filePath: legacyNativeModulesShim };
+  }
+  if (isWebRtcEventEmitterPath(resolved.filePath)) {
+    return { type: "sourceFile", filePath: webrtcEventEmitterShim };
+  }
+  if (isBackgroundTimerEntryPath(resolved.filePath) && moduleName === "react-native-background-timer") {
+    return { type: "sourceFile", filePath: backgroundTimerShim };
+  }
+
+  return resolved;
 };
 
 module.exports = config;

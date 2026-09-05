@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 
-import { tourColors as C } from "../theme/tour-brand";
+import { CustomText } from "@/components/custom-text";
+import { ACCENT, BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER } from "@/theme/tokens";
 
 type RecordedVideoAsset = {
   uri: string;
@@ -27,26 +28,25 @@ export function VideoAssetRecorder({ visible, onClose }: VideoAssetRecorderProps
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.scrim}>
+      <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.icon}>
-            <Ionicons name="videocam" size={30} color={C.brand} />
+            <Ionicons name="videocam" size={28} color={ACCENT} />
           </View>
-          <Text style={styles.title}>Record a video in the mobile app</Text>
-          <Text style={styles.body}>
-            Camera recording is available in the iOS and Android app. In this
-            browser preview, use the plus button on Assets to upload an existing
-            video.
-          </Text>
+          <CustomText textStyle="hero" style={styles.centered}>
+            Record a video in the mobile app
+          </CustomText>
+          <CustomText textStyle="body" style={styles.copy}>
+            Camera recording is available in the iOS and Android app. In this browser preview, use the plus button on Assets to upload an existing video.
+          </CustomText>
           <Pressable
             accessibilityRole="button"
             onPress={onClose}
-            style={({ pressed }) => [
-              styles.button,
-              pressed && styles.buttonPressed,
-            ]}
+            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
           >
-            <Text style={styles.buttonText}>Got it</Text>
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              Close
+            </CustomText>
           </Pressable>
         </View>
       </View>
@@ -55,66 +55,44 @@ export function VideoAssetRecorder({ visible, onClose }: VideoAssetRecorderProps
 }
 
 const styles = StyleSheet.create({
-  scrim: {
+  backdrop: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
-    backgroundColor: "rgba(15, 23, 42, 0.52)",
+    backgroundColor: "rgba(16, 24, 40, 0.52)",
   },
   card: {
     width: "100%",
     maxWidth: 420,
     alignItems: "center",
+    gap: 12,
     padding: 28,
-    borderRadius: 24,
-    backgroundColor: "#fff",
-    shadowColor: "#0f172a",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.18,
-    shadowRadius: 32,
+    borderRadius: LARGE_CORNER,
+    backgroundColor: BACKGROUND,
   },
   icon: {
-    width: 62,
-    height: 62,
+    width: 64,
+    height: 64,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 18,
-    borderRadius: 20,
-    backgroundColor: "#eef4ff",
+    borderRadius: SMALL_CORNER,
+    backgroundColor: HINT,
   },
-  title: {
-    color: C.text,
-    fontSize: 20,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  body: {
-    marginTop: 10,
-    color: C.textSec,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 21,
-    textAlign: "center",
-  },
-  button: {
-    minWidth: 132,
-    minHeight: 48,
+  centered: { textAlign: "center" },
+  copy: { color: "rgba(0, 0, 0, 0.45)", textAlign: "center", lineHeight: 20 },
+  primaryBtn: {
+    alignSelf: "stretch",
+    minHeight: 58,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 24,
-    paddingHorizontal: 22,
-    borderRadius: 999,
-    backgroundColor: C.brand,
+    marginTop: 8,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
-  buttonPressed: {
-    opacity: 0.84,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "900",
-  },
+  primaryBtnText: { color: CARD },
+  pressed: { opacity: 0.72 },
 });
 
 export type { RecordedVideoAsset };

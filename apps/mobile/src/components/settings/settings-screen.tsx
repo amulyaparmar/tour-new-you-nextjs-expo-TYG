@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { MobileAuthSession } from "@/auth";
 import { getCurrentSession } from "@/auth";
-import { submitSupportRequest } from "@/api";
+import { deleteAccount, submitSupportRequest } from "@/api";
 import { getSiteBaseUrl } from "@/config";
 import { CustomText, customTextVariants } from "@/components/custom-text";
 import {
@@ -49,6 +49,7 @@ export function SettingsScreen({
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const aiTrainingDataFeedback =
     profileQuery.data?.aiTrainingDataFeedback ??
     session.workspace.user.aiTrainingDataFeedback ??
@@ -59,6 +60,40 @@ export function SettingsScreen({
       { text: "Cancel", style: "cancel" },
       { text: "Logout", style: "destructive", onPress: onSignOut },
     ]);
+  }
+
+  function confirmDeleteAccount() {
+    if (deletingAccount) return;
+    Alert.alert(
+      "Delete your Tour account?",
+      "This permanently deletes your login and removes you from every property team. Recordings your property already saved stay with that property. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: () => {
+            void performDeleteAccount();
+          },
+        },
+      ],
+    );
+  }
+
+  async function performDeleteAccount() {
+    if (deletingAccount) return;
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+      onSignOut();
+    } catch (caught) {
+      onNotify(
+        caught instanceof Error ? caught.message : "Could not delete your account.",
+        "error",
+      );
+    } finally {
+      setDeletingAccount(false);
+    }
   }
 
   async function sendFeedback() {
@@ -194,6 +229,15 @@ export function SettingsScreen({
           accessibilityLabel="Log out"
           onPress={confirmSignOut}
           style={styles.logoutPill}
+        />
+        <SecondaryButton
+          destructive
+          icon="trash-outline"
+          label={deletingAccount ? "Deleting account…" : "Delete account"}
+          accessibilityLabel="Delete account"
+          disabled={deletingAccount}
+          onPress={confirmDeleteAccount}
+          style={styles.deleteAccountPill}
         />
         <CustomText textStyle="caption" style={styles.version}>
           Tour mobile 0.1.0 · Host Your Voice
@@ -398,6 +442,9 @@ const styles = StyleSheet.create({
   },
   logoutPill: {
     marginTop: 22,
+  },
+  deleteAccountPill: {
+    marginTop: 10,
   },
   version: {
     marginTop: 8,

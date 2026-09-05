@@ -1,6 +1,7 @@
 import { authenticatedFetch, getCurrentSession } from "@/auth";
 import { CustomText } from "@/components/custom-text";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { GlassNavHeader, glassNavContentInset } from "@/components/glass-nav-header";
 import { InfoBox } from "@/components/info-box";
 import {
   LargeTitleCopy,
@@ -8,13 +9,17 @@ import {
   largeTitleContentInset,
 } from "@/components/large-title-header";
 import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
+import { LoadingDots } from "@/components/loading-dots";
 import { MotionPressable } from "@/components/ui/motion";
-import { selectionHaptic } from "@/lib/haptics";
+import { impactHaptic, selectionHaptic } from "@/lib/haptics";
 import { ACCENT, BACKGROUND, CARD, SMALL_CORNER, TEXT } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Platform, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import Swipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 import Reanimated, {
   useAnimatedScrollHandler,
   useSharedValue,
@@ -28,6 +33,7 @@ type Scenario = PracticeScenario;
 
 type Attempt = {
   id: string;
+  scenario_id?: string | null;
   scenario_name?: string | null;
   scenario_difficulty?: string | null;
   score?: number | null;
@@ -38,12 +44,15 @@ type Attempt = {
 
 type NativePracticeSessionProps = {
   scenario: Scenario | null;
+  attemptId?: string;
   onBack: () => void;
 };
 
 const canUseNativePractice = Platform.OS !== "web" && !isExpoGo();
+const PRACTICE_SWIPE_DELETE_WIDTH = 88;
 
 function NativePracticeSessionHost(props: NativePracticeSessionProps) {
+  const insets = useSafeAreaInsets();
   const Session = React.useMemo(() => {
     try {
       const loaded = require("./NativePracticeSession") as {
@@ -58,17 +67,20 @@ function NativePracticeSessionHost(props: NativePracticeSessionProps) {
 
   if (!Session) {
     return (
-      <View style={styles.nativeUnavailable}>
-        <EmptyStateCard
-          icon="alert-circle-outline"
-          title="Practice unavailable"
-          subtitle="Live practice could not start. Go back and try again after the app reloads."
-        />
-        <Pressable onPress={props.onBack} style={styles.startBtn} accessibilityRole="button">
-          <CustomText textStyle="title" style={styles.startBtnText}>
-            Back to practice
-          </CustomText>
-        </Pressable>
+      <View style={styles.root}>
+        <View style={[styles.nativeUnavailable, { paddingTop: glassNavContentInset(insets.top) }]}>
+          <EmptyStateCard
+            icon="alert-circle-outline"
+            title="Practice unavailable"
+            subtitle="Live practice could not start. Go back and try again after the app reloads."
+          />
+          <Pressable onPress={props.onBack} style={styles.startBtn} accessibilityRole="button">
+            <CustomText textStyle="title" style={styles.startBtnText}>
+              Back to practice
+            </CustomText>
+          </Pressable>
+        </View>
+        <GlassNavHeader title="Practice" onBack={props.onBack} />
       </View>
     );
   }
@@ -100,9 +112,12 @@ export function PracticeSessionsScreen({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [livePractice, setLivePractice] = useState(false);
+  const [reviewAttemptId, setReviewAttemptId] = useState<string | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const initialScenarioOpenedRef = useRef<string | null>(null);
+  const openSwipeableRef = useRef<SwipeableMethods | null>(null);
 
   useEffect(() => {
     onLiveChange?.(livePractice);
@@ -175,11 +190,106 @@ export function PracticeSessionsScreen({
     openPractice(scenario);
   }, [error, initialScenarioId, loading, openPractice, scenarios]);
 
+  const closeOpenSwipeable = useCallback(() => {
+    openSwipeableRef.current?.close();
+    openSwipeableRef.current = null;
+  }, []);
+
+  const handleSwipeOpen = useCallback((methods: SwipeableMethods) => {
+    if (openSwipeableRef.current && openSwipeableRef.current !== methods) {
+      openSwipeableRef.current.close();
+    }
+    openSwipeableRef.current = methods;
+  }, []);
+
+  const handleSwipeClose = useCallback((methods: SwipeableMethods) => {
+    if (openSwipeableRef.current === methods) {
+      openSwipeableRef.current = null;
+    }
+  }, []);
+
+  const performDeleteAttempt = useCallback(
+    async (attemptId: string) => {
+      if (deletingId) return;
+      setDeletingId(attemptId);
+      closeOpenSwipeable();
+      try {
+        const response = await authenticatedFetch(
+          `/api/roleplay/attempts?id=${encodeURIComponent(attemptId)}`,
+          { method: "DELETE" },
+        );
+        const body = (await response.json().catch(() => null)) as
+          | { success?: boolean; message?: string }
+          | null;
+        if (!response.ok || !body?.success) {
+          throw new Error(body?.message ?? "Could not delete practice session.");
+        }
+        setAttempts((current) => current.filter((attempt) => attempt.id !== attemptId));
+      } catch (caught) {
+        Alert.alert(
+          "Could not delete",
+          caught instanceof Error ? caught.message : "Could not delete this practice session.",
+        );
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [closeOpenSwipeable, deletingId],
+  );
+
+  const confirmDeleteAttempt = useCallback(
+    (attempt: Attempt) => {
+      Alert.alert(
+        "Delete practice session?",
+        `Delete “${attempt.scenario_name || "this practice session"}”? This can’t be undone.`,
+        [
+          { text: "Cancel", style: "cancel", onPress: closeOpenSwipeable },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => void performDeleteAttempt(attempt.id),
+          },
+        ],
+      );
+    },
+    [closeOpenSwipeable, performDeleteAttempt],
+  );
+
+  const openAttempt = useCallback(
+    (attempt: Attempt) => {
+      const matched = attempt.scenario_id
+        ? scenarios.find((item) => item.id === attempt.scenario_id)
+        : undefined;
+      setSelectedScenario(
+        matched ?? {
+          id: attempt.scenario_id || "",
+          name: attempt.scenario_name || "Practice",
+          difficulty: (attempt.scenario_difficulty as Scenario["difficulty"]) || undefined,
+        },
+      );
+      setReviewAttemptId(attempt.id);
+    },
+    [scenarios],
+  );
+
   const refresh = async () => {
     setRefreshing(true);
     await load();
     setRefreshing(false);
   };
+
+  if (reviewAttemptId) {
+    return (
+      <NativePracticeSessionHost
+        scenario={selectedScenario}
+        attemptId={reviewAttemptId}
+        onBack={() => {
+          setReviewAttemptId(null);
+          setSelectedScenario(null);
+        }}
+      />
+    );
+  }
 
   if (livePractice && canUseNativePractice) {
     return (
@@ -271,7 +381,21 @@ export function PracticeSessionsScreen({
               </CustomText>
             </View>
             {attempts.length ? (
-              attempts.slice(0, 8).map((attempt) => <AttemptRow key={attempt.id} attempt={attempt} />)
+              <View>
+                {attempts.slice(0, 8).map((attempt) => (
+                  <AttemptRow
+                    key={attempt.id}
+                    attempt={attempt}
+                    isDeleting={deletingId === attempt.id}
+                    onOpen={() => openAttempt(attempt)}
+                    onDelete={() => confirmDeleteAttempt(attempt)}
+                    onSwipeOpen={handleSwipeOpen}
+                    onSwipeClose={handleSwipeClose}
+                    onCloseOpen={closeOpenSwipeable}
+                    isAnyOpen={() => openSwipeableRef.current !== null}
+                  />
+                ))}
+              </View>
             ) : (
               <EmptyStateCard
                 icon="trophy-outline"
@@ -308,30 +432,108 @@ export function PracticeSessionsScreen({
   );
 }
 
-function AttemptRow({ attempt }: { attempt: Attempt }) {
+function AttemptRow({
+  attempt,
+  isDeleting,
+  onOpen,
+  onDelete,
+  onSwipeOpen,
+  onSwipeClose,
+  onCloseOpen,
+  isAnyOpen,
+}: {
+  attempt: Attempt;
+  isDeleting: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+  onSwipeOpen: (methods: SwipeableMethods) => void;
+  onSwipeClose: (methods: SwipeableMethods) => void;
+  onCloseOpen: () => void;
+  isAnyOpen: () => boolean;
+}) {
+  const swipeableRef = useRef<SwipeableMethods | null>(null);
   const passed = attempt.grade_status === "passed";
   const scoreColor = passed ? C.green : attempt.grade_status === "not-passed" ? C.red : C.amber;
+  const title = attempt.scenario_name || "Practice scenario";
   return (
-    <View style={styles.card}>
-      <View style={styles.flex}>
-        <CustomText textStyle="title" numberOfLines={1} style={styles.cardTitle}>
-          {attempt.scenario_name || "Practice scenario"}
-        </CustomText>
-        <CustomText textStyle="caption" style={styles.cardMeta}>
-          {attempt.created_at ? new Date(attempt.created_at).toLocaleDateString() : "Recent"}
-          {attempt.duration_seconds ? ` · ${Math.max(1, Math.round(attempt.duration_seconds / 60))} min` : ""}
-        </CustomText>
-      </View>
-      {attempt.score != null ? (
-        <CustomText textStyle="title" style={[styles.attemptScore, { color: scoreColor }]}>
-          {Math.round(attempt.score)}%
-        </CustomText>
-      ) : (
-        <CustomText textStyle="micro" style={styles.pending}>
-          Pending
-        </CustomText>
+    <Swipeable
+      ref={swipeableRef}
+      friction={2}
+      rightThreshold={40}
+      overshootRight={false}
+      containerStyle={styles.swipeContainer}
+      onSwipeableOpenStartDrag={() => {
+        if (swipeableRef.current) onSwipeOpen(swipeableRef.current);
+      }}
+      onSwipeableOpen={() => {
+        if (swipeableRef.current) onSwipeOpen(swipeableRef.current);
+      }}
+      onSwipeableClose={() => {
+        if (swipeableRef.current) onSwipeClose(swipeableRef.current);
+      }}
+      renderRightActions={() => (
+        <View style={styles.swipeActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${title}`}
+            disabled={isDeleting}
+            onPress={() => {
+              impactHaptic();
+              onDelete();
+            }}
+            style={({ pressed }) => [
+              styles.deleteAction,
+              (pressed || isDeleting) && styles.deleteActionPressed,
+            ]}
+          >
+            {isDeleting ? (
+              <LoadingDots color={CARD} size="small" />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={20} color={CARD} />
+                <CustomText textStyle="micro" style={styles.deleteActionText}>
+                  Delete
+                </CustomText>
+              </>
+            )}
+          </Pressable>
+        </View>
       )}
-    </View>
+    >
+      <MotionPressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${title}`}
+        disabled={isDeleting}
+        haptic="selection"
+        onPress={() => {
+          if (isAnyOpen()) {
+            onCloseOpen();
+            return;
+          }
+          onOpen();
+        }}
+        style={[styles.card, isDeleting && styles.cardDeleting]}
+      >
+        <View style={styles.flex}>
+          <CustomText textStyle="title" numberOfLines={1} style={styles.cardTitle}>
+            {title}
+          </CustomText>
+          <CustomText textStyle="caption" style={styles.cardMeta}>
+            {attempt.created_at ? new Date(attempt.created_at).toLocaleDateString() : "Recent"}
+            {attempt.duration_seconds ? ` · ${Math.max(1, Math.round(attempt.duration_seconds / 60))} min` : ""}
+          </CustomText>
+        </View>
+        {attempt.score != null ? (
+          <CustomText textStyle="title" style={[styles.attemptScore, { color: scoreColor }]}>
+            {Math.round(attempt.score)}%
+          </CustomText>
+        ) : (
+          <CustomText textStyle="micro" style={styles.pending}>
+            Pending
+          </CustomText>
+        )}
+      </MotionPressable>
+    </Swipeable>
   );
 }
 
@@ -342,7 +544,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 18,
     paddingHorizontal: 16,
-    backgroundColor: BACKGROUND,
   },
   scroll: {
     gap: 18,
@@ -381,7 +582,24 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   sectionTitle: { flex: 1, color: TEXT },
+  swipeContainer: {
+    marginBottom: 10,
+    borderRadius: SMALL_CORNER,
+    overflow: "hidden",
+  },
+  swipeActions: { width: PRACTICE_SWIPE_DELETE_WIDTH },
+  deleteAction: {
+    flex: 1,
+    width: PRACTICE_SWIPE_DELETE_WIDTH,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: "#ef4444",
+  },
+  deleteActionPressed: { backgroundColor: "#dc2626", opacity: 0.92 },
+  deleteActionText: { color: CARD },
   card: {
+    minHeight: 74,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -390,6 +608,7 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     backgroundColor: CARD,
   },
+  cardDeleting: { opacity: 0.55 },
   cardTitle: { flex: 1 },
   cardMeta: { marginTop: 5, color: C.textSec },
   attemptScore: { fontVariant: ["tabular-nums"] },

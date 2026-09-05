@@ -9,11 +9,11 @@ import Reanimated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { TourBackButton as BackBtn } from "@/components/tour";
+import { GlassNavHeader, glassNavContentInset } from "@/components/glass-nav-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BACKGROUND, CARD, SMALL_CORNER } from "@/theme/tokens";
-import { tourColors as C } from "@/theme/tour-brand";
+import { BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER } from "@/theme/tokens";
 
 function ShimmerGroup({ children }: { children: React.ReactNode }) {
   const opacity = useSharedValue(0.46);
@@ -55,21 +55,18 @@ export function PracticeListSkeleton() {
   );
 }
 
-export function PracticeSessionSkeleton({ onBack }: { onBack: () => void }) {
+export function PracticeSessionSkeleton({
+  title = "Practice",
+  onBack,
+}: {
+  title?: string;
+  onBack: () => void;
+}) {
+  const insets = useSafeAreaInsets();
   return (
     <View accessibilityLabel="Preparing practice session" style={styles.sessionRoot}>
-      <View style={styles.sessionHeader}>
-        <View style={styles.headerTop}>
-          <BackBtn label="Practice" onPress={onBack} />
-          <ShimmerGroup><Skeleton style={styles.statusPill} /></ShimmerGroup>
-        </View>
-        <ShimmerGroup>
-          <Skeleton style={styles.sessionTitle} />
-        </ShimmerGroup>
-      </View>
-
       <ShimmerGroup>
-        <View style={styles.sessionBody}>
+        <View style={[styles.sessionBody, { paddingTop: glassNavContentInset(insets.top) }]}>
           <View style={styles.callCard}>
             <Skeleton style={styles.avatar} />
             <Skeleton style={styles.prospectName} />
@@ -82,20 +79,15 @@ export function PracticeSessionSkeleton({ onBack }: { onBack: () => void }) {
             <Skeleton style={styles.transcriptLineShort} />
             <Skeleton style={styles.transcriptLineMedium} />
           </View>
-
-          <View style={styles.controls}>
-            <Skeleton style={styles.controlButton} />
-            <Skeleton style={styles.primaryControl} />
-            <Skeleton style={styles.controlButton} />
-          </View>
         </View>
       </ShimmerGroup>
+      <GlassNavHeader title={title} onBack={onBack} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  listRoot: { gap: 12, paddingTop: 2 },
+  listRoot: { gap: 10, paddingTop: 2 },
   sectionHeading: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   historyTitle: { width: 154, height: 18, borderRadius: 7 },
   row: {
@@ -115,21 +107,29 @@ const styles = StyleSheet.create({
   metaLine: { width: 66, height: 8 },
   score: { width: 38, height: 19, borderRadius: 7 },
   sessionRoot: { flex: 1, backgroundColor: BACKGROUND },
-  sessionHeader: { gap: 14, paddingTop: 14, paddingHorizontal: 20, paddingBottom: 17, borderBottomWidth: 1, borderColor: C.border },
-  headerTop: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  statusPill: { width: 78, height: 28, borderRadius: 99 },
-  sessionTitle: { width: "68%", height: 25, borderRadius: 9 },
-  sessionBody: { flex: 1, gap: 14, padding: 20 },
-  callCard: { alignItems: "center", gap: 11, paddingVertical: 26, paddingHorizontal: 20, borderWidth: 1, borderColor: C.border, borderRadius: 18, backgroundColor: C.card },
-  avatar: { width: 70, height: 70, borderRadius: 35 },
-  prospectName: { width: 108, height: 17, borderRadius: 7 },
+  sessionBody: { flex: 1, gap: 14, paddingHorizontal: 16 },
+  callCard: {
+    alignItems: "center",
+    gap: 11,
+    paddingVertical: 26,
+    paddingHorizontal: 20,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  avatar: { width: 44, height: 44, borderRadius: 14, backgroundColor: HINT },
+  prospectName: { width: 168, height: 17, borderRadius: 7 },
   callCopy: { width: "66%", height: 10, borderRadius: 6 },
-  transcriptCard: { minHeight: 188, gap: 12, padding: 16, borderWidth: 1, borderColor: C.border, borderRadius: 16, backgroundColor: C.card },
+  transcriptCard: {
+    minHeight: 188,
+    gap: 12,
+    padding: 16,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
   transcriptTitle: { width: 86, height: 12, borderRadius: 6 },
   transcriptLineLong: { width: "92%", height: 36, borderRadius: 11 },
   transcriptLineShort: { width: "62%", height: 36, alignSelf: "flex-end", borderRadius: 11 },
   transcriptLineMedium: { width: "76%", height: 36, borderRadius: 11 },
-  controls: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18, paddingTop: 8 },
-  controlButton: { width: 48, height: 48, borderRadius: 24 },
-  primaryControl: { width: 68, height: 68, borderRadius: 34 },
 });

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { File as ExpoFile, Paths } from "expo-file-system";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { DeviceMotion, DeviceMotionOrientation, type DeviceMotionMeasurement } from "expo-sensors";
 import * as Sharing from "expo-sharing";
@@ -12,15 +13,20 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CustomText, customTextVariants } from "@/components/custom-text";
+import { GlassNavHeader, glassNavContentInset } from "@/components/glass-nav-header";
+import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { LoadingDots } from "@/components/loading-dots";
+import { SecondaryButton } from "@/components/secondary-button";
+import { ACCENT, BACKGROUND, CARD, HINT, SMALL_CORNER, TEXT } from "@/theme/tokens";
 import {
   checkPanoramaOverlap,
   type PanoramaOverlapQuality,
@@ -219,80 +225,135 @@ function IntroPage({
 }) {
   const insets = useSafeAreaInsets();
   const configuration = CAPTURE_CONFIG[captureMode];
+  const footerPad = Math.max(insets.bottom, 16);
 
   return (
-    <View style={[styles.introPage, { paddingTop: insets.top + 14, paddingBottom: Math.max(insets.bottom, 24) }]}> 
-      <Pressable accessibilityLabel="Close 360 capture" onPress={onClose} style={styles.lightHeaderButton}>
-        <Ionicons name="close" size={23} color={C.text} />
-      </Pressable>
-      <View style={styles.introIllustration}>
-        <View style={styles.introOrbit}>
-          {Array.from({ length: configuration.shotCount }).map((_, index) => {
-            const angle = (index / configuration.shotCount) * Math.PI * 2 - Math.PI / 2;
-            return (
-              <View
-                key={index}
-                style={[
-                  styles.introOrbitDot,
-                  {
-                    transform: [
-                      { translateX: Math.cos(angle) * 74 },
-                      { translateY: Math.sin(angle) * 74 },
-                    ],
-                  },
-                ]}
-              />
-            );
-          })}
-          <View style={styles.introPhone}>
-            <Ionicons name="phone-portrait-outline" size={50} color="#fff" />
+    <View style={styles.page}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.introContent,
+          {
+            paddingTop: glassNavContentInset(insets.top),
+            paddingBottom: 58 + 10 + footerPad + 24,
+          },
+        ]}
+      >
+        <View style={styles.introIllustration}>
+          <View style={styles.introOrbit}>
+            {Array.from({ length: configuration.shotCount }).map((_, index) => {
+              const angle = (index / configuration.shotCount) * Math.PI * 2 - Math.PI / 2;
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.introOrbitDot,
+                    {
+                      transform: [
+                        { translateX: Math.cos(angle) * 74 },
+                        { translateY: Math.sin(angle) * 74 },
+                      ],
+                    },
+                  ]}
+                />
+              );
+            })}
+            <View style={styles.introPhone}>
+              <Ionicons name="phone-portrait-outline" size={50} color={CARD} />
+            </View>
           </View>
         </View>
+        <CustomText textStyle="hero" style={styles.introTitle}>
+          Choose speed or detail
+        </CustomText>
+        <CustomText textStyle="body" style={styles.introBody}>
+          Hold your phone vertically at eye level. Follow the moving target and turn in place; Tour captures each photo automatically when the phone is level and steady.
+        </CustomText>
+        <View style={styles.captureModePicker}>
+          {(Object.keys(CAPTURE_CONFIG) as PanoramaCaptureMode[]).map((mode) => {
+            const option = CAPTURE_CONFIG[mode];
+            const selected = mode === captureMode;
+            return (
+              <Pressable
+                key={mode}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => onCaptureModeChange(mode)}
+                style={[
+                  styles.captureModeOption,
+                  selected && styles.captureModeOptionSelected,
+                ]}
+              >
+                <CustomText
+                  textStyle="label"
+                  style={[
+                    styles.captureModeTitle,
+                    selected && styles.captureModeTitleSelected,
+                  ]}
+                >
+                  {option.title}
+                </CustomText>
+                <CustomText
+                  textStyle="micro"
+                  style={[
+                    styles.captureModeMeta,
+                    selected && styles.captureModeMetaSelected,
+                  ]}
+                >
+                  {option.shotCount} photos · {option.degreesPerShot}° apart
+                </CustomText>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.introChecklist}>
+          <IntroItem icon="phone-portrait-outline" text="Keep the phone upright" />
+          <IntroItem icon="sync-outline" text={`Turn slowly through ${configuration.shotCount} positions`} />
+          <IntroItem icon="sparkles-outline" text="Tour stitches one 360° panorama" />
+        </View>
+        {error ? (
+          <CustomText textStyle="caption" style={styles.introError}>
+            {error}
+          </CustomText>
+        ) : null}
+      </ScrollView>
+      <View pointerEvents="box-none" style={[styles.pageFooter, { paddingBottom: footerPad }]}>
+        <LinearGradient
+          colors={["rgba(242, 242, 247, 0)", "rgba(242, 242, 247, 0.62)", BACKGROUND]}
+          locations={[0, 0.5, 1]}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Start 360 capture"
+          disabled={starting}
+          onPress={onStart}
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            starting && styles.disabled,
+            pressed && !starting && styles.pressed,
+          ]}
+        >
+          {starting ? (
+            <LoadingDots size="small" color={CARD} />
+          ) : (
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              Start 360 capture
+            </CustomText>
+          )}
+        </Pressable>
       </View>
-      <Text style={styles.introEyebrow}>360° CAPTURE</Text>
-      <Text style={styles.introTitle}>Choose speed or detail</Text>
-      <Text style={styles.introBody}>
-        Hold your phone vertically at eye level. Follow the moving target and turn in place; Tour captures each photo automatically when the phone is level and steady.
-      </Text>
-      <View style={styles.captureModePicker}>
-        {(Object.keys(CAPTURE_CONFIG) as PanoramaCaptureMode[]).map((mode) => {
-          const option = CAPTURE_CONFIG[mode];
-          const selected = mode === captureMode;
-          return (
-            <Pressable
-              key={mode}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => onCaptureModeChange(mode)}
-              style={({ pressed }) => [
-                styles.captureModeOption,
-                selected && styles.captureModeOptionSelected,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.captureModeTitle, selected && styles.captureModeTitleSelected]}>{option.title}</Text>
-              <Text style={[styles.captureModeMeta, selected && styles.captureModeMetaSelected]}>
-                {option.shotCount} photos · {option.degreesPerShot}° apart
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <View style={styles.introChecklist}>
-        <IntroItem icon="phone-portrait-outline" text="Keep the phone upright" />
-        <IntroItem icon="sync-outline" text={`Turn slowly through ${configuration.shotCount} positions`} />
-        <IntroItem icon="sparkles-outline" text="Tour stitches one 360° panorama" />
-      </View>
-      {error ? <Text style={styles.introError}>{error}</Text> : null}
-      <Pressable
-        accessibilityRole="button"
-        disabled={starting}
-        onPress={onStart}
-        style={({ pressed }) => [styles.startButton, pressed && styles.pressed, starting && styles.disabled]}
-      >
-        {starting ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="camera-outline" size={20} color="#fff" />}
-        <Text style={styles.startButtonText}>{starting ? "Starting camera…" : "Start 360 capture"}</Text>
-      </Pressable>
+      <GlassNavHeader
+        title="360° photo"
+        backButton={
+          <LiquidGlassIconButton
+            icon="close"
+            accessibilityLabel="Close 360 capture"
+            onPress={onClose}
+          />
+        }
+      />
     </View>
   );
 }
@@ -301,9 +362,11 @@ function IntroItem({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text:
   return (
     <View style={styles.introItem}>
       <View style={styles.introItemIcon}>
-        <Ionicons name={icon} size={18} color={C.brand} />
+        <Ionicons name={icon} size={18} color={ACCENT} />
       </View>
-      <Text style={styles.introItemText}>{text}</Text>
+      <CustomText textStyle="body" style={styles.introItemText}>
+        {text}
+      </CustomText>
     </View>
   );
 }
@@ -448,33 +511,8 @@ function ReviewPage({
   }, [selectedShot, sharing]);
 
   return (
-    <View style={styles.reviewPage}>
-      <View style={[styles.reviewHeader, { paddingTop: insets.top + 8 }]}> 
-        <View style={styles.reviewHeaderSide}>
-          <Pressable accessibilityLabel="Close panorama review" onPress={onClose} style={styles.lightHeaderButton}>
-            <Ionicons name="close" size={22} color={C.text} />
-          </Pressable>
-        </View>
-        <View style={styles.reviewHeading}>
-          <Text style={styles.reviewEyebrow}>360° CAPTURED</Text>
-          <Text style={styles.reviewTitle}>Review your panorama</Text>
-        </View>
-        <View style={[styles.reviewHeaderSide, styles.reviewHeaderActions]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Share all ${shotCount} panorama photos`}
-            disabled={uploading || sharingAll || shots.length === 0}
-            onPress={() => void shareAllShots()}
-            style={[styles.lightHeaderButton, sharingAll && styles.disabled]}
-          >
-            {sharingAll ? <LoadingDots size="small" color={C.text} /> : <Ionicons name="share-outline" size={21} color={C.text} />}
-          </Pressable>
-          <Pressable accessibilityLabel="Retake panorama" disabled={uploading} onPress={onRetake} style={styles.lightHeaderButton}>
-            <Ionicons name="refresh" size={21} color={C.text} />
-          </Pressable>
-        </View>
-      </View>
-
+    <View style={styles.page}>
+      <View style={[styles.reviewBody, { paddingTop: glassNavContentInset(insets.top) }]}>
       <View style={styles.reviewTabs}>
         <Pressable
           accessibilityRole="tab"
@@ -482,8 +520,8 @@ function ReviewPage({
           onPress={() => setReviewTab("flat")}
           style={[styles.reviewTab, reviewTab === "flat" && styles.reviewTabActive]}
         >
-          <Ionicons name="scan-outline" size={16} color={reviewTab === "flat" ? C.brand : C.textSec} />
-          <Text style={[styles.reviewTabText, reviewTab === "flat" && styles.reviewTabTextActive]}>Flat 2:1</Text>
+          <Ionicons name="scan-outline" size={16} color={reviewTab === "flat" ? ACCENT : "rgba(0, 0, 0, 0.45)"} />
+          <CustomText textStyle="label" style={[styles.reviewTabText, reviewTab === "flat" && styles.reviewTabTextActive]}>Flat 2:1</CustomText>
         </Pressable>
         <Pressable
           accessibilityRole="tab"
@@ -491,8 +529,8 @@ function ReviewPage({
           onPress={() => setReviewTab("preview")}
           style={[styles.reviewTab, reviewTab === "preview" && styles.reviewTabActive]}
         >
-          <Ionicons name="globe-outline" size={17} color={reviewTab === "preview" ? C.brand : C.textSec} />
-          <Text style={[styles.reviewTabText, reviewTab === "preview" && styles.reviewTabTextActive]}>360</Text>
+          <Ionicons name="globe-outline" size={17} color={reviewTab === "preview" ? ACCENT : "rgba(0, 0, 0, 0.45)"} />
+          <CustomText textStyle="label" style={[styles.reviewTabText, reviewTab === "preview" && styles.reviewTabTextActive]}>360</CustomText>
         </Pressable>
         <Pressable
           accessibilityRole="tab"
@@ -500,8 +538,8 @@ function ReviewPage({
           onPress={() => setReviewTab("raw")}
           style={[styles.reviewTab, reviewTab === "raw" && styles.reviewTabActive]}
         >
-          <Ionicons name="images-outline" size={17} color={reviewTab === "raw" ? C.brand : C.textSec} />
-          <Text style={[styles.reviewTabText, reviewTab === "raw" && styles.reviewTabTextActive]}>Photos ({shots.length})</Text>
+          <Ionicons name="images-outline" size={17} color={reviewTab === "raw" ? ACCENT : "rgba(0, 0, 0, 0.45)"} />
+          <CustomText textStyle="label" style={[styles.reviewTabText, reviewTab === "raw" && styles.reviewTabTextActive]}>Photos ({shots.length})</CustomText>
         </Pressable>
       </View>
 
@@ -515,16 +553,16 @@ function ReviewPage({
           color={weakSeamCount > 0 ? "#b45309" : "#15803d"}
         />
         <View style={styles.seamSummaryCopy}>
-          <Text style={styles.seamSummaryTitle}>
+          <CustomText textStyle="label" style={styles.seamSummaryTitle}>
             {weakSeamCount > 0
               ? `${weakSeamCount} seam${weakSeamCount === 1 ? "" : "s"} may need a retake`
               : `${goodSeamCount} of ${shotCount} seams verified on device`}
-          </Text>
-          <Text style={styles.seamSummaryText}>
+          </CustomText>
+          <CustomText textStyle="caption" style={styles.seamSummaryText}>
             {unverifiableSeamCount > 0
               ? `${unverifiableSeamCount} seam${unverifiableSeamCount === 1 ? "" : "s"} crossed a low-detail area and could not be verified.`
               : "Local CV found matching detail between each neighboring photo, including the 360° closure."}
-          </Text>
+          </CustomText>
         </View>
       </View>
 
@@ -543,7 +581,7 @@ function ReviewPage({
           ) : null}
           <View pointerEvents="none" style={styles.reviewPreviewBadge}>
             <Ionicons name="hand-left-outline" size={14} color="#fff" />
-            <Text style={styles.reviewPreviewBadgeText}>Drag to look around</Text>
+            <CustomText textStyle="micro" style={styles.reviewPreviewBadgeText}>Drag to look around</CustomText>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -558,9 +596,9 @@ function ReviewPage({
           </Pressable>
           <View pointerEvents="none" style={styles.reviewPreviewStatus}>
             {quickPreviewReady ? <View style={styles.reviewPreviewStatusDot} /> : <LoadingDots size="small" color="#fff" />}
-            <Text style={styles.reviewPreviewStatusText}>
+            <CustomText textStyle="micro" style={styles.reviewPreviewStatusText}>
               {quickPreviewReady ? "Curved preview · local" : "Building local preview…"}
-            </Text>
+            </CustomText>
           </View>
         </View>
       ) : reviewTab === "flat" ? (
@@ -574,12 +612,12 @@ function ReviewPage({
           </View>
           <View style={styles.flatPreviewCaption}>
             <Ionicons name="information-circle-outline" size={15} color={C.textSec} />
-            <Text style={styles.flatPreviewCaptionText}>Complete frames mapped into {shotCount} slots · final stitching corrects perspective and seams</Text>
+            <CustomText textStyle="micro" style={styles.flatPreviewCaptionText}>Complete frames mapped into {shotCount} slots · final stitching corrects perspective and seams</CustomText>
           </View>
         </View>
       ) : (
         <>
-          <Text style={styles.shotGridHint}>Tap a source photo to view or share the original JPEG.</Text>
+          <CustomText textStyle="caption" style={styles.shotGridHint}>Tap a source photo to view or share the original JPEG.</CustomText>
           <View style={styles.shotGrid}>
             {shots.map((shot) => (
               <Pressable
@@ -592,7 +630,7 @@ function ReviewPage({
               >
                 <Image source={{ uri: shot.uri }} style={styles.shotImage} resizeMode="cover" />
                 <View style={styles.shotNumber}>
-                  <Text style={styles.shotNumberText}>{shot.index + 1}</Text>
+                  <CustomText textStyle="micro" style={styles.shotNumberText}>{shot.index + 1}</CustomText>
                 </View>
                 <View style={styles.shotViewBadge}>
                   <Ionicons name="expand-outline" size={14} color="#fff" />
@@ -616,49 +654,95 @@ function ReviewPage({
         </>
       )}
 
-      <View style={styles.reviewForm}>
-        <Text style={styles.inputLabel}>Panorama name</Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          editable={!uploading}
-          placeholder="Name this 360° view"
-          placeholderTextColor={C.textMuted}
-          style={styles.input}
-        />
-        <Text style={styles.inputLabel}>Description</Text>
-        <TextInput
-          value={description}
-          onChangeText={setDescription}
-          editable={!uploading}
-          multiline
-          placeholder="Room, amenity, or location details"
-          placeholderTextColor={C.textMuted}
-          style={[styles.input, styles.descriptionInput]}
-        />
-        {error ? <Text style={styles.reviewError}>{error}</Text> : null}
+      <View style={styles.form}>
+        <View style={styles.field}>
+          <CustomText textStyle="caption" style={styles.fieldLabel}>
+            Panorama name
+          </CustomText>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            editable={!uploading}
+            placeholder="Name this 360° view"
+            placeholderTextColor="rgba(0, 0, 0, 0.45)"
+            style={[customTextVariants.title, styles.input]}
+          />
+        </View>
+        <View style={styles.separator} />
+        <View style={styles.field}>
+          <CustomText textStyle="caption" style={styles.fieldLabel}>
+            Description
+          </CustomText>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            editable={!uploading}
+            multiline
+            placeholder="Room, amenity, or location details"
+            placeholderTextColor="rgba(0, 0, 0, 0.45)"
+            style={[customTextVariants.body, styles.input, styles.descriptionInput]}
+          />
+        </View>
+      </View>
+        {error ? (
+          <CustomText textStyle="caption" style={styles.reviewError}>
+            {error}
+          </CustomText>
+        ) : null}
       </View>
 
-      <View style={[styles.reviewActions, { paddingBottom: Math.max(insets.bottom, 18) }]}> 
-        <Pressable
-          accessibilityRole="button"
+      <View pointerEvents="box-none" style={[styles.pageFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <LinearGradient
+          colors={["rgba(242, 242, 247, 0)", "rgba(242, 242, 247, 0.62)", BACKGROUND]}
+          locations={[0, 0.5, 1]}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+        />
+        <SecondaryButton
+          label="Retake"
+          icon="refresh"
           disabled={uploading}
           onPress={onRetake}
-          style={({ pressed }) => [styles.retakeButton, pressed && styles.pressed, uploading && styles.disabled]}
-        >
-          <Ionicons name="refresh" size={18} color={C.brand} />
-          <Text style={styles.retakeButtonText}>Retake</Text>
-        </Pressable>
+        />
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Create 360 panorama"
           disabled={uploading || !name.trim()}
           onPress={() => onUpload(name.trim(), description.trim())}
-          style={({ pressed }) => [styles.uploadButton, pressed && styles.pressed, (uploading || !name.trim()) && styles.disabled]}
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            (uploading || !name.trim()) && styles.disabled,
+            pressed && !uploading && Boolean(name.trim()) && styles.pressed,
+          ]}
         >
-          {uploading ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="sparkles-outline" size={19} color="#fff" />}
-          <Text style={styles.uploadButtonText}>{uploading ? "Stitching panorama…" : "Create 360°"}</Text>
+          {uploading ? (
+            <LoadingDots size="small" color={CARD} />
+          ) : (
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              Create 360°
+            </CustomText>
+          )}
         </Pressable>
       </View>
+
+      <GlassNavHeader
+        title="Review panorama"
+        backButton={
+          <LiquidGlassIconButton
+            icon="close"
+            accessibilityLabel="Close panorama review"
+            onPress={onClose}
+          />
+        }
+        right={
+          <LiquidGlassIconButton
+            icon="share-outline"
+            accessibilityLabel={`Share all ${shotCount} panorama photos`}
+            disabled={uploading || sharingAll || shots.length === 0}
+            onPress={() => void shareAllShots()}
+          />
+        }
+      />
 
       {previewExpanded ? (
         <View accessibilityViewIsModal style={styles.expandedPreview}>
@@ -673,7 +757,7 @@ function ReviewPage({
           />
           <View pointerEvents="none" style={[styles.expandedPreviewHint, { top: insets.top + 16 }]}>
             <Ionicons name="hand-left-outline" size={15} color="#fff" />
-            <Text style={styles.expandedPreviewHintText}>Drag to explore the 360° view</Text>
+            <CustomText textStyle="micro" style={styles.expandedPreviewHintText}>Drag to explore the 360° view</CustomText>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -724,27 +808,30 @@ function ReviewPage({
             </Pressable>
           </View>
           <View pointerEvents="none" style={[styles.expandedPreviewFooter, { paddingBottom: Math.max(insets.bottom, 18) }]}>
-            <Text style={styles.expandedPreviewFooterText}>{shots.length}/{shotCount} panorama views loaded</Text>
+            <CustomText textStyle="micro" style={styles.expandedPreviewFooterText}>{shots.length}/{shotCount} panorama views loaded</CustomText>
           </View>
         </View>
       ) : null}
 
       {selectedShot && selectedShotIndex !== null ? (
         <View accessibilityViewIsModal style={styles.shotViewer}>
-          <View style={[styles.shotViewerHeader, { paddingTop: insets.top + 8 }]}> 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close photo viewer"
-              onPress={() => setSelectedShotIndex(null)}
-              style={({ pressed }) => [styles.shotViewerHeaderButton, pressed && styles.pressed]}
-            >
-              <Ionicons name="close" size={24} color="#fff" />
-            </Pressable>
-            <View style={styles.shotViewerHeading}>
-              <Text style={styles.shotViewerTitle}>Photo {selectedShotIndex + 1} of {shots.length}</Text>
-              <Text style={styles.shotViewerSubtitle}>Original panorama source</Text>
+          <View style={[styles.shotViewerHeader, { paddingTop: insets.top }]}>
+            <View style={styles.cameraBar}>
+              <LiquidGlassIconButton
+                icon="close"
+                accessibilityLabel="Close photo viewer"
+                onPress={() => setSelectedShotIndex(null)}
+              />
+              <View style={styles.shotViewerHeading}>
+                <CustomText textStyle="title" style={styles.shotViewerTitle}>
+                  Photo {selectedShotIndex + 1} of {shots.length}
+                </CustomText>
+                <CustomText textStyle="micro" style={styles.shotViewerSubtitle}>
+                  Original panorama source
+                </CustomText>
+              </View>
+              <View style={styles.headerSide} />
             </View>
-            <View style={styles.shotViewerHeaderSpacer} />
           </View>
 
           <Image
@@ -755,9 +842,9 @@ function ReviewPage({
           />
 
           <View style={[styles.shotViewerFooter, { paddingBottom: Math.max(insets.bottom, 18) }]}> 
-            <Text style={styles.shotViewerHint}>
+            <CustomText textStyle="caption" style={styles.shotViewerHint}>
               Use AirDrop, Quick Share, or Save to Files to move this full-resolution JPEG to a computer.
-            </Text>
+            </CustomText>
             <View style={styles.shotViewerNavigation}>
               <Pressable
                 accessibilityRole="button"
@@ -799,10 +886,19 @@ function ReviewPage({
               accessibilityLabel={`Share panorama photo ${selectedShotIndex + 1}`}
               disabled={sharing}
               onPress={() => void shareSelectedShot()}
-              style={({ pressed }) => [styles.shareShotButton, pressed && styles.pressed, sharing && styles.disabled]}
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                sharing && styles.disabled,
+                pressed && !sharing && styles.pressed,
+              ]}
             >
-              {sharing ? <LoadingDots size="small" color="#fff" /> : <Ionicons name="share-outline" size={20} color="#fff" />}
-              <Text style={styles.shareShotButtonText}>{sharing ? "Opening share sheet…" : "Share original photo"}</Text>
+              {sharing ? (
+                <LoadingDots size="small" color={CARD} />
+              ) : (
+                <CustomText textStyle="title" style={styles.primaryBtnText}>
+                  Share original photo
+                </CustomText>
+              )}
             </Pressable>
           </View>
         </View>
@@ -813,16 +909,16 @@ function ReviewPage({
 
 function ProcessingPage({ stage }: { stage: "processing" | "aligning" }) {
   return (
-    <View style={styles.processingPage}>
-      <View style={styles.processingGrid} pointerEvents="none">
-        {Array.from({ length: 10 }).map((_, index) => <View key={`v-${index}`} style={[styles.processingGridLine, { left: `${index * 11.1}%` }]} />)}
-        {Array.from({ length: 18 }).map((_, index) => <View key={`h-${index}`} style={[styles.processingGridLineHorizontal, { top: `${index * 5.88}%` }]} />)}
+    <View style={styles.page}>
+      <View style={styles.processingBody}>
+        <LoadingDots color={ACCENT} />
+        <CustomText textStyle="hero" style={styles.centered}>
+          {stage === "processing" ? "Processing your scan" : "Aligning your scan"}
+        </CustomText>
+        <CustomText textStyle="body" style={styles.processingCopy}>
+          Your newest 360° view will appear here shortly.
+        </CustomText>
       </View>
-      <View style={styles.processingIcon}>
-        <LoadingDots color="#ec4899" />
-      </View>
-      <Text style={styles.processingTitle}>{stage === "processing" ? "Processing your scan." : "Aligning your scan."}</Text>
-      <Text style={styles.processingBody}>Your newest 360° view will appear here shortly.</Text>
     </View>
   );
 }
@@ -1368,33 +1464,41 @@ export function PanoramaAssetRecorder({ visible, onClose, onUpload }: PanoramaAs
             ]}
           />
 
-          <View style={[styles.captureHeader, { paddingTop: insets.top + 8 }]}> 
-            <Pressable accessibilityLabel="Close 360 capture" onPress={requestClose} style={styles.darkHeaderButton}>
-              <Ionicons name="close" size={23} color="#fff" />
-            </Pressable>
-            <View style={styles.captureCounter}>
-              <Ionicons name="scan-outline" size={15} color="#fff" />
-              <Text style={styles.captureCounterText}>{Math.min(targetIndex + 1, shotCount)} / {shotCount}</Text>
+          <View pointerEvents="box-none" style={[styles.captureHeader, { paddingTop: insets.top }]}>
+            <View style={styles.cameraBar}>
+              <LiquidGlassIconButton
+                icon="close"
+                accessibilityLabel="Close 360 capture"
+                onPress={requestClose}
+              />
+              <View style={styles.captureCounter}>
+                <Ionicons name="scan-outline" size={15} color={CARD} />
+                <CustomText textStyle="micro" style={styles.captureCounterText}>
+                  {Math.min(targetIndex + 1, shotCount)} / {shotCount}
+                </CustomText>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Switch from ${captureConfiguration.lensLabel} capture mode`}
+                disabled={takingPhoto}
+                onPress={switchCaptureMode}
+                style={[styles.lensBadge, takingPhoto && styles.disabled]}
+              >
+                <CustomText textStyle="label" style={styles.lensBadgeText}>
+                  {usingUltraWide ? "0.5×" : "1×"}
+                </CustomText>
+              </Pressable>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Switch from ${captureConfiguration.lensLabel} capture mode`}
-              disabled={takingPhoto}
-              onPress={switchCaptureMode}
-              style={({ pressed }) => [styles.lensBadge, pressed && styles.pressed, takingPhoto && styles.disabled]}
-            >
-              <Text style={styles.lensBadgeText}>{usingUltraWide ? "0.5×" : "1×"}</Text>
-            </Pressable>
           </View>
 
           <View pointerEvents="none" style={styles.instructionWrap}>
             <View style={[styles.orientationIcon, aligned && styles.orientationIconReady]}>
               <Ionicons name="phone-portrait-outline" size={26} color="#fff" />
             </View>
-            <Text style={styles.instructionText}>{instruction}</Text>
-            <Text style={styles.instructionSubtext}>
+            <CustomText textStyle="hero" style={styles.instructionText}>{instruction}</CustomText>
+            <CustomText textStyle="caption" style={styles.instructionSubtext}>
               {isFirstShot ? "This view becomes the 360° starting point" : `Rotate to position ${targetIndex + 1}`}
-            </Text>
+            </CustomText>
           </View>
 
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.captureGuides]}>
@@ -1451,12 +1555,12 @@ export function PanoramaAssetRecorder({ visible, onClose, onUpload }: PanoramaAs
               style={({ pressed }) => [styles.undoButton, pressed && styles.pressed, takingPhoto && styles.disabled]}
             >
               <Ionicons name="arrow-undo" size={14} color="#fff" />
-              <Text style={styles.undoButtonText}>Undo</Text>
+              <CustomText textStyle="micro" style={styles.undoButtonText}>Undo</CustomText>
             </Pressable>
           ) : null}
 
           <View style={[styles.captureFooter, { paddingBottom: Math.max(insets.bottom, Platform.OS === "ios" ? 18 : 24) }]}> 
-            <Text style={styles.panoramaSlotsLabel}>360° PHOTO SPACES</Text>
+            <CustomText textStyle="micro" style={styles.panoramaSlotsLabel}>360° photo spaces</CustomText>
             <View style={styles.panoramaSlots}>
               {Array.from({ length: shotCount }).map((_, index) => {
                 const shot = shots[index];
@@ -1490,7 +1594,7 @@ export function PanoramaAssetRecorder({ visible, onClose, onUpload }: PanoramaAs
                         ) : null}
                       </>
                     ) : (
-                      <Text style={styles.panoramaSlotNumber}>{index + 1}</Text>
+                      <CustomText textStyle="micro" style={styles.panoramaSlotNumber}>{index + 1}</CustomText>
                     )}
                   </View>
                 );
@@ -1501,16 +1605,16 @@ export function PanoramaAssetRecorder({ visible, onClose, onUpload }: PanoramaAs
               <QualityPill label="Horizon" ready={onHorizon} />
               <QualityPill label="Steady" ready={steady} />
             </View>
-            <Text style={styles.autoCaptureText}>
+            <CustomText textStyle="caption" style={styles.autoCaptureText}>
               {overlapMessage ?? (isFirstShot
                 ? "The first photo captures automatically when the phone is upright."
                 : "Photos capture automatically when the target is centered.")}
-            </Text>
+            </CustomText>
           </View>
 
           {error ? (
             <Pressable onPress={() => setError(null)} style={[styles.cameraError, { bottom: Math.max(insets.bottom, 18) + 162 }]}> 
-              <Text style={styles.cameraErrorText}>{error}</Text>
+              <CustomText textStyle="caption" style={styles.cameraErrorText}>{error}</CustomText>
             </Pressable>
           ) : null}
         </View>
@@ -1523,7 +1627,7 @@ function QualityPill({ label, ready }: { label: string; ready: boolean }) {
   return (
     <View style={[styles.qualityPill, ready && styles.qualityPillReady]}>
       <Ionicons name={ready ? "checkmark" : "ellipse-outline"} size={13} color="#fff" />
-      <Text style={styles.qualityPillText}>{label}</Text>
+      <CustomText textStyle="micro" style={styles.qualityPillText}>{label}</CustomText>
     </View>
   );
 }
@@ -1531,31 +1635,140 @@ function QualityPill({ label, ready }: { label: string; ready: boolean }) {
 export type { PanoramaShot, RecordedPanoramaAsset };
 
 const styles = StyleSheet.create({
-  pressed: { opacity: 0.78 },
-  disabled: { opacity: 0.52 },
-  introPage: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, backgroundColor: "#f8fafc" },
-  lightHeaderButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "#fff", shadowColor: "#0f172a", shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  page: { flex: 1, backgroundColor: BACKGROUND },
+  pressed: { opacity: 0.72 },
+  disabled: { opacity: 0.45 },
+  centered: { textAlign: "center" },
+  introContent: { alignItems: "center", gap: 12, paddingHorizontal: 16 },
   introIllustration: { height: 190, alignItems: "center", justifyContent: "center" },
-  introOrbit: { width: 174, height: 174, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#bfdbfe", borderRadius: 87, backgroundColor: "#eff6ff" },
-  introOrbitDot: { position: "absolute", width: 12, height: 12, borderWidth: 3, borderColor: "#fff", borderRadius: 6, backgroundColor: C.brand },
-  introPhone: { width: 76, height: 100, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: C.brand, shadowColor: C.brand, shadowOpacity: 0.24, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } },
-  introEyebrow: { color: C.brand, fontSize: 12, fontWeight: "900", letterSpacing: 1.4 },
-  introTitle: { maxWidth: 360, marginTop: 10, color: C.text, fontSize: 28, fontWeight: "900", lineHeight: 34, textAlign: "center" },
-  introBody: { maxWidth: 370, marginTop: 12, color: C.textSec, fontSize: 15, lineHeight: 23, textAlign: "center" },
-  captureModePicker: { width: "100%", maxWidth: 390, flexDirection: "row", gap: 8, marginTop: 16, padding: 4, borderRadius: 16, backgroundColor: "#e8eef5" },
-  captureModeOption: { flex: 1, minHeight: 58, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderRadius: 12 },
-  captureModeOptionSelected: { backgroundColor: "#fff", shadowColor: "#0f172a", shadowOpacity: 0.1, shadowRadius: 7, shadowOffset: { width: 0, height: 2 } },
-  captureModeTitle: { color: C.textSec, fontSize: 13, fontWeight: "900" },
-  captureModeTitleSelected: { color: C.brand },
-  captureModeMeta: { marginTop: 3, color: C.textMuted, fontSize: 10, fontWeight: "700" },
-  captureModeMetaSelected: { color: C.textSec },
-  introChecklist: { width: "100%", maxWidth: 390, gap: 10, marginTop: 14 },
-  introItem: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 13, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 15, backgroundColor: "#fff" },
-  introItemIcon: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#eff6ff" },
-  introItemText: { flex: 1, color: C.text, fontSize: 14, fontWeight: "800" },
-  introError: { maxWidth: 380, marginTop: 14, color: C.red, fontSize: 13, fontWeight: "700", lineHeight: 19, textAlign: "center" },
-  startButton: { width: "100%", maxWidth: 390, minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, marginTop: 22, borderRadius: 18, backgroundColor: C.brand },
-  startButtonText: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  introOrbit: {
+    width: 174,
+    height: 174,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 87,
+    backgroundColor: HINT,
+  },
+  introOrbitDot: {
+    position: "absolute",
+    width: 12,
+    height: 12,
+    borderWidth: 3,
+    borderColor: CARD,
+    borderRadius: 6,
+    backgroundColor: ACCENT,
+  },
+  introPhone: {
+    width: 76,
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: SMALL_CORNER,
+    backgroundColor: ACCENT,
+  },
+  introTitle: { maxWidth: 360, textAlign: "center" },
+  introBody: {
+    maxWidth: 370,
+    color: "rgba(0, 0, 0, 0.45)",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  captureModePicker: {
+    width: "100%",
+    maxWidth: 390,
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 4,
+  },
+  captureModeOption: {
+    flex: 1,
+    minHeight: 58,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    borderRadius: SMALL_CORNER,
+    backgroundColor: CARD,
+  },
+  captureModeOptionSelected: { backgroundColor: HINT },
+  captureModeTitle: { color: "rgba(0, 0, 0, 0.45)", textAlign: "center" },
+  captureModeTitleSelected: { color: ACCENT },
+  captureModeMeta: { marginTop: 3, color: "rgba(0, 0, 0, 0.45)", textAlign: "center" },
+  captureModeMetaSelected: { color: ACCENT },
+  introChecklist: { width: "100%", maxWidth: 390, gap: 8, marginTop: 4 },
+  introItem: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 13,
+    borderRadius: SMALL_CORNER,
+    backgroundColor: CARD,
+  },
+  introItemIcon: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: HINT,
+  },
+  introItemText: { flex: 1 },
+  introError: { maxWidth: 380, color: C.red, textAlign: "center" },
+  pageFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 56,
+  },
+  primaryBtn: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+  },
+  primaryBtnText: { color: CARD },
+  form: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    overflow: "hidden",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  field: { paddingHorizontal: 16, paddingVertical: 12, gap: 6 },
+  fieldLabel: { color: "rgba(0, 0, 0, 0.45)", textTransform: "uppercase", letterSpacing: 0.4 },
+  input: { paddingVertical: 4 },
+  descriptionInput: { minHeight: 70, textAlignVertical: "top" },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 16,
+    backgroundColor: "rgba(60, 60, 67, 0.18)",
+  },
+  reviewBody: { flex: 1, minHeight: 0, paddingBottom: 150 },
+  processingBody: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingHorizontal: 28,
+  },
+  processingCopy: { maxWidth: 330, color: "rgba(0, 0, 0, 0.45)", textAlign: "center", lineHeight: 20 },
+  headerSide: { width: 42, height: 42 },
+  cameraBar: {
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
   cameraPage: { flex: 1, overflow: "hidden", backgroundColor: "#000" },
   cameraLoading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: "#020617" },
   hiddenCameraSource: { position: "absolute", zIndex: 0, overflow: "hidden", opacity: 0.001, backgroundColor: "#000" },
@@ -1565,12 +1778,29 @@ const styles = StyleSheet.create({
   verticalCaptureGuide: { position: "absolute", zIndex: 4, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)", backgroundColor: "transparent" },
   verticalCaptureGuideUpright: { borderWidth: 2, borderColor: "rgba(134,239,172,0.82)" },
   cameraLoadingText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  captureHeader: { position: "absolute", zIndex: 20, elevation: 20, top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18 },
-  darkHeaderButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "rgba(2,6,23,0.62)" },
-  captureCounter: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 14, borderRadius: 999, backgroundColor: "rgba(2,6,23,0.68)" },
-  captureCounterText: { color: "#fff", fontSize: 13, fontWeight: "900", letterSpacing: 0.5 },
-  lensBadge: { minWidth: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "rgba(2,6,23,0.62)" },
-  lensBadgeText: { color: "#fff", fontSize: 11, fontWeight: "900" },
+  captureHeader: { position: "absolute", zIndex: 20, elevation: 20, top: 0, left: 0, right: 0 },
+  captureCounter: {
+    flex: 1,
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    marginHorizontal: 12,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.42)",
+  },
+  captureCounterText: { color: CARD },
+  lensBadge: {
+    minWidth: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 21,
+    backgroundColor: CARD,
+  },
+  lensBadgeText: { color: TEXT },
   instructionWrap: { position: "absolute", zIndex: 20, elevation: 20, top: "15%", left: 24, right: 24, alignItems: "center" },
   captureGuides: { zIndex: 20, elevation: 20 },
   orientationIcon: { width: 54, height: 54, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.72)", borderRadius: 16, backgroundColor: "rgba(2,6,23,0.56)" },
@@ -1610,24 +1840,32 @@ const styles = StyleSheet.create({
   undoButtonText: { color: "#fff", fontSize: 11, fontWeight: "900" },
   cameraError: { position: "absolute", zIndex: 22, elevation: 22, left: 24, right: 24, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 13, backgroundColor: "rgba(127,29,29,0.94)" },
   cameraErrorText: { color: "#fff", fontSize: 12, fontWeight: "800", lineHeight: 17, textAlign: "center" },
-  reviewPage: { flex: 1, backgroundColor: "#f8fafc" },
-  reviewHeader: { minHeight: 98, flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#e2e8f0", backgroundColor: "#fff" },
-  reviewHeaderSide: { width: 96, flexDirection: "row", alignItems: "center" },
-  reviewHeaderActions: { justifyContent: "flex-end", gap: 8 },
-  reviewHeading: { flex: 1, alignItems: "center" },
-  reviewEyebrow: { color: C.brand, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
-  reviewTitle: { marginTop: 3, color: C.text, fontSize: 18, fontWeight: "900" },
-  reviewTabs: { flexDirection: "row", gap: 6, marginHorizontal: 18, marginTop: 12, padding: 4, borderRadius: 14, backgroundColor: "#e8eef5" },
+  reviewTabs: {
+    flexDirection: "row",
+    gap: 7,
+    marginHorizontal: 16,
+    marginTop: 4,
+  },
+  reviewTab: {
+    flex: 1,
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 11,
+    borderRadius: 18,
+    backgroundColor: CARD,
+  },
+  reviewTabActive: { backgroundColor: HINT },
+  reviewTabText: { color: "rgba(0, 0, 0, 0.45)" },
+  reviewTabTextActive: { color: ACCENT },
   seamSummary: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginHorizontal: 18, marginTop: 10, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderRadius: 13 },
   seamSummaryGood: { borderColor: "#bbf7d0", backgroundColor: "#f0fdf4" },
   seamSummaryWeak: { borderColor: "#fde68a", backgroundColor: "#fffbeb" },
   seamSummaryCopy: { flex: 1 },
   seamSummaryTitle: { color: C.text, fontSize: 12, fontWeight: "900" },
   seamSummaryText: { marginTop: 2, color: C.textSec, fontSize: 10, fontWeight: "600", lineHeight: 14 },
-  reviewTab: { flex: 1, minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 11 },
-  reviewTabActive: { backgroundColor: "#fff", shadowColor: "#0f172a", shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-  reviewTabText: { color: C.textSec, fontSize: 12, fontWeight: "900" },
-  reviewTabTextActive: { color: C.brand },
   reviewPreview: { height: 286, overflow: "hidden", marginHorizontal: 18, marginTop: 12, borderRadius: 18, backgroundColor: "#000" },
   reviewPreviewLayer: { borderRadius: 18 },
   reviewPreviewBadge: { position: "absolute", top: 12, left: 12, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: "rgba(2,6,23,0.72)" },
@@ -1668,23 +1906,12 @@ const styles = StyleSheet.create({
   shotOverlapBadge: { position: "absolute", left: 7, bottom: 7, width: 24, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "rgba(21,128,61,0.9)" },
   shotOverlapBadgeWeak: { backgroundColor: "rgba(180,83,9,0.94)" },
   shotOverlapBadgeUnknown: { backgroundColor: "rgba(71,85,105,0.94)" },
-  reviewForm: { flex: 1, paddingHorizontal: 18, paddingTop: 4 },
-  inputLabel: { marginTop: 10, marginBottom: 7, color: C.text, fontSize: 12, fontWeight: "900" },
-  input: { minHeight: 48, paddingHorizontal: 14, borderWidth: 1, borderColor: "#dbe2ea", borderRadius: 14, color: C.text, fontSize: 14, fontWeight: "700", backgroundColor: "#fff" },
-  descriptionInput: { minHeight: 70, paddingTop: 13, textAlignVertical: "top" },
-  reviewError: { marginTop: 10, color: C.red, fontSize: 12, fontWeight: "800", lineHeight: 18 },
-  reviewActions: { flexDirection: "row", gap: 10, paddingHorizontal: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#e2e8f0", backgroundColor: "#fff" },
-  retakeButton: { minWidth: 106, minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: 1, borderColor: "#bfdbfe", borderRadius: 16, backgroundColor: "#eff6ff" },
-  retakeButtonText: { color: C.brand, fontSize: 14, fontWeight: "900" },
-  uploadButton: { flex: 1, minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, backgroundColor: C.brand },
-  uploadButtonText: { color: "#fff", fontSize: 14, fontWeight: "900" },
-  shotViewer: { ...StyleSheet.absoluteFill, zIndex: 20, backgroundColor: "#020617" },
-  shotViewerHeader: { minHeight: 92, flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingBottom: 10, backgroundColor: "rgba(2,6,23,0.98)" },
-  shotViewerHeaderButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "#1e293b" },
-  shotViewerHeaderSpacer: { width: 44, height: 44 },
+  reviewError: { marginHorizontal: 16, marginTop: 10, color: C.red, textAlign: "center" },
+  shotViewer: { ...StyleSheet.absoluteFill, zIndex: 20, backgroundColor: "#000" },
+  shotViewerHeader: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 2 },
   shotViewerHeading: { flex: 1, alignItems: "center" },
-  shotViewerTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  shotViewerSubtitle: { marginTop: 3, color: "#94a3b8", fontSize: 10, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
+  shotViewerTitle: { color: CARD, textAlign: "center" },
+  shotViewerSubtitle: { marginTop: 2, color: "rgba(255,255,255,0.7)", textAlign: "center" },
   shotViewerImage: { flex: 1, width: "100%", backgroundColor: "#000" },
   shotViewerFooter: { paddingTop: 13, paddingHorizontal: 18, backgroundColor: "rgba(2,6,23,0.98)" },
   shotViewerHint: { alignSelf: "center", maxWidth: 390, color: "#cbd5e1", fontSize: 11, fontWeight: "700", lineHeight: 16, textAlign: "center" },
@@ -1692,14 +1919,5 @@ const styles = StyleSheet.create({
   shotNavigationButton: { width: 44, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: "#1e293b" },
   shotViewerDots: { flexDirection: "row", alignItems: "center", gap: 7 },
   shotViewerDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#475569" },
-  shotViewerDotActive: { width: 20, backgroundColor: C.brand },
-  shareShotButton: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, marginTop: 12, borderRadius: 16, backgroundColor: C.brand },
-  shareShotButtonText: { color: "#fff", fontSize: 14, fontWeight: "900" },
-  processingPage: { flex: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", backgroundColor: "#020617" },
-  processingGrid: { ...StyleSheet.absoluteFill, opacity: 0.28 },
-  processingGridLine: { position: "absolute", top: 0, bottom: 0, width: 1, backgroundColor: "#334155" },
-  processingGridLineHorizontal: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: "#334155" },
-  processingIcon: { width: 70, height: 48, alignItems: "center", justifyContent: "center" },
-  processingTitle: { marginTop: 8, color: "#fff", fontSize: 17, fontWeight: "900" },
-  processingBody: { maxWidth: 310, marginTop: 8, color: "#94a3b8", fontSize: 13, fontWeight: "700", lineHeight: 19, textAlign: "center" },
+  shotViewerDotActive: { width: 20, backgroundColor: ACCENT },
 });

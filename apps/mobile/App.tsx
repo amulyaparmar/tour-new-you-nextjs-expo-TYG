@@ -3513,6 +3513,7 @@ function SessionsListScreen({
   property: string;
 }) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -3751,9 +3752,40 @@ function SessionsListScreen({
       selectionHaptic();
       setSelectedAgentId(agentId);
       setShowSamples(samples);
-      setFiltersOpen(false);
     },
     [],
+  );
+  const filterSheetHeight = Math.round(Math.min(windowHeight * 0.72, 650));
+  const teamFilterPills = useMemo(
+    () => [
+      {
+        key: "team",
+        label: "Everyone",
+        active: !showSamples && selectedAgentId === null,
+        onPress: () => selectSessionView(null),
+      },
+      {
+        key: "you",
+        label: "You",
+        active: !showSamples && selectedAgentId === currentAgentId,
+        onPress: () => selectSessionView(currentAgentId),
+      },
+      ...teamMembers
+        .filter((member) => member.agentId !== currentAgentId)
+        .map((member) => ({
+          key: member.agentId,
+          label: member.name,
+          active: !showSamples && selectedAgentId === member.agentId,
+          onPress: () => selectSessionView(member.agentId),
+        })),
+    ],
+    [
+      currentAgentId,
+      selectSessionView,
+      selectedAgentId,
+      showSamples,
+      teamMembers,
+    ],
   );
 
   const ListHeader = useMemo(
@@ -4011,189 +4043,70 @@ function SessionsListScreen({
           )
         }
       />
-      <Modal
+      <BottomSheetModal
         visible={filtersOpen}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        allowSwipeDismissal
-        onRequestClose={() => setFiltersOpen(false)}
+        onClose={() => setFiltersOpen(false)}
+        sheetHeight={filterSheetHeight}
+        sheetStyle={slst.filterSheet}
+        contentStyle={slst.filterSheetBody}
       >
-        <View style={slst.filterModalRoot}>
+        <View style={slst.filterSheetBodyInner}>
+          <View pointerEvents="box-none" style={slst.filterSheetHeaderWrap}>
+            <LinearGradient
+              colors={[
+                BACKGROUND,
+                "rgba(242, 242, 247, 0.62)",
+                "rgba(242, 242, 247, 0)",
+              ]}
+              locations={[0, 0.5, 1]}
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+            />
+            <View pointerEvents="box-none" style={slst.filterSheetTitleRow}>
+              <View style={slst.filterSheetHeaderCopy}>
+                <CustomText textStyle="hero">Filter</CustomText>
+              </View>
+              <LiquidGlassIconButton
+                icon="close"
+                accessibilityLabel="Close filters"
+                onPress={() => setFiltersOpen(false)}
+              />
+            </View>
+          </View>
           <ScrollView
+            style={slst.filterSheetList}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[
-              slst.filterModalContent,
-              {
-                paddingTop: 6 + 56 + 8,
-                paddingBottom: Math.max(insets.bottom, 16) + 24,
-              },
-            ]}
+            contentContainerStyle={slst.filterSheetListContent}
           >
           <View style={slst.filterSheetSection}>
             <CustomText textStyle="micro" style={slst.filterSheetLabel}>
-              Sessions
+              Team Members
             </CustomText>
-            <Pressable
-              accessibilityRole="radio"
-              accessibilityState={{
-                checked: !showSamples && selectedAgentId === null,
-              }}
-              onPress={() => selectSessionView(null)}
-              style={[
-                slst.filterViewRow,
-                !showSamples &&
-                  selectedAgentId === null &&
-                  slst.filterViewRowActive,
-              ]}
-            >
-              <View
-                style={[
-                  slst.filterViewIcon,
-                  !showSamples &&
-                    selectedAgentId === null &&
-                    slst.filterViewIconActive,
-                ]}
-              >
-                <Ionicons
-                  name="people"
-                  size={18}
-                  color={
-                    !showSamples && selectedAgentId === null
-                      ? ACCENT
-                      : C.textSec
-                  }
-                />
-              </View>
-              <View style={st.flex1}>
-                <CustomText textStyle="title" style={slst.filterViewTitle}>
-                  Your Team
-                </CustomText>
-                <CustomText textStyle="caption" style={slst.filterViewSubtitle}>
-                  Sessions from everyone at this property
-                </CustomText>
-              </View>
-              {!showSamples && selectedAgentId === null ? (
-                <Ionicons name="checkmark-circle" size={20} color={ACCENT} />
-              ) : null}
-            </Pressable>
-            <Pressable
-              accessibilityRole="radio"
-              accessibilityState={{
-                checked: !showSamples && selectedAgentId === currentAgentId,
-              }}
-              onPress={() => selectSessionView(currentAgentId)}
-              style={[
-                slst.filterViewRow,
-                !showSamples &&
-                  selectedAgentId === currentAgentId &&
-                  slst.filterViewRowActive,
-              ]}
-            >
-              <View
-                style={[
-                  slst.filterViewIcon,
-                  !showSamples &&
-                    selectedAgentId === currentAgentId &&
-                    slst.filterViewIconActive,
-                ]}
-              >
-                <Ionicons
-                  name="person"
-                  size={18}
-                  color={
-                    !showSamples && selectedAgentId === currentAgentId
-                      ? ACCENT
-                      : C.textSec
-                  }
-                />
-              </View>
-              <View style={st.flex1}>
-                <CustomText textStyle="title" style={slst.filterViewTitle}>
-                  You
-                </CustomText>
-                <CustomText textStyle="caption" style={slst.filterViewSubtitle}>
-                  {currentTeamMember?.name ||
-                    authSession.workspace.user.fullName ||
-                    authSession.workspace.user.email}
-                </CustomText>
-              </View>
-              {!showSamples && selectedAgentId === currentAgentId ? (
-                <Ionicons name="checkmark-circle" size={20} color={ACCENT} />
-              ) : null}
-            </Pressable>
-          </View>
-
-          {teamMembers.some((member) => member.agentId !== currentAgentId) ? (
-            <View style={slst.filterSheetSection}>
-              <CustomText textStyle="micro" style={slst.filterSheetLabel}>
-                Team members
-              </CustomText>
-              {teamMembers
-                .filter((member) => member.agentId !== currentAgentId)
-                .map((member) => {
-                  const active =
-                    !showSamples && selectedAgentId === member.agentId;
-                  const initials =
-                    member.name
-                      .split(/\s+/)
-                      .filter(Boolean)
-                      .slice(0, 2)
-                      .map((part) => part[0]?.toUpperCase())
-                      .join("") || "?";
-                  return (
-                    <Pressable
-                      key={member.agentId}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: active }}
-                      onPress={() => selectSessionView(member.agentId)}
-                      style={[
-                        slst.filterViewRow,
-                        active && slst.filterViewRowActive,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          slst.filterMemberAvatar,
-                          active && slst.filterViewIconActive,
-                        ]}
-                      >
-                        <CustomText
-                          textStyle="title"
-                          style={[
-                            slst.filterMemberInitials,
-                            active && slst.filterMemberInitialsActive,
-                          ]}
-                        >
-                          {initials}
-                        </CustomText>
-                      </View>
-                      <View style={st.flex1}>
-                        <CustomText
-                          textStyle="title"
-                          style={slst.filterViewTitle}
-                        >
-                          {member.name}
-                        </CustomText>
-                        <CustomText
-                          textStyle="caption"
-                          style={slst.filterViewSubtitle}
-                        >
-                          {member.title || member.role || member.email}
-                        </CustomText>
-                      </View>
-                      {active ? (
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={20}
-                          color={ACCENT}
-                        />
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
+            <View style={slst.filterOptions}>
+              {teamFilterPills.map((pill) => (
+                <Pressable
+                  key={pill.key}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: pill.active }}
+                  onPress={pill.onPress}
+                  style={[
+                    slst.filterOption,
+                    pill.active && slst.filterOptionActive,
+                  ]}
+                >
+                  <CustomText
+                    textStyle="label"
+                    style={[
+                      slst.filterOptionText,
+                      pill.active && slst.filterOptionTextActive,
+                    ]}
+                  >
+                    {pill.label}
+                  </CustomText>
+                </Pressable>
+              ))}
             </View>
-          ) : null}
-
+          </View>
           <View style={slst.filterSheetSection}>
             <CustomText textStyle="micro" style={slst.filterSheetLabel}>
               Status
@@ -4266,30 +4179,8 @@ function SessionsListScreen({
             </View>
           </View>
         </ScrollView>
-          <View pointerEvents="box-none" style={slst.filterModalHeaderWrap}>
-            <LinearGradient
-              colors={[
-                BACKGROUND,
-                "rgba(242, 242, 247, 0.62)",
-                "rgba(242, 242, 247, 0)",
-              ]}
-              locations={[0, 0.5, 1]}
-              pointerEvents="none"
-              style={StyleSheet.absoluteFill}
-            />
-            <View pointerEvents="box-none" style={slst.filterModalHeader}>
-              <CustomText textStyle="hero" style={st.flex1}>
-                Filter
-              </CustomText>
-              <LiquidGlassIconButton
-                icon="close"
-                accessibilityLabel="Close filters"
-                onPress={() => setFiltersOpen(false)}
-              />
-            </View>
-          </View>
         </View>
-      </Modal>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -4408,34 +4299,42 @@ const slst = StyleSheet.create({
     gap: 6,
   },
   skelBar: { height: 12, borderRadius: 6, backgroundColor: BACKGROUND },
-  filterModalRoot: {
-    flex: 1,
-    overflow: "visible",
+  filterSheet: {
+    overflow: "hidden",
+    paddingTop: 2,
+    paddingHorizontal: 0,
+    borderTopLeftRadius: LARGE_CORNER,
+    borderTopRightRadius: LARGE_CORNER,
+    borderCurve: "continuous",
     backgroundColor: BACKGROUND,
   },
-  filterModalHeaderWrap: {
+  filterSheetBody: { overflow: "visible" },
+  filterSheetBodyInner: { flex: 1 },
+  filterSheetHeaderWrap: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: 6 + 56 + 56,
+    height: 44 + 56,
     zIndex: 20,
     overflow: "visible",
     backgroundColor: "transparent",
   },
-  filterModalHeader: {
-    minHeight: 56,
-    marginTop: 6,
+  filterSheetTitleRow: {
+    height: 44,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     overflow: "visible",
-    zIndex: 2,
   },
-  filterModalContent: {
+  filterSheetHeaderCopy: { flex: 1 },
+  filterSheetList: { flex: 1 },
+  filterSheetListContent: {
     gap: 18,
-    paddingHorizontal: 16,
+    paddingTop: 44 + 8,
+    paddingHorizontal: 18,
+    paddingBottom: 22,
   },
   filterSheetSection: { gap: 8 },
   filterSheetLabel: {
@@ -4443,43 +4342,6 @@ const slst = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
-  filterViewRow: {
-    minHeight: 62,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    borderRadius: SMALL_CORNER,
-    borderCurve: "continuous",
-    backgroundColor: CARD,
-  },
-  filterViewRowActive: { backgroundColor: "#eff6ff" },
-  filterViewIcon: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: BACKGROUND,
-  },
-  filterViewIconActive: { backgroundColor: "#dbeafe" },
-  filterViewTitle: {},
-  filterViewSubtitle: {
-    marginTop: 2,
-    color: C.textMuted,
-    lineHeight: 14,
-  },
-  filterMemberAvatar: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 19,
-    backgroundColor: BACKGROUND,
-  },
-  filterMemberInitials: { color: C.textSec, fontSize: 12 },
-  filterMemberInitialsActive: { color: ACCENT },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   filterOption: {
     minHeight: 36,
@@ -5289,6 +5151,7 @@ function AssetTypeMenu({
   onCamera,
   onVideo,
   onPanorama,
+  onDismiss,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -5296,6 +5159,7 @@ function AssetTypeMenu({
   onCamera: () => void;
   onVideo: () => void;
   onPanorama: () => void;
+  onDismiss?: () => void;
 }) {
   const { height: windowHeight } = useWindowDimensions();
   const sheetHeight = Math.min(430, Math.round(windowHeight * 0.52));
@@ -5304,6 +5168,7 @@ function AssetTypeMenu({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
+      onDismiss={onDismiss}
       sheetHeight={sheetHeight}
       sheetStyle={assetSt.addSheet}
       dragHeader={
@@ -5566,6 +5431,7 @@ function MaterialsScreen({
   const [panoramaRecorderOpen, setPanoramaRecorderOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const pendingAddActionRef = useRef<(() => void) | null>(null);
   const tourLibraryAssetCount = materials.filter((material) =>
     material.id.startsWith("tour-api-"),
   ).length;
@@ -5651,23 +5517,23 @@ function MaterialsScreen({
   }
 
   function choosePhoto() {
+    pendingAddActionRef.current = () => void addLibraryPhoto();
     setAssetMenuOpen(false);
-    setTimeout(() => void addLibraryPhoto(), 180);
   }
 
   function chooseCamera() {
+    pendingAddActionRef.current = () => setPhotoRecorderOpen(true);
     setAssetMenuOpen(false);
-    setTimeout(() => setPhotoRecorderOpen(true), 180);
   }
 
   function chooseVideo() {
+    pendingAddActionRef.current = () => setVideoRecorderOpen(true);
     setAssetMenuOpen(false);
-    setTimeout(() => setVideoRecorderOpen(true), 180);
   }
 
   function choosePanorama() {
+    pendingAddActionRef.current = () => setPanoramaRecorderOpen(true);
     setAssetMenuOpen(false);
-    setTimeout(() => setPanoramaRecorderOpen(true), 180);
   }
 
   return (
@@ -5864,6 +5730,11 @@ function MaterialsScreen({
       <AssetTypeMenu
         visible={assetMenuOpen}
         onClose={() => setAssetMenuOpen(false)}
+        onDismiss={() => {
+          const action = pendingAddActionRef.current;
+          pendingAddActionRef.current = null;
+          action?.();
+        }}
         onPhoto={choosePhoto}
         onCamera={chooseCamera}
         onVideo={chooseVideo}

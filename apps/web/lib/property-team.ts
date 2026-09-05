@@ -432,3 +432,102 @@ export async function notificationPrefsForAuthUser(input: {
   }
   return {};
 }
+
+function memberMatchesIdentity(
+  member: unknown,
+  email: string,
+  userId: string,
+) {
+  if (!isRecord(member)) return false;
+  const memberEmail = cleanString(member.email).toLowerCase();
+  const memberUserId = cleanString(member.user_id ?? member.userId);
+  return (Boolean(email) && memberEmail === email)
+    || (Boolean(userId) && memberUserId === userId);
+}
+
+async function listPropertyIdsForIdentity(input: {
+  email: string;
+  userId: string;
+}): Promise<string[]> {
+  const supabase = getSupabaseServiceClient();
+  const ids = new Set<string>();
+  const filters = [
+    input.email ? JSON.stringify([{ email: input.email }]) : null,
+    input.userId ? JSON.stringify([{ user_id: input.userId }]) : null,
+    input.userId ? JSON.stringify([{ userId: input.userId }]) : null,
+  ].filter((value): value is string => Boolean(value));
+
+  for (const contains of filters) {
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("propertiesTYG")
+        .select("id")
+        .not("metadata->property_team", "is", null)
+        .filter("metadata->property_team", "cs", contains)
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(error.message);
+      const batch = (data ?? []) as Array<{ id: string }>;
+      for (const row of batch) {
+        if (row.id) ids.add(row.id);
+      }
+      if (batch.length < pageSize) break;
+    }
+  }
+
+  return [...ids];
+}
+
+/**
+ * Removes this auth identity from every property_team (and pending access
+ * requests) so the person can no longer sign in or be reached as a teammate.
+ * Tour recordings stay on the property.
+ */
+export async function removePropertyTeamIdentity(input: {
+  userId: string;
+  email: string;
+}): Promise<number> {
+  const supabase = getSupabaseServiceClient();
+  const email = input.email.trim().toLowerCase();
+  const userId = input.userId.trim();
+  const propertyIds = await listPropertyIdsForIdentity({ email, userId });
+  let updated = 0;
+
+  for (const propertyId of propertyIds) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const { data, error } = await supabase
+        .from("propertiesTYG")
+        .select("metadata,updated_at")
+        .eq("id", propertyId)
+        .single<{ metadata: unknown; updated_at: string | null }>();
+      if (error || !data) throw new Error(error?.message ?? "Property not found.");
+
+      const metadata = isRecord(data.metadata) ? { ...data.metadata } : {};
+      const team = Array.isArray(metadata.property_team) ? metadata.property_team : [];
+      const nextTeam = team.filter((member) => !memberMatchesIdentity(member, email, userId));
+      const requests = Array.isArray(metadata.access_requests) ? metadata.access_requests : [];
+      const nextRequests = requests.filter((request) => !memberMatchesIdentity(request, email, userId));
+      if (nextTeam.length === team.length && nextRequests.length === requests.length) break;
+
+      metadata.property_team = nextTeam;
+      if (Array.isArray(metadata.access_requests)) metadata.access_requests = nextRequests;
+
+      let update = supabase
+        .from("propertiesTYG")
+        .update({ metadata, updated_at: new Date().toISOString() } as never)
+        .eq("id", propertyId);
+      update = data.updated_at === null
+        ? update.is("updated_at", null)
+        : update.eq("updated_at", data.updated_at);
+      const { data: saved, error: updateError } = await update.select("id").maybeSingle();
+      if (updateError) throw new Error(updateError.message);
+      if (saved) {
+        updated += 1;
+        break;
+      }
+    }
+  }
+
+  return updated;
+}

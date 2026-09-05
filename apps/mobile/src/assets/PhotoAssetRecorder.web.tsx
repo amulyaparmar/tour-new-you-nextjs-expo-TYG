@@ -1,6 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
+
+import { CustomText } from "@/components/custom-text";
+import { ACCENT, BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER } from "@/theme/tokens";
 
 type RecordedPhotoAsset = {
   uri: string;
@@ -21,10 +24,20 @@ export function PhotoAssetRecorder({ visible, onClose }: PhotoAssetRecorderProps
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <Ionicons name="camera" size={34} color="#006CE5" />
-          <Text style={styles.title}>Take a photo in the mobile app</Text>
-          <Text style={styles.copy}>The in-app camera is available on iOS and Android.</Text>
-          <Pressable onPress={onClose} style={styles.button}><Text style={styles.buttonText}>Close</Text></Pressable>
+          <View style={styles.icon}>
+            <Ionicons name="camera" size={28} color={ACCENT} />
+          </View>
+          <CustomText textStyle="hero" style={styles.centered}>
+            Take a photo in the mobile app
+          </CustomText>
+          <CustomText textStyle="body" style={styles.copy}>
+            The in-app camera is available on iOS and Android.
+          </CustomText>
+          <Pressable onPress={onClose} style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}>
+            <CustomText textStyle="title" style={styles.primaryBtnText}>
+              Close
+            </CustomText>
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -34,10 +47,42 @@ export function PhotoAssetRecorder({ visible, onClose }: PhotoAssetRecorderProps
 export type { RecordedPhotoAsset };
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "rgba(15,23,42,0.45)" },
-  card: { width: "100%", maxWidth: 420, alignItems: "center", gap: 12, padding: 28, borderRadius: 24, backgroundColor: "#fff" },
-  title: { color: "#101828", fontSize: 20, fontWeight: "900", textAlign: "center" },
-  copy: { color: "#667085", fontSize: 14, lineHeight: 20, fontWeight: "600", textAlign: "center" },
-  button: { minWidth: 140, minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 8, borderRadius: 24, backgroundColor: "#006CE5" },
-  buttonText: { color: "#fff", fontSize: 14, fontWeight: "900" },
+  backdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "rgba(16,24,40,0.52)",
+  },
+  card: {
+    width: "100%",
+    maxWidth: 420,
+    alignItems: "center",
+    gap: 12,
+    padding: 28,
+    borderRadius: LARGE_CORNER,
+    backgroundColor: BACKGROUND,
+  },
+  icon: {
+    width: 64,
+    height: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: SMALL_CORNER,
+    backgroundColor: HINT,
+  },
+  centered: { textAlign: "center" },
+  copy: { color: "rgba(0, 0, 0, 0.45)", textAlign: "center", lineHeight: 20 },
+  primaryBtn: {
+    alignSelf: "stretch",
+    minHeight: 58,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+  },
+  primaryBtnText: { color: CARD },
+  pressed: { opacity: 0.72 },
 });

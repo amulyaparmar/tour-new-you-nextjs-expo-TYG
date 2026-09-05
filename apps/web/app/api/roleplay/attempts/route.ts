@@ -4,6 +4,7 @@
 //                                           ?scope=team shows the whole property)
 // GET  /api/roleplay/attempts?id=<uuid>  -> { success, attempt }  (full row incl. transcript_json)
 // POST /api/roleplay/attempts            -> { success, attempt }
+// DELETE /api/roleplay/attempts?id=<uuid> -> { success }
 //   body: { vapiCallId, scenarioId?, scenarioName?, scenarioDifficulty?, score?,
 //           gradeStatus?, durationSeconds?, summary?, transcript?, transcriptJson?, evaluations? }
 //
@@ -17,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireRoleplayWorkspace } from "@/lib/roleplay/apiAuth";
 import {
+  deleteRoleplayAttempt,
   getRoleplayAttempt,
   listRoleplayAttempts,
   saveRoleplayAttempt,
@@ -104,6 +106,31 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to save attempt.";
     console.error("roleplay attempts POST failed:", message);
+    return json({ success: false, message }, 500);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { workspace, response } = await requireRoleplayWorkspace(request);
+    if (!workspace) return response;
+
+    const id = request.nextUrl.searchParams.get("id")?.trim();
+    if (!id) return json({ success: false, message: "id is required." }, 400);
+
+    const attempt = await getRoleplayAttempt(id);
+    const accessible = new Set(
+      (workspace.communities ?? []).map((community) => community.propertyTygId)
+    );
+    if (!attempt || (attempt.property_id && !accessible.has(attempt.property_id))) {
+      return json({ success: false, message: "Attempt not found." }, 404);
+    }
+
+    await deleteRoleplayAttempt(id);
+    return json({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete attempt.";
+    console.error("roleplay attempts DELETE failed:", message);
     return json({ success: false, message }, 500);
   }
 }

@@ -209,6 +209,16 @@ export async function updateProfile(payload: ProfileUpdatePayload) {
   return body.profile;
 }
 
+export async function deleteAccount() {
+  const res = await authenticatedFetch("/api/admin/auth/account", {
+    method: "DELETE",
+  });
+  const body = await res.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+  if (!res.ok || !body?.ok) {
+    throw new Error(body?.error ?? "Could not delete your account.");
+  }
+}
+
 export async function submitSupportRequest(payload: {
   name: string;
   email: string;

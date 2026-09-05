@@ -105,8 +105,9 @@ export function BottomSheetModal({
       hasPresented.current = false;
       setRendered(false);
       if (notifyParent) onClose();
+      if (onDismiss) setTimeout(onDismiss, 50);
     },
-    [onClose],
+    [onClose, onDismiss],
   );
 
   const animateDismiss = useCallback(
@@ -299,7 +300,6 @@ export function BottomSheetModal({
       transparent
       animationType="none"
       presentationStyle="overFullScreen"
-      onDismiss={onDismiss}
       onRequestClose={() => animateDismiss(true)}
     >
       {body}

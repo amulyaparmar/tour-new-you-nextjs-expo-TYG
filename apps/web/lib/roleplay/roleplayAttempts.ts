@@ -131,3 +131,9 @@ export async function getRoleplayAttempt(id: string): Promise<RoleplayAttemptRow
   if (error) throw storeError(error.message);
   return (data as unknown as RoleplayAttemptRow) ?? null;
 }
+
+export async function deleteRoleplayAttempt(id: string): Promise<void> {
+  const supabase = getSupabaseServiceClient();
+  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  if (error) throw storeError(error.message);
+}

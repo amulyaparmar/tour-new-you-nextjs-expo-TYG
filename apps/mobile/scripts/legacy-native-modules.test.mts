@@ -24,7 +24,19 @@ test("legacy NativeModules lookup does not recurse when turboGet reads NativeMod
   assert.deepEqual(wrapped.DailyNativeUtils, { turbo: "DailyNativeUtils" });
 });
 
+test("legacy NativeModules treat bridgeless null as missing and consult TurboModuleRegistry", () => {
+  const nativeModules: Record<string, unknown> = { WebRTCModule: null };
+  const wrapped = wrapLegacyNativeModules(nativeModules, () => ({ addListener() {} }));
+  assert.equal(typeof wrapped.WebRTCModule.addListener, "function");
+});
+
 test("Metro routes Daily/WebRTC react-native imports through the legacy shim", () => {
+  const {
+    isBackgroundTimerEntryPath,
+    isReactNativeEntryPath,
+    isWebRtcEventEmitterPath,
+  } = require("../src/practice/native-shims/dailyNativeBridgeOrigin.js");
+
   assert.equal(
     isDailyNativeBridgeOrigin("/app/node_modules/@daily-co/react-native-webrtc/src/EventEmitter.ts"),
     true,
@@ -38,10 +50,24 @@ test("Metro routes Daily/WebRTC react-native imports through the legacy shim", (
     true,
   );
   assert.equal(isDailyNativeBridgeOrigin("/app/App.tsx"), false);
+  assert.equal(
+    isWebRtcEventEmitterPath("/app/node_modules/@daily-co/react-native-webrtc/src/EventEmitter.ts"),
+    true,
+  );
+  assert.equal(
+    isBackgroundTimerEntryPath("/app/node_modules/react-native-background-timer/index.js"),
+    true,
+  );
+  assert.equal(
+    isReactNativeEntryPath("/app/node_modules/react-native/index.js"),
+    true,
+  );
 
   const metro = readFileSync(new URL("../metro.config.js", import.meta.url), "utf8");
   assert.match(metro, /react-native-legacy-modules\.js/);
-  assert.match(metro, /moduleName === "react-native"/);
+  assert.match(metro, /webrtc-EventEmitter\.js/);
+  assert.match(metro, /background-timer\.js/);
+  assert.match(metro, /isWebRtcEventEmitterPath/);
 });
 
 test("selecting a live practice scenario does not crash if Daily fails to load", () => {

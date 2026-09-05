@@ -1,21 +1,31 @@
 import "react-native-get-random-values";
 
 import { authenticatedFetch } from "@/auth";
+import { BottomSheetModal } from "@/components/bottom-sheet-modal";
+import { CustomText } from "@/components/custom-text";
+import { EmptyStateCard } from "@/components/empty-state-card";
+import { GlassNavHeader, glassNavContentInset } from "@/components/glass-nav-header";
+import { getLiquidGlassView } from "@/components/liquid-glass";
+import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { LoadingDots } from "@/components/loading-dots";
-import { TourBackButton as BackBtn, TourEmptyState as EmptyState } from "@/components/tour";
+import { MotionPressable } from "@/components/ui/motion";
+import { ACCENT, BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER, TEXT } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Animated, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PracticeSessionSkeleton } from "./practice-loading";
+
+const FOOTER_FADE = 56;
+const FOOTER_CONTROLS = 58;
+const LIVE_DOCK = 76;
+const LIVE_DOCK_GAP = 10;
+const GOALS_HEADER_BAR = 44;
+const GOALS_HEADER_FADE = 56;
+const GOALS_HEADER_INSET = GOALS_HEADER_BAR + 8;
 
 type Scenario = {
   id: string;
@@ -36,12 +46,35 @@ type Launch = {
   scenario: Scenario & { waypoints?: Waypoint[]; passThreshold?: number };
 };
 
-type Scorecard = {
-  score: number | null;
-  status: "passed" | "not-passed" | "needs-review";
-  summary: string | null;
-  saved: boolean;
+type StoredAttempt = {
+  scenario_id?: string | null;
+  scenario_name?: string | null;
+  scenario_difficulty?: string | null;
+  score?: number | null;
+  grade_status?: string | null;
+  duration_seconds?: number | null;
+  summary?: string | null;
+  transcript_json?: unknown;
 };
+
+function linesFromStoredAttempt(raw: unknown): TranscriptLine[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry, index) => {
+    const record = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+    const text = String(record.message ?? record.text ?? "").trim();
+    if (!text) return [];
+    const type = String(record.type ?? record.role ?? "").toLowerCase();
+    const role: TranscriptLine["role"] = ["user", "customer", "human", "agent"].includes(type)
+      ? "agent"
+      : "prospect";
+    return [{
+      id: `${role}:${index}`,
+      role,
+      text,
+      seconds: Math.max(0, Math.round(Number(record.time ?? record.seconds) || 0)),
+    }];
+  });
+}
 
 // Vapi finalizes post-call analysis asynchronously. We start with shorter
 // retries, then continue at a calm interval while the result screen is open.
@@ -122,14 +155,162 @@ const toolWaypointIds = (message: any) => {
   });
 };
 
-export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario | null; onBack: () => void }) {
+function PracticeSessionShell({
+  title,
+  onBack,
+  footer,
+  liveDock,
+  children,
+}: {
+  title: string;
+  onBack: () => void;
+  footer?: React.ReactNode;
+  liveDock?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const insets = useSafeAreaInsets();
+  const footerPad = Math.max(insets.bottom, 16);
+  return (
+    <View style={styles.root}>
+      <View
+        style={[
+          styles.page,
+          {
+            paddingTop: glassNavContentInset(insets.top),
+            paddingBottom: footer ? 0 : footerPad,
+          },
+        ]}
+      >
+        {children}
+      </View>
+      {footer ? (
+        <View pointerEvents="box-none" style={[styles.footer, { paddingBottom: footerPad }]}>
+          {liveDock}
+          <View
+            style={[
+              styles.footerControls,
+              liveDock ? styles.footerControlsUnderDock : null,
+            ]}
+          >
+            <LinearGradient
+              colors={["rgba(242, 242, 247, 0)", "rgba(242, 242, 247, 0.62)", BACKGROUND]}
+              locations={[0, 0.5, 1]}
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+            />
+            {footer}
+          </View>
+        </View>
+      ) : null}
+      <GlassNavHeader title={title} onBack={onBack} />
+    </View>
+  );
+}
+
+function prospectDescription(description?: string) {
+  return description || "Practice a real conversation before your next tour.";
+}
+
+function PracticeLiveDock({
+  speaking,
+  seconds,
+}: {
+  speaking: boolean;
+  seconds: number;
+}) {
+  const GlassView = useMemo(() => getLiquidGlassView(), []);
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    pulse.stopAnimation();
+    pulse.setValue(1);
+    if (!speaking) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.28, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      pulse.stopAnimation();
+    };
+  }, [pulse, speaking]);
+
+  return (
+    <View style={styles.liveDock}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.liveAccent,
+          !speaking && styles.liveAccentQuiet,
+          { opacity: speaking ? pulse : 1 },
+        ]}
+      />
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        {GlassView ? (
+          <GlassView
+            glassEffectStyle="regular"
+            colorScheme="light"
+            tintColor="rgba(180,184,192,0.22)"
+            borderRadius={LARGE_CORNER}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : Platform.OS === "ios" ? (
+          <BlurView tint="systemThinMaterialLight" intensity={80} style={StyleSheet.absoluteFill} />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, styles.liveDockSurface]} />
+        )}
+        <View style={[StyleSheet.absoluteFill, styles.liveDockWash]} />
+      </View>
+      <View style={styles.liveDockInner}>
+        <View style={styles.emptyIcon}>
+          <Ionicons name={speaking ? "volume-high" : "ear-outline"} size={22} color={ACCENT} />
+        </View>
+        <View style={styles.flex}>
+          <CustomText textStyle="title" numberOfLines={1}>
+            AI prospect
+          </CustomText>
+          <View style={styles.liveMetaRow}>
+            <Animated.View
+              style={[
+                styles.liveDot,
+                !speaking && styles.liveDotQuiet,
+                { opacity: speaking ? pulse : 1 },
+              ]}
+            />
+            <CustomText textStyle="caption" style={styles.muted}>
+              {speaking ? "Speaking" : "Listening"}
+            </CustomText>
+            <CustomText textStyle="micro" style={styles.liveTimer}>
+              {timeLabel(seconds)}
+            </CustomText>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function NativePracticeSession({
+  scenario,
+  attemptId,
+  onBack,
+}: {
+  scenario: Scenario | null;
+  attemptId?: string;
+  onBack: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const headerInset = glassNavContentInset(insets.top);
   const [launch, setLaunch] = useState<Launch | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [callState, setCallState] = useState<"ready" | "connecting" | "live" | "ended">("ready");
   const [muted, setMuted] = useState(false);
   const [assistantSpeaking, setAssistantSpeaking] = useState(false);
-  const [volume, setVolume] = useState(0);
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [completedWaypointIds, setCompletedWaypointIds] = useState<string[]>([]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -150,6 +331,53 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
   const analysisCancelledRef = useRef(false);
 
   const prepare = useCallback(async () => {
+    if (attemptId) {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await authenticatedFetch(
+          `/api/roleplay/attempts?id=${encodeURIComponent(attemptId)}`,
+        );
+        const body = (await response.json().catch(() => null)) as
+          | { success?: boolean; attempt?: StoredAttempt; message?: string }
+          | null;
+        if (!response.ok || !body?.success || !body.attempt) {
+          throw new Error(body?.message ?? "Could not load this practice session.");
+        }
+        const attempt = body.attempt;
+        const status: Scorecard["status"] =
+          attempt.grade_status === "passed" || attempt.grade_status === "not-passed"
+            ? attempt.grade_status
+            : "needs-review";
+        setLaunch({
+          success: true,
+          vapiPublicKey: "",
+          assistantId: "",
+          assistantOverrides: {},
+          traineeName: "",
+          scenario: {
+            id: attempt.scenario_id || scenario?.id || "",
+            name: attempt.scenario_name || scenario?.name || "Practice",
+            description: scenario?.description,
+            difficulty: (attempt.scenario_difficulty as Scenario["difficulty"]) || scenario?.difficulty,
+          },
+        });
+        setTranscript(linesFromStoredAttempt(attempt.transcript_json));
+        setScorecard({
+          score: attempt.score == null ? null : Math.round(Number(attempt.score)),
+          status,
+          summary: attempt.summary ?? null,
+          saved: true,
+        });
+        setSeconds(Math.max(0, Math.round(Number(attempt.duration_seconds) || 0)));
+        setCallState("ended");
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Could not load this practice session.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     if (!scenario?.id) {
       setError("Choose a practice scenario before starting.");
       setLoading(false);
@@ -173,7 +401,7 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
     } finally {
       setLoading(false);
     }
-  }, [scenario?.id]);
+  }, [attemptId, scenario?.description, scenario?.difficulty, scenario?.id, scenario?.name]);
 
   useEffect(() => { void prepare(); }, [prepare]);
 
@@ -389,7 +617,6 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
       daily.on("remote-participants-audio-level", (event: any) => {
         const levels = Object.values(event?.participantsAudioLevel ?? {}) as number[];
         const level = Math.max(0, ...levels.map((value) => Number(value) || 0));
-        setVolume(Math.min(1, level / 0.15));
         if (level > 0.012) {
           if (assistantSpeakingTimerRef.current) clearTimeout(assistantSpeakingTimerRef.current);
           setAssistantSpeaking(true);
@@ -444,93 +671,537 @@ export function NativePracticeSession({ scenario, onBack }: { scenario: Scenario
   };
 
   const waypoints = useMemo(() => launch?.scenario.waypoints ?? [], [launch]);
+  const headerTitle = launch?.scenario.name ?? scenario?.name ?? "Practice";
+  const footerPad = Math.max(insets.bottom, 16);
+  const scrollBottomPad =
+    callState === "ended"
+      ? footerPad + 8
+      : FOOTER_CONTROLS +
+        footerPad +
+        (callState === "live" ? LIVE_DOCK_GAP : FOOTER_FADE) +
+        8;
+  const goalsSheetHeight = Math.round(
+    Math.min(windowHeight * 0.72, Math.max(380, 168 + Math.max(waypoints.length, 1) * 88)),
+  );
 
   if (loading) {
-    return <PracticeSessionSkeleton onBack={onBack} />;
+    return <PracticeSessionSkeleton title={headerTitle} onBack={onBack} />;
   }
   if (error && !launch) {
-    return <View style={styles.center}><EmptyState icon="alert-circle-outline" title="Practice unavailable" subtitle={error} /><Pressable onPress={() => void prepare()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View>;
+    return (
+      <PracticeSessionShell title={headerTitle} onBack={onBack}>
+        <View style={styles.center}>
+          <EmptyStateCard icon="alert-circle-outline" title="Practice unavailable" subtitle={error}>
+            <MotionPressable
+              accessibilityRole="button"
+              haptic="selection"
+              onPress={() => void prepare()}
+              style={styles.primaryBtn}
+            >
+              <CustomText textStyle="title" style={styles.primaryBtnText}>
+                Try again
+              </CustomText>
+            </MotionPressable>
+          </EmptyStateCard>
+        </View>
+      </PracticeSessionShell>
+    );
   }
   if (!launch) return null;
 
-  return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <BackBtn label="Practice" onPress={onBack} />
-          {callState !== "ready" ? <View style={[styles.status, callState === "live" && styles.statusLive]}><View style={[styles.statusDot, callState === "live" && styles.statusDotLive]} /><Text style={[styles.statusText, callState === "live" && styles.statusTextLive]}>{callState === "live" ? timeLabel(seconds) : callState === "connecting" ? "Connecting" : "Complete"}</Text></View> : null}
-        </View>
-        <Text style={styles.title} numberOfLines={2}>{launch.scenario.name}</Text>
+  const footer =
+    callState === "ready" ? (
+      <View style={styles.readyControls}>
+        <MotionPressable
+          accessibilityRole="button"
+          accessibilityLabel="Start practice"
+          haptic="medium"
+          onPress={() => void startCall()}
+          style={[styles.primaryBtn, styles.readyStart]}
+        >
+          <CustomText textStyle="title" style={styles.primaryBtnText}>
+            Start Practice
+          </CustomText>
+        </MotionPressable>
+        <GoalsButton
+          completed={completedWaypointIds.length}
+          total={waypoints.length}
+          onPress={() => setGoalsOpen(true)}
+        />
       </View>
+    ) : callState === "connecting" ? (
+      <View style={styles.connecting}>
+        <LoadingDots color={ACCENT} />
+        <CustomText textStyle="caption" style={styles.muted}>
+          Connecting securely…
+        </CustomText>
+      </View>
+    ) : callState === "live" ? (
+      <View style={styles.liveControlsRow}>
+        <MotionPressable
+          accessibilityRole="button"
+          haptic="selection"
+          onPress={toggleMute}
+          style={[styles.control, styles.liveMuteControl]}
+        >
+          <Ionicons name={muted ? "mic-off" : "mic"} size={22} color={TEXT} />
+          <CustomText textStyle="title">{muted ? "Unmute" : "Mute"}</CustomText>
+        </MotionPressable>
+        <GoalsButton
+          completed={completedWaypointIds.length}
+          total={waypoints.length}
+          onPress={() => setGoalsOpen(true)}
+        />
+        <MotionPressable
+          accessibilityRole="button"
+          haptic="medium"
+          onPress={endCall}
+          style={[styles.control, styles.endControl]}
+        >
+          <Ionicons name="call" size={22} color={CARD} />
+          <CustomText textStyle="title" style={styles.onAccent}>
+            End
+          </CustomText>
+        </MotionPressable>
+      </View>
+    ) : null;
 
-      <View style={styles.callStage}>
+  return (
+    <PracticeSessionShell
+      title={headerTitle}
+      onBack={onBack}
+      footer={footer}
+      liveDock={
+        callState === "live" ? (
+          <PracticeLiveDock speaking={assistantSpeaking} seconds={seconds} />
+        ) : null
+      }
+    >
+      <ScrollView
+        ref={transcriptScrollRef}
+        style={[styles.transcriptScroll, { marginTop: -headerInset }]}
+        contentContainerStyle={[
+          styles.transcriptContent,
+          { paddingTop: headerInset, paddingBottom: scrollBottomPad },
+        ]}
+        showsVerticalScrollIndicator
+      >
         <View style={styles.callCard}>
-          <View style={[styles.avatar, assistantSpeaking && styles.avatarSpeaking]}><Ionicons name={assistantSpeaking ? "volume-high" : "person"} size={30} color="#fff" /></View>
-          <Text style={styles.prospectName}>AI prospect</Text>
-          <Text style={styles.callHint}>{callState === "live" ? assistantSpeaking ? "Speaking…" : "Listening…" : callState === "connecting" ? "Connecting to the AI prospect…" : callState === "ended" ? "Practice complete." : launch.scenario.description || "Practice a real conversation before your next tour."}</Text>
-          {callState === "live" ? <View style={styles.volumeRow}>{Array.from({ length: 18 }, (_, index) => <View key={index} style={[styles.volumeBar, index / 18 < Math.min(1, Math.sqrt(volume)) ? styles.volumeBarActive : null]} />)}</View> : null}
+          <View style={styles.emptyIcon}>
+            <Ionicons name="person" size={22} color={ACCENT} />
+          </View>
+          <CustomText textStyle="title" style={styles.prospectName}>
+            About your prospect
+          </CustomText>
+          <CustomText textStyle="caption" style={styles.callHint}>
+            {prospectDescription(launch.scenario.description)}
+          </CustomText>
         </View>
+        {error ? (
+          <View style={styles.error}>
+            <Ionicons name="alert-circle-outline" size={18} color={C.red} />
+            <CustomText textStyle="caption" style={styles.errorText}>
+              {error}
+            </CustomText>
+          </View>
+        ) : null}
+        {transcript.length ? (
+          <View>
+            {transcript.map((line) => (
+              <View key={line.id} style={styles.turnRow}>
+                <View style={styles.turnMeta}>
+                  <CustomText
+                    textStyle="caption"
+                    style={line.role === "agent" ? styles.agentMeta : styles.prospectMeta}
+                  >
+                    {line.role === "agent" ? "You" : "AI prospect"}
+                  </CustomText>
+                  <CustomText textStyle="caption" style={styles.turnTime}>
+                    {timeLabel(line.seconds)}
+                  </CustomText>
+                </View>
+                <CustomText textStyle="body" style={styles.turnText}>
+                  {line.text}
+                </CustomText>
+              </View>
+            ))}
+          </View>
+        ) : null}
+          {callState === "ended" ? (
+            <View style={styles.scoreCard}>
+              {grading ? (
+                <>
+                  <LoadingDots color={ACCENT} />
+                  <CustomText textStyle="title" style={styles.centerCopy}>
+                    Reviewing your practice…
+                  </CustomText>
+                  <CustomText textStyle="caption" style={styles.scoreCopy}>
+                    Your result will appear here as soon as it is ready.
+                  </CustomText>
+                </>
+              ) : (
+                <>
+                  {scorecard?.score != null ? (
+                    <CustomText textStyle="hero" style={styles.score}>
+                      {scorecard.score}%
+                    </CustomText>
+                  ) : (
+                    <View style={styles.emptyIcon}>
+                      <Ionicons name="time-outline" size={22} color={C.amber} />
+                    </View>
+                  )}
+                  <CustomText textStyle="title" style={styles.centerCopy}>
+                    {scorecard?.status === "passed"
+                      ? "Practice passed"
+                      : scorecard?.score != null
+                        ? "Practice complete"
+                        : "Analysis is still processing"}
+                  </CustomText>
+                  {scorecard?.summary ? (
+                    <CustomText textStyle="caption" style={styles.scoreCopy}>
+                      {scorecard.summary}
+                    </CustomText>
+                  ) : null}
+                  {attemptId ? null : (
+                    <CustomText textStyle="micro" style={styles.scoreSaved}>
+                      {scorecard?.saved
+                        ? "Saved to your practice history."
+                        : "You can return to practice history for the full result."}
+                    </CustomText>
+                  )}
+                  <MotionPressable
+                    accessibilityRole="button"
+                    haptic="selection"
+                    onPress={onBack}
+                    style={styles.primaryBtn}
+                  >
+                    <CustomText textStyle="title" style={styles.primaryBtnText}>
+                      Back to practice
+                    </CustomText>
+                  </MotionPressable>
+                </>
+              )}
+            </View>
+          ) : null}
+        </ScrollView>
 
-        <View style={styles.transcriptArea}>
-          <ScrollView ref={transcriptScrollRef} style={styles.transcriptScroll} contentContainerStyle={styles.transcriptContent} showsVerticalScrollIndicator>
-            {error ? <View style={styles.error}><Ionicons name="alert-circle-outline" size={18} color={C.red} /><Text style={styles.errorText}>{error}</Text></View> : null}
-            {transcript.length ? transcript.map((line) => <View key={line.id} style={[styles.line, line.role === "agent" ? styles.agentLine : styles.prospectLine]}><Text style={[styles.lineRole, line.role === "agent" ? styles.agentText : styles.prospectText]}>{line.role === "agent" ? "You" : "AI prospect"} · {timeLabel(line.seconds)}</Text><Text style={styles.lineText}>{line.text}</Text></View>) : <View style={styles.emptyTranscript}><Ionicons name="chatbubble-ellipses-outline" size={23} color={C.textMuted} /><Text style={styles.emptyTranscriptText}>{callState === "live" ? "The conversation will appear here as you speak." : "Start when you’re ready. The conversation will appear here."}</Text></View>}
-            {callState === "ended" ? <View style={styles.scoreCard}>{grading ? <><LoadingDots color={C.brand} /><Text style={styles.scoreTitle}>Reviewing your practice…</Text><Text style={styles.scoreCopy}>Your result will appear here as soon as it is ready.</Text></> : <>{scorecard?.score !== null && scorecard?.score !== undefined ? <Text style={styles.score}>{scorecard.score}%</Text> : <Ionicons name="time-outline" size={28} color={C.amber} />}<Text style={styles.scoreTitle}>{scorecard?.status === "passed" ? "Practice passed" : scorecard?.score != null ? "Practice complete" : "Analysis is still processing"}</Text>{scorecard?.summary ? <Text style={styles.scoreCopy}>{scorecard.summary}</Text> : null}<Text style={styles.scoreSaved}>{scorecard?.saved ? "Saved to your practice history." : "You can return to practice history for the full result."}</Text><Pressable onPress={onBack} style={styles.doneButton}><Text style={styles.doneButtonText}>Back to practice</Text></Pressable></>}</View> : null}
+      <BottomSheetModal
+        visible={goalsOpen}
+        onClose={() => setGoalsOpen(false)}
+        sheetHeight={goalsSheetHeight}
+        sheetStyle={styles.goalsSheet}
+        contentStyle={styles.goalsSheetBody}
+      >
+        <View style={styles.goalsSheetInner}>
+          <View pointerEvents="box-none" style={styles.goalsHeaderWrap}>
+            <LinearGradient
+              colors={[BACKGROUND, "rgba(242, 242, 247, 0.62)", "rgba(242, 242, 247, 0)"]}
+              locations={[0, 0.5, 1]}
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+            />
+            <View pointerEvents="box-none" style={styles.goalsTitleRow}>
+              <View style={styles.flex}>
+                <CustomText textStyle="hero">Goals</CustomText>
+              </View>
+              <LiquidGlassIconButton
+                icon="close"
+                accessibilityLabel="Close goals"
+                onPress={() => setGoalsOpen(false)}
+              />
+            </View>
+          </View>
+          <ScrollView
+            style={styles.goalsList}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.goalsListContent}
+          >
+            <View style={styles.goalsSection}>
+              <View style={styles.goalsSectionHeading}>
+                <CustomText textStyle="micro" style={styles.goalsSectionLabel}>
+                  Session goals
+                </CustomText>
+                <CustomText textStyle="micro" style={styles.muted}>
+                  {completedWaypointIds.length} of {waypoints.length} complete
+                </CustomText>
+              </View>
+              <View style={styles.goalsStack}>
+                {waypoints.map((waypoint) => {
+                  const done = completedWaypointIds.includes(waypoint.id);
+                  return (
+                    <View key={waypoint.id} style={styles.goalRow}>
+                      <View style={[styles.iconWrap, done && styles.iconWrapDone]}>
+                        <Ionicons
+                          name={done ? "checkmark" : "flag-outline"}
+                          size={16}
+                          color={done ? CARD : ACCENT}
+                        />
+                      </View>
+                      <View style={styles.flex}>
+                        <CustomText textStyle="body">{waypoint.title}</CustomText>
+                        {waypoint.cue ? (
+                          <CustomText textStyle="caption" style={styles.muted}>
+                            {waypoint.cue}
+                          </CustomText>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
           </ScrollView>
         </View>
-      </View>
-
-      <View style={styles.controlDock}>
-        {callState === "ready" ? <View style={styles.readyControls}><Pressable onPress={() => void startCall()} style={styles.startButton} accessibilityRole="button" accessibilityLabel="Start live practice"><Ionicons name="mic" size={25} color="#fff" /></Pressable><View style={styles.readyGoals}><GoalsButton completed={completedWaypointIds.length} total={waypoints.length} onPress={() => setGoalsOpen(true)} /></View></View> : null}
-        {callState === "connecting" ? <View style={styles.connecting}><LoadingDots color={C.brand} /><Text style={styles.connectingText}>Connecting securely…</Text></View> : null}
-        {callState === "live" ? <View style={styles.liveControlsRow}><Pressable onPress={toggleMute} style={[styles.control, styles.liveMuteControl]}><Ionicons name={muted ? "mic-off" : "mic"} size={22} color={C.text} /><Text style={styles.controlText}>{muted ? "Unmute" : "Mute"}</Text></Pressable><GoalsButton completed={completedWaypointIds.length} total={waypoints.length} onPress={() => setGoalsOpen(true)} /><Pressable onPress={endCall} style={[styles.control, styles.endControl, styles.liveEndControl]}><Ionicons name="call" size={22} color="#fff" /><Text style={[styles.controlText, styles.endControlText]}>End</Text></Pressable></View> : null}
-      </View>
-
-      <Modal visible={goalsOpen} transparent animationType="slide" onRequestClose={() => setGoalsOpen(false)}>
-        <View style={styles.drawerOverlay}>
-          <Pressable style={styles.drawerDismiss} onPress={() => setGoalsOpen(false)} />
-          <View style={styles.goalsDrawer}>
-            <View style={styles.drawerHandle} />
-            <View style={styles.drawerHeader}><View><Text style={styles.drawerEyebrow}>PRACTICE</Text><Text style={styles.drawerTitle}>Goals</Text></View><Pressable onPress={() => setGoalsOpen(false)} style={styles.drawerClose} accessibilityLabel="Close goals"><Ionicons name="close" size={19} color={C.textSec} /></Pressable></View>
-            <Text style={styles.drawerProgress}>{completedWaypointIds.length} of {waypoints.length} complete</Text>
-            <ScrollView contentContainerStyle={styles.drawerList} showsVerticalScrollIndicator={false}>{waypoints.map((waypoint) => {
-              const done = completedWaypointIds.includes(waypoint.id);
-              return <View key={waypoint.id} style={[styles.waypoint, done && styles.waypointDone]}><View style={[styles.waypointIcon, done && styles.waypointIconDone]}><Ionicons name={done ? "checkmark" : "flag-outline"} size={15} color={done ? "#fff" : C.brand} /></View><View style={styles.grow}><Text style={styles.waypointTitle}>{waypoint.title}</Text>{waypoint.cue ? <Text style={styles.waypointCue}>{waypoint.cue}</Text> : null}</View></View>;
-            })}</ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </View>
+      </BottomSheetModal>
+    </PracticeSessionShell>
   );
 }
 
-function GoalsButton({ completed, total, onPress }: { completed: number; total: number; onPress: () => void }) {
+function GoalsButton({
+  completed,
+  total,
+  onPress,
+}: {
+  completed: number;
+  total: number;
+  onPress: () => void;
+}) {
   const complete = total > 0 && completed === total;
   return (
-    <Pressable onPress={onPress} style={styles.goalsButton} accessibilityRole="button" accessibilityLabel={`Open goals, ${completed} of ${total} complete`}>
-      <Ionicons name="checkbox-outline" size={19} color={complete ? C.green : C.brand} />
-      <Text style={styles.goalsButtonText}>{completed}/{total}</Text>
-    </Pressable>
+    <MotionPressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open goals, ${completed} of ${total} complete`}
+      haptic="selection"
+      onPress={onPress}
+      style={styles.goalsButton}
+    >
+      <Ionicons name="checkbox-outline" size={18} color={complete ? C.green : ACCENT} />
+      <CustomText textStyle="micro" style={styles.goalsButtonText}>
+        {completed}/{total}
+      </CustomText>
+    </MotionPressable>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg, paddingTop: 42 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 28, backgroundColor: C.bg },
-  header: { gap: 8, paddingHorizontal: 20, paddingBottom: 16 }, headerTop: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerCopy: { flex: 1, minWidth: 0 }, eyebrow: { color: C.textMuted, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 }, title: { color: C.text, fontSize: 18, fontWeight: "900", lineHeight: 23 },
-  goalsButton: { width: 46, height: 46, alignItems: "center", justifyContent: "center", gap: 0, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.card }, goalsButtonText: { color: C.textMuted, fontSize: 10, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  status: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 99, backgroundColor: C.card, borderWidth: 1, borderColor: C.border }, statusLive: { backgroundColor: C.green + "12", borderColor: C.green + "35" }, statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.textMuted }, statusDotLive: { backgroundColor: C.green }, statusText: { color: C.textMuted, fontSize: 10, fontWeight: "900" }, statusTextLive: { color: C.green },
-  callStage: { flex: 1, minHeight: 0, paddingHorizontal: 20 },
-  callCard: { alignItems: "center", paddingTop: 10, paddingBottom: 18 }, avatar: { width: 64, height: 64, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: C.brand }, avatarSpeaking: { backgroundColor: "#6750A4", transform: [{ scale: 1.03 }] }, prospectName: { marginTop: 11, color: C.text, fontSize: 17, fontWeight: "900" }, callHint: { marginTop: 4, maxWidth: 280, color: C.textSec, fontSize: 12, fontWeight: "600", textAlign: "center", lineHeight: 18 },
-  controlDock: { minHeight: 88, paddingHorizontal: 20, paddingTop: 13, paddingBottom: 20, borderTopWidth: 1, borderColor: C.border, backgroundColor: C.bg }, readyControls: { position: "relative", width: "100%", height: 60, alignItems: "center", justifyContent: "center" }, readyGoals: { position: "absolute", left: "50%", marginLeft: 66 }, startButton: { width: 60, height: 60, alignItems: "center", justifyContent: "center", borderRadius: 30, backgroundColor: C.brand, shadowColor: C.brand, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } }, connecting: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 }, connectingText: { color: C.textSec, fontSize: 12, fontWeight: "800" },
-  liveControlsRow: { flexDirection: "row", alignItems: "center", gap: 8 }, controls: { flex: 1, flexDirection: "row", gap: 10 }, control: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card }, liveMuteControl: { flex: 1 }, controlText: { color: C.text, fontSize: 13, fontWeight: "900" }, endControl: { borderColor: C.red, backgroundColor: C.red }, liveEndControl: { flex: 1 }, endControlText: { color: "#fff" },
-  volumeRow: { height: 21, flexDirection: "row", alignItems: "flex-end", gap: 3, marginTop: 17 }, volumeBar: { width: 3, height: 5, borderRadius: 2, backgroundColor: C.border }, volumeBarActive: { height: 18, backgroundColor: C.brand },
-  error: { flexDirection: "row", gap: 9, alignItems: "flex-start", padding: 12, borderRadius: 13, backgroundColor: C.redBg }, errorText: { flex: 1, color: C.red, fontSize: 12, fontWeight: "700", lineHeight: 18 },
-  section: { gap: 9 }, sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, sectionTitle: { color: C.text, fontSize: 16, fontWeight: "900" }, sectionMeta: { minWidth: 23, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 99, backgroundColor: C.brand + "12", color: C.brand, fontSize: 10, fontWeight: "900", textAlign: "center" },
-  waypoint: { flexDirection: "row", gap: 11, paddingVertical: 13, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.card }, waypointDone: { backgroundColor: C.green + "0A" }, waypointIcon: { width: 26, height: 26, alignItems: "center", justifyContent: "center", borderRadius: 13, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg }, waypointIconDone: { borderColor: C.green, backgroundColor: C.green }, grow: { flex: 1, minWidth: 0 }, waypointTitle: { color: C.text, fontSize: 13, fontWeight: "800", lineHeight: 18 }, waypointCue: { marginTop: 3, color: C.textSec, fontSize: 11, fontWeight: "500", lineHeight: 16 },
-  transcriptArea: { flex: 1, minHeight: 0, borderTopWidth: 1, borderColor: C.border + "A8" }, transcriptScroll: { flex: 1 }, transcriptContent: { flexGrow: 1, gap: 8, paddingVertical: 18, paddingRight: 2 }, line: { padding: 14, borderRadius: 12 }, agentLine: { backgroundColor: C.brand + "0C" }, prospectLine: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }, lineRole: { fontSize: 10, fontWeight: "900" }, agentText: { color: C.brand }, prospectText: { color: "#6750A4" }, lineText: { marginTop: 5, color: C.text, fontSize: 14, lineHeight: 20, fontWeight: "600" }, emptyTranscript: { flex: 1, minHeight: 150, alignItems: "center", justifyContent: "center", gap: 10, padding: 32 }, emptyTranscriptText: { maxWidth: 230, color: C.textMuted, fontSize: 13, fontWeight: "600", lineHeight: 20, textAlign: "center" },
-  drawerOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(12, 20, 36, 0.32)" }, drawerDismiss: { flex: 1 }, goalsDrawer: { width: "100%", maxHeight: "72%", paddingTop: 9, paddingHorizontal: 20, paddingBottom: 30, backgroundColor: C.bg, borderTopWidth: 1, borderColor: C.border, borderTopLeftRadius: 24, borderTopRightRadius: 24, shadowColor: "#0B1731", shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -7 } }, drawerHandle: { width: 34, height: 4, alignSelf: "center", borderRadius: 4, backgroundColor: C.border, marginBottom: 17 }, drawerHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }, drawerEyebrow: { color: C.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 0.7 }, drawerTitle: { marginTop: 3, color: C.text, fontSize: 24, fontWeight: "900" }, drawerClose: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border, borderRadius: 18, backgroundColor: C.card }, drawerProgress: { marginTop: 11, marginBottom: 17, color: C.brand, fontSize: 13, fontWeight: "800" }, drawerList: { gap: 8, paddingBottom: 30 },
-  scoreCard: { alignItems: "center", gap: 9, padding: 22, borderRadius: 18, borderWidth: 1, borderColor: C.brand + "30", backgroundColor: C.brand + "08" }, score: { color: C.brand, fontSize: 38, fontWeight: "900" }, scoreTitle: { color: C.text, fontSize: 16, fontWeight: "900", textAlign: "center" }, scoreCopy: { color: C.textSec, fontSize: 12, fontWeight: "600", lineHeight: 18, textAlign: "center" }, scoreSaved: { color: C.textMuted, fontSize: 11, fontWeight: "700", textAlign: "center" }, doneButton: { marginTop: 5, paddingHorizontal: 16, paddingVertical: 11, borderRadius: 11, backgroundColor: C.brand }, doneButtonText: { color: "#fff", fontSize: 12, fontWeight: "900" },
-  loadingText: { color: C.textSec, fontSize: 13, fontWeight: "700" }, retry: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.brand }, retryText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  root: { flex: 1, backgroundColor: BACKGROUND },
+  page: { flex: 1 },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  footer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    paddingHorizontal: 16,
+  },
+  footerControls: {
+    zIndex: 1,
+    paddingTop: FOOTER_FADE,
+  },
+  footerControlsUnderDock: {
+    marginTop: -(FOOTER_FADE - LIVE_DOCK_GAP),
+  },
+  callCard: {
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 22,
+    paddingHorizontal: 18,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  prospectName: { marginTop: 6 },
+  liveTimer: { color: TEXT, fontVariant: ["tabular-nums"], marginLeft: 2 },
+  callHint: { maxWidth: 280, color: C.textSec, textAlign: "center", lineHeight: 18 },
+  liveDock: {
+    zIndex: 2,
+    minHeight: LIVE_DOCK,
+    marginBottom: LIVE_DOCK_GAP,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    overflow: "hidden",
+  },
+  liveAccent: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    height: 3,
+    backgroundColor: ACCENT,
+  },
+  liveAccentQuiet: { backgroundColor: C.textMuted },
+  liveDockSurface: { backgroundColor: "rgba(231,233,237,0.92)" },
+  liveDockWash: { backgroundColor: "rgba(230,232,236,0.24)" },
+  liveDockInner: {
+    minHeight: LIVE_DOCK,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  liveMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: ACCENT },
+  liveDotQuiet: { backgroundColor: C.textSec },
+  transcriptScroll: { flex: 1 },
+  transcriptContent: { gap: 14, paddingHorizontal: 16 },
+  turnRow: { paddingVertical: 10 },
+  turnMeta: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 3 },
+  turnTime: { color: C.textMuted, fontVariant: ["tabular-nums"] },
+  turnText: { color: C.textSec, lineHeight: 20 },
+  agentMeta: { color: ACCENT },
+  prospectMeta: { color: C.prospect },
+  emptyIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: HINT,
+  },
+  error: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: C.redBg,
+  },
+  errorText: { flex: 1, color: C.red, lineHeight: 17 },
+  scoreCard: {
+    alignItems: "center",
+    gap: 8,
+    padding: 22,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: HINT,
+  },
+  score: { color: ACCENT },
+  centerCopy: { textAlign: "center" },
+  scoreCopy: { color: C.textSec, textAlign: "center", lineHeight: 18 },
+  scoreSaved: { color: C.textMuted, textAlign: "center" },
+  readyControls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  readyStart: { flex: 1 },
+  connecting: {
+    minHeight: FOOTER_CONTROLS,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+  },
+  liveControlsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  control: {
+    minHeight: FOOTER_CONTROLS,
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  liveMuteControl: { flex: 1 },
+  endControl: { backgroundColor: C.red },
+  onAccent: { color: CARD },
+  goalsButton: {
+    width: FOOTER_CONTROLS,
+    height: FOOTER_CONTROLS,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: FOOTER_CONTROLS / 2,
+    backgroundColor: CARD,
+  },
+  goalsButtonText: { color: C.textMuted, fontVariant: ["tabular-nums"] },
+  primaryBtn: {
+    minHeight: 58,
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+  },
+  primaryBtnText: { color: CARD },
+  muted: { color: C.textSec },
+  flex: { flex: 1, minWidth: 0 },
+  goalsSheet: {
+    overflow: "hidden",
+    paddingTop: 2,
+    paddingHorizontal: 0,
+    borderTopLeftRadius: LARGE_CORNER,
+    borderTopRightRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+  },
+  goalsSheetBody: { overflow: "visible" },
+  goalsSheetInner: { flex: 1 },
+  goalsHeaderWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: GOALS_HEADER_BAR + GOALS_HEADER_FADE,
+    zIndex: 20,
+    overflow: "visible",
+    backgroundColor: "transparent",
+  },
+  goalsTitleRow: {
+    height: GOALS_HEADER_BAR,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 18,
+    overflow: "visible",
+  },
+  goalsList: { flex: 1 },
+  goalsListContent: {
+    gap: 18,
+    paddingTop: GOALS_HEADER_INSET,
+    paddingHorizontal: 18,
+    paddingBottom: 22,
+  },
+  goalsSection: { gap: 8 },
+  goalsSectionHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  goalsSectionLabel: {
+    color: C.textMuted,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  goalsStack: { gap: 8 },
+  goalRow: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    backgroundColor: HINT,
+  },
+  iconWrapDone: { backgroundColor: C.green },
 });
