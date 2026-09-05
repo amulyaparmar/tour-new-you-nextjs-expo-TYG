@@ -6,6 +6,11 @@ export type TranscriptLine = {
   isInterim?: boolean;
 };
 
+export type TranscriptRange = {
+  start: number;
+  end: number;
+};
+
 export function speakerInitial(speaker: string) {
   if (speaker === "Prospect") return "P";
   if (speaker === "Agent") return "A";
@@ -44,9 +49,13 @@ export function transcriptsOverlap(a: TranscriptLine, b: TranscriptLine) {
 export function mergeTranscriptLines<TLocal extends TranscriptLine, TMuse extends TranscriptLine>(
   local: TLocal[],
   muse: TMuse[],
+  recoveredRanges: TranscriptRange[] = [],
 ) {
+  const localOutsideRecoveredRanges = local.filter((line) => (
+    !recoveredRanges.some((range) => line.time >= range.start && line.time <= range.end)
+  ));
   const matchedMuse = new Set<number>();
-  const localWithoutMuseDuplicates = local.filter((localLine) => {
+  const localWithoutMuseDuplicates = localOutsideRecoveredRanges.filter((localLine) => {
     let nearestIndex = -1;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (let index = 0; index < muse.length; index += 1) {
