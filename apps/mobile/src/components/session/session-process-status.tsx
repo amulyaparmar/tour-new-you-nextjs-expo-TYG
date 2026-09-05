@@ -13,6 +13,7 @@ import Reanimated, {
 
 import { CustomText } from "@/components/custom-text";
 import { LoadingDots } from "@/components/loading-dots";
+import { SecondaryButton } from "@/components/secondary-button";
 import { MotionPressable } from "@/components/ui/motion";
 import {
   ACCENT,
@@ -151,6 +152,29 @@ export function SessionStatusActions({ children }: { children: React.ReactNode }
   return <View style={styles.actions}>{children}</View>;
 }
 
+export function SessionFailedFooter({
+  onRetry,
+  onUploadDifferent,
+}: {
+  onRetry: () => void;
+  onUploadDifferent: () => void;
+}) {
+  return (
+    <View style={styles.pageFooter}>
+      <SessionStatusPrimaryButton
+        label="Retry Analysis"
+        icon="refresh"
+        onPress={onRetry}
+      />
+      <SecondaryButton
+        label="Upload a different recording"
+        icon="document-attach-outline"
+        onPress={onUploadDifferent}
+      />
+    </View>
+  );
+}
+
 function TimelinePulse() {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
@@ -277,18 +301,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   primaryBtn: {
-    minHeight: 50,
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingHorizontal: 16,
-    borderRadius: 25,
+    paddingHorizontal: 14,
+    borderRadius: 29,
     backgroundColor: ACCENT,
     boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
   primaryBtnText: {
     color: CARD,
+  },
+  pageFooter: {
+    gap: 10,
   },
   secondaryBtn: {
     minHeight: 50,

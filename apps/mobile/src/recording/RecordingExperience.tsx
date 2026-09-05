@@ -603,8 +603,6 @@ export function RecordingExperience({
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
   const [checkInFormOpen, setCheckInFormOpen] = useState(false);
   const [checkInQrOpen, setCheckInQrOpen] = useState(false);
-  const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
-  const [finishCountdown, setFinishCountdown] = useState(5);
   const [selectedPerson, setSelectedPerson] = useState<SessionLead | null>(null);
   const [personNotes, setPersonNotes] = useState("");
   const [summarySaving, setSummarySaving] = useState(false);
@@ -1244,31 +1242,26 @@ export function RecordingExperience({
   function completeSessionRecording() {
     if (finishRequestedRef.current) return;
     finishRequestedRef.current = true;
-    setFinishConfirmOpen(false);
     stopNativeTranscription();
     void onFinish();
   }
 
   function finishRecording() {
     finishRequestedRef.current = false;
-    setFinishCountdown(5);
-    setFinishConfirmOpen(true);
+    Alert.alert(
+      "Finish this tour?",
+      "The recording will stop and begin processing.",
+      [
+        { text: "Keep recording", style: "cancel" },
+        {
+          text: "Finish",
+          style: "default",
+          isPreferred: true,
+          onPress: completeSessionRecording,
+        },
+      ],
+    );
   }
-
-  function continueRecordingFromFinish() {
-    setFinishConfirmOpen(false);
-    setFinishCountdown(5);
-  }
-
-  useEffect(() => {
-    if (!finishConfirmOpen) return;
-    if (finishCountdown <= 0) {
-      completeSessionRecording();
-      return;
-    }
-    const timeout = setTimeout(() => setFinishCountdown((current) => current - 1), 1000);
-    return () => clearTimeout(timeout);
-  }, [finishConfirmOpen, finishCountdown]);
 
   function deleteRecording() {
     stopNativeTranscription();
@@ -1777,66 +1770,6 @@ export function RecordingExperience({
           )}
         </Reanimated.View>
       ) : null}
-
-      <BottomSheetModal
-        visible={finishConfirmOpen}
-        onClose={continueRecordingFromFinish}
-        sheetHeight={385}
-        contentStyle={s.finishConfirmContent}
-      >
-        <View style={s.finishConfirmTopRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Continue recording"
-            hitSlop={10}
-            onPress={continueRecordingFromFinish}
-            style={({ pressed }) => [s.cancelConfirmClose, pressed && s.controlPressed]}
-          >
-            <Ionicons name="close" size={20} color={C.textSec} />
-          </Pressable>
-        </View>
-        <View style={s.finishConfirmIcon}>
-          <Ionicons name="checkmark" size={24} color={ACCENT} />
-        </View>
-        <CustomText textStyle="title" style={s.finishConfirmTitle}>Complete this session?</CustomText>
-        <CustomText textStyle="caption" style={s.finishConfirmCopy}>The recording will stop and begin processing automatically.</CustomText>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Complete session automatically in ${finishCountdown} seconds`}
-          onPress={completeSessionRecording}
-          style={({ pressed }) => [s.completeSessionCard, pressed && s.stopControlPressed]}
-        >
-          <View style={s.completeSessionCardIcon}>
-            <Ionicons name="checkmark" size={18} color={CARD} />
-          </View>
-          <View style={s.flex1}>
-            <CustomText textStyle="title" style={s.completeSessionCardTitle}>Complete Session</CustomText>
-            <CustomText textStyle="caption" style={s.completeSessionCardCopy}>Stop recording and start processing</CustomText>
-          </View>
-          <View style={s.finishCountdownBadge}>
-            <Ionicons name="time-outline" size={14} color={CARD} />
-            <CustomText textStyle="micro" style={s.finishCountdownText}>{finishCountdown}</CustomText>
-          </View>
-          <Ionicons name="arrow-forward" size={18} color={CARD} />
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Continue recording session"
-          onPress={continueRecordingFromFinish}
-          style={({ pressed }) => [s.continueSessionCard, pressed && s.controlPressed]}
-        >
-          <View style={s.continueSessionCardIcon}>
-            <Ionicons name="mic" size={18} color={ACCENT} />
-          </View>
-          <View style={s.flex1}>
-            <CustomText textStyle="title" style={s.continueSessionCardTitle}>Continue Recording</CustomText>
-            <CustomText textStyle="caption" style={s.continueSessionCardCopy}>Return to the live session</CustomText>
-          </View>
-          <Ionicons name="arrow-forward" size={18} color={ACCENT} />
-        </Pressable>
-      </BottomSheetModal>
 
       <Modal visible={uploadSheetOpen} transparent animationType="slide" onRequestClose={() => setUploadSheetOpen(false)}>
         <View style={s.sheetBackdrop}>
@@ -2605,22 +2538,6 @@ const s = StyleSheet.create({
   optionsItemIconDestructive: { backgroundColor: "rgba(255, 59, 48, 0.12)" },
   optionsItemTitleDestructive: { color: C.red },
   optionsItemMeta: { marginTop: 2, color: C.textSec },
-  cancelConfirmClose: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18, backgroundColor: BACKGROUND },
-  finishConfirmContent: { alignItems: "center", gap: 9 },
-  finishConfirmTopRow: { alignSelf: "stretch", minHeight: 34, alignItems: "flex-end", justifyContent: "center" },
-  finishConfirmIcon: { width: 48, height: 48, alignItems: "center", justifyContent: "center", marginBottom: 2, borderRadius: 24, backgroundColor: HINT },
-  finishConfirmTitle: { textAlign: "center" },
-  finishConfirmCopy: { maxWidth: 320, marginBottom: 7, color: C.textSec, fontSize: 13, lineHeight: 18, fontWeight: "600", textAlign: "center" },
-  completeSessionCard: { alignSelf: "stretch", minHeight: 70, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderRadius: 29, backgroundColor: ACCENT, boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)" },
-  completeSessionCardIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: "rgba(255,255,255,0.18)" },
-  completeSessionCardTitle: { color: CARD },
-  completeSessionCardCopy: { marginTop: 2, color: CARD, fontSize: 10, fontWeight: "700" },
-  finishCountdownBadge: { minWidth: 43, height: 30, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 7, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.18)" },
-  finishCountdownText: { color: CARD, fontSize: 13, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  continueSessionCard: { alignSelf: "stretch", minHeight: 64, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },
-  continueSessionCardIcon: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: HINT },
-  continueSessionCardTitle: {},
-  continueSessionCardCopy: { marginTop: 2, color: C.textSec, fontSize: 10, fontWeight: "700" },
   sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.58)" },
   uploadSheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: BACKGROUND, paddingHorizontal: 18, paddingBottom: Platform.OS === "ios" ? 34 : 20 },
   agentIdentityToggle: { minHeight: 82, flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: SMALL_CORNER, borderCurve: "continuous", backgroundColor: CARD },

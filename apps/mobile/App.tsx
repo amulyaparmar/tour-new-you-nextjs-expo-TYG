@@ -182,6 +182,7 @@ import {
 import { LiquidGlassDropdown } from "./src/components/liquid-glass-dropdown";
 import { LiquidGlassIconButton } from "./src/components/liquid-glass-icon-button";
 import { LiquidGlassSearch } from "./src/components/liquid-glass-search";
+import { getLiquidGlassView } from "./src/components/liquid-glass";
 import { InfoBox } from "./src/components/info-box";
 import { EmptyStateCard } from "./src/components/empty-state-card";
 import {
@@ -230,6 +231,7 @@ import {
   ScoreHero,
   SessionAiChatScreen,
   SessionAudioInsightsScreen,
+  SessionFailedFooter,
   SessionModeTabs,
   SessionPlayer,
   SessionReviewSkeleton,
@@ -915,6 +917,7 @@ let _showToast:
 let openFinishedBoundSession: ((sessionId: string) => void) | null = null;
 
 function ToastProvider({ children }: { children: React.ReactNode }) {
+  const GlassView = useMemo(() => getLiquidGlassView(), []);
   const [toast, setToast] = useState<{
     id: number;
     msg: string;
@@ -994,18 +997,32 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
       : toast?.type === "success"
         ? C.green
         : C.brand;
-  const tint =
-    toast?.type === "error"
-      ? "rgba(255,235,235,0.72)"
-      : toast?.type === "success"
-        ? "rgba(232,250,240,0.72)"
-        : "rgba(226,242,255,0.72)";
   const iconName: keyof typeof Ionicons.glyphMap =
     toast?.type === "error"
       ? "alert-circle"
       : toast?.type === "success"
         ? "checkmark-circle"
         : "information-circle";
+
+  const toastBody = toast ? (
+    <>
+      <View style={[st.toastIcon, { backgroundColor: accent + "16" }]}>
+        <Ionicons name={iconName} size={19} color={accent} />
+      </View>
+      <CustomText textStyle="label" style={st.toastText}>
+        {toast.msg}
+      </CustomText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss notification"
+        hitSlop={10}
+        onPress={dismissToast}
+        style={({ pressed }) => [st.toastClose, pressed && st.pressed]}
+      >
+        <Ionicons name="close" size={18} color={C.textSec} />
+      </Pressable>
+    </>
+  ) : null;
 
   return (
     <View style={{ flex: 1 }}>
@@ -1019,25 +1036,19 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
               toastAnimatedStyle,
             ]}
           >
-            <BlurView
-              intensity={72}
-              tint="light"
-              style={[st.toastGlass, { backgroundColor: tint }]}
-            >
-              <View style={[st.toastIcon, { backgroundColor: accent + "16" }]}>
-                <Ionicons name={iconName} size={19} color={accent} />
-              </View>
-              <Text style={st.toastText}>{toast.msg}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Dismiss notification"
-                hitSlop={10}
-                onPress={dismissToast}
-                style={({ pressed }) => [st.toastClose, pressed && st.pressed]}
+            {GlassView ? (
+              <GlassView
+                isInteractive
+                borderRadius={LARGE_CORNER}
+                style={st.toastGlass}
               >
-                <Ionicons name="close" size={18} color={C.textSec} />
-              </Pressable>
-            </BlurView>
+                {toastBody}
+              </GlassView>
+            ) : (
+              <BlurView intensity={72} tint="light" style={st.toastGlass}>
+                {toastBody}
+              </BlurView>
+            )}
           </Reanimated.View>
         </GestureDetector>
       )}
@@ -7481,6 +7492,10 @@ function SessionDetailScreen({
   const [liveHandoffResolved, setLiveHandoffResolved] = useState(false);
   const [tab, setTab] = useState<DTab>("transcript");
   const [refreshing, setRefreshing] = useState(false);
+  const [failedFooter, setFailedFooter] = useState<{
+    retry: () => void;
+    uploadDifferent: () => void;
+  } | null>(null);
   const insets = useSafeAreaInsets();
   const sessionQuery = useSessionQuery(sessionId);
   const analysisQuery = useAnalysisQuery(sessionId);
@@ -7517,6 +7532,7 @@ function SessionDetailScreen({
   useEffect(() => {
     liveHandoffRef.current = false;
     setLiveHandoffResolved(false);
+    setFailedFooter(null);
   }, [sessionId]);
 
   useEffect(() => {
@@ -7742,6 +7758,7 @@ function SessionDetailScreen({
             initialAttachments={session.attachments ?? []}
             onLeaveForLiveRecording={onBack}
             onDone={load}
+            onFailedFooterChange={setFailedFooter}
           />
         )}
 
@@ -7824,6 +7841,21 @@ function SessionDetailScreen({
         )}
       </View>
     </ScrollView>
+    {failedFooter ? (
+      <View
+        style={{
+          gap: 10,
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: Math.max(insets.bottom, 16),
+        }}
+      >
+        <SessionFailedFooter
+          onRetry={failedFooter.retry}
+          onUploadDifferent={failedFooter.uploadDifferent}
+        />
+      </View>
+    ) : null}
     <TourScreenHeader onBack={onBack} title={session.title} />
     </View>
   );
@@ -9128,6 +9160,7 @@ function UploadProcessCard({
   initialAttachments,
   onLeaveForLiveRecording,
   onDone,
+  onFailedFooterChange,
 }: {
   sessionId: string;
   status: string;
@@ -9141,6 +9174,9 @@ function UploadProcessCard({
   initialAttachments: SessionAttachment[];
   onLeaveForLiveRecording?: () => void;
   onDone: () => void;
+  onFailedFooterChange?: (
+    actions: { retry: () => void; uploadDifferent: () => void } | null,
+  ) => void;
 }) {
   const rec = useRecording();
   const [phase, setPhase] = useState<
@@ -9175,6 +9211,8 @@ function UploadProcessCard({
   const [rubricOpen, setRubricOpen] = useState(false);
   const [idleOptionsOpen, setIdleOptionsOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const retryAnalysisRef = useRef(() => {});
+  const uploadDifferentRef = useRef(() => {});
 
   useEffect(() => {
     Promise.all([
@@ -9500,6 +9538,13 @@ function UploadProcessCard({
     }
   }
 
+  retryAnalysisRef.current = () => {
+    void startProcess();
+  };
+  uploadDifferentRef.current = () => {
+    void pickAndUpload();
+  };
+
   // Resume an uploaded session only after its evaluation rubric is resolved.
   useEffect(() => {
     if (
@@ -9518,6 +9563,19 @@ function UploadProcessCard({
       setErrMsg(caught instanceof Error ? caught.message : "Processing failed");
     });
   }, [pendingUploadChecked, phase, rubricId, rubricsLoaded, sessionId, status]);
+
+  useEffect(() => {
+    if (!onFailedFooterChange) return;
+    if (phase === "error" && errorKind !== "upload") {
+      onFailedFooterChange({
+        retry: () => retryAnalysisRef.current(),
+        uploadDifferent: () => uploadDifferentRef.current(),
+      });
+    } else {
+      onFailedFooterChange(null);
+    }
+    return () => onFailedFooterChange(null);
+  }, [errorKind, onFailedFooterChange, phase]);
 
   // ── Idle: pick a file ──
   if (
@@ -9894,25 +9952,12 @@ function UploadProcessCard({
       <SessionStatusCard
         tone="failed"
         icon="alert-circle"
-        title="Failed"
+        title="Analysis Failed"
         body={
           errMsg ??
           "Analysis did not complete. Retry when you have a stable connection."
         }
-      >
-        <SessionStatusActions>
-          <SessionStatusPrimaryButton
-            label="Retry analysis"
-            icon="refresh"
-            onPress={startProcess}
-          />
-          <SessionStatusSecondaryButton
-            label="Upload a different recording"
-            icon="document-attach-outline"
-            onPress={pickAndUpload}
-          />
-        </SessionStatusActions>
-      </SessionStatusCard>
+      />
     );
   }
 
@@ -13603,7 +13648,8 @@ const st = StyleSheet.create({
     left: 14,
     right: 14,
     zIndex: 999,
-    borderRadius: 20,
+    borderRadius: LARGE_CORNER,
+    overflow: "hidden",
     shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
@@ -13617,9 +13663,7 @@ const st = StyleSheet.create({
     gap: 10,
     overflow: "hidden",
     padding: 11,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.82)",
-    borderRadius: 20,
+    borderRadius: LARGE_CORNER,
   },
   toastIcon: {
     width: 36,
@@ -13630,18 +13674,13 @@ const st = StyleSheet.create({
   },
   toastText: {
     flex: 1,
-    color: C.text,
-    fontSize: 13,
     lineHeight: 18,
-    fontWeight: "800",
   },
   toastClose: {
     width: 34,
     height: 34,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.56)",
   },
 
   // Tab Bar

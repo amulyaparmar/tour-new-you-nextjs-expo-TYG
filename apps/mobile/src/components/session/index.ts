@@ -15,6 +15,7 @@ export { ProspectInsightsCard } from "./prospect-insights-card";
 export { TourScreenHeader } from "./tour-screen-header";
 export {
   ProcessingTimeline,
+  SessionFailedFooter,
   SessionStatusActions,
   SessionStatusCard,
   SessionStatusPrimaryButton,

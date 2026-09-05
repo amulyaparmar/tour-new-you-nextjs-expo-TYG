@@ -28,9 +28,11 @@ test("preparing copy uses sentence-case stage titles", () => {
   assert.match(app, /<ProcessingTimeline status=\{status\} \/>/);
 });
 
-test("failed and synced session cards name the state in the title", () => {
-  assert.match(app, /title="Failed"/);
-  assert.match(app, /title="Synced"/);
-  assert.match(app, /Retry analysis/);
-  assert.match(app, /Analysis complete\. Opening results/);
+test("failed session card uses a page footer and analysis-failed title", () => {
+  assert.match(app, /title="Analysis Failed"/);
+  assert.match(app, /<SessionFailedFooter/);
+  assert.match(app, /onFailedFooterChange=\{setFailedFooter\}/);
+  assert.match(card, /Retry Analysis/);
+  assert.match(card, /minHeight: 58/);
+  assert.match(card, /borderRadius: 29/);
 });
