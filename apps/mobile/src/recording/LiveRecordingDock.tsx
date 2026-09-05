@@ -18,7 +18,16 @@ const C = {
 } as const;
 
 /** A minimized recorder, not an audio playback player. Hiding it never stops audio. */
-export function LiveRecordingDock({ resetKey, bottomInset }: { resetKey: string; bottomInset: number }) {
+export function LiveRecordingDock({
+  resetKey,
+  bottomInset,
+  hidden = false,
+}: {
+  resetKey: string;
+  bottomInset: number;
+  /** Route-only suppression: the recording and dock state remain mounted. */
+  hidden?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const GlassView = useMemo(() => getLiquidGlassView(), []);
   const [reduceTransparency, setReduceTransparency] = useState(true);
@@ -49,10 +58,11 @@ export function LiveRecordingDock({ resetKey, bottomInset }: { resetKey: string;
     };
   }, []);
 
-  // A new tab or a freshly minimized tour brings the mini-player back.
+  // Only a new tab or tour resets an explicit dismissal. Opening/closing the
+  // recorder must not make this underlying bar disappear or pop back in.
   useEffect(() => {
     setDismissed(false);
-  }, [resetKey, localId, experienceVisible]);
+  }, [resetKey, localId]);
 
   useEffect(() => {
     if (!isRecording || requestedPaused.current === isPaused) {
@@ -76,7 +86,7 @@ export function LiveRecordingDock({ resetKey, bottomInset }: { resetKey: string;
     }
   }
 
-  if (!isRecording || experienceVisible || !liveMeta || dismissed) return null;
+  if (hidden || !isRecording || !liveMeta || dismissed) return null;
 
   const guestName = draft?.participants.map((guest) => guest.name.trim()).filter(Boolean).join(", ")
     || draft?.prospect.trim()
@@ -85,7 +95,12 @@ export function LiveRecordingDock({ resetKey, bottomInset }: { resetKey: string;
   const status = isPaused ? "Recording paused" : "Recording live";
 
   return (
-    <View pointerEvents="box-none" style={[st.wrap, { bottom: bottomInset > 0 ? bottomInset : insets.bottom }]}>
+    <View
+      pointerEvents={experienceVisible ? "none" : "box-none"}
+      accessibilityElementsHidden={experienceVisible}
+      importantForAccessibility={experienceVisible ? "no-hide-descendants" : "auto"}
+      style={[st.wrap, { bottom: bottomInset > 0 ? bottomInset : insets.bottom }]}
+    >
       <View style={st.dock}>
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           {!reduceTransparency && GlassView ? (
@@ -139,7 +154,7 @@ export function LiveRecordingDock({ resetKey, bottomInset }: { resetKey: string;
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Hide live session bar"
-          accessibilityHint="Recording continues. Switch tabs or open the live tour card to bring it back."
+          accessibilityHint="Recording continues. Switch tabs to bring this bar back, or use the live tour card to open recording controls."
           onPress={() => setDismissed(true)}
           style={({ pressed }) => [st.dismiss, pressed && st.pressed]}
         >

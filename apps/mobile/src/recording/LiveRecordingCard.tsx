@@ -31,7 +31,9 @@ export function LiveRecordingCard({ onPress, style }: LiveRecordingCardProps) {
     expandExperience,
   } = useRecording();
   const pulse = useRef(new Animated.Value(1)).current;
-  const cardVisible = isRecording && !experienceVisible && Boolean(liveMeta);
+  // The recorder covers this card. Keep its place in the underlying page so
+  // opening or pulling down the recorder never collapses the page's layout.
+  const cardVisible = isRecording && Boolean(liveMeta);
 
   useEffect(() => {
     pulse.stopAnimation();
@@ -67,6 +69,11 @@ export function LiveRecordingCard({ onPress, style }: LiveRecordingCardProps) {
 
   return (
     <Pressable
+      pointerEvents={experienceVisible ? "none" : "auto"}
+      disabled={experienceVisible}
+      accessible={!experienceVisible}
+      accessibilityElementsHidden={experienceVisible}
+      importantForAccessibility={experienceVisible ? "no-hide-descendants" : "auto"}
       accessibilityRole="button"
       accessibilityLabel={`Open tour with ${headline}. ${statusLabel}. ${elapsedLabel} elapsed.`}
       accessibilityHint="Expand the ongoing tour and recording controls"

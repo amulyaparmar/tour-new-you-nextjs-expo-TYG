@@ -2,6 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { GestureDetector } from "react-native-gesture-handler";
 
 import { CustomText } from "@/components/custom-text";
 import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
@@ -22,12 +23,28 @@ export function GlassNavHeader({
   title,
   onBack,
   right,
+  backButton,
+  headerGesture,
 }: {
   title: string;
   onBack?: () => void;
   right?: React.ReactNode;
+  backButton?: React.ReactNode;
+  headerGesture?: React.ComponentProps<typeof GestureDetector>["gesture"];
 }) {
   const insets = useSafeAreaInsets();
+
+  const bar = (
+    <View style={[styles.bar, { marginTop: insets.top }]}>
+      {backButton ?? (onBack ? (
+        <LiquidGlassIconButton icon="arrow-back" accessibilityLabel="Back" onPress={onBack} />
+      ) : <View style={styles.side} />)}
+      <CustomText textStyle="title" numberOfLines={1} style={styles.title}>
+        {title}
+      </CustomText>
+      {right ?? <View style={styles.side} />}
+    </View>
+  );
 
   return (
     <View
@@ -40,21 +57,7 @@ export function GlassNavHeader({
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
       />
-      <View style={[styles.bar, { marginTop: insets.top }]}>
-        {onBack ? (
-          <LiquidGlassIconButton
-            icon="arrow-back"
-            accessibilityLabel="Back"
-            onPress={onBack}
-          />
-        ) : (
-          <View style={styles.side} />
-        )}
-        <CustomText textStyle="title" numberOfLines={1} style={styles.title}>
-          {title}
-        </CustomText>
-        {right ?? <View style={styles.side} />}
-      </View>
+      {headerGesture ? <GestureDetector gesture={headerGesture}>{bar}</GestureDetector> : bar}
     </View>
   );
 }

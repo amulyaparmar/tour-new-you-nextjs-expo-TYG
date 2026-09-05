@@ -1740,9 +1740,11 @@ export default function App() {
                 hidden={screen.type === "bulk-upload"}
                 onOpen={(batchId) => nav({ type: "bulk-upload", batchId })}
               />
+              {/* Session review owns the bottom playback controls; don't cover them with the live recorder. */}
               <LiveRecordingDock
                 resetKey={screenKey(screen)}
                 bottomInset={screen.type === "main" ? tabBarHeight : 0}
+                hidden={screen.type.startsWith("session-")}
               />
             </KeyboardAvoidingView>
           </ToastProvider>

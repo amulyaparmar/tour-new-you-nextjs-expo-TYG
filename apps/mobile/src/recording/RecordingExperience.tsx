@@ -27,13 +27,13 @@ import Reanimated, {
   FadeOut,
   SlideInRight,
   SlideOutRight,
-  runOnJS,
-  withSpring,
   withTiming,
+  useAnimatedRef,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
 } from "react-native-reanimated";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { GestureDetector } from "react-native-gesture-handler";
 import type { SharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CustomText } from "@/components/custom-text";
@@ -70,6 +70,7 @@ import { ChatTypingIndicator, LiveChatMarkdown } from "./LiveChatMarkdown";
 import { isExpoGo, isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
 import { useRecording } from "./RecordingProvider";
+import { useRecordingSheetGesture } from "./useRecordingSheetGesture";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
 import {
   useSessionParticipantRealtime,
@@ -248,9 +249,12 @@ type RecordingExperienceProps = {
   onBeforeRecordingStart?: () => void | Promise<void>;
   onUploadFile?: () => void | Promise<void>;
   onSessionCreated?: (sessionId: string) => void;
-  /** Shared presentation progress used by the navigation-style pull-down surface. */
-  presentation?: SharedValue<number>;
-  onSwipeDown?: () => void;
+  /** The host and scroll surfaces share the same pixel-based sheet position. */
+  sheetOffset: SharedValue<number>;
+  sheetHeight: SharedValue<number>;
+  sheetClosing: SharedValue<boolean>;
+  isPresented: boolean;
+  onSwipeDown: () => void;
   /** Begin recording as soon as the experience opens. */
   autoStart?: boolean;
 };
@@ -484,7 +488,10 @@ export function RecordingExperience({
   onBeforeRecordingStart,
   onUploadFile,
   onSessionCreated,
-  presentation,
+  sheetOffset,
+  sheetHeight,
+  sheetClosing,
+  isPresented,
   onSwipeDown,
   autoStart = false,
 }: RecordingExperienceProps) {
@@ -535,8 +542,9 @@ export function RecordingExperience({
   const [finalTranscriptLines, setFinalTranscriptLines] = useState<LiveTranscriptLine[]>([]);
   const [permissionTipVisible, setPermissionTipVisible] = useState(false);
   const [resolvedSessionId, setResolvedSessionId] = useState<string | null>(sessionId ?? null);
-  const listRef = useRef<FlatList<LiveTranscriptLine>>(null);
-  const chatListRef = useRef<ScrollView>(null);
+  const summaryRef = useAnimatedRef<ScrollView>();
+  const listRef = useAnimatedRef<FlatList<LiveTranscriptLine>>();
+  const chatListRef = useAnimatedRef<ScrollView>();
   const lastFinalTextRef = useRef("");
   const cancelledRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
@@ -591,28 +599,43 @@ export function RecordingExperience({
     }, 90);
     return () => clearInterval(timer);
   }, [hasStarted, sessionPaused]);
-  const localPresentation = useSharedValue(1);
-  const dragPresentation = presentation ?? localPresentation;
-  const dismissGesture = useMemo(() => {
-    return Gesture.Pan()
-      .activeOffsetY(6)
-      .failOffsetX([-32, 32])
-      .onUpdate((event) => {
-        if (event.translationY > 0) {
-          dragPresentation.value = Math.max(0, 1 - event.translationY / 500);
-        }
-      })
-      .onEnd((event) => {
-        const shouldMinimize = Boolean(onSwipeDown) && (event.translationY > 92 || event.velocityY > 700);
-        if (shouldMinimize) {
-          dragPresentation.value = withTiming(0, { duration: 180 }, (finished) => {
-            if (finished && onSwipeDown) runOnJS(onSwipeDown)();
-          });
-        } else {
-          dragPresentation.value = withSpring(1, { damping: 19, stiffness: 220, mass: 0.68 });
-        }
-      });
-  }, [dragPresentation, onSwipeDown]);
+  const pullProgress = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
+  const minimizeSheet = useCallback(() => {
+    if (cancelDisabled) return;
+    Keyboard.dismiss();
+    onSwipeDown();
+  }, [cancelDisabled, onSwipeDown]);
+  const sheetGestureEnabled = isPresented && !cancelDisabled && !uploadSheetOpen
+    && !optionsMenuOpen && !personSheetOpen && !cancelConfirmOpen && !finishConfirmOpen
+    && !selectedPerson && !assetSheetOpen && !selectedAssetPreview;
+  const gestureOptions = {
+    enabled: sheetGestureEnabled,
+    sheetOffset, sheetHeight, sheetClosing, pullProgress,
+    onMinimize: minimizeSheet,
+  };
+  const headerDrag = useRecordingSheetGesture(gestureOptions);
+  const tabsDrag = useRecordingSheetGesture(gestureOptions);
+  const summaryDrag = useRecordingSheetGesture({
+    ...gestureOptions, enabled: sheetGestureEnabled && activeTab === "summary", scrollRef: summaryRef,
+    scrollResetKey: activeTab,
+  });
+  const transcriptDrag = useRecordingSheetGesture({
+    ...gestureOptions, enabled: sheetGestureEnabled && activeTab === "transcript", scrollRef: listRef,
+    scrollResetKey: activeTab,
+  });
+  const chatDrag = useRecordingSheetGesture({
+    ...gestureOptions, enabled: sheetGestureEnabled && activeTab === "ai", scrollRef: chatListRef,
+    scrollResetKey: activeTab,
+  });
+  useEffect(() => {
+    pullProgress.value = 0;
+  }, [isPresented, pullProgress]);
+  const backIconStyle = useAnimatedStyle(() => ({
+    // A left arrow rotates counterclockwise to point down. Programmatic opening
+    // does not rotate it; this progress belongs only to the user's pull.
+    transform: [{ rotate: `${reduceMotion ? 0 : -90 * pullProgress.value}deg` }],
+  }));
 
   const pauseTourForDictation = useCallback(async () => {
     if (!rec.isRecording || rec.isPaused) return;
@@ -830,9 +853,9 @@ export function RecordingExperience({
   ]);
 
   useEffect(() => {
-    if (liveTranscript.length === 0) return;
+    if (activeTab !== "transcript" || liveTranscript.length === 0 || pullProgress.value > 0 || sheetClosing.value) return;
     listRef.current?.scrollToEnd({ animated: true });
-  }, [liveTranscript.length, liveSpeech.text]);
+  }, [activeTab, liveTranscript.length, liveSpeech.text, listRef, pullProgress, sheetClosing]);
 
   useEffect(() => {
     const latest = [...liveTranscript].reverse().find((line) => line.text.trim() && !line.id.startsWith("live-ready"));
@@ -847,9 +870,12 @@ export function RecordingExperience({
 
   useEffect(() => {
     if (!chatFocused || chatMessages.length === 0) return;
-    const timer = setTimeout(() => chatListRef.current?.scrollToEnd({ animated: true }), 80);
+    const timer = setTimeout(() => {
+      if (pullProgress.value > 0 || sheetClosing.value) return;
+      chatListRef.current?.scrollToEnd({ animated: true });
+    }, 80);
     return () => clearTimeout(timer);
-  }, [chatFocused, chatMessages, chatBusy, chatStreaming]);
+  }, [chatFocused, chatMessages, chatBusy, chatStreaming, chatListRef, pullProgress, sheetClosing]);
 
   const visibleAttachments = attachments;
   const filteredAssets = useMemo(() => {
@@ -1187,7 +1213,7 @@ export function RecordingExperience({
   function handleHeaderBack() {
     if (cancelDisabled) return;
     if (hasStarted || minimizeOnClose) {
-      rec.minimizeExperience();
+      minimizeSheet();
       return;
     }
     cancelledRef.current = true;
@@ -1283,7 +1309,7 @@ export function RecordingExperience({
       keyboardVerticalOffset={0}
     >
       <View style={[s.sheet, showBottomDock && s.sheetWithDock]}>
-        <GestureDetector gesture={dismissGesture}>
+        <GestureDetector gesture={tabsDrag.gesture}>
             <View>
               <View style={{ height: glassNavContentInset(insets.top) }} />
               <View style={s.tabWrap}>
@@ -1294,7 +1320,15 @@ export function RecordingExperience({
 
         <View style={s.content}>
           {activeTab === "summary" && (
-            <ScrollView
+            <GestureDetector gesture={summaryDrag.gesture}>
+            <Reanimated.ScrollView
+              ref={summaryRef}
+              onScroll={summaryDrag.onScroll}
+              scrollEventThrottle={16}
+              bounces={false}
+              alwaysBounceVertical={false}
+              overScrollMode="never"
+              onAccessibilityEscape={minimizeSheet}
               contentContainerStyle={s.summaryContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
@@ -1444,12 +1478,20 @@ export function RecordingExperience({
               </View>
 
               {summaryMessage ? <CustomText textStyle="label" style={s.summaryMessage}>{summaryMessage}</CustomText> : null}
-            </ScrollView>
+            </Reanimated.ScrollView>
+            </GestureDetector>
           )}
 
           {activeTab === "transcript" && (
-            <FlatList
+            <GestureDetector gesture={transcriptDrag.gesture}>
+            <Reanimated.FlatList
               ref={listRef}
+              onScroll={transcriptDrag.onScroll}
+              scrollEventThrottle={16}
+              bounces={false}
+              alwaysBounceVertical={false}
+              overScrollMode="never"
+              onAccessibilityEscape={minimizeSheet}
               data={liveTranscript}
               renderItem={renderTranscript}
               keyExtractor={(item) => item.id}
@@ -1483,12 +1525,20 @@ export function RecordingExperience({
                 </View>
               }
             />
+            </GestureDetector>
           )}
 
           {activeTab === "ai" && (
             <View style={s.chatPane}>
-              <ScrollView
+              <GestureDetector gesture={chatDrag.gesture}>
+              <Reanimated.ScrollView
                 ref={chatListRef}
+                onScroll={chatDrag.onScroll}
+                scrollEventThrottle={16}
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
+                onAccessibilityEscape={minimizeSheet}
                 style={s.chatList}
                 contentContainerStyle={s.chatListContent}
                 keyboardShouldPersistTaps="handled"
@@ -1545,7 +1595,8 @@ export function RecordingExperience({
                   })
                 )}
                 {chatError && <CustomText textStyle="label" style={s.chatError}>{chatError}</CustomText>}
-              </ScrollView>
+              </Reanimated.ScrollView>
+              </GestureDetector>
 
               <View
                 style={[
@@ -2168,6 +2219,16 @@ export function RecordingExperience({
     </KeyboardAvoidingView>
       <TourScreenHeader
         onBack={handleHeaderBack}
+        backButton={
+          <LiquidGlassIconButton
+            icon="arrow-back"
+            iconStyle={backIconStyle}
+            onPress={handleHeaderBack}
+            disabled={cancelDisabled}
+            accessibilityLabel={hasStarted || minimizeOnClose ? "Minimize recording" : "Back"}
+          />
+        }
+        headerGesture={headerDrag.gesture}
         title={title?.trim() || "Live Mystery Shopping Calls"}
         onMorePress={() => setOptionsMenuOpen(true)}
         moreAccessibilityLabel="Session options"

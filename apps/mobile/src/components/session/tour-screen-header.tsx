@@ -9,6 +9,8 @@ export function TourScreenHeader({
   title = "",
   onMorePress,
   moreAccessibilityLabel = "More options",
+  backButton,
+  headerGesture,
 }: {
   onBack: () => void;
   title?: string;
@@ -16,11 +18,15 @@ export function TourScreenHeader({
   meta?: Array<{ icon: LucideIcon; label: string }>;
   onMorePress?: () => void;
   moreAccessibilityLabel?: string;
+  backButton?: React.ReactNode;
+  headerGesture?: React.ComponentProps<typeof GlassNavHeader>["headerGesture"];
 }) {
   return (
     <GlassNavHeader
       title={title}
       onBack={onBack}
+      backButton={backButton}
+      headerGesture={headerGesture}
       right={
         onMorePress ? (
           <LiquidGlassIconButton

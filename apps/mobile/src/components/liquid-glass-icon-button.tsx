@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
+import Reanimated from "react-native-reanimated";
 
 import { getLiquidGlassView } from "@/components/liquid-glass";
 import { CARD, TEXT } from "@/theme/tokens";
@@ -15,6 +16,7 @@ export function LiquidGlassIconButton({
   iconSize = ICON_SIZE,
   disabled = false,
   accessibilityLabel,
+  iconStyle,
 }: {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   onPress: () => void;
@@ -22,6 +24,7 @@ export function LiquidGlassIconButton({
   iconSize?: number;
   disabled?: boolean;
   accessibilityLabel: string;
+  iconStyle?: React.ComponentProps<typeof Reanimated.View>["style"];
 }) {
   const GlassView = useMemo(() => getLiquidGlassView(), []);
   const radius = size / 2;
@@ -39,7 +42,9 @@ export function LiquidGlassIconButton({
         justifyContent: "center",
       }}
     >
-      <Ionicons name={icon} size={iconSize} color={disabled ? `${TEXT}73` : TEXT} />
+      <Reanimated.View style={iconStyle}>
+        <Ionicons name={icon} size={iconSize} color={disabled ? `${TEXT}73` : TEXT} />
+      </Reanimated.View>
     </Pressable>
   );
 
