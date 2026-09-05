@@ -1343,6 +1343,200 @@ function SessionNavigation({
   );
 }
 
+function CheckInStartTourScreen({
+  onBack,
+  property,
+  propertyId,
+  agentName,
+  repSlug,
+  onSkipCheckIn,
+  onOpenSession,
+}: {
+  onBack: () => void;
+  property: string;
+  propertyId?: string | null;
+  agentName?: string | null;
+  repSlug?: string | null;
+  onSkipCheckIn: () => void;
+  onOpenSession: (sessionId: string) => void;
+}) {
+  const rec = useRecording();
+
+  return (
+    <CheckInSheet
+      onBack={onBack}
+      property={property}
+      propertyId={propertyId}
+      agentName={agentName}
+      repSlug={repSlug}
+      onSkipCheckIn={onSkipCheckIn}
+      onCheckedIn={(sessionId, guests = []) => {
+        const prospectName = guests[0]?.name ?? null;
+        rec.openExperience({
+          meta: {
+            sessionId,
+            title: `Tour ${property}`,
+            prospectName,
+            propertyName: property,
+            agentName: agentName?.trim() || null,
+            source: "session-detail",
+          },
+          draft: {
+            notes: "",
+            assets: [],
+            selectedAssetIds: [],
+            participants: guests,
+            attachments: [],
+            prospect: prospectName ?? "",
+            location: property,
+            rubricId: null,
+          },
+          onBeforeRecordingStart: async () => {
+            if (await isOnline()) {
+              const response = await authenticatedFetch(
+                `/api/sessions/${sessionId}`,
+                {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "in_progress" }),
+                },
+              );
+              if (!response.ok)
+                throw new Error("Could not activate the tour session");
+            }
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          },
+          onCancel: async (snapshot) => {
+            try {
+              await snapshot.stop();
+              snapshot.clearLiveSession();
+              if (await isOnline()) {
+                const response = await authenticatedFetch(
+                  `/api/sessions/${sessionId}`,
+                  {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "scheduled" }),
+                  },
+                );
+                if (!response.ok)
+                  throw new Error("Could not reset the session");
+              }
+              showToast(
+                "Recording cancelled. Session returned to scheduled.",
+                "success",
+              );
+              void appQueryClient.invalidateQueries({
+                queryKey: queryKeys.session(sessionId),
+              });
+            } catch (caught) {
+              showToast(
+                caught instanceof Error
+                  ? caught.message
+                  : "Could not cancel the session",
+                "error",
+              );
+            }
+          },
+          onFinish: async (snapshot) => {
+            void Haptics.notificationAsync(
+              Haptics.NotificationFeedbackType.Success,
+            );
+            const result = await snapshot.stop();
+            const localId = snapshot.localId;
+            const fileName = `tour-${Date.now()}.m4a`;
+            if (!result?.uri) {
+              snapshot.clearLiveSession();
+              showToast("Failed to save recording", "error");
+              return;
+            }
+            let durableUri = result.uri;
+            if (localId) {
+              const verifiedUri = await ensureDurableRecording(
+                localId,
+                result.uri,
+              );
+              if (!verifiedUri) {
+                snapshot.clearLiveSession();
+                showToast("Failed to save recording", "error");
+                return;
+              }
+              durableUri = verifiedUri;
+              updateLocalSession(localId, {
+                status: "recording",
+                minimized: true,
+                durationSec: result.durationSec,
+                remoteSessionId: sessionId,
+                draft: snapshot.draft,
+                fileName,
+                mimeType: "audio/m4a",
+              });
+            }
+            snapshot.clearLiveSession();
+            try {
+              if (localId) {
+                beginDirectLocalUpload(localId);
+                markReadyToSync(localId, {
+                  durationSec: result.durationSec ?? 1,
+                  sourceUri: durableUri,
+                  remoteSessionId: sessionId,
+                  fileName,
+                  mimeType: "audio/m4a",
+                });
+              }
+              if (!(await isOnline())) {
+                showToast("Saved on device — will upload when online", "info");
+                void drainSyncOutbox();
+                void appQueryClient.invalidateQueries({
+                  queryKey: queryKeys.session(sessionId),
+                });
+                return;
+              }
+              await uploadRecording(
+                sessionId,
+                durableUri,
+                "audio/m4a",
+                fileName,
+                result.durationSec,
+              );
+              promoteLocalRecordingToCache(sessionId, durableUri);
+              await clearPendingRecordingUpload(sessionId, localId);
+              showToast("Recording uploaded", "success");
+              void appQueryClient.invalidateQueries({
+                queryKey: queryKeys.all(),
+              });
+            } catch (caught) {
+              await savePendingRecordingUpload({
+                sessionId,
+                localId,
+                uri: durableUri,
+                mimeType: "audio/m4a",
+                name: fileName,
+                durationSec: result.durationSec,
+                savedAt: Date.now(),
+              });
+              showToast(
+                caught instanceof Error ? caught.message : "Upload failed",
+                "error",
+              );
+              void drainSyncOutbox();
+              void appQueryClient.invalidateQueries({
+                queryKey: queryKeys.session(sessionId),
+              });
+            } finally {
+              if (localId) endDirectLocalUpload(localId);
+            }
+          },
+        });
+        void appQueryClient.invalidateQueries({
+          queryKey: queryKeys.session(sessionId),
+        });
+        onOpenSession(sessionId);
+      }}
+    />
+  );
+}
+
 export default function App() {
   useEasUpdateCheck();
   const player = useVideoPlayer(loginBackground, (vp) => {
@@ -1590,7 +1784,7 @@ export default function App() {
                       />
                     }
                     startTour={
-                      <CheckInSheet
+                      <CheckInStartTourScreen
                         onBack={() =>
                           nav({ type: "main", tab: lastMainTabRef.current })
                         }
@@ -1611,25 +1805,10 @@ export default function App() {
                             authSession.workspace.user.id,
                         })}
                         onSkipCheckIn={() => nav({ type: "create-session" })}
-                        onRecordLater={(sessionId) => {
-                          setReadyTourId(sessionId);
-                          void appQueryClient.invalidateQueries({
-                            queryKey: queryKeys.session(sessionId),
-                          });
-                          showToast(
-                            "Tour ready — find it in Upcoming Tours when you're ready to record.",
-                            "success",
-                          );
-                          nav({ type: "main", tab: "home" });
-                        }}
-                        onCheckedIn={(sessionId) => {
-                          void appQueryClient.invalidateQueries({
-                            queryKey: queryKeys.session(sessionId),
-                          });
+                        onOpenSession={(sessionId) => {
                           nav({
                             type: "session-detail",
                             sessionId,
-                            autoStartRecording: true,
                           });
                         }}
                       />
@@ -2450,8 +2629,6 @@ function DashboardScreen({
           </CustomText>
         </View>
       </MotionPressable>
-
-      <LiveRecordingCard />
 
       <View style={homeSt.actionPillRow}>
         <Pressable
@@ -3657,12 +3834,7 @@ function SessionsListScreen({
         keyExtractor={keyExtractor}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        ListHeaderComponent={
-          <View style={{ gap: 12 }}>
-            {ListHeader}
-            <LiveRecordingCard style={slst.liveRecordingCard} />
-          </View>
-        }
+        ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}
         onEndReached={showSamples ? undefined : onEndReached}
@@ -4009,7 +4181,6 @@ function SessionsListScreen({
 const slst = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 120 },
   header: { gap: 28, marginBottom: 20 },
-  liveRecordingCard: { marginBottom: 8 },
   sampleHeadingSub: {
     marginTop: 3,
     color: C.textMuted,

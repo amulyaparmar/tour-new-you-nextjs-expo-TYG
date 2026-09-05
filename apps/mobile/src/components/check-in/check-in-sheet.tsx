@@ -23,7 +23,6 @@ import {
 import Reanimated, {
   Easing,
   FadeIn,
-  ZoomIn,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -177,9 +176,9 @@ export function CheckInSheet({
   propertyId?: string | null;
   agentName?: string | null;
   repSlug?: string | null;
-  onCheckedIn: (sessionId: string) => void;
+  onCheckedIn: (sessionId: string, guests?: SessionLead[]) => void;
   onSkipCheckIn: () => void;
-  onRecordLater: (sessionId: string) => void;
+  onRecordLater?: (sessionId: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   const footerPad = Math.max(insets.bottom, 16);
@@ -448,7 +447,7 @@ export function CheckInSheet({
   function finishAndRecord() {
     if (!resolvedSessionId) return;
     setFormOpen(false);
-    onCheckedIn(resolvedSessionId);
+    onCheckedIn(resolvedSessionId, checkedInGuests);
   }
 
   function resetCheckInForm() {
@@ -686,7 +685,8 @@ export function CheckInSheet({
         <View style={styles.flex1}>
           <View style={styles.formSheet}>
             {step === "done" ? (
-              <View
+              <Reanimated.View
+                entering={FadeIn.duration(220)}
                 style={[
                   styles.donePanel,
                   {
@@ -695,18 +695,13 @@ export function CheckInSheet({
                   },
                 ]}
               >
-                <Reanimated.View
-                  entering={ZoomIn.duration(320).springify()}
-                  style={styles.doneIcon}
-                >
+                <View style={styles.doneIcon}>
                   <Ionicons name="checkmark" size={26} color={CARD} />
-                </Reanimated.View>
-                <Reanimated.View entering={FadeIn.delay(80).duration(240)}>
-                  <CustomText textStyle="hero" style={styles.centerTitle}>
-                    {firstName.trim() || "Your guest"} is checked in!
-                  </CustomText>
-                </Reanimated.View>
-              </View>
+                </View>
+                <CustomText textStyle="hero" style={styles.centerTitle}>
+                  {firstName.trim() || "Your guest"} is checked in!
+                </CustomText>
+              </Reanimated.View>
             ) : (
               <>
                 <View
