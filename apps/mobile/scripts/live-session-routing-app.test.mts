@@ -50,3 +50,19 @@ test("finishing a bound tour opens session detail after upload", () => {
   assert.match(helper[0], /status: "in_progress"/);
   assert.match(helper[0], /status: "scheduled"/);
 });
+
+test("starting a new tour opens the recorder instead of a preparing page", () => {
+  const createSession = appSource.match(
+    /function CreateSessionScreen\([\s\S]*?\nfunction AgentIdentityToggle/,
+  );
+  assert.ok(createSession, "CreateSessionScreen should remain a distinct screen");
+  assert.doesNotMatch(createSession[0], /Preparing recorder/);
+  assert.match(createSession[0], /preparing: !createOptionsReadyRef\.current/);
+  assert.match(createSession[0], /rec\.patchDraft\(/);
+  assert.match(createSession[0], /useLayoutEffect\(/);
+});
+
+test("the live recorder is not resized by the app keyboard avoiding view", () => {
+  assert.match(appSource, /function RecordingAwareKeyboardAvoiding/);
+  assert.match(appSource, /enabled=\{enabled && !experienceVisible\}/);
+});

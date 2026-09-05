@@ -20,7 +20,7 @@ import {
   TextInput,
   useWindowDimensions,
   View,
-  type FlatList,
+  FlatList,
 } from "react-native";
 import Reanimated, {
   FadeIn,
@@ -251,6 +251,8 @@ type RecordingExperienceProps = {
   onSwipeDown: () => void;
   /** Begin recording as soon as the experience opens. */
   autoStart?: boolean;
+  /** Rubrics/materials or the native recorder are still starting. */
+  preparing?: boolean;
 };
 
 function transcriptText(lines: LiveTranscriptLine[]) {
@@ -590,6 +592,7 @@ export function RecordingExperience({
   sheetClosing,
   onSwipeDown,
   autoStart = false,
+  preparing = false,
 }: RecordingExperienceProps) {
   const rec = useRecording();
   const insets = useSafeAreaInsets();
@@ -627,7 +630,7 @@ export function RecordingExperience({
   const [permissionTipVisible, setPermissionTipVisible] = useState(false);
   const [resolvedSessionId, setResolvedSessionId] = useState<string | null>(sessionId ?? null);
   const summaryRef = useAnimatedRef<ScrollView>();
-  const listRef = useAnimatedRef<FlatList<LiveTranscriptLine>>();
+  const listRef = useRef<FlatList<LiveTranscriptLine>>(null);
   const chatListRef = useAnimatedRef<ScrollView>();
   const lastFinalTextRef = useRef("");
   const localUtteranceStartedAtRef = useRef<number | null>(null);
@@ -651,6 +654,7 @@ export function RecordingExperience({
     && muse.shouldUseNativeFallback;
   const chatFocused = activeTab === "ai";
   const chatComposerMode = chatFocused && hasStarted;
+  const recorderStarting = preparing || starting || (autoStart && !hasStarted && !startError);
   const keyboardOpen = keyboardHeight > 0;
   const showBottomDock = !chatComposerMode && !keyboardOpen;
   const canSendChat = Boolean(chatInput.trim()) && !chatBusy;
@@ -729,6 +733,10 @@ export function RecordingExperience({
   }, []);
 
   useEffect(() => {
+    if (!chatFocused) {
+      setKeyboardHeight(0);
+      return;
+    }
     const show = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
       (event) => setKeyboardHeight(event.endCoordinates.height),
@@ -741,7 +749,7 @@ export function RecordingExperience({
       show.remove();
       hide.remove();
     };
-  }, []);
+  }, [chatFocused]);
 
   useEffect(() => {
     if (!nativeFallbackRequested) {
@@ -912,8 +920,15 @@ export function RecordingExperience({
 
   useEffect(() => {
     if (activeTab !== "transcript" || liveTranscript.length === 0 || sheetClosing.value) return;
-    listRef.current?.scrollToEnd({ animated: true });
-  }, [activeTab, currentTranscriptLine?.text, liveTranscript.length, listRef, sheetClosing]);
+    const frame = requestAnimationFrame(() => {
+      try {
+        listRef.current?.scrollToEnd({ animated: true });
+      } catch {
+        // The list may not have a measured size yet during tab switches.
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, currentTranscriptLine?.text, liveTranscript.length, sheetClosing]);
 
   useEffect(() => {
     const latest = [...liveTranscript].reverse().find((line) => line.text.trim());
@@ -1217,10 +1232,10 @@ export function RecordingExperience({
   }
 
   useEffect(() => {
-    if (!autoStart || autoStartAttemptedRef.current || hasStarted || starting) return;
+    if (preparing || !autoStart || autoStartAttemptedRef.current || hasStarted || starting) return;
     autoStartAttemptedRef.current = true;
     void startSessionRecording();
-  }, [autoStart, hasStarted, starting]);
+  }, [preparing, autoStart, hasStarted, starting]);
 
   function selectTab(tab: Tab) {
     setActiveTab(tab);
@@ -1332,7 +1347,8 @@ export function RecordingExperience({
     <View style={s.root}>
     <KeyboardAvoidingView
       style={s.flex1}
-      behavior={Platform.OS === "ios" ? "height" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      enabled={chatFocused && keyboardOpen}
       keyboardVerticalOffset={0}
     >
       <View style={[s.sheet, showBottomDock && s.sheetWithDock]}>
@@ -1544,16 +1560,26 @@ export function RecordingExperience({
                 </View>
               </View>
 
-              <Reanimated.FlatList
+              <FlatList
                 ref={listRef}
                 scrollEventThrottle={16}
                 onAccessibilityEscape={handleHeaderBack}
                 data={liveTranscript}
                 renderItem={renderTranscript}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={s.transcriptList}
+                contentContainerStyle={[s.transcriptList, liveTranscript.length === 0 && s.transcriptListEmpty]}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <View style={s.emptyState}>
+                    <CustomText textStyle="title" style={s.emptyTitle}>
+                      {hasStarted ? "Listening…" : "Waiting to start"}
+                    </CustomText>
+                    <CustomText textStyle="caption" style={s.emptySubtitle}>
+                      {transcriptionStatus ?? "The live transcript will appear here as people speak."}
+                    </CustomText>
+                  </View>
+                }
               />
             </View>
           )}
@@ -1754,11 +1780,11 @@ export function RecordingExperience({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Start session"
-                disabled={starting}
+                disabled={starting || recorderStarting}
                 onPress={() => void startSessionRecording()}
-                style={[s.startRecordingButton, starting && s.startRecordingButtonDisabled]}
+                style={[s.startRecordingButton, (starting || recorderStarting) && s.startRecordingButtonDisabled]}
               >
-                {starting ? (
+                {starting || recorderStarting ? (
                   <LoadingDots size="small" color={CARD} />
                 ) : (
                   <>
@@ -2045,7 +2071,7 @@ export function RecordingExperience({
           />
         }
         title={title?.trim() || "Live Mystery Shopping Calls"}
-        onMorePress={() => setOptionsMenuOpen(true)}
+        onMorePress={recorderStarting ? undefined : () => setOptionsMenuOpen(true)}
         moreAccessibilityLabel="Session options"
       />
       <RecordingOptionsMenu
@@ -2344,6 +2370,7 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   transcriptList: { paddingHorizontal: 16, paddingTop: 6, gap: 4, paddingBottom: 20 },
+  transcriptListEmpty: { flexGrow: 1, justifyContent: "center" },
   transcriptRow: { flexDirection: "row", gap: 10, paddingVertical: 9 },
   transcriptRowInterim: { opacity: 0.84 },
   speakerDot: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: HINT },

@@ -323,6 +323,7 @@ test("hidden startup and paused sessions retain the same recording component and
   assert.equal(host.props.sheetOffset, offset);
   assert.equal(host.props.notes, "Keep my notes");
   assert.equal(host.props.autoStart, true);
+  assert.equal(host.props.preparing, undefined);
   assert.equal(host.props.isPresented, false);
   host.render({ experienceVisible: true });
   assert.equal(host.props.sheetOffset, offset);
@@ -439,4 +440,11 @@ test("a layout change during closing retargets it and invalidates the obsolete c
   assert.equal(host.minimized, 0);
   host.finish(newClose);
   assert.equal(host.minimized, 1);
+});
+
+test("the host forwards recorder preparing onto the experience", () => {
+  const host = createHost({ experiencePreparing: true });
+  assert.equal(host.props.preparing, true);
+  host.render({ experiencePreparing: false });
+  assert.equal(host.props.preparing, false);
 });

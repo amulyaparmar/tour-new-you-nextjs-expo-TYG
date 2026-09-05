@@ -20,6 +20,7 @@ import { useRecording } from "./RecordingProvider";
 export function RecordingExperienceHost() {
   const {
     experienceVisible,
+    experiencePreparing,
     liveMeta,
     draft,
     localId,
@@ -203,6 +204,7 @@ export function RecordingExperienceHost() {
         isPresented={isPresented}
         onSwipeDown={requestMinimize}
         autoStart
+        preparing={experiencePreparing}
         minimizeOnClose={liveMeta.source === "session-detail"}
         onCancel={requestCancel}
         onFinish={requestFinish}

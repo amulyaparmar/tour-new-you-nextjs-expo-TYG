@@ -62,6 +62,8 @@ export type LiveSessionSnapshot = {
 export type OpenLiveExperienceInput = {
   meta: LiveRecordingMeta;
   draft: LiveRecordingDraft;
+  /** Show the recording UI immediately while draft options or auto-start finish. */
+  preparing?: boolean;
   onBeforeRecordingStart?: () => void | Promise<void>;
   onUploadFile?: (draft: LiveRecordingDraft) => void | Promise<void>;
   onMinimize?: () => void;
@@ -75,6 +77,7 @@ export type RecordingCtx = {
   elapsed: number;
   metering: number;
   experienceVisible: boolean;
+  experiencePreparing: boolean;
   liveMeta: LiveRecordingMeta | null;
   draft: LiveRecordingDraft | null;
   localId: string | null;
@@ -93,6 +96,8 @@ export type RecordingCtx = {
   addDraftAsset: (asset: Material, attachment?: SessionAttachment) => void;
   addDraftParticipant: (lead: SessionLead) => void;
   updateDraftParticipantNotes: (createdAt: string, notes: string | null) => void;
+  patchDraft: (partial: Partial<LiveRecordingDraft>) => void;
+  setExperiencePreparing: (preparing: boolean) => void;
   runBeforeRecordingStart: () => void | Promise<void>;
   requestUploadFile: () => void;
   requestCancel: () => void;
@@ -117,6 +122,7 @@ const EMPTY_CTX: RecordingCtx = {
   elapsed: 0,
   metering: 0,
   experienceVisible: false,
+  experiencePreparing: false,
   liveMeta: null,
   draft: null,
   localId: null,
@@ -135,6 +141,8 @@ const EMPTY_CTX: RecordingCtx = {
   addDraftAsset: () => {},
   addDraftParticipant: () => {},
   updateDraftParticipantNotes: () => {},
+  patchDraft: () => {},
+  setExperiencePreparing: () => {},
   runBeforeRecordingStart: async () => {},
   requestUploadFile: () => {},
   requestCancel: () => {},
@@ -200,6 +208,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   const [elapsed, setElapsed] = useState(0);
   const [metering, setMetering] = useState(0);
   const [experienceVisible, setExperienceVisible] = useState(false);
+  const [experiencePreparing, setExperiencePreparing] = useState(false);
   const [liveMeta, setLiveMeta] = useState<LiveRecordingMeta | null>(null);
   const [draft, setDraft] = useState<LiveRecordingDraft | null>(null);
   const [localId, setLocalId] = useState<string | null>(null);
@@ -228,6 +237,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
 
   const resetLiveUi = useCallback(() => {
     setExperienceVisible(false);
+    setExperiencePreparing(false);
     setLiveMeta(null);
     setDraft(null);
     setLocalId(null);
@@ -592,6 +602,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       await input.onCancel(snapshot);
     };
     finishHandlerRef.current = input.onFinish;
+    setExperiencePreparing(Boolean(input.preparing));
     setExperienceVisible(true);
   }, []);
 
@@ -676,6 +687,16 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     scheduleDraftCheckpoint();
   }, [scheduleDraftCheckpoint]);
 
+  const patchDraft = useCallback((partial: Partial<LiveRecordingDraft>) => {
+    setDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, ...partial };
+      draftRef.current = next;
+      return next;
+    });
+    scheduleDraftCheckpoint();
+  }, [scheduleDraftCheckpoint]);
+
   const runBeforeRecordingStart = useCallback(async () => {
     await beforeStartHandlerRef.current?.();
   }, []);
@@ -705,6 +726,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       elapsed,
       metering,
       experienceVisible,
+      experiencePreparing,
       liveMeta,
       draft,
       localId,
@@ -723,6 +745,8 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       addDraftAsset,
       addDraftParticipant,
       updateDraftParticipantNotes,
+      patchDraft,
+      setExperiencePreparing,
       runBeforeRecordingStart,
       requestUploadFile,
       requestCancel,
@@ -734,6 +758,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       elapsed,
       metering,
       experienceVisible,
+      experiencePreparing,
       liveMeta,
       draft,
       localId,
@@ -752,6 +777,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       addDraftAsset,
       addDraftParticipant,
       updateDraftParticipantNotes,
+      patchDraft,
       runBeforeRecordingStart,
       requestUploadFile,
       requestCancel,

@@ -22,4 +22,5 @@ export {
   SessionStatusSecondaryButton,
 } from "./session-process-status";
 export { CollapsibleSection } from "./collapsible-section";
+export { RubricPickerModal } from "./rubric-picker-modal";
 export { SESSION_PAGE_PADDING } from "./session-layout";

@@ -22,6 +22,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -30,7 +31,6 @@ import { AppProviders } from "./src/components/app-providers";
 import { LoadingDots } from "./src/components/loading-dots";
 import {
   Alert,
-  ActivityIndicator,
   AppState,
   Dimensions,
   FlatList,
@@ -45,6 +45,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   useWindowDimensions,
@@ -165,7 +166,7 @@ import {
 import { trackAnalyticsEvent, setAnalyticsUserId } from "./src/analytics";
 import { LoginScreen } from "./src/LoginScreen";
 import { TourLogo, TourMark } from "./src/components/TourLogo";
-import { CustomText } from "./src/components/custom-text";
+import { CustomText, customTextVariants } from "./src/components/custom-text";
 import { ProspectInsightsCard } from "./src/components/session/prospect-insights-card";
 import { SessionAiChat } from "./src/components/SessionAiChat";
 import { SettingsScreen } from "./src/components/settings/settings-screen";
@@ -227,6 +228,7 @@ import {
 import {
   CollapsibleSection,
   ProcessingTimeline,
+  RubricPickerModal,
   RubricTab,
   ScoreHero,
   SessionAiChatScreen,
@@ -874,6 +876,25 @@ function screenRank(screen: Screen) {
   if (screen.type === "session-report") return 14;
   if (screen.type === "bulk-upload") return 13;
   return 0;
+}
+
+function RecordingAwareKeyboardAvoiding({
+  enabled,
+  children,
+}: {
+  enabled: boolean;
+  children: React.ReactNode;
+}) {
+  const { experienceVisible } = useRecording();
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      enabled={enabled && !experienceVisible}
+      style={st.flex1}
+    >
+      {children}
+    </KeyboardAvoidingView>
+  );
 }
 
 function ScreenTransition({
@@ -1779,11 +1800,7 @@ export default function App() {
                 nav({ type: "session-detail", sessionId })
               }
             />
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : undefined}
-              enabled={screen.type !== "main"}
-              style={st.flex1}
-            >
+            <RecordingAwareKeyboardAvoiding enabled={screen.type !== "main"}>
               <ScreenTransition
                 transitionKey={routeKey}
                 direction={transitionDirection}
@@ -2045,7 +2062,7 @@ export default function App() {
                 hidden={screen.type === "bulk-upload"}
                 onOpen={(batchId) => nav({ type: "bulk-upload", batchId })}
               />
-            </KeyboardAvoidingView>
+            </RecordingAwareKeyboardAvoiding>
           </ToastProvider>
         </RecordingProvider>
       </View>
@@ -6484,6 +6501,9 @@ function CreateSessionScreen({
   agentName?: string | null;
 }) {
   const rec = useRecording();
+  const insets = useSafeAreaInsets();
+  const footerPad = Math.max(insets.bottom, 16);
+  const footerClearance = 56 + 58 + footerPad;
 
   const [phase, setPhase] = useState<"choose" | "uploading" | "details">(
     pendingUpload ? "uploading" : "choose",
@@ -6496,8 +6516,8 @@ function CreateSessionScreen({
   const [fileName, setFileName] = useState(pendingUpload?.name ?? "");
   const [fileSizeMB, setFileSizeMB] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [createOptionsReady, setCreateOptionsReady] = useState(false);
   const recorderOpenedRef = useRef(false);
+  const createOptionsReadyRef = useRef(false);
   const startRecordingRef = useRef<() => void>(() => {});
   const pendingUploadStartedRef = useRef<string | null>(null);
 
@@ -6525,19 +6545,31 @@ function CreateSessionScreen({
       fetchMaterials().catch(() => ({ materials: [] as Material[] })),
     ])
       .then(([{ rubrics: list }, materialData]) => {
-        setRubrics(list);
-        setAssets(
-          materialData.materials.filter((material) => materialUrl(material)),
+        const nextAssets = materialData.materials.filter((material) =>
+          materialUrl(material),
         );
+        setRubrics(list);
+        setAssets(nextAssets);
+        let nextRubricId: string | null = null;
         if (list.length > 0) {
           const defaultRubric = list.find((r) => r.isDefault) ?? list[0];
-          if (defaultRubric) setRubricId(defaultRubric.id);
+          if (defaultRubric) {
+            setRubricId(defaultRubric.id);
+            nextRubricId = defaultRubric.id;
+          }
         }
+        rec.patchDraft({
+          assets: nextAssets,
+          rubricId: nextRubricId,
+        });
       })
       .catch(() => {
         /* rubric picker optional */
       })
-      .finally(() => setCreateOptionsReady(true));
+      .finally(() => {
+        createOptionsReadyRef.current = true;
+        rec.setExperiencePreparing(false);
+      });
   }, []);
 
   async function uploadFile(
@@ -6757,6 +6789,7 @@ function CreateSessionScreen({
         rubricId,
         uploaderIsAgent,
       },
+      preparing: !createOptionsReadyRef.current,
       onBeforeRecordingStart: () => {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       },
@@ -6864,13 +6897,16 @@ function CreateSessionScreen({
     }
   }
 
-  useEffect(() => {
-    if (!createOptionsReady || phase !== "choose" || recorderOpenedRef.current)
-      return;
+  useLayoutEffect(() => {
+    if (phase !== "choose" || recorderOpenedRef.current) return;
     recorderOpenedRef.current = true;
-    const frame = requestAnimationFrame(() => startRecordingRef.current());
-    return () => cancelAnimationFrame(frame);
-  }, [createOptionsReady, phase]);
+    if (rec.liveMeta) {
+      rec.expandExperience();
+      rec.setExperiencePreparing(false);
+      return;
+    }
+    startRecordingRef.current();
+  }, [phase]);
 
   async function submitAndProcess() {
     if (!sessionId) return;
@@ -6900,253 +6936,277 @@ function CreateSessionScreen({
     onCreated(sessionId);
   }
 
-  // ── Prepare and open the full recorder ──
+  // Overlay hosts the recorder immediately; keep this route blank underneath.
   if (phase === "choose") {
-    return (
-      <View style={[st.flex1, st.center]}>
-        <ActivityIndicator color={C.brand} />
-        <Text
-          style={{
-            marginTop: 10,
-            color: C.textSec,
-            fontSize: 13,
-            fontWeight: "700",
-          }}
-        >
-          Preparing recorder…
-        </Text>
-      </View>
-    );
+    return <View style={[st.flex1, { backgroundColor: BACKGROUND }]} />;
   }
 
   // ── Uploading ──
   if (phase === "uploading") {
     return (
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={st.scroll}
-      >
-        <View style={st.page}>
-          <BackBtn label="Sessions" onPress={onBack} />
-          <Text style={st.pageTitle}>New Session</Text>
-          <UploadStatusCard
-            fileName={fileName}
-            fileSize={fileSizeMB ? Number(fileSizeMB) * 1024 * 1024 : null}
-            stats={uploadStats}
-          />
+      <View style={{ flex: 1, backgroundColor: BACKGROUND }}>
+        <View
+          style={[
+            createSessionSt.uploadCenter,
+            {
+              paddingTop: glassNavContentInset(insets.top),
+              paddingBottom: footerPad,
+            },
+          ]}
+        >
+          <CustomText textStyle="title" style={createSessionSt.uploadTitle}>
+            Uploading recording
+          </CustomText>
+          <View style={createSessionSt.uploadTrack}>
+            <AnimatedProgressFill
+              percent={uploadStats.percent}
+              color={ACCENT}
+            />
+          </View>
         </View>
-      </ScrollView>
+        <GlassNavHeader title="Enter Session Details" onBack={onBack} />
+      </View>
     );
   }
 
   // ── Details form after upload ──
-  return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={st.scroll}
-    >
-      <View style={st.page}>
-        <BackBtn label="Sessions" onPress={onBack} />
-        <Text style={st.pageTitle}>New Session</Text>
+  const selectedRubric = rubrics.find((r) => r.id === rubricId);
 
-        <View style={[st.card, { overflow: "hidden" }]}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              padding: 14,
-              backgroundColor: C.greenBg,
-              borderBottomWidth: 1,
-              borderBottomColor: "#e2e8f0",
-            }}
-          >
-            <Ionicons name="checkmark-circle" size={20} color={C.green} />
+  return (
+    <View style={{ flex: 1, backgroundColor: BACKGROUND }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="never"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: glassNavContentInset(insets.top),
+          paddingHorizontal: 18,
+          paddingBottom: footerClearance,
+        }}
+      >
+        <CustomText textStyle="caption" style={[createSessionSt.sectionHeader, createSessionSt.sectionHeaderFirst]}>
+          Recording
+        </CustomText>
+        <View style={createSessionSt.group}>
+          <View style={createSessionSt.groupedRow}>
+            <View style={createSessionSt.statusIcon}>
+              <Ionicons name="checkmark-circle" size={20} color={C.green} />
+            </View>
             <View style={st.flex1}>
-              <Text style={{ fontSize: 13, fontWeight: "800", color: C.green }}>
-                Recording uploaded
-              </Text>
-              <Text
-                style={{ fontSize: 12, fontWeight: "600", color: C.textSec }}
+              <CustomText textStyle="body">Uploaded</CustomText>
+              <CustomText
+                textStyle="caption"
                 numberOfLines={1}
+                style={createSessionSt.muted}
               >
                 {fileName}
-                {fileSizeMB ? ` (${fileSizeMB} MB)` : ""}
-              </Text>
+                {fileSizeMB ? ` · ${fileSizeMB} MB` : ""}
+              </CustomText>
             </View>
           </View>
+        </View>
 
-          <View style={{ padding: 18, gap: 14 }}>
-            <Text style={st.formTitle}>Session Details</Text>
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "600",
-                color: C.textSec,
-                marginTop: -8,
-              }}
-            >
-              Add context to improve your analysis
-            </Text>
-            <AgentIdentityToggle
-              selected={uploaderIsAgent}
-              agentName={agentName}
-              onToggle={() => {
-                setUploaderIsAgent((value) => !value);
-                void Haptics.selectionAsync();
-              }}
-            />
-            <Input
-              placeholder="Session title"
-              value={title}
-              onChangeText={setTitle}
-              icon="text-outline"
-            />
-            <Input
-              placeholder="Prospect name"
-              value={prospect}
-              onChangeText={setProspect}
-              icon="person-outline"
-            />
-            <ProspectInterestPicker
-              interests={customerInterests}
-              onChange={setCustomerInterests}
-            />
-            <Input
-              placeholder="Location / unit"
-              value={location}
-              onChangeText={setLocation}
-              icon="location-outline"
-            />
-            {rubrics.length > 0 && (
-              <View>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "800",
-                    color: C.textSec,
-                    marginBottom: 8,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Evaluation rubric
-                </Text>
-                <Pressable
-                  onPress={() => setRubricOpen((o) => !o)}
-                  style={({ pressed }) => [st.inputWrap, pressed && st.pressed]}
-                >
-                  <Ionicons
-                    name="clipboard-outline"
-                    size={18}
-                    color={C.textMuted}
-                  />
-                  <Text
-                    style={[st.inputField, { flex: 1, paddingVertical: 0 }]}
-                    numberOfLines={1}
-                  >
-                    {rubrics.find((r) => r.id === rubricId)?.name ??
-                      "Select a rubric"}
-                  </Text>
-                  <Ionicons
-                    name={rubricOpen ? "chevron-up" : "chevron-down"}
-                    size={16}
-                    color={C.textMuted}
-                  />
-                </Pressable>
-                {rubricOpen && (
-                  <View style={{ marginTop: 8, gap: 6 }}>
-                    {rubrics.map((rubric) => (
-                      <Pressable
-                        key={rubric.id}
-                        onPress={() => {
-                          setRubricId(rubric.id);
-                          setRubricOpen(false);
-                        }}
-                        style={({ pressed }) => [
-                          {
-                            padding: 12,
-                            borderRadius: 12,
-                            backgroundColor:
-                              rubric.id === rubricId ? C.brand + "12" : C.bg,
-                          },
-                          pressed && st.pressed,
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            fontWeight: "700",
-                            color: C.text,
-                          }}
-                        >
-                          {rubric.name}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-            <Input
-              placeholder="Notes or focus areas"
+        <CustomText textStyle="caption" style={createSessionSt.sectionHeader}>
+          Session details
+        </CustomText>
+        <View style={createSessionSt.group}>
+          <CreateSessionField
+            label="Title"
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Session title"
+          />
+          <CreateSessionField
+            label="Prospect"
+            value={prospect}
+            onChangeText={setProspect}
+            placeholder="Name"
+            autoCapitalize="words"
+          />
+          <CreateSessionField
+            label="Location"
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Unit or area"
+          />
+          <View style={createSessionSt.notesBlock}>
+            <CustomText textStyle="body">Notes</CustomText>
+            <TextInput
               value={notes}
               onChangeText={setNotes}
-              icon="document-text-outline"
+              placeholder="Focus areas for analysis"
+              placeholderTextColor="rgba(0, 0, 0, 0.45)"
               multiline
-            />
-            <PrimaryBtn
-              label={submitting ? "Opening..." : "Continue"}
-              onPress={() => void submitAndProcess()}
-              icon="arrow-forward"
-              disabled={submitting}
+              style={[customTextVariants.title, createSessionSt.notesInput]}
             />
           </View>
+          <View style={createSessionSt.separator} />
+          <AgentIdentityToggle
+            selected={uploaderIsAgent}
+            onToggle={() => {
+              setUploaderIsAgent((value) => !value);
+              void Haptics.selectionAsync();
+            }}
+          />
         </View>
+
+        {rubrics.length > 0 ? (
+          <>
+            <CustomText textStyle="caption" style={createSessionSt.sectionHeader}>
+              Evaluation rubric
+            </CustomText>
+            <View style={createSessionSt.group}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Choose evaluation rubric"
+                onPress={() => setRubricOpen(true)}
+                style={({ pressed }) => [
+                  createSessionSt.groupedRow,
+                  pressed && createSessionSt.pressed,
+                ]}
+              >
+                <CustomText textStyle="body">Rubric</CustomText>
+                <CustomText
+                  textStyle="title"
+                  numberOfLines={1}
+                  style={createSessionSt.groupedValue}
+                >
+                  {selectedRubric?.name ?? "Select"}
+                </CustomText>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color="rgba(0, 0, 0, 0.45)"
+                />
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+
+        <ProspectInterestPicker
+          interests={customerInterests}
+          onChange={setCustomerInterests}
+        />
+      </ScrollView>
+
+      <View
+        pointerEvents="box-none"
+        style={[createSessionSt.pageFooter, { paddingBottom: footerPad }]}
+      >
+        <LinearGradient
+          colors={[
+            "rgba(242, 242, 247, 0)",
+            "rgba(242, 242, 247, 0.62)",
+            BACKGROUND,
+          ]}
+          locations={[0, 0.5, 1]}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Continue"
+          disabled={submitting}
+          onPress={() => void submitAndProcess()}
+          style={({ pressed }) => [
+            createSessionSt.primaryBtn,
+            submitting && createSessionSt.primaryBtnDisabled,
+            pressed && !submitting && createSessionSt.pressed,
+          ]}
+        >
+          {submitting ? (
+            <LoadingDots size="small" color={CARD} />
+          ) : (
+            <CustomText textStyle="title" style={createSessionSt.primaryBtnText}>
+              Continue
+            </CustomText>
+          )}
+        </Pressable>
       </View>
-    </ScrollView>
+
+      <GlassNavHeader title="Enter Session Details" onBack={onBack} />
+
+      <RubricPickerModal
+        visible={rubricOpen}
+        rubrics={rubrics}
+        value={rubricId}
+        onClose={() => setRubricOpen(false)}
+        onSelect={(id) => {
+          setRubricId(id);
+          setRubricOpen(false);
+          void Haptics.selectionAsync();
+        }}
+      />
+    </View>
+  );
+}
+
+function CreateSessionField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  autoCapitalize,
+  last = false,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  autoCapitalize?: "none" | "sentences" | "words";
+  last?: boolean;
+}) {
+  return (
+    <>
+      <View style={createSessionSt.groupedRow}>
+        <CustomText textStyle="body">{label}</CustomText>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="rgba(0, 0, 0, 0.45)"
+          autoCapitalize={autoCapitalize}
+          style={[customTextVariants.title, createSessionSt.nativeInput]}
+        />
+      </View>
+      {last ? null : <View style={createSessionSt.separator} />}
+    </>
   );
 }
 
 function AgentIdentityToggle({
   selected,
-  agentName,
   disabled,
   onToggle,
 }: {
   selected: boolean;
-  agentName?: string | null;
   disabled?: boolean;
   onToggle: () => void;
 }) {
   return (
     <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: selected, disabled }}
       onPress={onToggle}
       disabled={disabled}
       style={({ pressed }) => [
-        st.agentToggle,
-        selected && st.agentToggleSelected,
-        pressed && st.pressed,
+        createSessionSt.groupedRow,
+        pressed && createSessionSt.pressed,
         disabled && { opacity: 0.6 },
       ]}
     >
-      <View
-        style={[st.agentToggleCheck, selected && st.agentToggleCheckSelected]}
-      >
-        {selected ? (
-          <Ionicons name="checkmark" size={14} color="white" />
-        ) : null}
-      </View>
-      <View style={st.flex1}>
-        <Text style={st.agentToggleTitle}>I am the leasing agent</Text>
-        <Text style={st.agentToggleCopy}>
-          {selected
-            ? `Use ${agentName?.trim() || "my profile name"} for this session.`
-            : "Leave unchecked to let AI identify the agent from audio."}
-        </Text>
+      <CustomText textStyle="body" style={st.flex1}>
+        I am the leasing agent
+      </CustomText>
+      <View pointerEvents="none">
+        <Switch
+          accessible={false}
+          value={selected}
+          disabled={disabled}
+          trackColor={{ false: "#d1d5db", true: ACCENT }}
+          ios_backgroundColor="#d1d5db"
+        />
       </View>
     </Pressable>
   );
@@ -7194,168 +7254,239 @@ function ProspectInterestPicker({
   }
 
   return (
-    <View style={prospectFormSt.wrap}>
-      <View style={prospectFormSt.heading}>
-        <View style={prospectFormSt.icon}>
-          <Ionicons name="heart-outline" size={16} color={C.brand} />
-        </View>
-        <View style={st.flex1}>
-          <Text style={prospectFormSt.title}>Prospect interests</Text>
-          <Text style={prospectFormSt.subtitle}>
-            Optional context for a more tailored analysis
-          </Text>
-        </View>
-      </View>
+    <>
+      <CustomText textStyle="caption" style={createSessionSt.sectionHeader}>
+        Prospect interests
+      </CustomText>
+      <View style={createSessionSt.group}>
+        {interests.length > 0 ? (
+          <View style={createSessionSt.chipWrap}>
+            {interests.map((interest) => (
+              <Pressable
+                key={interest.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${interest.detail}`}
+                onPress={() =>
+                  onChange(interests.filter((item) => item.id !== interest.id))
+                }
+                style={createSessionSt.selectedChip}
+              >
+                <CustomText textStyle="caption" style={createSessionSt.selectedChipText}>
+                  {interest.detail}
+                </CustomText>
+                <Ionicons name="close" size={14} color={ACCENT} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
-      {interests.length > 0 ? (
-        <View style={prospectFormSt.selectedList}>
-          {interests.map((interest) => (
+        <View style={createSessionSt.chipWrap}>
+          {MOBILE_INTEREST_CHOICES.filter(
+            (choice) => !selected.has(choice.detail.toLowerCase()),
+          ).map((choice) => (
             <Pressable
-              key={interest.id}
+              key={choice.detail}
               accessibilityRole="button"
-              accessibilityLabel={`Remove ${interest.detail}`}
-              onPress={() =>
-                onChange(interests.filter((item) => item.id !== interest.id))
-              }
-              style={prospectFormSt.selectedChip}
+              accessibilityLabel={`Add ${choice.detail}`}
+              onPress={() => addInterest(choice.category, choice.detail)}
+              style={({ pressed }) => [
+                createSessionSt.optionChip,
+                pressed && createSessionSt.pressed,
+              ]}
             >
-              <Text style={prospectFormSt.selectedChipText}>
-                {interest.detail}
-              </Text>
-              <Ionicons name="close" size={14} color={C.brand} />
+              <CustomText textStyle="caption" style={createSessionSt.optionChipText}>
+                {choice.detail}
+              </CustomText>
+              <Ionicons name="add" size={14} color="rgba(0, 0, 0, 0.45)" />
             </Pressable>
           ))}
         </View>
-      ) : null}
 
-      <View style={prospectFormSt.optionList}>
-        {MOBILE_INTEREST_CHOICES.filter(
-          (choice) => !selected.has(choice.detail.toLowerCase()),
-        ).map((choice) => (
-          <Pressable
-            key={choice.detail}
-            accessibilityRole="button"
-            accessibilityLabel={`Add ${choice.detail}`}
-            onPress={() => addInterest(choice.category, choice.detail)}
-            style={({ pressed }) => [
-              prospectFormSt.option,
-              pressed && st.pressed,
-            ]}
-          >
-            <Text style={prospectFormSt.optionText}>{choice.detail}</Text>
-            <Ionicons name="add" size={14} color={C.textMuted} />
-          </Pressable>
-        ))}
+        {interests.length < 8 ? (
+          <View style={createSessionSt.customRow}>
+            <TextInput
+              value={customInterest}
+              onChangeText={setCustomInterest}
+              onSubmitEditing={() => addInterest("other", customInterest)}
+              placeholder="Add a specific interest"
+              placeholderTextColor="rgba(0, 0, 0, 0.45)"
+              returnKeyType="done"
+              style={[customTextVariants.title, createSessionSt.customInput]}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add custom prospect interest"
+              disabled={!customInterest.trim()}
+              onPress={() => addInterest("other", customInterest)}
+              style={({ pressed }) => [
+                createSessionSt.addButton,
+                !customInterest.trim() && createSessionSt.addButtonDisabled,
+                pressed && createSessionSt.pressed,
+              ]}
+            >
+              <Ionicons name="add" size={18} color={CARD} />
+            </Pressable>
+          </View>
+        ) : null}
       </View>
-
-      {interests.length < 8 ? (
-        <View style={prospectFormSt.customRow}>
-          <TextInput
-            value={customInterest}
-            onChangeText={setCustomInterest}
-            onSubmitEditing={() => addInterest("other", customInterest)}
-            placeholder="Add a specific interest"
-            placeholderTextColor={C.textMuted}
-            returnKeyType="done"
-            style={prospectFormSt.customInput}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add custom prospect interest"
-            disabled={!customInterest.trim()}
-            onPress={() => addInterest("other", customInterest)}
-            style={({ pressed }) => [
-              prospectFormSt.addButton,
-              !customInterest.trim() && prospectFormSt.addButtonDisabled,
-              pressed && st.pressed,
-            ]}
-          >
-            <Ionicons name="add" size={18} color="#fff" />
-          </Pressable>
-        </View>
-      ) : null}
-    </View>
+    </>
   );
 }
 
-const prospectFormSt = StyleSheet.create({
-  wrap: {
-    gap: 10,
-    padding: 13,
-    borderWidth: 1,
-    borderColor: "#dbeafe",
-    borderRadius: 14,
-    backgroundColor: "#f8fbff",
+const createSessionSt = StyleSheet.create({
+  sectionHeader: {
+    color: "rgba(0, 0, 0, 0.45)",
+    marginTop: 22,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
-  heading: { flexDirection: "row", alignItems: "center", gap: 9 },
-  icon: {
-    width: 30,
-    height: 30,
+  sectionHeaderFirst: {
+    marginTop: 0,
+  },
+  group: {
+    backgroundColor: CARD,
+    borderRadius: SMALL_CORNER,
+    overflow: "hidden",
+  },
+  groupedRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  groupedValue: {
+    flex: 1,
+    minWidth: 0,
+    color: "rgba(0, 0, 0, 0.45)",
+    textAlign: "right",
+  },
+  nativeInput: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 12,
+    textAlign: "right",
+  },
+  notesBlock: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  notesInput: {
+    minHeight: 72,
+    paddingVertical: 6,
+    textAlignVertical: "top",
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 16,
+    backgroundColor: "rgba(60, 60, 67, 0.18)",
+  },
+  muted: {
+    color: "rgba(0, 0, 0, 0.45)",
+  },
+  statusIcon: {
+    width: 28,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
-    backgroundColor: "#eaf2ff",
   },
-  title: { color: C.text, fontSize: 13, fontWeight: "900" },
-  subtitle: {
-    marginTop: 1,
-    color: C.textSec,
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: "600",
+  uploadCenter: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 16,
   },
-  selectedList: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  uploadTitle: {
+    textAlign: "center",
+  },
+  uploadTrack: {
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: CARD,
+    overflow: "hidden",
+    alignSelf: "stretch",
+  },
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
   selectedChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 9,
+    gap: 4,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#eaf2ff",
+    backgroundColor: HINT,
   },
-  selectedChipText: { color: C.brand, fontSize: 12, fontWeight: "800" },
-  optionList: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  option: {
+  selectedChipText: {
+    color: ACCENT,
+  },
+  optionChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: "#d7dee8",
     borderRadius: 999,
-    backgroundColor: "#fff",
+    backgroundColor: BACKGROUND,
   },
-  optionText: { color: C.textSec, fontSize: 11, fontWeight: "700" },
+  optionChipText: {
+    color: "rgba(0, 0, 0, 0.45)",
+  },
   customRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    minHeight: 40,
-    paddingLeft: 10,
-    borderWidth: 1,
-    borderColor: "#d7dee8",
-    borderRadius: 11,
-    backgroundColor: "#fff",
+    margin: 12,
+    marginTop: 8,
+    paddingLeft: 12,
+    borderRadius: SMALL_CORNER,
+    backgroundColor: BACKGROUND,
   },
   customInput: {
     flex: 1,
     minWidth: 0,
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-    paddingVertical: 9,
+    paddingVertical: 10,
   },
   addButton: {
-    width: 36,
-    alignSelf: "stretch",
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
-    backgroundColor: C.brand,
+    borderRadius: SMALL_CORNER,
+    backgroundColor: ACCENT,
   },
   addButtonDisabled: { opacity: 0.4 },
+  pageFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    paddingHorizontal: 16,
+    paddingTop: 56,
+  },
+  primaryBtn: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 29,
+    backgroundColor: ACCENT,
+    boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
+  },
+  primaryBtnDisabled: { opacity: 0.45 },
+  primaryBtnText: { color: CARD },
+  pressed: { opacity: 0.72 },
 });
 
 // ═══════════════════════════════════════
