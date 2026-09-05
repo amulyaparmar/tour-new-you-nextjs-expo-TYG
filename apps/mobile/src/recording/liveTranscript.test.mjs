@@ -39,3 +39,18 @@ test("mergeTranscriptLines prefers Muse for duplicates and retains unique local 
     local[1],
   ]);
 });
+
+test("mergeTranscriptLines replaces native fallback rows in a recovered range", () => {
+  const local = [
+    line("before", "welcome", 4),
+    line("fallback", "native guess", 12),
+    line("after", "follow me", 22),
+  ];
+  const recovered = [line("recovered", "accurate result", 13, "Speaker B")];
+
+  assert.deepEqual(mergeTranscriptLines(local, recovered, [{ start: 10, end: 20 }]), [
+    local[0],
+    recovered[0],
+    local[2],
+  ]);
+});
