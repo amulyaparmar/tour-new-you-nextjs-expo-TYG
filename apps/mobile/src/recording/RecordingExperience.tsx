@@ -69,12 +69,10 @@ import { aiResponseCompleteHaptic, aiResponseStartHaptic } from "../lib/haptics"
 import { ChatTypingIndicator, LiveChatMarkdown } from "./LiveChatMarkdown";
 import { isExpoGo, isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
+import { mergeTranscriptLines, speakerInitial } from "./liveTranscript";
 import { useRecording } from "./RecordingProvider";
 import { useRecordingSheetGesture } from "./useRecordingSheetGesture";
-import {
-  useMuseLiveTranscription,
-  type RealtimeTranscriptLine,
-} from "./useMuseLiveTranscription";
+import { useMuseLiveTranscription } from "./useMuseLiveTranscription";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
 import {
   useSessionParticipantRealtime,
@@ -263,55 +261,8 @@ type RecordingExperienceProps = {
   autoStart?: boolean;
 };
 
-function speakerInitial(speaker: LiveTranscriptLine["speaker"]) {
-  if (speaker === "Prospect") return "P";
-  if (speaker === "Agent") return "A";
-  if (speaker.startsWith("Speaker ")) return speaker.slice("Speaker ".length, "Speaker ".length + 1);
-  return "•";
-}
-
 function transcriptText(lines: LiveTranscriptLine[]) {
   return lines.map((line) => `[${formatElapsed(line.time)}] ${line.speaker}: ${line.text}`).join("\n");
-}
-
-function normalizedTranscript(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function transcriptsOverlap(a: LiveTranscriptLine, b: LiveTranscriptLine) {
-  if (Math.abs(a.time - b.time) > 5) return false;
-  const aText = normalizedTranscript(a.text);
-  const bText = normalizedTranscript(b.text);
-  if (!aText || !bText) return false;
-  if (aText === bText) return true;
-  const aWords = new Set(aText.split(" "));
-  const bWords = new Set(bText.split(" "));
-  if (!aWords.size || !bWords.size) return false;
-  let shared = 0;
-  for (const word of aWords) if (bWords.has(word)) shared += 1;
-  return Math.min(aWords.size, bWords.size) >= 3
-    && shared / Math.min(aWords.size, bWords.size) >= 0.72;
-}
-
-function mergeTranscriptLines(local: LiveTranscriptLine[], muse: RealtimeTranscriptLine[]) {
-  const matchedMuse = new Set<number>();
-  const localWithoutMuseDuplicates = local.filter((localLine) => {
-    let nearestIndex = -1;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    for (let index = 0; index < muse.length; index += 1) {
-      const museLine = muse[index];
-      if (!museLine || matchedMuse.has(index) || !transcriptsOverlap(localLine, museLine)) continue;
-      const distance = Math.abs(localLine.time - museLine.time);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = index;
-      }
-    }
-    if (nearestIndex < 0) return true;
-    matchedMuse.add(nearestIndex);
-    return false;
-  });
-  return [...localWithoutMuseDuplicates, ...muse].sort((a, b) => a.time - b.time);
 }
 
 function estimatedUtteranceStart(text: string, elapsed: number) {
