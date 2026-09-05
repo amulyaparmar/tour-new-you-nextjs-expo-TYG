@@ -12,7 +12,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "expo export",
-    "test:live-transcript": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/recording/liveTranscript.test.mjs",
+    "test:live-transcript": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/recording/liveTranscript.test.mjs src/recording/museAudioRecovery.test.mjs",
     "build:ios": "npx eas-cli@latest build --platform ios --profile production",
     "submit:ios": "npx eas-cli@latest submit --platform ios --profile production",
     "update:production": "npx eas-cli@latest update --channel production --non-interactive",

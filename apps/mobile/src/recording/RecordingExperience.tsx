@@ -781,15 +781,16 @@ export function RecordingExperience({
     localUtteranceStartedAtRef.current = sessionElapsed;
   }, [liveSpeech.isFinal, liveSpeech.text, nativeFallbackRequested, sessionElapsed]);
 
-  // Apple may not emit a final utterance before its engine is stopped. Promote
-  // the visible interim text to durable history exactly once when pausing.
+  // Apple may not emit a final utterance before its engine is stopped. Keep the
+  // visible interim as a placeholder until Muse replaces the recovered range.
   const wasNativeFallbackRequestedRef = useRef(nativeFallbackRequested);
   useEffect(() => {
     const justPaused = sessionPaused && !wasSessionPausedRef.current;
     const fallbackWasActive = wasNativeFallbackRequestedRef.current;
+    const fallbackJustEnded = fallbackWasActive && !nativeFallbackRequested && !sessionPaused;
     wasSessionPausedRef.current = sessionPaused;
     wasNativeFallbackRequestedRef.current = nativeFallbackRequested;
-    if (!justPaused || !fallbackWasActive) return;
+    if ((!justPaused && !fallbackJustEnded) || !fallbackWasActive) return;
 
     const text = liveSpeech.text.trim();
     if (!text || text === lastFinalTextRef.current) return;
@@ -797,7 +798,7 @@ export function RecordingExperience({
     setFinalTranscriptLines((current) => [
       ...current,
       {
-        id: `pause-final-${Date.now()}-${current.length}`,
+        id: `fallback-final-${Date.now()}-${current.length}`,
         speaker: "Speaker",
         time: localUtteranceStartedAtRef.current ?? estimatedUtteranceStart(text, sessionElapsed),
         text,
@@ -884,8 +885,8 @@ export function RecordingExperience({
   }, [liveSpeech.isFinal, liveSpeech.text, nativeFallbackRequested, sessionElapsed]);
 
   const completedTranscriptLines = useMemo(
-    () => mergeTranscriptLines(finalTranscriptLines, muse.turns),
-    [finalTranscriptLines, muse.turns]
+    () => mergeTranscriptLines(finalTranscriptLines, muse.turns, muse.recoveredRanges),
+    [finalTranscriptLines, muse.recoveredRanges, muse.turns]
   );
   const currentTranscriptLine = useMemo<LiveTranscriptLine | null>(() => {
     if (muse.partial?.text.trim()) return muse.partial;
