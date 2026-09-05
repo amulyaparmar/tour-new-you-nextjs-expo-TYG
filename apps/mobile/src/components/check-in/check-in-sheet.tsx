@@ -36,6 +36,7 @@ import {
 } from "../../session-participants-realtime";
 import { LoadingDots } from "@/components/loading-dots";
 import { TourMark } from "../TourLogo";
+import { CheckInSheetScrollView } from "./check-in-sheet-scroll-view";
 
 const C = {
   text: "#101828",
@@ -195,7 +196,7 @@ export function CheckInSheet({
     return () => cancelAnimation(dragY);
   }, [visible, dragY, dragClosing]);
 
-  // Limit dragging to the header so the form and QR content can scroll normally.
+  // The header can always drag; QR and form content share a scroll-to-sheet handoff.
   const dismissGesture = useMemo(() => Gesture.Pan()
     .enabled(visible)
     .activeOffsetY(6)
@@ -557,10 +558,14 @@ export function CheckInSheet({
               ) : <CheckInPanelSkeleton mode="qr" />
             ) : (
             <View style={styles.qrPanel}>
-              <ScrollView
+              <CheckInSheetScrollView
+                key="qr"
+                visible={visible}
+                dragY={dragY}
+                closing={dragClosing}
+                onDismiss={closeFromSwipe}
                 style={styles.flex1}
                 contentContainerStyle={styles.qrPanelContent}
-                showsVerticalScrollIndicator={false}
               >
               <View style={styles.qrCard}>
                 <QRCodeStyled
@@ -614,7 +619,7 @@ export function CheckInSheet({
                 <Ionicons name="share-social-outline" size={16} color="#fff" />
                 <Text style={styles.sheetPrimaryText}>Share check-in link</Text>
               </Pressable>
-              </ScrollView>
+              </CheckInSheetScrollView>
 
               {checkedInGuests.length > 0 && !guestPopupDismissed ? (
                 <Reanimated.View
@@ -702,10 +707,15 @@ export function CheckInSheet({
             </View>
             )
           ) : step === "done" ? (
-            <ScrollView
+            <CheckInSheetScrollView
+              key="done"
+              visible={visible}
+              dragY={dragY}
+              closing={dragClosing}
+              onDismiss={closeFromSwipe}
+              keyboardShouldPersistTaps="handled"
               style={styles.flex1}
               contentContainerStyle={styles.donePanel}
-              showsVerticalScrollIndicator={false}
             >
               <View style={styles.doneIcon}>
                 <Ionicons name="checkmark" size={26} color="#fff" />
@@ -742,12 +752,16 @@ export function CheckInSheet({
                   <Ionicons name="person-add-outline" size={16} color={C.textSec} />
                   <Text style={styles.keepOpenButtonText}>Add another guest</Text>
                 </Pressable>
-            </ScrollView>
+            </CheckInSheetScrollView>
           ) : step === "questions" ? (
-            <ScrollView
+            <CheckInSheetScrollView
+              key="questions"
+              visible={visible}
+              dragY={dragY}
+              closing={dragClosing}
+              onDismiss={closeFromSwipe}
               style={styles.flex1}
               keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.checkInForm}
             >
               <Text style={styles.questionTitle}>
@@ -801,12 +815,16 @@ export function CheckInSheet({
                   </Text>
                 </Pressable>
               </View>
-            </ScrollView>
+            </CheckInSheetScrollView>
           ) : (
-            <ScrollView
+            <CheckInSheetScrollView
+              key="contact"
+              visible={visible}
+              dragY={dragY}
+              closing={dragClosing}
+              onDismiss={closeFromSwipe}
               style={styles.flex1}
               keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.checkInForm}
             >
               <View style={styles.checkInHead}>
@@ -868,7 +886,7 @@ export function CheckInSheet({
                 <Ionicons name="send-outline" size={16} color="#fff" />
                 <Text style={styles.nextButtonText}>{bindingPending ? "Preparing tour..." : "Next"}</Text>
               </Pressable>
-            </ScrollView>
+            </CheckInSheetScrollView>
           )}
           </Reanimated.View>
           {!hasCheckedIn ? (
@@ -944,6 +962,7 @@ function CheckInQuestionField({
         <Text style={styles.questionLabel}>{question.label}</Text>
         <ScrollView
           horizontal
+          keyboardShouldPersistTaps="handled"
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.questionOptions}
         >

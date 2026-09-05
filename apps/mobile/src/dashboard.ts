@@ -76,7 +76,7 @@ export function computeDashboardMetrics(sessions: SessionSummary[]): DashboardMe
   ).length;
   const liveSessions = sessions.filter((session) => session.status === "in_progress").length;
   const reviewQueue = sessions.filter((session) =>
-    ["uploaded", "analysis_ready", "failed"].includes(session.status)
+    ["uploaded", "analysis_ready"].includes(session.status)
   ).length;
   const analyzedSessions = sessions.filter((session) =>
     ["analysis_ready", "reviewed"].includes(session.status)

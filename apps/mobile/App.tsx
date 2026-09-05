@@ -74,9 +74,15 @@ import Swipeable, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   NavigationContainer,
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
   type NavigationContainerRef,
 } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import {
+  createNativeStackNavigator,
+  type NativeStackNavigationProp,
+} from "@react-navigation/native-stack";
 import {
   type AnalysisResult,
   type ConversationPhaseSegmentation,
@@ -138,6 +144,7 @@ import {
 import { getApiBaseUrl, getSiteBaseUrl } from "./src/config";
 import { createLoadedAudioPlayer } from "./src/audio-player";
 import { computeDashboardMetrics, selectUpcomingTours } from "./src/dashboard";
+import { FAILED_SESSION_COLORS, matchesSessionStatusFilter, sessionListBadge } from "./src/session-list-status";
 import type { UploadProgressInfo } from "./src/presignedUpload";
 import {
   authorizedCommunitiesForSession,
@@ -149,6 +156,7 @@ import {
   switchCommunity,
 } from "./src/auth";
 import { useEasUpdateCheck } from "./src/hooks/use-eas-update-check";
+import { useSessionPlayback } from "./src/hooks/use-session-playback";
 import {
   registerForPushNotifications,
   addNotificationResponseListener,
@@ -448,7 +456,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   analyzing: { bg: C.amberBg, text: C.amber },
   analysis_ready: { bg: C.greenBg, text: C.green },
   reviewed: { bg: C.greenBg, text: C.green },
-  failed: { bg: C.redBg, text: C.red },
+  failed: FAILED_SESSION_COLORS,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -1299,7 +1307,7 @@ function SessionNavigation({
         <SessionStack.Screen name="Sessions">
           {() => children}
         </SessionStack.Screen>
-        <SessionStack.Screen name="Detail">
+        <SessionStack.Screen name="Detail" options={{ fullScreenGestureEnabled: false }}>
           {({ navigation }: { navigation: { goBack: () => void } }) => {
             if (!sessionId) return null;
             const back = () => {
@@ -3040,6 +3048,7 @@ const tourTabSt = StyleSheet.create({
 const FILTER_CHIPS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "needs_review", label: "Needs review" },
+  { value: "failed", label: "Failed" },
   { value: "feedback", label: "Feedback received" },
 ];
 
@@ -3078,19 +3087,13 @@ function SessionListSwipeRow({
   isAnyOpen: () => boolean;
 }) {
   const swipeableRef = useRef<SwipeableMethods | null>(null);
-  const needsReview = ["uploaded", "failed", "analysis_ready"].includes(
-    session.status,
-  );
+  const badge = sessionListBadge(session.status);
   const leads = session.leads ?? [];
   const checkedInSummary = leads.length
     ? `${leads.map((lead) => lead.name).join(", ")} · ${leads.length} checked in`
     : null;
-  const badgeLabel = needsReview
-    ? "REVIEW"
-    : session.status === "in_progress"
-      ? "LIVE"
-      : "SYNCED";
-  const badgeReviewStyle = needsReview;
+  const badgeReviewStyle = badge.tone === "review";
+  const badgeFailedStyle = badge.tone === "failed";
 
   return (
     <Swipeable
@@ -3166,12 +3169,12 @@ function SessionListSwipeRow({
           ) : null}
         </View>
         <View style={slst.sessionRight}>
-          <View style={[slst.syncBadge, badgeReviewStyle && slst.reviewBadge]}>
+          <View style={[slst.syncBadge, badgeReviewStyle && slst.reviewBadge, badgeFailedStyle && slst.failedBadge]}>
             <CustomText
               textStyle="micro"
-              style={[slst.syncText, badgeReviewStyle && slst.reviewText]}
+              style={[slst.syncText, badgeReviewStyle && slst.reviewText, badgeFailedStyle && slst.failedText]}
             >
-              {badgeLabel}
+              {badge.label}
             </CustomText>
           </View>
           {session.overallScore !== null && (
@@ -3317,6 +3320,7 @@ function SessionsListScreen({
   const sessionsQuery = useInfiniteSessionsQuery({
     limit: SESSIONS_PAGE_SIZE,
     sort,
+    status: !showSamples && statusFilter === "failed" ? "failed" : undefined,
     search: debouncedSearch.trim() || undefined,
     agentId: showSamples ? undefined : (selectedAgentId ?? undefined),
   });
@@ -3329,6 +3333,7 @@ function SessionsListScreen({
   );
   const canUseInitialSessions =
     sort === "newest" &&
+    statusFilter !== "failed" &&
     !debouncedSearch.trim() &&
     selectedAgentId === null &&
     !showSamples;
@@ -3424,20 +3429,7 @@ function SessionsListScreen({
   );
 
   const listSessions = useMemo(() => {
-    return visibleSessions.filter((session) => {
-      if (showSamples) return true;
-      if (statusFilter === "all") return true;
-      if (statusFilter === "needs_review")
-        return ["uploaded", "failed", "analysis_ready"].includes(
-          session.status,
-        );
-      if (statusFilter === "feedback")
-        return (
-          ["analysis_ready", "reviewed"].includes(session.status) ||
-          session.overallScore !== null
-        );
-      return true;
-    });
+    return visibleSessions.filter((session) => showSamples || matchesSessionStatusFilter(session, statusFilter));
   }, [showSamples, statusFilter, visibleSessions]);
 
   const sessionMetrics = useMemo(
@@ -4383,6 +4375,8 @@ const slst = StyleSheet.create({
   syncText: { color: ACCENT, fontSize: 9 },
   reviewBadge: { backgroundColor: "#fffbeb" },
   reviewText: { color: "#f59e0b" },
+  failedBadge: { backgroundColor: FAILED_SESSION_COLORS.bg },
+  failedText: { color: FAILED_SESSION_COLORS.text },
   sessionScore: { fontVariant: ["tabular-nums"] },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#f04438" },
 });
@@ -7580,11 +7574,6 @@ function SessionReviewExperience({
   audioInsightsStatus?: AudioInsightsStatus;
   audioInsights?: AudioInsights | null;
 }) {
-  const [sound, setSound] = useState<ExpoAudioPlayer | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [speed, setSpeed] = useState(1);
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(
     transcript[0]?.id ?? null,
   );
@@ -7600,6 +7589,11 @@ function SessionReviewExperience({
   const [optionSheet, setOptionSheet] = useState<
     "comments" | "coaching" | "rubric" | "audio" | "pdf" | null
   >(null);
+  const focused = useIsFocused();
+  const navigation = useNavigation<NativeStackNavigationProp<SessionStackParamList, "Detail">>();
+  const playback = useSessionPlayback(sessionId, focused);
+  const { position, duration, playing, speed, pausePlayback, changeSpeed } = playback;
+  const [playerHeight, setPlayerHeight] = useState(148);
   const optionSheetTitleRef = useRef("Comments");
   const [followPlayback, setFollowPlayback] = useState(true);
   const [expandedAnnotation, setExpandedAnnotation] = useState<{
@@ -7634,77 +7628,51 @@ function SessionReviewExperience({
       scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated });
   }, []);
 
+  // Native-stack can blur or remove a screen without calling its back button.
+  useFocusEffect(useCallback(() => () => pausePlayback(), [pausePlayback]));
+
+  useEffect(() => navigation.addListener("transitionStart", (event) => {
+    if (event.data.closing) pausePlayback();
+  }), [navigation, pausePlayback]);
+
   useEffect(() => {
-    let mounted = true;
-    let loadedSound: ExpoAudioPlayer | undefined;
-    let removeStatusListener: (() => void) | undefined;
-    void (async () => {
-      try {
-        await setAudioModeAsync({ playsInSilentMode: true });
-        const resolved = await resolveSessionPlaybackUri(sessionId);
-        const player = await createLoadedAudioPlayer(resolved.uri);
-        if (!mounted) {
-          player.remove();
-          return;
-        }
-        loadedSound = player;
-        setSound(player);
-        setDuration(player.duration || 0);
-        const subscription = player.addListener(
-          "playbackStatusUpdate",
-          (status: ExpoAudioStatus) => {
-            if (!mounted) return;
-            const nextPosition = status.currentTime;
-            setPosition(nextPosition);
-            if (status.duration) setDuration(status.duration);
-            setPlaying(status.playing);
-            const segment = transcript.find(
-              (item) =>
-                nextPosition >= item.startTime && nextPosition < item.endTime,
-            );
-            if (segment) {
-              setActiveSegmentId(segment.id);
-              if (
-                status.playing &&
-                reviewModeRef.current === "transcript" &&
-                followPlaybackRef.current &&
-                !userDragging.current &&
-                lastAutoSegment.current !== segment.id
-              ) {
-                lastAutoSegment.current = segment.id;
-                scrollToSegment(segment);
-              }
-            }
-            if (status.didJustFinish) setPlaying(false);
-          },
-        );
-        removeStatusListener = () => subscription.remove();
-      } catch {
-        showToast("Audio is unavailable for this session", "error");
-      }
-    })();
-    return () => {
-      mounted = false;
-      removeStatusListener?.();
-      loadedSound?.remove();
-    };
-  }, [sessionId, scrollToSegment, transcript]);
+    const segment = transcript.find(
+      (item) => position >= item.startTime && position < item.endTime,
+    );
+    if (!segment) return;
+    setActiveSegmentId(segment.id);
+    if (
+      playing && reviewMode === "transcript" && followPlayback &&
+      !userDragging.current && lastAutoSegment.current !== segment.id
+    ) {
+      lastAutoSegment.current = segment.id;
+      scrollToSegment(segment);
+    }
+  }, [position, playing, reviewMode, followPlayback, transcript, scrollToSegment]);
+
+  function handleReviewBack() {
+    pausePlayback();
+    onBack();
+  }
+
+  const handleScrubbingChange = useCallback((scrubbing: boolean) => {
+    navigation.setOptions({ gestureEnabled: !scrubbing });
+  }, [navigation]);
+
+  useEffect(() => () => navigation.setOptions({ gestureEnabled: true }), [navigation]);
 
   const seekToSeconds = useCallback(
     async (seconds: number, shouldPlay = false) => {
-      if (!sound) return;
       const next = Math.max(0, Math.min(duration || seconds, seconds));
-      await sound.seekTo(next);
-      setPosition(next);
-      if (shouldPlay) sound.play();
       const segment =
         transcript.find(
           (item) => next >= item.startTime && next < item.endTime,
         ) ?? transcript[0];
       if (reviewModeRef.current === "transcript" && followPlaybackRef.current)
         scrollToSegment(segment);
+      await playback.seekToSeconds(next, shouldPlay);
     },
-    [duration, scrollToSegment, sound, transcript],
+    [duration, scrollToSegment, playback.seekToSeconds, transcript],
   );
 
   function setPlaybackFollowing(next: boolean) {
@@ -7722,20 +7690,10 @@ function SessionReviewExperience({
   }
 
   async function togglePlayback() {
-    if (!sound) return;
-    if (playing) sound.pause();
-    else {
+    if (playback.ready && !playing) {
       void trackAnalyticsEvent("session_playback_start", { sessionId });
-      sound.play();
     }
-  }
-
-  async function changeSpeed() {
-    if (!sound) return;
-    const next =
-      speed === 1 ? 1.25 : speed === 1.25 ? 1.5 : speed === 1.5 ? 2 : 1;
-    sound.setPlaybackRate(next);
-    setSpeed(next);
+    await playback.togglePlayback();
   }
 
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
@@ -7921,7 +7879,7 @@ function SessionReviewExperience({
             : sheet === "pdf"
               ? "PDF report"
               : "Comments";
-    sound?.pause();
+    pausePlayback();
     setOptionSheet(sheet);
   }
 
@@ -8430,7 +8388,7 @@ function SessionReviewExperience({
       )}
 
       <TourScreenHeader
-        onBack={onBack}
+        onBack={handleReviewBack}
         title={session.title}
         onMorePress={openSessionMoreMenu}
         moreAccessibilityLabel="Session options"
@@ -8500,7 +8458,7 @@ function SessionReviewExperience({
       ) : null}
 
       {!readOnly && selectedSegmentIds.length > 0 && selectionRange ? (
-        <View style={reviewSt.selectionBar}>
+        <View style={[reviewSt.selectionBar, { bottom: playerHeight + 8 }]}>
           <Pressable
             onPress={() => setSelectedSegmentIds([])}
             style={reviewSt.selectionClose}
@@ -8542,7 +8500,7 @@ function SessionReviewExperience({
           accessibilityRole="button"
           accessibilityLabel="Return to currently playing transcript"
           onPress={returnToPlayingTranscript}
-          style={reviewSt.returnToPlaying}
+          style={[reviewSt.returnToPlaying, { bottom: playerHeight + 8 }]}
         >
           <Ionicons name="locate-outline" size={14} color={ACCENT} />
           <CustomText textStyle="caption" style={reviewSt.returnToPlayingText}>
@@ -8550,19 +8508,21 @@ function SessionReviewExperience({
           </CustomText>
         </Pressable>
       ) : null}
-      {reviewMode === "ai" ? null : (
-        <SessionPlayer
-          position={position}
-          duration={duration}
-          playing={playing}
-          speed={speed}
-          ready={!!sound}
-          progressPercent={pct}
-          onToggle={() => void togglePlayback()}
-          onSpeed={() => void changeSpeed()}
-          onSeek={(ratio) => void seekToSeconds(ratio * duration)}
-        />
-      )}
+      <SessionPlayer
+        position={position}
+        duration={duration}
+        playing={playing}
+        speed={speed}
+        ready={playback.ready}
+        progressPercent={pct}
+        error={playback.error}
+        onToggle={() => void togglePlayback()}
+        onSpeed={() => void changeSpeed()}
+        onSeek={(ratio) => void seekToSeconds(ratio * duration)}
+        onRetry={playback.retry}
+        onHeightChange={setPlayerHeight}
+        onScrubbingChange={handleScrubbingChange}
+      />
 
       <Modal
         visible={commentComposerOpen}
@@ -12689,7 +12649,7 @@ const reviewSt = StyleSheet.create({
     minHeight: 0,
     paddingHorizontal: SESSION_PAGE_PADDING,
   },
-  scrollContent: { paddingBottom: 150 },
+  scrollContent: { paddingBottom: 80 },
   commentsPageContent: {
     gap: 12,
     paddingHorizontal: SESSION_PAGE_PADDING,
@@ -13151,7 +13111,6 @@ const reviewSt = StyleSheet.create({
   returnToPlaying: {
     position: "absolute",
     left: SESSION_PAGE_PADDING,
-    bottom: 144,
     zIndex: 20,
     minHeight: 36,
     flexDirection: "row",
@@ -13243,7 +13202,6 @@ const reviewSt = StyleSheet.create({
     position: "absolute",
     left: SESSION_PAGE_PADDING,
     right: SESSION_PAGE_PADDING,
-    bottom: Platform.OS === "ios" ? 142 : 126,
     minHeight: 62,
     flexDirection: "row",
     alignItems: "center",

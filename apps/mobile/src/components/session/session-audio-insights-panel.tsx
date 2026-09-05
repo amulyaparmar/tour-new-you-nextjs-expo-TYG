@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: SESSION_PAGE_PADDING,
     paddingTop: 8,
-    paddingBottom: 160,
+    paddingBottom: 24,
   },
   headerRow: {
     flexDirection: "row",

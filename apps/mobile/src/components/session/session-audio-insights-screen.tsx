@@ -141,15 +141,12 @@ export function SessionAudioInsightsScreen({
             speed={playback.speed}
             ready={playback.ready}
             progressPercent={playback.progressPercent}
+            error={playback.error}
+            onRetry={playback.retry}
             onToggle={() => void playback.togglePlayback()}
             onSpeed={() => void playback.changeSpeed()}
             onSeek={(ratio) => void playback.seekToSeconds(ratio * playback.duration)}
           />
-          {playback.error ? (
-            <Pressable onPress={playback.retry} style={styles.retryAudio}>
-              <CustomText textStyle="caption" style={styles.retryAudioText}>{playback.error} · Tap to retry</CustomText>
-            </Pressable>
-          ) : null}
         </>
       ) : (
         <ScrollView
@@ -253,16 +250,6 @@ const styles = StyleSheet.create({
   emptyHint: {
     lineHeight: 19,
     color: C.textSec,
-    textAlign: "center",
-  },
-  retryAudio: {
-    marginHorizontal: 20,
-    marginBottom: 8,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  retryAudioText: {
-    color: ACCENT,
     textAlign: "center",
   },
   actionBtn: {
