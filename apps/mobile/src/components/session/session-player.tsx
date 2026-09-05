@@ -1,9 +1,12 @@
-import { LocateFixed, Pause, Play } from "lucide-react-native";
+import { Pause, Play } from "lucide-react-native";
 import React, { useRef } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
+import { CustomText } from "@/components/custom-text";
 import { Icon } from "@/components/ui/icon";
 import { LoadingDots } from "@/components/loading-dots";
+import { ACCENT, CARD, LARGE_CORNER, TEXT } from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 
 import { SESSION_PAGE_PADDING } from "./session-layout";
 
@@ -19,8 +22,6 @@ export function SessionPlayer({
   onToggle,
   onSpeed,
   onSeek,
-  showReturnToPlaying = false,
-  onReturnToPlaying,
 }: {
   position: number;
   duration: number;
@@ -31,8 +32,6 @@ export function SessionPlayer({
   onToggle: () => void;
   onSpeed: () => void;
   onSeek: (ratio: number) => void;
-  showReturnToPlaying?: boolean;
-  onReturnToPlaying?: () => void;
 }) {
   const trackWidth = useRef(0);
 
@@ -44,18 +43,6 @@ export function SessionPlayer({
 
   return (
     <View style={styles.dock}>
-      {showReturnToPlaying && onReturnToPlaying ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Return to currently playing transcript"
-          onPress={onReturnToPlaying}
-          style={styles.returnButton}
-        >
-          <Icon as={LocateFixed} size={14} color="#006ce5" />
-          <Text style={styles.returnText}>Return to playing</Text>
-        </Pressable>
-      ) : null}
-
       <View
         accessibilityRole="adjustable"
         accessibilityLabel="Recording playhead"
@@ -86,12 +73,12 @@ export function SessionPlayer({
 
       <View style={styles.row}>
         <Pressable onPress={onSpeed} hitSlop={10} style={styles.speedBtn}>
-          <Text style={styles.speedText}>{speed}x</Text>
+          <CustomText textStyle="label" style={styles.speedText}>{speed}x</CustomText>
         </Pressable>
 
-        <Text style={styles.time}>
+        <CustomText textStyle="label" style={styles.time}>
           {fmt(position)} / {fmt(duration)}
-        </Text>
+        </CustomText>
 
         <MotionPressable
           disabled={!ready}
@@ -100,9 +87,9 @@ export function SessionPlayer({
           style={[styles.playBtn, !ready && styles.playBtnDisabled]}
         >
           {!ready ? (
-            <LoadingDots color="#fff" size="small" />
+            <LoadingDots color={CARD} size="small" />
           ) : (
-            <Icon as={playing ? Pause : Play} size={22} color="#fff" />
+            <Icon as={playing ? Pause : Play} size={22} color={CARD} />
           )}
         </MotionPressable>
       </View>
@@ -126,12 +113,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: SESSION_PAGE_PADDING,
     paddingTop: 14,
     paddingBottom: 28,
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    backgroundColor: "#fff",
-    shadowColor: "#101828",
+    borderTopLeftRadius: LARGE_CORNER,
+    borderTopRightRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
+    shadowColor: TEXT,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
@@ -140,24 +126,6 @@ const styles = StyleSheet.create({
   trackHit: {
     minHeight: 34,
     justifyContent: "center",
-  },
-  returnButton: {
-    alignSelf: "center",
-    minHeight: 32,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-    backgroundColor: "#eff6ff",
-  },
-  returnText: {
-    fontSize: 11,
-    fontWeight: "900",
-    color: "#006ce5",
   },
   track: {
     height: 6,
@@ -168,7 +136,7 @@ const styles = StyleSheet.create({
   fill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: "#006ce5",
+    backgroundColor: ACCENT,
   },
   thumb: {
     position: "absolute",
@@ -178,8 +146,8 @@ const styles = StyleSheet.create({
     marginLeft: -10,
     borderRadius: 10,
     borderWidth: 3,
-    borderColor: "#fff",
-    backgroundColor: "#006ce5",
+    borderColor: CARD,
+    backgroundColor: ACCENT,
     shadowColor: "#101828",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.22,
@@ -197,17 +165,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   speedText: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#101828",
+    color: TEXT,
     fontVariant: ["tabular-nums"],
   },
   time: {
     flex: 1,
     textAlign: "center",
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#667085",
+    color: C.textSec,
     fontVariant: ["tabular-nums"],
   },
   playBtn: {
@@ -216,7 +180,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#006ce5",
+    backgroundColor: ACCENT,
   },
   playBtnDisabled: {
     opacity: 0.55,

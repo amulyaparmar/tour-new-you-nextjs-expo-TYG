@@ -21,9 +21,11 @@ export const GLASS_NAV_BAR_HEIGHT = BAR_HEIGHT;
 export function GlassNavHeader({
   title,
   onBack,
+  right,
 }: {
   title: string;
   onBack?: () => void;
+  right?: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
 
@@ -51,7 +53,7 @@ export function GlassNavHeader({
         <CustomText textStyle="title" numberOfLines={1} style={styles.title}>
           {title}
         </CustomText>
-        <View style={styles.side} />
+        {right ?? <View style={styles.side} />}
       </View>
     </View>
   );

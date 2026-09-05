@@ -5,6 +5,8 @@ export const CARD = "#FFFFFF";
 /** Brand blue already used on Home (Check-In / New Session, links, time pills). */
 export const ACCENT = "#006ce5";
 export const TEXT = "#000000";
+/** Light blue wash for info and hint callouts. */
+export const HINT = "#E8F1FC";
 export const LARGE_CORNER = 32;
 export const SMALL_CORNER = 16;
 

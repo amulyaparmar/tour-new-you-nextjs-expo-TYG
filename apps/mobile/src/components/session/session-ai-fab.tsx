@@ -10,10 +10,10 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CustomText } from "@/components/custom-text";
 import { Icon } from "@/components/ui/icon";
-import { Text } from "@/components/ui/text";
 import { selectionHaptic } from "@/lib/haptics";
-import { tourColors } from "@/theme/tour-brand";
+import { ACCENT, CARD } from "@/theme/tokens";
 
 const FAB_WIDTH = 78;
 const FAB_HEIGHT = 46;
@@ -101,8 +101,8 @@ export function SessionAiFab({
           accessibilityLabel="Open AI chat"
           style={[styles.button, animatedStyle]}
         >
-          <Icon as={Sparkles} size={17} color="#fff" />
-          <Text style={styles.text}>AI</Text>
+          <Icon as={Sparkles} size={17} color={CARD} />
+          <CustomText textStyle="label" style={styles.text}>AI</CustomText>
         </Animated.View>
       </GestureDetector>
     </View>
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     gap: 7,
     borderRadius: 999,
     paddingHorizontal: 16,
-    backgroundColor: tourColors.brand,
+    backgroundColor: ACCENT,
     shadowColor: "#101828",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
@@ -132,8 +132,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   text: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "900",
+    color: CARD,
   },
 });

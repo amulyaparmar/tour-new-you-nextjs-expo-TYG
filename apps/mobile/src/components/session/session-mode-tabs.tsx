@@ -1,28 +1,33 @@
-import { ClipboardList, GraduationCap, HeartHandshake, MessageCircle, MessageSquare, Search, Sparkles } from "lucide-react-native";
-import type { LucideIcon } from "lucide-react-native";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-import { Icon } from "@/components/ui/icon";
-import { Text } from "@/components/ui/text";
+import { CustomText } from "@/components/custom-text";
 import { selectionHaptic } from "@/lib/haptics";
+import { CARD, TEXT } from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 
 import { SESSION_PAGE_PADDING } from "./session-layout";
 
-export type SessionReviewMode = "rubric" | "prospect" | "transcript" | "search" | "coaching" | "comments" | "ai";
+export type SessionReviewMode =
+  | "rubric"
+  | "prospect"
+  | "transcript"
+  | "search"
+  | "coaching"
+  | "comments"
+  | "ai";
 
 const MODES: Array<{
   id: SessionReviewMode;
   label: string;
-  icon: LucideIcon;
 }> = [
-  { id: "transcript", label: "Transcript", icon: MessageSquare },
-  { id: "ai", label: "AI Chat", icon: Sparkles },
-  { id: "rubric", label: "Rubric", icon: ClipboardList },
-  { id: "prospect", label: "Prospect", icon: HeartHandshake },
-  { id: "search", label: "Search", icon: Search },
-  { id: "coaching", label: "Coaching", icon: GraduationCap },
-  { id: "comments", label: "Comments", icon: MessageCircle },
+  { id: "transcript", label: "Transcript" },
+  { id: "ai", label: "AI Chat" },
+  { id: "rubric", label: "Rubric" },
+  { id: "prospect", label: "Prospect" },
+  { id: "search", label: "Search" },
+  { id: "coaching", label: "Coaching" },
+  { id: "comments", label: "Comments" },
 ];
 
 export function SessionModeTabs({
@@ -34,10 +39,11 @@ export function SessionModeTabs({
   value: SessionReviewMode;
   onChange: (mode: SessionReviewMode) => void;
   modes?: SessionReviewMode[];
-  /** Indicator count for the Comments tab (not every mode). */
   commentCount?: number;
 }) {
-  const visibleModes = modes ? MODES.filter((mode) => modes.includes(mode.id)) : MODES;
+  const visibleModes = modes
+    ? MODES.filter((mode) => modes.includes(mode.id))
+    : MODES;
   return (
     <View style={styles.wrap}>
       <ScrollView
@@ -46,7 +52,7 @@ export function SessionModeTabs({
         directionalLockEnabled
         keyboardShouldPersistTaps="handled"
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.bar}
+        contentContainerStyle={styles.track}
       >
         {visibleModes.map((mode) => {
           const active = value === mode.id;
@@ -60,15 +66,20 @@ export function SessionModeTabs({
                 selectionHaptic();
                 onChange(mode.id);
               }}
-              style={[styles.tab, active && styles.tabActive]}
+              style={[styles.segment, active && styles.segmentActive]}
             >
-              <Icon as={mode.icon} size={16} color={active ? "#006ce5" : "#667085"} />
-              <Text numberOfLines={1} style={[styles.label, active && styles.labelActive]}>
+              <CustomText
+                textStyle="label"
+                numberOfLines={1}
+                style={[styles.label, active && styles.labelActive]}
+              >
                 {mode.label}
-              </Text>
+              </CustomText>
               {showCommentBadge ? (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{commentCount > 99 ? "99+" : String(commentCount)}</Text>
+                <View style={[styles.badge, active && styles.badgeActive]}>
+                  <CustomText textStyle="micro" style={styles.badgeText}>
+                    {commentCount > 99 ? "99+" : String(commentCount)}
+                  </CustomText>
                 </View>
               ) : null}
             </Pressable>
@@ -81,40 +92,40 @@ export function SessionModeTabs({
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: SESSION_PAGE_PADDING,
-    paddingTop: 4,
-    paddingBottom: 0,
-    backgroundColor: "#f4f7fb",
+    marginHorizontal: SESSION_PAGE_PADDING,
+    marginBottom: 4,
+    borderRadius: 10,
+    backgroundColor: "rgba(118, 118, 128, 0.12)",
   },
-  bar: {
+  track: {
     flexDirection: "row",
-    paddingRight: SESSION_PAGE_PADDING,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    alignItems: "center",
+    padding: 2,
+    gap: 0,
   },
-  tab: {
-    minWidth: 112,
-    minHeight: 48,
+  segment: {
+    minHeight: 32,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-    marginBottom: -1,
+    gap: 5,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
-  tabActive: {
-    borderBottomColor: "#006ce5",
+  segmentActive: {
+    backgroundColor: CARD,
+    shadowColor: TEXT,
+    shadowOffset: { width: 0, height: 0.5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 1,
+    elevation: 1,
   },
   label: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#667085",
+    color: C.textSec,
+    fontWeight: "600",
   },
   labelActive: {
-    color: "#006ce5",
+    color: TEXT,
   },
   badge: {
     minWidth: 18,
@@ -123,12 +134,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#006ce5",
+    backgroundColor: "rgba(60, 60, 67, 0.18)",
+  },
+  badgeActive: {
+    backgroundColor: "rgba(60, 60, 67, 0.12)",
   },
   badgeText: {
-    fontSize: 10,
-    fontWeight: "900",
-    color: "#fff",
+    color: TEXT,
     fontVariant: ["tabular-nums"],
   },
 });

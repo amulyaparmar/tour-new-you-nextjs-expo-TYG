@@ -213,7 +213,6 @@ import {
   RubricTab,
   ScoreHero,
   SessionAiChatScreen,
-  SessionAiFab,
   SessionAudioInsightsScreen,
   ProspectInsightsCard,
   SessionModeTabs,
@@ -233,6 +232,7 @@ import {
   BACKGROUND,
   CARD,
   FONT,
+  HINT,
   LARGE_CORNER,
   SMALL_CORNER,
   TEXT,
@@ -7212,11 +7212,11 @@ function SampleSessionDetailScreen({
     return (
       <View style={[st.flex1, st.center, { gap: 12, padding: 24 }]}>
         <Ionicons name="alert-circle-outline" size={48} color={C.red} />
-        <Text style={[st.emptyTitle, { textAlign: "center" }]}>
+        <CustomText style={[st.emptyTitle, { textAlign: "center" }]}>
           {sampleQuery.error instanceof Error
             ? sampleQuery.error.message
             : "Sample session not found"}
-        </Text>
+        </CustomText>
         <BackBtn label="Sample sessions" onPress={onBack} />
       </View>
     );
@@ -7256,8 +7256,8 @@ function CheckedInVisitorsCard({
           <Ionicons name="people" size={18} color={C.green} />
         </View>
         <View style={st.flex1}>
-          <Text style={st.checkedInTitle}>Checked in</Text>
-          <Text style={st.checkedInSubtitle}>{description}</Text>
+          <CustomText style={st.checkedInTitle}>Checked in</CustomText>
+          <CustomText style={st.checkedInSubtitle}>{description}</CustomText>
         </View>
       </View>
       {leads.map((lead) => (
@@ -7266,17 +7266,17 @@ function CheckedInVisitorsCard({
           style={st.checkedInPerson}
         >
           <View style={st.checkedInAvatar}>
-            <Text style={st.checkedInAvatarText}>
+            <CustomText style={st.checkedInAvatarText}>
               {lead.name.slice(0, 1).toUpperCase()}
-            </Text>
+            </CustomText>
           </View>
           <View style={st.flex1}>
-            <Text style={st.checkedInName}>{lead.name}</Text>
-            <Text style={st.checkedInContact} numberOfLines={1}>
+            <CustomText style={st.checkedInName}>{lead.name}</CustomText>
+            <CustomText style={st.checkedInContact} numberOfLines={1}>
               {[lead.email, lead.phone].filter(Boolean).join(" · ") ||
                 lead.reason ||
                 "Contact details pending"}
-            </Text>
+            </CustomText>
           </View>
         </View>
       ))}
@@ -7312,6 +7312,7 @@ function SessionDetailScreen({
 }) {
   const [tab, setTab] = useState<DTab>("transcript");
   const [refreshing, setRefreshing] = useState(false);
+  const insets = useSafeAreaInsets();
   const sessionQuery = useSessionQuery(sessionId);
   const analysisQuery = useAnalysisQuery(sessionId);
   const actionsQuery = useActionsQuery(sessionId);
@@ -7392,9 +7393,9 @@ function SessionDetailScreen({
     return (
       <View style={[st.flex1, st.center, { gap: 12 }]}>
         <Ionicons name="alert-circle-outline" size={48} color={C.red} />
-        <Text style={st.emptyTitle}>
+        <CustomText style={st.emptyTitle}>
           {error instanceof Error ? error.message : "Session not found"}
-        </Text>
+        </CustomText>
         <BackBtn label="Sessions" onPress={onBack} />
       </View>
     );
@@ -7443,15 +7444,23 @@ function SessionDetailScreen({
   }
 
   return (
+    <View style={{ flex: 1, backgroundColor: BACKGROUND }}>
     <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior="never"
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={[st.scroll, st.sessionDetailScroll]}
+      contentContainerStyle={[
+        st.scroll,
+        {
+          paddingTop: glassNavContentInset(insets.top),
+          paddingHorizontal: 16,
+          backgroundColor: BACKGROUND,
+        },
+      ]}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor={C.brand}
+          tintColor={ACCENT}
         />
       }
     >
@@ -7464,15 +7473,10 @@ function SessionDetailScreen({
             onRetry={load}
           />
         )}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <BackBtn label="Sessions" onPress={onBack} />
-          <View style={st.flex1} />
-          <View style={[st.badge, { backgroundColor: sc.bg }]}>
-            <Text style={[st.badgeText, { color: sc.text }]}>{sl}</Text>
-          </View>
+        <View style={[st.badge, { backgroundColor: sc.bg, alignSelf: "flex-start" }]}>
+          <CustomText textStyle="micro" style={[st.badgeText, { color: sc.text }]}>{sl}</CustomText>
         </View>
 
-        <Text style={st.detailTitle}>{session.title}</Text>
         <View style={{ gap: 3 }}>
           {session.scheduledAt && (
             <DetailMeta
@@ -7542,22 +7546,22 @@ function SessionDetailScreen({
                     size={14}
                     color={tab === id ? C.brand : C.textMuted}
                   />
-                  <Text
+                  <CustomText
                     style={[st.tabPillText, tab === id && st.tabPillTextActive]}
                   >
                     {label}
-                  </Text>
+                  </CustomText>
                   {id === "actions" &&
                     actions.filter((a) => a.status === "open").length > 0 && (
                       <View style={st.tabBadge}>
-                        <Text style={st.tabBadgeText}>
+                        <CustomText style={st.tabBadgeText}>
                           {actions.filter((a) => a.status === "open").length}
-                        </Text>
+                        </CustomText>
                       </View>
                     )}
                   {id === "comments" && comments.length > 0 && (
                     <View style={[st.tabBadge, { backgroundColor: C.brand }]}>
-                      <Text style={st.tabBadgeText}>{comments.length}</Text>
+                      <CustomText style={st.tabBadgeText}>{comments.length}</CustomText>
                     </View>
                   )}
                 </Pressable>
@@ -7592,6 +7596,8 @@ function SessionDetailScreen({
         )}
       </View>
     </ScrollView>
+    <TourScreenHeader onBack={onBack} title={session.title} />
+    </View>
   );
 }
 
@@ -7650,6 +7656,7 @@ function SessionReviewExperience({
     kind: TranscriptAnnotation["kind"];
   } | null>(null);
   const postCommentMutation = usePostCommentMutation(sessionId);
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView | null>(null);
   const segmentY = useRef<Record<string, number>>({});
   const phaseY = useRef<Record<string, number>>({});
@@ -7973,6 +7980,7 @@ function SessionReviewExperience({
 
   function openSessionMoreMenu() {
     Alert.alert("Session options", undefined, [
+      { text: "PDF report", onPress: onOpenReport },
       {
         text:
           comments.length > 0 ? `Comments (${comments.length})` : "Comments",
@@ -8031,7 +8039,7 @@ function SessionReviewExperience({
         style={reviewSt.scrollBody}
         contentContainerStyle={reviewSt.scrollContent}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[1]}
+        stickyHeaderIndices={[0]}
         scrollEventThrottle={16}
         onScrollBeginDrag={() => {
           if (reviewMode === "transcript") {
@@ -8046,49 +8054,8 @@ function SessionReviewExperience({
           userDragging.current = false;
         }}
       >
-        <View>
-          <TourScreenHeader
-            onBack={onBack}
-            title={session.title}
-            subtitle={[
-              session.prospectName || "Recorded tour",
-              duration ? fmtSec(duration) : null,
-              `${analysis.overallScore}% score`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-            onMorePress={readOnly ? undefined : openSessionMoreMenu}
-            moreAccessibilityLabel="Session options"
-          />
-          {!readOnly ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open PDF report"
-              onPress={onOpenReport}
-              style={({ pressed }) => [
-                reviewSt.reportCta,
-                pressed && st.pressed,
-              ]}
-            >
-              <View style={reviewSt.reportCtaIcon}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={20}
-                  color={C.brand}
-                />
-              </View>
-              <View style={st.flex1}>
-                <Text style={reviewSt.reportCtaTitle}>PDF report</Text>
-                <Text style={reviewSt.reportCtaSub}>
-                  Preview, share, save, or choose an analysis version
-                </Text>
-              </View>
-              <Ionicons name="arrow-forward" size={18} color={C.brand} />
-            </Pressable>
-          ) : null}
-        </View>
-
         <View style={reviewSt.tabSticky}>
+          <View style={{ height: glassNavContentInset(insets.top) }} />
           <SessionModeTabs
             value={reviewMode}
             modes={
@@ -8121,13 +8088,13 @@ function SessionReviewExperience({
                 <Ionicons name="sparkles" size={16} color={C.purple} />
               </View>
               <View style={st.flex1}>
-                <Text style={reviewSt.sampleReadOnlyTitle}>
+                <CustomText style={reviewSt.sampleReadOnlyTitle}>
                   40Fifty Lofts sample
-                </Text>
-                <Text style={reviewSt.sampleReadOnlySub}>
+                </CustomText>
+                <CustomText style={reviewSt.sampleReadOnlySub}>
                   Read only · Explore the scoring, coaching, audio, and
                   transcript.
-                </Text>
+                </CustomText>
               </View>
             </View>
           ) : null}
@@ -8142,24 +8109,23 @@ function SessionReviewExperience({
               <View style={{ gap: 12 }}>
                 {focusSection ? (
                   <View style={reviewSt.focusBanner}>
-                    <Text style={reviewSt.focusBannerLabel}>Focus area</Text>
-                    <Text style={reviewSt.focusBannerValue}>
+                    <CustomText style={reviewSt.focusBannerLabel}>Focus area</CustomText>
+                    <CustomText style={reviewSt.focusBannerValue}>
                       {focusSection}
-                    </Text>
+                    </CustomText>
                   </View>
                 ) : null}
                 <RubricTab analysis={analysis} />
                 <CollapsibleSection title="Analysis summary">
-                  <Text
+                  <CustomText
+                    textStyle="body"
                     style={{
-                      fontSize: 14,
-                      fontWeight: "600",
                       color: C.textSec,
                       lineHeight: 21,
                     }}
                   >
                     {analysis.summary}
-                  </Text>
+                  </CustomText>
                 </CollapsibleSection>
                 {analysis.strengths.length > 0 ? (
                   <CollapsibleSection
@@ -8211,10 +8177,10 @@ function SessionReviewExperience({
                   ) : null}
                 </View>
                 {!searchQuery.trim() ? (
-                  <Text style={reviewSt.searchHint}>
+                  <CustomText style={reviewSt.searchHint}>
                     Search names, phrases, questions, or moments from this
                     session.
-                  </Text>
+                  </CustomText>
                 ) : searchResults.length === 0 ? (
                   <EmptyState
                     icon="search-outline"
@@ -8223,10 +8189,10 @@ function SessionReviewExperience({
                   />
                 ) : (
                   <View style={reviewSt.searchResults}>
-                    <Text style={reviewSt.searchCount}>
+                    <CustomText style={reviewSt.searchCount}>
                       {searchResults.length} result
                       {searchResults.length === 1 ? "" : "s"}
-                    </Text>
+                    </CustomText>
                     {searchResults.map((segment) => (
                       <Pressable
                         key={segment.id}
@@ -8238,19 +8204,19 @@ function SessionReviewExperience({
                         </View>
                         <View style={st.flex1}>
                           <View style={reviewSt.searchResultMeta}>
-                            <Text style={reviewSt.searchResultSpeaker}>
+                            <CustomText style={reviewSt.searchResultSpeaker}>
                               {segment.speaker}
-                            </Text>
-                            <Text style={reviewSt.searchResultTime}>
+                            </CustomText>
+                            <CustomText style={reviewSt.searchResultTime}>
                               {fmtSec(segment.startTime)}
-                            </Text>
+                            </CustomText>
                           </View>
-                          <Text
+                          <CustomText
                             style={reviewSt.searchResultText}
                             numberOfLines={3}
                           >
                             {segment.text}
-                          </Text>
+                          </CustomText>
                         </View>
                       </Pressable>
                     ))}
@@ -8290,11 +8256,11 @@ function SessionReviewExperience({
           )}
           {reviewMode === "transcript" && transcript.length > 0 && (
             <View style={reviewSt.commentHint}>
-              <Ionicons name="hand-left-outline" size={14} color={C.brand} />
-              <Text style={reviewSt.commentHintText}>
+              <Ionicons name="information-circle-outline" size={16} color={ACCENT} />
+              <CustomText textStyle="caption" style={reviewSt.commentHintText}>
                 Long-press to select lines, or double-tap a line to comment at
                 that timestamp.
-              </Text>
+              </CustomText>
             </View>
           )}
           {reviewMode === "transcript" &&
@@ -8307,20 +8273,18 @@ function SessionReviewExperience({
                 }}
               >
                 <View style={reviewSt.phaseDivider}>
-                  <View
-                    style={[
-                      reviewSt.phaseDividerLine,
-                      { backgroundColor: group.color },
-                    ]}
-                  />
-                  <Text
-                    style={[reviewSt.phaseDividerTitle, { color: group.color }]}
+                  <CustomText
+                    textStyle="caption"
+                    style={reviewSt.phaseDividerTitle}
                   >
                     {group.label}
-                  </Text>
-                  <Text style={reviewSt.phaseDividerTime}>
+                  </CustomText>
+                  <CustomText
+                    textStyle="caption"
+                    style={reviewSt.phaseDividerTime}
+                  >
                     {fmtSec(group.startTime)}
-                  </Text>
+                  </CustomText>
                 </View>
                 {group.segments.map((segment, index) => {
                   const active = segment.id === activeSegmentId;
@@ -8328,8 +8292,6 @@ function SessionReviewExperience({
                   const isAgent = segment.speaker
                     ?.toLowerCase()
                     .includes("agent");
-                  const prev = group.segments[index - 1];
-                  const showInitial = !prev || prev.speaker !== segment.speaker;
                   const moments = coachingMoments.filter(
                     (moment) =>
                       moment.seconds !== null &&
@@ -8373,42 +8335,29 @@ function SessionReviewExperience({
                         onPress={() => handleTranscriptPress(segment)}
                         style={reviewSt.turnMain}
                       >
-                        <View style={reviewSt.turnInitialSlot}>
-                          {showInitial && (
-                            <Text
-                              style={[
-                                reviewSt.turnInitial,
-                                {
-                                  color: isAgent
-                                    ? tourColors.agent
-                                    : tourColors.prospect,
-                                },
-                              ]}
-                            >
-                              {isAgent ? "A" : "P"}
-                            </Text>
-                          )}
-                        </View>
                         <View style={st.flex1}>
                           <View style={reviewSt.turnMeta}>
-                            <Text
-                              style={[
-                                reviewSt.turnSpeaker,
-                                {
-                                  color: isAgent
-                                    ? tourColors.agent
-                                    : tourColors.prospect,
-                                },
-                              ]}
+                            <CustomText
+                              textStyle="caption"
+                              style={{
+                                color: isAgent
+                                  ? tourColors.agent
+                                  : tourColors.prospect,
+                              }}
                             >
                               {segment.speaker ||
                                 (isAgent ? "Agent" : "Prospect")}
-                            </Text>
-                            <Text style={reviewSt.segmentTime}>
+                            </CustomText>
+                            <CustomText
+                              textStyle="caption"
+                              style={reviewSt.segmentTime}
+                            >
                               {fmtSec(segment.startTime)}
-                            </Text>
+                            </CustomText>
                           </View>
-                          <Text style={reviewSt.turnText}>{segment.text}</Text>
+                          <CustomText textStyle="body" style={reviewSt.turnText}>
+                            {segment.text}
+                          </CustomText>
                         </View>
                       </Pressable>
                       {(() => {
@@ -8479,12 +8428,7 @@ function SessionReviewExperience({
                           : null;
                         return (
                           <>
-                            <View
-                              style={[
-                                reviewSt.annotationRow,
-                                { marginLeft: 36 },
-                              ]}
-                            >
+                            <View style={reviewSt.annotationRow}>
                               {groups.map((group) => {
                                 const color = transcriptAnnotationChipColor(
                                   group.kind,
@@ -8531,25 +8475,27 @@ function SessionReviewExperience({
                                       size={12}
                                       color={color}
                                     />
-                                    <Text
+                                    <CustomText
+                                      textStyle="micro"
                                       style={[
                                         reviewSt.annotationText,
                                         { color },
                                       ]}
                                     >
                                       {label}
-                                    </Text>
+                                    </CustomText>
                                     <View
                                       style={[
                                         reviewSt.annotationCountBadge,
                                         { backgroundColor: color },
                                       ]}
                                     >
-                                      <Text
+                                      <CustomText
+                                        textStyle="micro"
                                         style={reviewSt.annotationCountText}
                                       >
                                         {count > 99 ? "99+" : String(count)}
-                                      </Text>
+                                      </CustomText>
                                     </View>
                                     <Ionicons
                                       name={
@@ -8613,7 +8559,8 @@ function SessionReviewExperience({
                                                   color={color}
                                                 />
                                               </View>
-                                              <Text
+                                              <CustomText
+                                                textStyle="caption"
                                                 style={[
                                                   reviewSt.inlineAnnotationTitle,
                                                   { color },
@@ -8623,8 +8570,9 @@ function SessionReviewExperience({
                                                 inlineGroup.items.length > 1
                                                   ? `AI coaching note ${itemIndex + 1}`
                                                   : item.title}
-                                              </Text>
-                                              <Text
+                                              </CustomText>
+                                              <CustomText
+                                                textStyle="caption"
                                                 style={[
                                                   reviewSt.inlineAnnotationTime,
                                                   { color },
@@ -8633,15 +8581,16 @@ function SessionReviewExperience({
                                                 {item.timestampSec != null
                                                   ? fmtSec(item.timestampSec)
                                                   : ""}
-                                              </Text>
+                                              </CustomText>
                                             </View>
-                                            <Text
+                                            <CustomText
+                                              textStyle="body"
                                               style={
                                                 reviewSt.inlineAnnotationBody
                                               }
                                             >
                                               {item.body}
-                                            </Text>
+                                            </CustomText>
                                             {item.timestampSec != null ? (
                                               <Pressable
                                                 accessibilityRole="button"
@@ -8666,14 +8615,12 @@ function SessionReviewExperience({
                                                   size={12}
                                                   color={color}
                                                 />
-                                                <Text
-                                                  style={[
-                                                    reviewSt.inlineAnnotationPlayText,
-                                                    { color },
-                                                  ]}
+                                                <CustomText
+                                                  textStyle="caption"
+                                                  style={{ color }}
                                                 >
                                                   Play from here
-                                                </Text>
+                                                </CustomText>
                                               </Pressable>
                                             ) : null}
                                           </View>
@@ -8694,6 +8641,13 @@ function SessionReviewExperience({
         </View>
       </ScrollView>
 
+      <TourScreenHeader
+        onBack={onBack}
+        title={session.title}
+        onMorePress={readOnly ? undefined : openSessionMoreMenu}
+        moreAccessibilityLabel="Session options"
+      />
+
       {!readOnly && selectedSegmentIds.length > 0 && selectionRange ? (
         <View style={reviewSt.selectionBar}>
           <Pressable
@@ -8703,12 +8657,12 @@ function SessionReviewExperience({
             <Ionicons name="close" size={18} color={C.textSec} />
           </Pressable>
           <View style={st.flex1}>
-            <Text style={reviewSt.selectionTitle}>
+            <CustomText style={reviewSt.selectionTitle}>
               {selectedSegmentIds.length} selected
-            </Text>
-            <Text style={reviewSt.selectionTime}>
+            </CustomText>
+            <CustomText style={reviewSt.selectionTime}>
               {fmtSec(selectionRange.start)}–{fmtSec(selectionRange.end)}
-            </Text>
+            </CustomText>
           </View>
           <Pressable
             disabled={selectionBusy}
@@ -8716,7 +8670,7 @@ function SessionReviewExperience({
             style={reviewSt.selectionAction}
           >
             <Ionicons name="chatbubble-outline" size={17} color={C.brand} />
-            <Text style={reviewSt.selectionActionText}>Comment</Text>
+            <CustomText style={reviewSt.selectionActionText}>Comment</CustomText>
           </Pressable>
           <Pressable
             disabled={selectionBusy}
@@ -8728,14 +8682,22 @@ function SessionReviewExperience({
             ) : (
               <Ionicons name="film-outline" size={17} color={C.brand} />
             )}
-            <Text style={reviewSt.selectionActionText}>Create clip</Text>
+            <CustomText style={reviewSt.selectionActionText}>Create clip</CustomText>
           </Pressable>
         </View>
-      ) : !readOnly ? (
-        <SessionAiFab
-          onPress={onOpenAiChat}
-          bottomOffset={Platform.OS === "ios" ? 118 : 104}
-        />
+      ) : null}
+      {reviewMode === "transcript" && !followPlayback ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Return to currently playing transcript"
+          onPress={returnToPlayingTranscript}
+          style={reviewSt.returnToPlaying}
+        >
+          <Ionicons name="locate-outline" size={14} color={ACCENT} />
+          <CustomText textStyle="caption" style={reviewSt.returnToPlayingText}>
+            Return to playing
+          </CustomText>
+        </Pressable>
       ) : null}
       <SessionPlayer
         position={position}
@@ -8747,8 +8709,6 @@ function SessionReviewExperience({
         onToggle={() => void togglePlayback()}
         onSpeed={() => void changeSpeed()}
         onSeek={(ratio) => void seekToSeconds(ratio * duration)}
-        showReturnToPlaying={reviewMode === "transcript" && !followPlayback}
-        onReturnToPlaying={returnToPlayingTranscript}
       />
 
       <Modal
@@ -8780,14 +8740,14 @@ function SessionReviewExperience({
                 />
               </View>
               <View style={st.flex1}>
-                <Text style={reviewSt.commentModalTitle}>
+                <CustomText style={reviewSt.commentModalTitle}>
                   Add to transcript
-                </Text>
-                <Text style={reviewSt.commentModalTime}>
+                </CustomText>
+                <CustomText style={reviewSt.commentModalTime}>
                   {selectionRange
                     ? `${fmtSec(selectionRange.start)}–${fmtSec(selectionRange.end)}`
                     : ""}
-                </Text>
+                </CustomText>
               </View>
               <Pressable
                 onPress={() => setCommentComposerOpen(false)}
@@ -8820,14 +8780,14 @@ function SessionReviewExperience({
                       size={14}
                       color={active ? C.brand : C.textMuted}
                     />
-                    <Text
+                    <CustomText
                       style={[
                         reviewSt.commentKindOptionText,
                         active && reviewSt.commentKindOptionTextActive,
                       ]}
                     >
                       {kind === "key_moment" ? "Key moment" : "Comment"}
-                    </Text>
+                    </CustomText>
                   </Pressable>
                 );
               })}
@@ -8835,12 +8795,12 @@ function SessionReviewExperience({
 
             <View style={reviewSt.commentSelectionPreview}>
               <View style={reviewSt.commentSelectionPreviewHeader}>
-                <Text style={reviewSt.commentSelectionPreviewLabel}>
+                <CustomText style={reviewSt.commentSelectionPreviewLabel}>
                   Selected transcript
-                </Text>
-                <Text style={reviewSt.commentSelectionPreviewCount}>
+                </CustomText>
+                <CustomText style={reviewSt.commentSelectionPreviewCount}>
                   {selectedSegments.length} selected
-                </Text>
+                </CustomText>
               </View>
               <ScrollView
                 style={reviewSt.commentSelectionPreviewScroll}
@@ -8851,12 +8811,12 @@ function SessionReviewExperience({
                     key={segment.id}
                     style={reviewSt.commentSelectionPreviewTurn}
                   >
-                    <Text style={reviewSt.commentSelectionPreviewSpeaker}>
+                    <CustomText style={reviewSt.commentSelectionPreviewSpeaker}>
                       {segment.speaker}
-                    </Text>
-                    <Text style={reviewSt.commentSelectionPreviewText}>
+                    </CustomText>
+                    <CustomText style={reviewSt.commentSelectionPreviewText}>
                       {segment.text}
-                    </Text>
+                    </CustomText>
                   </View>
                 ))}
               </ScrollView>
@@ -8902,11 +8862,11 @@ function SessionReviewExperience({
                   color="#fff"
                 />
               )}
-              <Text style={reviewSt.commentModalSubmitText}>
+              <CustomText style={reviewSt.commentModalSubmitText}>
                 {selectionAnnotationKind === "key_moment"
                   ? "Save key moment"
                   : "Add comment"}
-              </Text>
+              </CustomText>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -8925,9 +8885,9 @@ function DetailMeta({
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
       <Ionicons name={icon} size={14} color={C.textSec} />
-      <Text style={{ fontSize: 13, fontWeight: "700", color: C.textSec }}>
+      <CustomText textStyle="caption" style={{ color: C.textSec }}>
         {text}
-      </Text>
+      </CustomText>
     </View>
   );
 }
@@ -8961,22 +8921,22 @@ function CoachingMomentCard({
         <View style={reviewSt.coachingMomentIcon}>
           <Ionicons name="flash" size={13} color={C.purple} />
         </View>
-        <Text style={reviewSt.coachingMomentKicker}>Coachable Moment</Text>
-        <Text style={reviewSt.coachingMomentTime}>{moment.timestamp}</Text>
+        <CustomText style={reviewSt.coachingMomentKicker}>Coachable Moment</CustomText>
+        <CustomText style={reviewSt.coachingMomentTime}>{moment.timestamp}</CustomText>
       </View>
-      <Text style={reviewSt.coachingMomentBody}>{moment.explanation}</Text>
+      <CustomText style={reviewSt.coachingMomentBody}>{moment.explanation}</CustomText>
       {moment.suggestedImprovement ? (
         <View style={reviewSt.coachingSuggestion}>
-          <Text style={reviewSt.coachingSuggestionLabel}>Try</Text>
-          <Text style={reviewSt.coachingSuggestionText}>
+          <CustomText style={reviewSt.coachingSuggestionLabel}>Try</CustomText>
+          <CustomText style={reviewSt.coachingSuggestionText}>
             {moment.suggestedImprovement}
-          </Text>
+          </CustomText>
         </View>
       ) : null}
       {!compact && moment.transcriptQuote ? (
-        <Text style={reviewSt.coachingQuote} numberOfLines={2}>
+        <CustomText style={reviewSt.coachingQuote} numberOfLines={2}>
           "{moment.transcriptQuote}"
-        </Text>
+        </CustomText>
       ) : null}
     </MotionPressable>
   );
@@ -10818,6 +10778,7 @@ function SessionCommentsScreen({
   const comments = commentsQuery.data?.comments ?? [];
   const loading = commentsQuery.isLoading;
   const error = commentsQuery.error ?? sessionQuery.error ?? null;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!title && sessionQuery.data?.session?.title)
@@ -10839,22 +10800,20 @@ function SessionCommentsScreen({
 
   return (
     <View style={reviewSt.root}>
-      <TourScreenHeader
-        onBack={onBack}
-        title="Comments"
-        subtitle={title ?? "Session feedback"}
-      />
       <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => void refresh()}
-            tintColor={C.brand}
+            tintColor={ACCENT}
           />
         }
-        contentContainerStyle={reviewSt.commentsPageContent}
+        contentContainerStyle={[
+          reviewSt.commentsPageContent,
+          { paddingTop: glassNavContentInset(insets.top) },
+        ]}
       >
         {error ? (
           <ErrorBanner
@@ -10874,6 +10833,7 @@ function SessionCommentsScreen({
           />
         )}
       </ScrollView>
+      <TourScreenHeader onBack={onBack} title="Comments" />
     </View>
   );
 }
@@ -12729,59 +12689,26 @@ const communitySt = StyleSheet.create({
 const reviewSt = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: tourColors.bg,
-    paddingTop: Platform.OS === "ios" ? 50 : 18,
+    backgroundColor: BACKGROUND,
   },
   scrollBody: { flex: 1 },
   scrollContent: { paddingBottom: 150 },
   commentsPageContent: {
     gap: 12,
     paddingHorizontal: SESSION_PAGE_PADDING,
-    paddingTop: 12,
     paddingBottom: 130,
   },
-  tabSticky: { backgroundColor: tourColors.bg, zIndex: 2 },
+  tabSticky: { backgroundColor: BACKGROUND, zIndex: 2 },
   tabBody: { gap: 13, paddingHorizontal: SESSION_PAGE_PADDING, paddingTop: 8 },
-  reportCta: {
-    minHeight: 62,
-    marginHorizontal: SESSION_PAGE_PADDING,
-    marginTop: 8,
-    marginBottom: 10,
-    paddingHorizontal: 13,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    borderWidth: 1,
-    borderColor: "#dbeafe",
-    backgroundColor: "#f7fbff",
-  },
-  reportCtaIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#eaf4ff",
-  },
-  reportCtaTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
-  reportCtaSub: {
-    marginTop: 2,
-    color: C.textSec,
-    fontSize: 10,
-    lineHeight: 14,
-    fontWeight: "700",
-  },
   sampleReadOnlyBanner: {
     minHeight: 62,
     flexDirection: "row",
     alignItems: "center",
     gap: 11,
     padding: 12,
-    borderWidth: 1,
-    borderColor: "#ddd6fe",
-    borderRadius: 14,
-    backgroundColor: "#faf7ff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   sampleReadOnlyIcon: {
     width: 36,
@@ -12791,34 +12718,25 @@ const reviewSt = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: C.purpleBg,
   },
-  sampleReadOnlyTitle: { color: C.text, fontSize: 13, fontWeight: "900" },
+  sampleReadOnlyTitle: {},
   sampleReadOnlySub: {
     marginTop: 2,
     color: C.textSec,
-    fontSize: 11,
     lineHeight: 15,
-    fontWeight: "600",
   },
   focusBanner: {
     gap: 2,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#dbeafe",
-    backgroundColor: "#eff6ff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   focusBannerLabel: {
-    fontSize: 10,
-    fontWeight: "900",
     textTransform: "uppercase",
-    color: "#667085",
+    color: C.textSec,
   },
-  focusBannerValue: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: "#101828",
-  },
+  focusBannerValue: {},
   searchPanel: { gap: 12, paddingTop: 4 },
   searchInputWrap: {
     minHeight: 48,
@@ -12826,24 +12744,19 @@ const reviewSt = StyleSheet.create({
     alignItems: "center",
     gap: 9,
     paddingHorizontal: 13,
-    borderWidth: 1,
-    borderColor: "#dbe3ef",
-    borderRadius: 14,
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
-  searchInput: { flex: 1, color: C.text, fontSize: 15, fontWeight: "600" },
+  searchInput: { flex: 1, color: TEXT, fontSize: 15, fontWeight: "600" },
   searchHint: {
     paddingHorizontal: 4,
     color: C.textMuted,
-    fontSize: 12,
     lineHeight: 18,
-    fontWeight: "600",
   },
   searchResults: { gap: 8 },
   searchCount: {
     color: C.textMuted,
-    fontSize: 10,
-    fontWeight: "900",
     textTransform: "uppercase",
   },
   searchResult: {
@@ -12851,10 +12764,9 @@ const reviewSt = StyleSheet.create({
     alignItems: "flex-start",
     gap: 10,
     padding: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 14,
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   searchResultIcon: {
     width: 30,
@@ -13030,29 +12942,33 @@ const reviewSt = StyleSheet.create({
   phaseSection: { gap: 4 },
   phaseDivider: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "baseline",
     gap: 8,
-    paddingTop: 10,
-    paddingBottom: 7,
+    marginTop: 14,
+    marginBottom: 8,
+    paddingHorizontal: 16,
   },
-  phaseDividerLine: { width: 4, height: 18, borderRadius: 2 },
   phaseDividerTitle: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: "900",
+    color: "rgba(0, 0, 0, 0.45)",
     textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
-  phaseDividerTime: { color: "#98a2b3", fontSize: 11, fontWeight: "800" },
-  turnRow: { borderRadius: 12, backgroundColor: "transparent" },
+  phaseDividerTime: {
+    color: "rgba(0, 0, 0, 0.45)",
+    letterSpacing: 0.4,
+  },
+  turnRow: {
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    overflow: "hidden",
+    backgroundColor: "transparent",
+  },
   turnRowActive: {
     backgroundColor: "#eaf4ff",
-    borderLeftWidth: 3,
-    borderLeftColor: C.brand,
   },
   turnRowSelected: {
     backgroundColor: "#e0efff",
-    borderWidth: 1,
-    borderColor: "#60a5fa",
   },
   turnMain: {
     flexDirection: "row",
@@ -13061,32 +12977,27 @@ const reviewSt = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 8,
   },
-  turnInitialSlot: { width: 20, alignItems: "center", paddingTop: 1 },
-  turnInitial: { fontSize: 12, fontWeight: "900" },
   turnMeta: {
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
     marginBottom: 3,
   },
-  turnSpeaker: { fontSize: 12, fontWeight: "900" },
   segmentTime: {
     color: "#98a2b3",
-    fontSize: 11,
-    fontWeight: "800",
-    marginLeft: "auto",
+    fontVariant: ["tabular-nums"],
   },
   turnText: {
     color: "#344054",
-    fontSize: 14,
     lineHeight: 20,
-    fontWeight: "600",
   },
   annotationRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
     marginTop: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
   },
   annotationChip: {
     minHeight: 28,
@@ -13097,15 +13008,13 @@ const reviewSt = StyleSheet.create({
     paddingRight: 4,
     paddingVertical: 4,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#dbeafe",
-    backgroundColor: "#fff",
+    backgroundColor: CARD,
   },
   annotationChipExpanded: {
     borderColor: "#ddd6fe",
     backgroundColor: "#faf5ff",
   },
-  annotationText: { color: C.brand, fontSize: 10, fontWeight: "900" },
+  annotationText: { color: C.brand },
   annotationCountBadge: {
     minWidth: 20,
     height: 20,
@@ -13116,21 +13025,19 @@ const reviewSt = StyleSheet.create({
   },
   annotationCountText: {
     color: "#fff",
-    fontSize: 10,
-    fontWeight: "900",
     fontVariant: ["tabular-nums"],
   },
   inlineAnnotationStack: {
     gap: 7,
-    marginLeft: 36,
     marginTop: 7,
-    marginRight: 8,
+    marginBottom: 8,
+    paddingHorizontal: 8,
   },
   inlineAnnotationCard: {
     gap: 8,
     padding: 11,
-    borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
   },
   inlineAnnotationHeader: {
     flexDirection: "row",
@@ -13144,17 +13051,13 @@ const reviewSt = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 8,
   },
-  inlineAnnotationTitle: { flex: 1, fontSize: 11, fontWeight: "900" },
+  inlineAnnotationTitle: { flex: 1 },
   inlineAnnotationTime: {
-    fontSize: 10,
-    fontWeight: "800",
     fontVariant: ["tabular-nums"],
   },
   inlineAnnotationBody: {
     color: C.textSec,
-    fontSize: 13,
     lineHeight: 19,
-    fontWeight: "600",
   },
   inlineAnnotationPlay: {
     alignSelf: "flex-start",
@@ -13165,7 +13068,6 @@ const reviewSt = StyleSheet.create({
     paddingHorizontal: 9,
     borderRadius: 999,
   },
-  inlineAnnotationPlayText: { fontSize: 10, fontWeight: "900" },
   commentHint: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -13173,17 +13075,34 @@ const reviewSt = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderRadius: SMALL_CORNER,
+    backgroundColor: HINT,
   },
   commentHintText: {
     flex: 1,
-    color: "#1D4ED8",
-    fontSize: 12,
-    fontWeight: "700",
+    color: ACCENT,
     lineHeight: 17,
+  },
+  returnToPlaying: {
+    position: "absolute",
+    left: SESSION_PAGE_PADDING,
+    bottom: 144,
+    zIndex: 20,
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: CARD,
+    shadowColor: TEXT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 16,
+  },
+  returnToPlayingText: {
+    color: ACCENT,
   },
   commentKindBadge: {
     flexDirection: "row",
@@ -13204,10 +13123,8 @@ const reviewSt = StyleSheet.create({
     gap: 9,
     marginVertical: 6,
     padding: 12,
-    borderWidth: 1,
-    borderColor: "#e9d5ff",
-    borderRadius: 14,
-    backgroundColor: "#fbf7ff",
+    borderRadius: SMALL_CORNER,
+    backgroundColor: CARD,
   },
   coachingMomentCompact: { marginLeft: 36, marginRight: 8, marginTop: 2 },
   coachingMomentHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
@@ -13269,10 +13186,9 @@ const reviewSt = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     padding: 10,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
     shadowColor: "#101828",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.14,
@@ -13845,10 +13761,9 @@ const st = StyleSheet.create({
   checkedInCard: {
     gap: 10,
     padding: 14,
-    borderWidth: 1,
-    borderColor: "#bbf7d0",
-    borderRadius: 16,
-    backgroundColor: "#f0fdf4",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   checkedInHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   checkedInIcon: {

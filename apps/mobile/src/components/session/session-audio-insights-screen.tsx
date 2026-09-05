@@ -17,10 +17,14 @@ import {
 } from "react-native";
 
 import { fetchAudioInsights, fetchTranscript, startAudioInsights } from "@/api";
+import { CustomText } from "@/components/custom-text";
 import { Icon } from "@/components/ui/icon";
 import { LoadingDots } from "@/components/loading-dots";
-import { Text } from "@/components/ui/text";
+import { glassNavContentInset } from "@/components/glass-nav-header";
+import { ACCENT, BACKGROUND, CARD } from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 import { useSessionPlayback } from "@/hooks/use-session-playback";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   ConversationStatsSection,
@@ -51,6 +55,7 @@ export function SessionAudioInsightsScreen({
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const playback = useSessionPlayback(sessionId);
+  const insets = useSafeAreaInsets();
 
   const refresh = useCallback(async () => {
     try {
@@ -113,8 +118,6 @@ export function SessionAudioInsightsScreen({
 
   return (
     <View style={styles.root}>
-      <TourScreenHeader onBack={onBack} title={sessionTitle ?? "Audio insights"} subtitle="Sentiment & speaker dynamics" />
-
       {status === "ready" && insights ? (
         <>
           <SessionAudioInsightsPanel
@@ -122,6 +125,7 @@ export function SessionAudioInsightsScreen({
             fallbackConversationStats={transcriptConversationStats}
             fallbackConversationStatsSource={transcriptConversationStats ? "transcript" : null}
             onSeek={(seconds) => void playback.seekToSeconds(seconds, true)}
+            contentInsetTop={glassNavContentInset(insets.top)}
           />
           <SessionPlayer
             position={playback.position}
@@ -136,14 +140,17 @@ export function SessionAudioInsightsScreen({
           />
           {playback.error ? (
             <Pressable onPress={playback.retry} style={styles.retryAudio}>
-              <Text style={styles.retryAudioText}>{playback.error} · Tap to retry</Text>
+              <CustomText textStyle="caption" style={styles.retryAudioText}>{playback.error} · Tap to retry</CustomText>
             </Pressable>
           ) : null}
         </>
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.enrichmentBody}
+          contentContainerStyle={[
+            styles.enrichmentBody,
+            { paddingTop: glassNavContentInset(insets.top) },
+          ]}
         >
           {conversationStats ? (
             <ConversationStatsSection
@@ -154,43 +161,44 @@ export function SessionAudioInsightsScreen({
           <View style={[styles.empty, conversationStats ? styles.emptyCompact : null]}>
             {POLLING.has(status) ? (
               <>
-                <LoadingDots size="large" color="#006ce5" />
-                <Text style={styles.emptyTitle}>{AUDIO_INSIGHTS_STATUS_LABELS[status]}</Text>
-                <Text style={styles.emptyHint}>
+                <LoadingDots size="large" color={ACCENT} />
+                <CustomText textStyle="title" style={styles.emptyTitle}>{AUDIO_INSIGHTS_STATUS_LABELS[status]}</CustomText>
+                <CustomText textStyle="body" style={styles.emptyHint}>
                   Gemini is adding sentiment, speaker dynamics, ambience, and semantic interactivity.
-                </Text>
+                </CustomText>
               </>
             ) : (
               <>
-                <Icon as={Activity} size={28} color="#667085" />
-                <Text style={styles.emptyTitle}>
+                <Icon as={Activity} size={28} color={C.textSec} />
+                <CustomText textStyle="title" style={styles.emptyTitle}>
                   {status === "failed"
                     ? "Gemini enrichment could not be generated"
                     : status === "unavailable"
                       ? "Gemini enrichment is not configured"
                       : "No Gemini enrichment yet"}
-                </Text>
-                <Text style={styles.emptyHint}>
+                </CustomText>
+                <CustomText textStyle="body" style={styles.emptyHint}>
                   {error ??
                     (status === "unavailable"
                       ? "Transcript measurements remain available. Configure GEMINI_API_KEY to add audio understanding."
                       : "Run audio insights to add sentiment and speaker dynamics.")}
-                </Text>
+                </CustomText>
               </>
             )}
             <Pressable disabled={starting} onPress={() => void handleStart()} style={styles.actionBtn}>
               {starting ? (
-                <LoadingDots color="#fff" size="small" />
+                <LoadingDots color={CARD} size="small" />
               ) : (
                 <>
-                  <Icon as={RefreshCw} size={14} color="#fff" />
-                  <Text style={styles.actionText}>Run audio insights</Text>
+                  <Icon as={RefreshCw} size={14} color={CARD} />
+                  <CustomText textStyle="title" style={styles.actionText}>Run audio insights</CustomText>
                 </>
               )}
             </Pressable>
           </View>
         </ScrollView>
       )}
+      <TourScreenHeader onBack={onBack} title={sessionTitle ?? "Audio insights"} />
     </View>
   );
 }
@@ -198,8 +206,7 @@ export function SessionAudioInsightsScreen({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#f4f7fb",
-    paddingTop: 50,
+    backgroundColor: BACKGROUND,
   },
   empty: {
     flex: 1,
@@ -213,7 +220,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: 14,
     paddingHorizontal: 16,
-    paddingTop: 12,
     paddingBottom: 40,
   },
   emptyCompact: {
@@ -221,16 +227,11 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#101828",
     textAlign: "center",
   },
   emptyHint: {
-    fontSize: 13,
     lineHeight: 19,
-    fontWeight: "600",
-    color: "#667085",
+    color: C.textSec,
     textAlign: "center",
   },
   retryAudio: {
@@ -240,9 +241,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   retryAudioText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#006ce5",
+    color: ACCENT,
     textAlign: "center",
   },
   actionBtn: {
@@ -252,12 +251,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: "#006ce5",
+    borderRadius: 25,
+    backgroundColor: ACCENT,
   },
   actionText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#fff",
+    color: CARD,
   },
 });

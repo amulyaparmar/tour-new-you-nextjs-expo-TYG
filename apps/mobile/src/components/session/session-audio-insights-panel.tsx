@@ -8,8 +8,10 @@ import { Activity, BarChart3, Mic2, Sparkles } from "lucide-react-native";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
+import { CustomText } from "@/components/custom-text";
 import { Icon } from "@/components/ui/icon";
-import { Text } from "@/components/ui/text";
+import { ACCENT, BACKGROUND, CARD, SMALL_CORNER } from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 
 import { SESSION_PAGE_PADDING } from "./session-layout";
 
@@ -38,11 +40,13 @@ export function SessionAudioInsightsPanel({
   fallbackConversationStats = null,
   fallbackConversationStatsSource = null,
   onSeek,
+  contentInsetTop = 8,
 }: {
   insights: AudioInsights;
   fallbackConversationStats?: TranscriptConversationStats | null;
   fallbackConversationStatsSource?: "transcript" | null;
   onSeek: (seconds: number) => void;
+  contentInsetTop?: number;
 }) {
   const participants = insights.participants;
   const conversationStats =
@@ -56,23 +60,23 @@ export function SessionAudioInsightsPanel({
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: contentInsetTop }]}
     >
       <View style={styles.headerRow}>
-        <Text style={styles.heading}>Overview</Text>
+        <CustomText textStyle="title" style={styles.heading}>Overview</CustomText>
         <View
           style={[
             styles.sentimentBadge,
             { backgroundColor: `${SENTIMENT_COLORS[insights.overallSentiment]}18` },
           ]}
         >
-          <Text style={[styles.sentimentText, { color: SENTIMENT_COLORS[insights.overallSentiment] }]}>
+          <CustomText style={[styles.sentimentText, { color: SENTIMENT_COLORS[insights.overallSentiment] }]}>
             {SENTIMENT_LABELS[insights.overallSentiment]}
-          </Text>
+          </CustomText>
         </View>
       </View>
 
-      <Text style={styles.summary}>{insights.summary}</Text>
+      <CustomText style={styles.summary}>{insights.summary}</CustomText>
 
       <View style={styles.metaRow}>
         <MetaPill icon={Sparkles} label={insights.model.replace("gemini-", "Gemini ")} />
@@ -95,13 +99,13 @@ export function SessionAudioInsightsPanel({
               return (
                 <View key={speaker.speaker} style={styles.speakerCard}>
                   <View style={styles.speakerHead}>
-                    <Text style={styles.speakerName}>{labelFor(speaker.speaker)}</Text>
-                    <Text style={styles.speakerTime}>{fmtSec(speaker.talkTimeSeconds)}</Text>
+                    <CustomText style={styles.speakerName}>{labelFor(speaker.speaker)}</CustomText>
+                    <CustomText style={styles.speakerTime}>{fmtSec(speaker.talkTimeSeconds)}</CustomText>
                   </View>
                   <View style={styles.talkTrack}>
                     <View style={[styles.talkFill, { width: `${share}%` }]} />
                   </View>
-                  <Text style={styles.speakerNotes}>{speaker.notes}</Text>
+                  <CustomText style={styles.speakerNotes}>{speaker.notes}</CustomText>
                 </View>
               );
             })}
@@ -119,10 +123,10 @@ export function SessionAudioInsightsPanel({
                 style={styles.highlightCard}
               >
                 <View style={styles.highlightHead}>
-                  <Text style={styles.highlightLabel}>{highlight.label}</Text>
-                  <Text style={styles.highlightTime}>{fmtSec(highlight.timestamp)}</Text>
+                  <CustomText style={styles.highlightLabel}>{highlight.label}</CustomText>
+                  <CustomText style={styles.highlightTime}>{fmtSec(highlight.timestamp)}</CustomText>
                 </View>
-                <Text style={styles.highlightBody}>{highlight.explanation}</Text>
+                <CustomText style={styles.highlightBody}>{highlight.explanation}</CustomText>
               </Pressable>
             ))}
           </View>
@@ -193,11 +197,11 @@ export function ConversationStatsSection({
           <Stat key={item.label} label={item.label} value={item.value} />
         ))}
       </View>
-      <Text style={styles.statsSource}>
+      <CustomText style={styles.statsSource}>
         {source === "transcript"
           ? "Transcript estimate · Gemini may replace these measurements after listening to the recording."
           : "Measured by Gemini from the recording."}
-      </Text>
+      </CustomText>
     </Section>
   );
 }
@@ -221,9 +225,9 @@ function Section({
   return (
     <View style={styles.section}>
       <Pressable onPress={() => setOpen((value) => !value)} style={styles.sectionHead}>
-        <Icon as={icon} size={15} color="#667085" />
-        <Text style={styles.sectionTitle}>{title}</Text>
-        <Text style={styles.sectionToggle}>{open ? "−" : "+"}</Text>
+        <Icon as={icon} size={15} color={C.textSec} />
+        <CustomText style={styles.sectionTitle}>{title}</CustomText>
+        <CustomText style={styles.sectionToggle}>{open ? "−" : "+"}</CustomText>
       </Pressable>
       {open ? children : null}
     </View>
@@ -233,8 +237,8 @@ function Section({
 function MetaPill({ icon, label }: { icon: typeof Sparkles; label: string }) {
   return (
     <View style={styles.metaPill}>
-      <Icon as={icon} size={12} color="#667085" />
-      <Text style={styles.metaPillText}>{label}</Text>
+      <Icon as={icon} size={12} color={C.textSec} />
+      <CustomText style={styles.metaPillText}>{label}</CustomText>
     </View>
   );
 }
@@ -242,8 +246,8 @@ function MetaPill({ icon, label }: { icon: typeof Sparkles; label: string }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
+      <CustomText style={styles.statLabel}>{label}</CustomText>
+      <CustomText style={styles.statValue}>{value}</CustomText>
     </View>
   );
 }
@@ -261,25 +265,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
-  heading: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#101828",
-  },
+  heading: {},
   sentimentBadge: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  sentimentText: {
-    fontSize: 11,
-    fontWeight: "900",
-  },
+  sentimentText: {},
   summary: {
-    fontSize: 14,
     lineHeight: 21,
-    fontWeight: "600",
-    color: "#344054",
+    color: C.textSec,
   },
   metaRow: {
     flexDirection: "row",
@@ -293,20 +288,17 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    backgroundColor: "#eef2f7",
+    backgroundColor: BACKGROUND,
   },
   metaPillText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#667085",
+    color: C.textSec,
   },
   section: {
     gap: 10,
     padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   sectionHead: {
     flexDirection: "row",
@@ -315,14 +307,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#101828",
   },
   sectionToggle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#667085",
+    color: C.textSec,
   },
   statsGrid: {
     flexDirection: "row",
@@ -334,25 +321,18 @@ const styles = StyleSheet.create({
     gap: 2,
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "#f8fafc",
+    backgroundColor: BACKGROUND,
   },
   statLabel: {
-    fontSize: 10,
-    fontWeight: "800",
     textTransform: "uppercase",
-    color: "#667085",
+    color: C.textSec,
   },
   statValue: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#101828",
     fontVariant: ["tabular-nums"],
   },
   statsSource: {
-    fontSize: 11,
     lineHeight: 16,
-    fontWeight: "600",
-    color: "#667085",
+    color: C.textSec,
   },
   speakerList: {
     gap: 10,
@@ -361,7 +341,7 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "#f8fafc",
+    backgroundColor: BACKGROUND,
   },
   speakerHead: {
     flexDirection: "row",
@@ -371,14 +351,9 @@ const styles = StyleSheet.create({
   },
   speakerName: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#101828",
   },
   speakerTime: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#667085",
+    color: C.textSec,
     fontVariant: ["tabular-nums"],
   },
   talkTrack: {
@@ -390,13 +365,11 @@ const styles = StyleSheet.create({
   talkFill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: "#006ce5",
+    backgroundColor: ACCENT,
   },
   speakerNotes: {
-    fontSize: 12,
     lineHeight: 17,
-    fontWeight: "600",
-    color: "#667085",
+    color: C.textSec,
   },
   highlightList: {
     gap: 8,
@@ -405,7 +378,7 @@ const styles = StyleSheet.create({
     gap: 4,
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "#f8fafc",
+    backgroundColor: BACKGROUND,
   },
   highlightHead: {
     flexDirection: "row",
@@ -415,20 +388,13 @@ const styles = StyleSheet.create({
   },
   highlightLabel: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#101828",
   },
   highlightTime: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#006ce5",
+    color: ACCENT,
     fontVariant: ["tabular-nums"],
   },
   highlightBody: {
-    fontSize: 12,
     lineHeight: 17,
-    fontWeight: "600",
-    color: "#667085",
+    color: C.textSec,
   },
 });

@@ -9,9 +9,10 @@ import Reanimated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { Text } from "@/components/ui/text";
+import { CustomText } from "@/components/custom-text";
 import { tourEnter } from "@/theme/animations";
-import { scoreColor, tourRadius } from "@/theme/tour-brand";
+import { CARD, SMALL_CORNER } from "@/theme/tokens";
+import { scoreColor } from "@/theme/tour-brand";
 
 function SectionBar({ percent, color }: { percent: number; color: string }) {
   const [trackWidth, setTrackWidth] = useState(0);
@@ -41,21 +42,21 @@ export function SectionScoreOverview({ analysis }: { analysis: AnalysisResult })
   return (
     <Reanimated.View entering={tourEnter.fadeDown} layout={tourEnter.layout}>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Section scores</Text>
+        <CustomText textStyle="title">Section scores</CustomText>
         <View style={styles.sections}>
           {analysis.sectionScores.map((sec, index) => {
             const c = scoreColor(sec.score);
             return (
               <Reanimated.View key={sec.section} entering={tourEnter.stagger(index, 45)} style={styles.sectionRow}>
                 <View style={styles.sectionHead}>
-                  <Text selectable style={styles.sectionName} numberOfLines={1}>
+                  <CustomText selectable textStyle="label" style={styles.sectionName} numberOfLines={1}>
                     {sec.section}
-                  </Text>
-                  <Text selectable style={[styles.sectionVal, { color: c }]}>
+                  </CustomText>
+                  <CustomText selectable textStyle="caption" style={[styles.sectionVal, { color: c }]}>
                     {sec.pointsPossible > 0
                       ? `${sec.pointsEarned}/${sec.pointsPossible}`
                       : `${sec.score}%`}
-                  </Text>
+                  </CustomText>
                 </View>
                 <SectionBar percent={sec.score} color={c} />
               </Reanimated.View>
@@ -69,17 +70,11 @@ export function SectionScoreOverview({ analysis }: { analysis: AnalysisResult })
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#fff",
-    borderRadius: tourRadius.md,
-    borderWidth: 1,
-    borderColor: "rgba(16, 24, 40, 0.08)",
+    backgroundColor: CARD,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
     padding: 16,
     gap: 12,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#101828",
   },
   sections: { gap: 12 },
   sectionRow: { gap: 6 },
@@ -91,13 +86,8 @@ const styles = StyleSheet.create({
   },
   sectionName: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#101828",
   },
   sectionVal: {
-    fontSize: 12,
-    fontWeight: "800",
     fontVariant: ["tabular-nums"],
   },
   barTrack: {

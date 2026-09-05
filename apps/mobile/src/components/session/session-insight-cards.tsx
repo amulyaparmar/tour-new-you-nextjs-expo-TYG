@@ -1,12 +1,18 @@
-import type { AnalysisResult, AudioInsights, AudioInsightsStatus } from "@tour/shared";
+import type {
+  AnalysisResult,
+  AudioInsights,
+  AudioInsightsStatus,
+} from "@tour/shared";
 import { AUDIO_INSIGHTS_STATUS_LABELS } from "@tour/shared";
 import { Activity, ChevronRight, Sparkles } from "lucide-react-native";
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import Reanimated, { FadeInDown } from "react-native-reanimated";
 
+import { CustomText } from "@/components/custom-text";
 import { Icon } from "@/components/ui/icon";
-import { Text } from "@/components/ui/text";
+import { BACKGROUND, CARD, SMALL_CORNER } from "@/theme/tokens";
+import { tourColors as C } from "@/theme/tour-brand";
 
 import { MotionPressable } from "../ui/motion";
 import { SESSION_PAGE_PADDING, SESSION_SECTION_GAP } from "./session-layout";
@@ -32,9 +38,7 @@ export function SessionInsightCards({
   onOpenAudioInsights: () => void;
 }) {
   const aiPreview =
-    analysis.opportunities[0] ??
-    analysis.strengths[0] ??
-    analysis.summary;
+    analysis.opportunities[0] ?? analysis.strengths[0] ?? analysis.summary;
 
   const audioPreview =
     audioInsights?.summary ??
@@ -48,16 +52,18 @@ export function SessionInsightCards({
       : AUDIO_INSIGHTS_STATUS_LABELS[audioInsightsStatus];
 
   return (
-    <Reanimated.View entering={FadeInDown.delay(40).duration(320).springify()} style={styles.stack}>
+    <Reanimated.View
+      entering={FadeInDown.delay(40).duration(320).springify()}
+      style={styles.stack}
+    >
       <InsightCard
         title="Tour AI"
         subtitle="Ask about this tour"
         preview={aiPreview}
         badge="Coaching chat"
         icon={Sparkles}
-        iconColor="#7c3aed"
-        iconBg="#f5f3ff"
-        borderColor="#ddd6fe"
+        iconColor={C.purple}
+        iconBg={C.purpleBg}
         onPress={onOpenAiChat}
       />
       <InsightCard
@@ -66,11 +72,13 @@ export function SessionInsightCards({
         preview={audioPreview}
         badge={audioBadge}
         icon={Activity}
-        iconColor="#006ce5"
+        iconColor={C.brand}
         iconBg="#eff6ff"
-        borderColor="#bfdbfe"
         onPress={onOpenAudioInsights}
-        processing={audioInsightsStatus === "pending" || audioInsightsStatus === "processing"}
+        processing={
+          audioInsightsStatus === "pending" ||
+          audioInsightsStatus === "processing"
+        }
       />
     </Reanimated.View>
   );
@@ -84,7 +92,6 @@ function InsightCard({
   icon,
   iconColor,
   iconBg,
-  borderColor,
   onPress,
   processing = false,
 }: {
@@ -95,29 +102,32 @@ function InsightCard({
   icon: typeof Sparkles;
   iconColor: string;
   iconBg: string;
-  borderColor: string;
   onPress: () => void;
   processing?: boolean;
 }) {
   return (
     <MotionPressable onPress={onPress} haptic="selection" style={styles.cardPress}>
-      <View style={[styles.card, { borderColor }]}>
+      <View style={styles.card}>
         <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
           <Icon as={icon} size={18} color={iconColor} />
         </View>
         <View style={styles.copy}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>{title}</Text>
+            <CustomText textStyle="title">{title}</CustomText>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{processing ? "Analyzing…" : badge}</Text>
+              <CustomText textStyle="micro" style={styles.badgeText}>
+                {processing ? "Analyzing…" : badge}
+              </CustomText>
             </View>
           </View>
-          <Text style={styles.subtitle}>{subtitle}</Text>
-          <Text style={styles.preview} numberOfLines={2}>
+          <CustomText textStyle="caption" style={styles.subtitle}>
+            {subtitle}
+          </CustomText>
+          <CustomText textStyle="body" style={styles.preview} numberOfLines={2}>
             {preview}
-          </Text>
+          </CustomText>
         </View>
-        <Icon as={ChevronRight} size={18} color="#8a94a6" />
+        <Icon as={ChevronRight} size={18} color={C.textMuted} />
       </View>
     </MotionPressable>
   );
@@ -137,9 +147,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    backgroundColor: "#fff",
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: CARD,
   },
   iconWrap: {
     width: 40,
@@ -158,32 +168,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
-  title: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: "#101828",
-  },
   badge: {
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: "#f4f7fb",
+    backgroundColor: BACKGROUND,
   },
   badgeText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#667085",
+    color: C.textSec,
   },
   subtitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#667085",
+    color: C.textSec,
   },
   preview: {
-    fontSize: 13,
     lineHeight: 18,
-    fontWeight: "600",
-    color: "#344054",
+    color: C.textSec,
     marginTop: 2,
   },
 });
