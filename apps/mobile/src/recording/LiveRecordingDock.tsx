@@ -132,7 +132,7 @@ const st = StyleSheet.create({
     elevation: 8,
   },
   dockPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  dockPulseSurface: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderColor: "rgba(0,108,229,0.24)", borderRadius: 20, backgroundColor: "#A9D6FF" },
+  dockPulseSurface: { ...StyleSheet.absoluteFill, borderWidth: 1, borderColor: "rgba(0,108,229,0.24)", borderRadius: 20, backgroundColor: "#A9D6FF" },
   openControlWrap: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   openControl: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: C.blue },
   statusPulseRing: { position: "absolute", top: -3, right: -3, width: 17, height: 17, borderRadius: 9, backgroundColor: C.blue },

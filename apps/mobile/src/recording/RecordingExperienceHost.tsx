@@ -110,7 +110,7 @@ export function RecordingExperienceHost() {
 
 const styles = StyleSheet.create({
   host: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 100,
     elevation: 100,
     backgroundColor: "#F7F8FB",

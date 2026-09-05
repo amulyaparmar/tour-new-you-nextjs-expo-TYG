@@ -547,11 +547,11 @@ export function PanoramaThreeLayer(props: PanoramaThreeLayerProps) {
 
 const styles = StyleSheet.create({
   layer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#000",
   },
   nativeLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: "hidden",
     backgroundColor: "#000",
   },

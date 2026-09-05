@@ -245,11 +245,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(16,24,40,0.52)",
   },
   scrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1,
   },
   keyboardAvoiding: {

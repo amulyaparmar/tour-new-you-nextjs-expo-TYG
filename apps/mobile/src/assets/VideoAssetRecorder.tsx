@@ -184,7 +184,7 @@ function RecordedVideoReview({
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           nativeControls
-          allowsFullscreen
+          fullscreenOptions={{ enable: true }}
         />
         <View pointerEvents="none" style={styles.durationBadge}>
           <Ionicons name="videocam" size={13} color="#fff" />
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
   permissionButtonText: { color: "#fff", fontSize: 15, fontWeight: "900" },
   cameraPage: { flex: 1, overflow: "hidden", backgroundColor: "#020617" },
   simulatorPreviewFront: { transform: [{ scaleX: -1 }] },
-  simulatorPreviewTint: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(2,6,23,0.1)" },
+  simulatorPreviewTint: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(2,6,23,0.1)" },
   simulatorBadge: {
     position: "absolute",
     top: Platform.OS === "ios" ? 116 : 84,

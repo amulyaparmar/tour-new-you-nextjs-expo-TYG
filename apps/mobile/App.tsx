@@ -299,7 +299,6 @@ import {
   BulkUploadFlow,
 } from "./src/bulk-upload/BulkUploadFlow";
 import { SessionReportScreen } from "./src/reports/SessionReportScreen";
-import { PracticeSessionsScreen } from "./src/practice/PracticeSessionsScreen";
 
 const loginBackground = require("./assets/videos/login-bg.mp4");
 
@@ -311,7 +310,7 @@ type ProspectData = {
   bedrooms: string;
   budget: string;
 };
-type MainTab = "home" | "sessions" | "tour" | "materials" | "practice";
+type MainTab = "home" | "sessions" | "tour" | "materials";
 type Screen =
   | { type: "main"; tab: MainTab }
   | {
@@ -337,7 +336,6 @@ type Screen =
   | { type: "session-report"; sessionId: string }
   | { type: "bulk-upload"; batchId?: string }
   | { type: "create-session" }
-  | { type: "practice"; scenarioId?: string }
   | { type: "audio-test" }
   | { type: "rubrics" }
   | { type: "settings" }
@@ -824,8 +822,6 @@ function screenKey(screen: Screen) {
     return `session-report:${screen.sessionId}`;
   if (screen.type === "bulk-upload")
     return `bulk-upload:${screen.batchId ?? "new"}`;
-  if (screen.type === "practice")
-    return `practice:${screen.scenarioId ?? "list"}`;
   return screen.type;
 }
 
@@ -836,7 +832,6 @@ function screenRank(screen: Screen) {
   }
   if (screen.type === "tour") return 11;
   if (screen.type === "create-session") return 12;
-  if (screen.type === "practice") return 12;
   if (screen.type === "rubrics") return 12;
   if (screen.type === "settings") return 12;
   if (screen.type === "profile") return 12;
@@ -1684,13 +1679,6 @@ export default function App() {
                     agentName={agentName}
                   />
                 )}
-                {screen.type === "practice" && (
-                  <PracticeSessionsScreen
-                    initialScenarioId={screen.scenarioId}
-                    property={property}
-                    onBack={() => nav({ type: "main", tab: "practice" })}
-                  />
-                )}
                 {screen.type === "audio-test" && (
                   <AudioTestScreen
                     onBack={() => nav({ type: "main", tab: "home" })}
@@ -1785,12 +1773,6 @@ const TAB_ITEMS: Array<{
     icon: "folder-outline",
     iconActive: "folder",
   },
-  {
-    id: "practice",
-    label: "Practice",
-    icon: "sparkles-outline",
-    iconActive: "sparkles",
-  },
 ];
 
 function MainTabs({
@@ -1862,7 +1844,6 @@ function MainTabs({
     useState<SlideDirection>("forward");
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
-  const [practiceLive, setPracticeLive] = useState(false);
   const checkInStartingRef = useRef(false);
   const [checkInBinding, setCheckInBinding] = useState<{
     sessionId: string | null;
@@ -1896,10 +1877,6 @@ function MainTabs({
       { duration: 220, easing: Easing.out(Easing.cubic) },
     );
   }, [tab, tabBarWidth, tabIndicatorX]);
-
-  useEffect(() => {
-    if (tab !== "practice") setPracticeLive(false);
-  }, [tab]);
 
   useEffect(() => {
     if (!profile) return;
@@ -1990,10 +1967,7 @@ function MainTabs({
     <View
       style={[
         st.flex1,
-        (tab === "home" ||
-          tab === "materials" ||
-          tab === "sessions" ||
-          tab === "practice") &&
+        (tab === "home" || tab === "materials" || tab === "sessions") &&
           homeSt.pageBg,
       ]}
     >
@@ -2059,18 +2033,6 @@ function MainTabs({
         </ScreenTransition>
       )}
 
-      {tab === "practice" && (
-        <ScreenTransition
-          transitionKey="tab:practice"
-          direction={tabTransitionDirection}
-        >
-          <PracticeSessionsScreen
-            property={property}
-            onLiveChange={setPracticeLive}
-          />
-        </ScreenTransition>
-      )}
-
       {tab === "tour" && (
         <ScreenTransition
           transitionKey="tab:tour"
@@ -2109,39 +2071,37 @@ function MainTabs({
         </ScreenTransition>
       )}
 
-      {!practiceLive ? (
       <View style={st.tabBar}>
-          <Reanimated.View
-            pointerEvents="none"
-            style={[st.tabBarIndicator, tabIndicatorStyle]}
+        <Reanimated.View
+          pointerEvents="none"
+          style={[st.tabBarIndicator, tabIndicatorStyle]}
+        >
+          <View style={st.tabBarIndicatorPill} />
+        </Reanimated.View>
+        {TAB_ITEMS.map((t) => (
+          <Pressable
+            key={t.id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === t.id }}
+            onPress={() => {
+              selectionHaptic();
+              handleTabPress(t.id);
+            }}
+            style={st.tabBarItem}
           >
-            <View style={st.tabBarIndicatorPill} />
-          </Reanimated.View>
-          {TAB_ITEMS.map((t) => (
-            <Pressable
-              key={t.id}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === t.id }}
-              onPress={() => {
-                selectionHaptic();
-                handleTabPress(t.id);
-              }}
-              style={st.tabBarItem}
+            <Ionicons
+              name={tab === t.id ? t.iconActive : t.icon}
+              size={22}
+              color={tab === t.id ? C.brand : C.textMuted}
+            />
+            <Text
+              style={[st.tabBarLabel, tab === t.id && st.tabBarLabelActive]}
             >
-              <Ionicons
-                name={tab === t.id ? t.iconActive : t.icon}
-                size={22}
-                color={tab === t.id ? C.brand : C.textMuted}
-              />
-              <Text
-                style={[st.tabBarLabel, tab === t.id && st.tabBarLabelActive]}
-              >
-                {t.label}
-              </Text>
-            </Pressable>
-          ))}
+              {t.label}
+            </Text>
+          </Pressable>
+        ))}
       </View>
-      ) : null}
       <ProfileEditorModal
         visible={profileEditorOpen}
         session={authSession}
@@ -4780,7 +4740,7 @@ const assetSt = StyleSheet.create({
     backgroundColor: BACKGROUND,
   },
   thumbImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: "100%",
     height: "100%",
   },
@@ -4805,7 +4765,7 @@ const assetSt = StyleSheet.create({
     backgroundColor: "rgba(15,23,42,0.86)",
   },
   playWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -11857,7 +11817,7 @@ const homeSt = StyleSheet.create({
     backgroundColor: BACKGROUND,
   },
   mediaPreviewImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: "100%",
     height: "100%",
   },
@@ -11991,7 +11951,7 @@ const homeSt = StyleSheet.create({
     marginTop: 10,
   },
   sheetScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.42)",
   },
   sheetKeyboard: { flex: 1, justifyContent: "flex-end" },

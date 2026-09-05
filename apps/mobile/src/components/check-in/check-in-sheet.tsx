@@ -753,7 +753,7 @@ function CheckInPanelSkeleton({ mode }: { mode: "checkin" | "qr" }) {
 }
 
 const styles = StyleSheet.create({
-  sheetScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
+  sheetScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.42)" },
   sheetKeyboard: { flex: 1, justifyContent: "flex-end" },
   checkInSheet: {
     height: SHEET_HEIGHT,
@@ -1041,14 +1041,14 @@ const styles = StyleSheet.create({
   realtimeDotLive: { backgroundColor: C.green },
   realtimeStatusText: { color: C.textSec, fontSize: 11, fontWeight: "700" },
   checkedInOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 5,
     justifyContent: "flex-end",
     marginHorizontal: -2,
     marginVertical: -2,
   },
   checkedInOverlayWash: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 18,
     backgroundColor: "rgba(255,255,255,0.72)",
   },

@@ -13,14 +13,13 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(workspaceRoot, "node_modules"),
 ];
-config.resolver.disableHierarchicalLookup = true;
 config.resolver.alias = {
   ...(config.resolver.alias ?? {}),
   "@": path.resolve(projectRoot, "src"),
 };
 config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules ?? {}),
-  // Expo Go ships worklets 0.5.1 — keep JS in sync with native runtime.
+  // Keep Metro on the app's SDK 57-compatible Worklets runtime.
   "react-native-worklets": workletsRoot,
 };
 

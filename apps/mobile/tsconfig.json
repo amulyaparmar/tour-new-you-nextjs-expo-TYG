@@ -1,7 +1,6 @@
 {
   "extends": "@tour/config/tsconfig/expo.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
