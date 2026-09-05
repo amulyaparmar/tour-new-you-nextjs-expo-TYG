@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.16",
+    "@daily-co/react-native-daily-js": "^0.87.1",
+    "@daily-co/react-native-webrtc": "^124.0.6-daily.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -85,7 +87,9 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-background-timer": "^2.4.1",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-get-random-values": "^1.11.0",
     "react-native-nitro-image": "0.15.1",
     "react-native-nitro-modules": "^0.36.5",
     "react-native-qrcode-styled": "^0.4.0",
@@ -117,8 +121,11 @@
       },
       "reactNativeDirectoryCheck": {
         "exclude": [
+          "@daily-co/react-native-daily-js",
+          "@daily-co/react-native-webrtc",
           "expo-live-activity",
-          "expo-speech-transcriber"
+          "expo-speech-transcriber",
+          "react-native-background-timer"
         ]
       }
     }

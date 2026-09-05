@@ -262,7 +262,7 @@ export function BottomSheetModal({
 
 const styles = StyleSheet.create({
   overlayHost: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 40,
     elevation: 40,
   },

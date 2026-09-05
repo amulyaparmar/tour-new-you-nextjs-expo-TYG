@@ -33,6 +33,7 @@
         "NSSpeechRecognitionUsageDescription": "Allow Tour to transcribe leasing conversations live for in-tour coaching.",
         "UIBackgroundModes": [
           "audio",
+          "voip",
           "remote-notification"
         ]
       }

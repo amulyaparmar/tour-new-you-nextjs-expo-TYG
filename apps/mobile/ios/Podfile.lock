@@ -314,6 +314,7 @@ PODS:
   - hermes-engine (250829098.0.17):
     - hermes-engine/Pre-built (= 250829098.0.17)
   - hermes-engine/Pre-built (250829098.0.17)
+  - JitsiWebRTC (124.0.2)
   - libwebp (1.6.0):
     - libwebp/demux (= 1.6.0)
     - libwebp/mux (= 1.6.0)
@@ -1797,6 +1798,13 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-background-timer (2.4.1):
+    - React-Core
+  - react-native-daily-js (0.87.1):
+    - React-Core
+    - ReactNativeDailyJSScreenShareExtension (= 0.0.1)
+  - react-native-get-random-values (1.11.0):
+    - React-Core
   - react-native-netinfo (12.0.1):
     - hermes-engine
     - RCTRequired
@@ -1888,6 +1896,9 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-webrtc (124.0.6-daily.2):
+    - JitsiWebRTC (~> 124.0.0)
+    - React-Core
   - react-native-webview (13.16.1):
     - hermes-engine
     - RCTRequired
@@ -2306,6 +2317,7 @@ PODS:
     - React-perflogger (= 0.86.3)
     - React-utils (= 0.86.3)
     - ReactNativeDependencies
+  - ReactNativeDailyJSScreenShareExtension (0.0.1)
   - ReactNativeDependencies (0.86.3)
   - RNCAsyncStorage (2.2.0):
     - hermes-engine
@@ -2759,8 +2771,12 @@ DEPENDENCIES:
   - React-Mapbuffer (from `../../../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../../../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - React-mutationobservernativemodule (from `../../../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver`)
+  - react-native-background-timer (from `../../../node_modules/react-native-background-timer`)
+  - "react-native-daily-js (from `../../../node_modules/@daily-co/react-native-daily-js`)"
+  - react-native-get-random-values (from `../../../node_modules/react-native-get-random-values`)
   - "react-native-netinfo (from `../../../node_modules/@react-native-community/netinfo`)"
   - react-native-safe-area-context (from `../../../node_modules/react-native-safe-area-context`)
+  - "react-native-webrtc (from `../../../node_modules/@daily-co/react-native-webrtc`)"
   - react-native-webview (from `../../../node_modules/react-native-webview`)
   - React-NativeModulesApple (from `../../../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../../../node_modules/react-native/ReactCommon/react/networking`)
@@ -2809,8 +2825,10 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - JitsiWebRTC
     - libwebp
     - ReachabilitySwift
+    - ReactNativeDailyJSScreenShareExtension
     - SDWebImage
     - SDWebImageWebPCoder
     - ZXingObjC
@@ -2989,10 +3007,18 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   React-mutationobservernativemodule:
     :path: "../../../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver"
+  react-native-background-timer:
+    :path: "../../../node_modules/react-native-background-timer"
+  react-native-daily-js:
+    :path: "../../../node_modules/@daily-co/react-native-daily-js"
+  react-native-get-random-values:
+    :path: "../../../node_modules/react-native-get-random-values"
   react-native-netinfo:
     :path: "../../../node_modules/@react-native-community/netinfo"
   react-native-safe-area-context:
     :path: "../../../node_modules/react-native-safe-area-context"
+  react-native-webrtc:
+    :path: "../../../node_modules/@daily-co/react-native-webrtc"
   react-native-webview:
     :path: "../../../node_modules/react-native-webview"
   React-NativeModulesApple:
@@ -3132,6 +3158,7 @@ SPEC CHECKSUMS:
   EXUpdatesInterface: 92d2aa5194b6fb93ca8ab749db75665cb28b2e60
   FBLazyVector: 2138c6c2ab66c31bf5754dc18097fbc498a49c7f
   hermes-engine: 8930e5f68b09f76e00ab617da3f7587e7262efd0
+  JitsiWebRTC: b47805ab5668be38e7ee60e2258f49badfe8e1d0
   libwebp: af5937a13536ef73f3784d69cc342b98961acf33
   NitroImage: 2f592086cbdecbbaa1c10dd97e0cdd43b1bb0817
   NitroModules: 452230d9b63c6c3f59dd97eeaa27ec3449271d4a
@@ -3173,8 +3200,12 @@ SPEC CHECKSUMS:
   React-Mapbuffer: 3c805ea54675b00ef1755f23b3c1fccf34962b93
   React-microtasksnativemodule: 97a771dbbb4315c71579995b53e4e3e351a99d89
   React-mutationobservernativemodule: 530bff1bba9511a5133e3cf8170e3b2c0df49e89
+  react-native-background-timer: 4638ae3bee00320753647900b21260b10587b6f7
+  react-native-daily-js: 6a67632b88e7eb40a1181302a522f413bc288a20
+  react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
   react-native-netinfo: 2f906d5d9a639090ed1c079135d6485a95f749f1
   react-native-safe-area-context: 6b4966397ada0f7dd481e4486a2ef936834861a1
+  react-native-webrtc: 2cd40195c2b0467b878e992527b6277137cbaf87
   react-native-webview: 2da09bdea1aeb6c46e27dd94632e21059cade6c1
   React-NativeModulesApple: 2b658272ca69df0694cf5d54f9510aa7c33977bc
   React-networking: 6be0b80e18e710dd30e77b04838ec46666a7bb78
@@ -3210,6 +3241,7 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: bb350d1333fd459c1aabe782088419a9b8894d3a
   ReactCodegen: 11a8e1aaf3bb5c66d250ed4a701690fc07d0414d
   ReactCommon: 02f6a489d5eb4ab79d7deba5cd4434e0ba351a07
+  ReactNativeDailyJSScreenShareExtension: 70af702672121fcd283d7d567def4e501ce207b1
   ReactNativeDependencies: 6738e602b46fd24aa453cd58267ec3bb8bf29d27
   RNCAsyncStorage: 2ad919e88b8bc2cd80e8697ce66d04d006743283
   RNCMaskedView: eb2b2e538afa907f05a5848a1a1ac26092e6fec9
