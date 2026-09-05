@@ -3705,7 +3705,7 @@ function SessionsListScreen({
         ListHeaderComponent={
           <View style={{ gap: 12 }}>
             {ListHeader}
-            <LiveRecordingCard />
+            <LiveRecordingCard style={slst.liveRecordingCard} />
           </View>
         }
         ListFooterComponent={ListFooter}
@@ -4054,6 +4054,7 @@ function SessionsListScreen({
 const slst = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 120 },
   header: { gap: 28, marginBottom: 20 },
+  liveRecordingCard: { marginBottom: 8 },
   sampleHeadingSub: {
     marginTop: 3,
     color: C.textMuted,

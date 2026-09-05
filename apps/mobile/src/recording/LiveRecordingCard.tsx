@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { CustomText } from "../components/custom-text";
 import { ACCENT, CARD, SMALL_CORNER } from "../theme/tokens";
 import { formatElapsed } from "./formatElapsed";
@@ -16,10 +16,11 @@ const C = {
 
 type LiveRecordingCardProps = {
   onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 };
 
 /** Compact entry back into the ongoing tour, including when its floating player is hidden. */
-export function LiveRecordingCard({ onPress }: LiveRecordingCardProps) {
+export function LiveRecordingCard({ onPress, style }: LiveRecordingCardProps) {
   const {
     isRecording,
     isPaused,
@@ -73,7 +74,7 @@ export function LiveRecordingCard({ onPress }: LiveRecordingCardProps) {
         onPress?.();
         expandExperience();
       }}
-      style={({ pressed }) => [st.card, pressed && st.pressed]}
+      style={({ pressed }) => [st.card, style, pressed && st.pressed]}
     >
       <View style={st.avatar}>
         {initials ? (
