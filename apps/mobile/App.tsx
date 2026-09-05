@@ -166,6 +166,7 @@ import { trackAnalyticsEvent, setAnalyticsUserId } from "./src/analytics";
 import { LoginScreen } from "./src/LoginScreen";
 import { TourLogo, TourMark } from "./src/components/TourLogo";
 import { CustomText } from "./src/components/custom-text";
+import { ProspectInsightsCard } from "./src/components/session/prospect-insights-card";
 import { SessionAiChat } from "./src/components/SessionAiChat";
 import { SettingsScreen } from "./src/components/settings/settings-screen";
 import {
@@ -10640,6 +10641,8 @@ function SessionCommentsScreen({
   );
 }
 
+const EMPTY_COACHING_ACTIONS: FollowUpAction[] = [];
+
 function SessionCoachingScreen({
   sessionId,
   sample = false,
@@ -10656,11 +10659,25 @@ function SessionCoachingScreen({
   const [localActions, setLocalActions] = useState<FollowUpAction[]>([]);
   const sampleQuery = useSampleSessionQuery(sessionId, sample);
   const actionsQuery = useActionsQuery(sessionId, !sample);
+  const sessionQuery = useSessionQuery(sessionId, !sample);
+  const analysisQuery = useAnalysisQuery(sessionId, !sample);
   const actions = sample
-    ? (sampleQuery.data?.actions ?? [])
-    : (actionsQuery.data?.actions ?? []);
+    ? (sampleQuery.data?.actions ?? EMPTY_COACHING_ACTIONS)
+    : (actionsQuery.data?.actions ?? EMPTY_COACHING_ACTIONS);
+  const session = sample
+    ? (sampleQuery.data?.session ?? null)
+    : (sessionQuery.data?.session ?? null);
+  const analysis = sample
+    ? (sampleQuery.data?.analysis ?? null)
+    : (analysisQuery.data?.analysis ?? null);
   const loading = sample ? sampleQuery.isLoading : actionsQuery.isLoading;
-  const error = sample ? sampleQuery.error : actionsQuery.error;
+  const prospectLoading = sample
+    ? sampleQuery.isLoading
+    : sessionQuery.isLoading || analysisQuery.isLoading;
+  const prospectError = sample
+    ? sampleQuery.error
+    : sessionQuery.error ?? analysisQuery.error;
+  const error = sample ? sampleQuery.error : prospectError ?? actionsQuery.error;
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -10668,8 +10685,16 @@ function SessionCoachingScreen({
   }, [actions]);
 
   const load = useCallback(async () => {
-    await (sample ? sampleQuery.refetch() : actionsQuery.refetch());
-  }, [actionsQuery, sample, sampleQuery]);
+    if (sample) {
+      await sampleQuery.refetch();
+      return;
+    }
+    await Promise.all([
+      actionsQuery.refetch(),
+      sessionQuery.refetch(),
+      analysisQuery.refetch(),
+    ]);
+  }, [actionsQuery, analysisQuery, sample, sampleQuery, sessionQuery]);
 
   async function refresh() {
     setRefreshing(true);
@@ -10711,6 +10736,17 @@ function SessionCoachingScreen({
             onRetry={load}
           />
         ) : null}
+        {prospectLoading && !session && !analysis ? (
+          <LoadingBox />
+        ) : !prospectError || session || analysis ? (
+          <ProspectInsightsCard
+            analysis={analysis}
+            prospectName={session?.prospectName}
+            leads={session?.leads ?? []}
+            providedInterests={session?.customerInterests ?? []}
+          />
+        ) : null}
+        <CustomText textStyle="title" accessibilityRole="header">Follow-up actions</CustomText>
         {loading && localActions.length === 0 ? (
           <LoadingBox />
         ) : (

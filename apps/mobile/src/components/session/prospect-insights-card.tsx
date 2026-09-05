@@ -1,9 +1,11 @@
 import {
   normalizeProspectInsights,
+  participantNameWithoutConfidenceMarker,
   PROSPECT_INTEREST_CATEGORY_LABELS,
   type AnalysisResult,
   type ProspectInterestCoverage,
   type SessionCustomerInterest,
+  type SessionLead,
 } from "@tour/shared";
 import { ArrowUpRight, CircleAlert, HeartHandshake, Target } from "lucide-react-native";
 import React from "react";
@@ -21,25 +23,53 @@ const COVERAGE: Record<ProspectInterestCoverage, { label: string; color: string;
   not_discussed: { label: "Not discussed", color: "#667085", background: "#f2f4f7" },
 };
 
+const SOURCE_LABELS = {
+  provided: "Provided before session",
+  stated: "From conversation",
+  inferred: "Inferred",
+} as const;
+
+function checkInDetails(lead: SessionLead) {
+  const details = [
+    { label: "Reason for visit", value: lead.reason?.trim() },
+    { label: "Role", value: lead.jobTitle?.trim() },
+    { label: "Team notes", value: lead.notes?.trim() },
+    ...Object.entries(lead.questionAnswers ?? {}).map(([question, answer]) => ({
+      label: question.replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+      value: String(answer ?? "").trim(),
+    })),
+  ];
+  return details.filter((detail) => Boolean(detail.value));
+}
+
 export function ProspectInsightsCard({
   analysis,
   providedInterests = [],
+  prospectName,
+  leads = [],
 }: {
-  analysis: AnalysisResult;
+  analysis: AnalysisResult | null;
   providedInterests?: SessionCustomerInterest[];
+  prospectName?: string | null;
+  leads?: SessionLead[];
 }) {
-  const insights = normalizeProspectInsights(analysis.prospectInsights);
+  const insights = normalizeProspectInsights(analysis?.prospectInsights);
+  const cleanProspectName = participantNameWithoutConfidenceMarker(prospectName)?.trim();
+  const hasProfile = Boolean(cleanProspectName || leads.length);
   const hasProvidedInterests = providedInterests.length > 0;
   const hasInsights = Boolean(
-    insights && (insights.summary || insights.interests.length || insights.conversionDrivers.length || insights.nextBestAction),
+    insights && (insights.summary || insights.interests.length || insights.conversionDrivers.length
+      || insights.objections.length || insights.nextBestAction || insights.intentRationale
+      || insights.intentStage !== "unknown"),
   );
 
-  if (!hasProvidedInterests && !hasInsights) {
+  if (!hasProfile && !hasProvidedInterests && !hasInsights) {
     return (
       <View style={styles.emptyCard}>
-          <View style={styles.iconWrap}><Icon as={HeartHandshake} size={18} color={ACCENT} /></View>
+        <View style={styles.iconWrap}><Icon as={HeartHandshake} size={18} color={ACCENT} /></View>
         <View style={styles.copy}>
-          <CustomText textStyle="title">Prospect understanding</CustomText>
+          <CustomText textStyle="title" accessibilityRole="header">Prospect understanding</CustomText>
           <CustomText textStyle="body" style={styles.emptyText}>Prospect needs will appear here once they are captured or inferred from the conversation.</CustomText>
         </View>
       </View>
@@ -51,7 +81,7 @@ export function ProspectInsightsCard({
       <View style={styles.header}>
         <View style={styles.iconWrap}><Icon as={HeartHandshake} size={18} color={ACCENT} /></View>
         <View style={styles.copy}>
-          <CustomText textStyle="title">Prospect understanding</CustomText>
+          <CustomText textStyle="title" accessibilityRole="header">Prospect understanding</CustomText>
           <CustomText textStyle="caption" style={styles.subtitle}>What matters to them, and how the tour responded</CustomText>
         </View>
         {insights?.intentStage && insights.intentStage !== "unknown" ? (
@@ -61,7 +91,40 @@ export function ProspectInsightsCard({
         ) : null}
       </View>
 
+      {hasProfile ? (
+        <View style={styles.section}>
+          <CustomText textStyle="caption" style={styles.sectionLabel}>Prospect details</CustomText>
+          {cleanProspectName && !leads.some((lead) => lead.name.trim().toLowerCase() === cleanProspectName.toLowerCase()) ? (
+            <CustomText textStyle="title">{cleanProspectName}</CustomText>
+          ) : null}
+          {leads.map((lead, index) => (
+            <View key={`${lead.createdAt}-${index}`} style={styles.contactCard}>
+              <CustomText textStyle="label">{lead.name.trim() || "Guest"}</CustomText>
+              {lead.email?.trim() ? <CustomText selectable textStyle="body" style={styles.contactText}>{lead.email.trim()}</CustomText> : null}
+              {lead.phone?.trim() ? <CustomText selectable textStyle="body" style={styles.contactText}>{lead.phone.trim()}</CustomText> : null}
+              {checkInDetails(lead).map((detail, detailIndex) => (
+                <View key={`${detail.label}-${detailIndex}`} style={styles.checkInDetail}>
+                  <CustomText textStyle="caption" style={styles.sectionLabel}>{detail.label}</CustomText>
+                  <CustomText selectable textStyle="body" style={styles.contactText}>{detail.value}</CustomText>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {insights?.summary ? <CustomText textStyle="body" style={styles.summary}>{insights.summary}</CustomText> : null}
+
+      {insights?.intentRationale ? (
+        <View style={styles.section}>
+          <CustomText textStyle="caption" style={styles.sectionLabel}>Intent signal</CustomText>
+          <CustomText textStyle="body" style={styles.summary}>{insights.intentRationale}</CustomText>
+        </View>
+      ) : null}
+
+      {!hasInsights && !hasProvidedInterests ? (
+        <CustomText textStyle="body" style={styles.emptyText}>Prospect needs will appear here once they are captured or inferred from the conversation.</CustomText>
+      ) : null}
 
       {providedInterests.length > 0 ? (
         <View style={styles.section}>
@@ -69,7 +132,7 @@ export function ProspectInsightsCard({
           <View style={styles.chips}>
             {providedInterests.map((interest) => (
               <View key={interest.id} style={styles.providedChip}>
-                <CustomText textStyle="caption" style={styles.providedChipText} numberOfLines={1}>
+                <CustomText textStyle="caption" style={styles.providedChipText}>
                   {interest.detail || PROSPECT_INTEREST_CATEGORY_LABELS[interest.category]}
                 </CustomText>
               </View>
@@ -87,14 +150,24 @@ export function ProspectInsightsCard({
               return (
                 <View key={`${interest.category}-${interest.detail}-${index}`} style={styles.interestRow}>
                   <View style={styles.interestHeader}>
-                    <CustomText textStyle="label" style={styles.interestTitle} numberOfLines={2}>{interest.detail}</CustomText>
+                    <CustomText textStyle="label" style={styles.interestTitle}>{interest.detail}</CustomText>
                     <View style={[styles.coverageBadge, { backgroundColor: coverage.background }]}>
                       <CustomText textStyle="micro" style={[styles.coverageText, { color: coverage.color }]}>{coverage.label}</CustomText>
                     </View>
                   </View>
-                  <CustomText textStyle="caption" style={styles.category}>{PROSPECT_INTEREST_CATEGORY_LABELS[interest.category]}</CustomText>
+                  <CustomText textStyle="caption" style={styles.category}>
+                    {PROSPECT_INTEREST_CATEGORY_LABELS[interest.category]} · {SOURCE_LABELS[interest.source]}
+                  </CustomText>
                   {interest.agentResponse ? (
-                    <CustomText textStyle="caption" style={styles.response} numberOfLines={3}>{interest.agentResponse}</CustomText>
+                    <CustomText textStyle="caption" style={styles.response}>{interest.agentResponse}</CustomText>
+                  ) : null}
+                  {interest.evidence ? (
+                    <View style={styles.evidence}>
+                      <CustomText textStyle="micro" style={styles.sectionLabel}>
+                        Conversation evidence{interest.timestamp ? ` · ${interest.timestamp}` : ""}
+                      </CustomText>
+                      <CustomText textStyle="caption" style={styles.response}>{interest.evidence}</CustomText>
+                    </View>
                   ) : null}
                 </View>
               );
@@ -168,6 +241,9 @@ const styles = StyleSheet.create({
   intentText: { color: ACCENT, textTransform: "capitalize" },
   summary: { color: C.textSec, lineHeight: 21 },
   section: { gap: 8 },
+  contactCard: { gap: 4, padding: 11, borderRadius: 12, backgroundColor: BACKGROUND },
+  contactText: { color: C.textSec, lineHeight: 20 },
+  checkInDetail: { gap: 3, marginTop: 8 },
   sectionLabel: { color: C.textSec, textTransform: "uppercase", letterSpacing: 0.4 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   providedChip: { maxWidth: "100%", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: BACKGROUND },
@@ -180,6 +256,7 @@ const styles = StyleSheet.create({
   coverageText: {},
   category: { color: C.textSec },
   response: { marginTop: 3, color: C.textSec, lineHeight: 18 },
+  evidence: { gap: 3, marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border },
   driverRow: { flexDirection: "row", alignItems: "flex-start", gap: 9, padding: 11, borderRadius: 12, backgroundColor: BACKGROUND },
   objectionRow: { flexDirection: "row", alignItems: "flex-start", gap: 9, padding: 11, borderRadius: 12, backgroundColor: C.amberBg },
   driverLabel: { color: C.textSec, textTransform: "uppercase", letterSpacing: 0.4 },

@@ -75,10 +75,11 @@ export function useInfiniteSessionsQuery(params?: FetchSessionsParams) {
   });
 }
 
-export function useSessionQuery(sessionId: string) {
+export function useSessionQuery(sessionId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.session(sessionId),
     queryFn: () => fetchSession(sessionId),
+    enabled,
   });
 }
 
