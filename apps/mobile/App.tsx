@@ -170,6 +170,7 @@ import { CustomText, customTextVariants } from "./src/components/custom-text";
 import { ProspectInsightsCard } from "./src/components/session/prospect-insights-card";
 import { SessionAiChat } from "./src/components/SessionAiChat";
 import { SettingsScreen } from "./src/components/settings/settings-screen";
+import { RubricsScreen } from "./src/components/settings/rubrics-screen";
 import {
   LargeTitleCopy,
   LargeTitleHeader,
@@ -952,17 +953,16 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const insets = useSafeAreaInsets();
-  const toastY = useSharedValue(-42);
-  const toastOpacity = useSharedValue(0);
+  const toastY = useSharedValue(-72);
+  const toastTop = Math.max(insets.top, 10) + 8;
 
   const finishToastDismiss = useCallback(() => setToast(null), []);
   const dismissToast = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
-    toastY.value = withTiming(-72, { duration: 170 });
-    toastOpacity.value = withTiming(0, { duration: 150 }, (finished) => {
+    toastY.value = withTiming(-72, { duration: 170 }, (finished) => {
       if (finished) runOnJS(finishToastDismiss)();
     });
-  }, [finishToastDismiss, toastOpacity, toastY]);
+  }, [finishToastDismiss, toastY]);
 
   _showToast = useCallback(
     (msg: string, type?: "error" | "success" | "info") => {
@@ -983,11 +983,20 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!toast) return;
-    toastY.value = -42;
-    toastOpacity.value = 0;
-    toastY.value = withSpring(0, { damping: 20, stiffness: 250, mass: 0.8 });
-    toastOpacity.value = withTiming(1, { duration: 170 });
-  }, [toast?.id, toastOpacity, toastY]);
+    let cancelled = false;
+    toastY.value = -72;
+    // Let GlassView lay out at full opacity off-screen, then slide via `top`
+    // (not transform/opacity, which iOS liquid glass cannot parent under).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        toastY.value = withSpring(0, { damping: 20, stiffness: 250, mass: 0.8 });
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [toast?.id, toastY]);
 
   const toastGesture = useMemo(
     () =>
@@ -997,10 +1006,6 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
         .onUpdate((event) => {
           if (event.translationY > 10) return;
           toastY.value = Math.max(-100, event.translationY);
-          toastOpacity.value = Math.max(
-            0.2,
-            1 - Math.abs(event.translationY) / 110,
-          );
         })
         .onEnd((event) => {
           if (event.translationY < -38 || event.velocityY < -620) {
@@ -1008,14 +1013,12 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
             return;
           }
           toastY.value = withSpring(0, { damping: 20, stiffness: 270 });
-          toastOpacity.value = withTiming(1, { duration: 130 });
         }),
-    [dismissToast, toastOpacity, toastY],
+    [dismissToast, toastY],
   );
 
-  const toastAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: toastOpacity.value,
-    transform: [{ translateY: toastY.value }],
+  const toastSlotStyle = useAnimatedStyle(() => ({
+    top: toastTop + toastY.value,
   }));
 
   const accent =
@@ -1032,7 +1035,7 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
         : "information-circle";
 
   const toastBody = toast ? (
-    <>
+    <View style={st.toastRow}>
       <View style={[st.toastIcon, { backgroundColor: accent + "16" }]}>
         <Ionicons name={iconName} size={19} color={accent} />
       </View>
@@ -1048,7 +1051,7 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
       >
         <Ionicons name="close" size={18} color={C.textSec} />
       </Pressable>
-    </>
+    </View>
   ) : null;
 
   return (
@@ -1056,13 +1059,7 @@ function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {toast && (
         <GestureDetector gesture={toastGesture}>
-          <Reanimated.View
-            style={[
-              st.toast,
-              { top: Math.max(insets.top, 10) + 8 },
-              toastAnimatedStyle,
-            ]}
-          >
+          <Reanimated.View style={[st.toast, toastSlotStyle]}>
             {GlassView ? (
               <GlassView
                 isInteractive
@@ -2170,7 +2167,7 @@ const TAB_ITEMS: Array<{
   { id: "home", label: "Home", icon: "home-outline", iconActive: "home" },
   {
     id: "sessions",
-    label: "Sessions",
+    label: "Tours",
     icon: "list-outline",
     iconActive: "list",
   },
@@ -3707,7 +3704,7 @@ function SessionsListScreen({
       closeOpenSwipeable();
       try {
         await deleteSessionMutation.mutateAsync(sessionId);
-        showToast("Session deleted", "success");
+        showToast("Tour deleted", "success");
       } catch (caught) {
         showToast(
           caught instanceof Error ? caught.message : "Could not delete session",
@@ -3846,7 +3843,7 @@ function SessionsListScreen({
         <View style={slst.titleRow}>
           <View style={st.flex1}>
             <LargeTitleCopy
-              title={showSamples ? "Sample sessions" : "Sessions"}
+              title={showSamples ? "Sample tours" : "Tours"}
               subtitle={
                 showSamples
                   ? `Curated from ${samplePropertyName} · Read only`
@@ -3896,7 +3893,7 @@ function SessionsListScreen({
                 Exploring real examples
               </CustomText>
               <CustomText textStyle="caption" style={slst.sampleModeSub}>
-                These never affect {property}’s sessions or scores.
+                These never affect {property}’s tours or scores.
               </CustomText>
             </View>
             <CustomText textStyle="label" style={slst.sampleModeAction}>
@@ -3925,7 +3922,7 @@ function SessionsListScreen({
     if (!hasMore && sessions.length > 0)
       return (
         <CustomText textStyle="caption" style={slst.endText}>
-          All sessions loaded
+          All tours loaded
         </CustomText>
       );
     return null;
@@ -3945,12 +3942,12 @@ function SessionsListScreen({
             message={
               sampleSessionsQuery.error instanceof Error
                 ? sampleSessionsQuery.error.message
-                : "Could not load sample sessions"
+                : "Could not load sample tours"
             }
             onRetry={() => void sampleSessionsQuery.refetch()}
           />
           <PrimaryBtn
-            label="Back to my sessions"
+            label="Back to my tours"
             icon="arrow-back"
             onPress={() => setShowSamples(false)}
           />
@@ -3970,7 +3967,7 @@ function SessionsListScreen({
       return (
         <EmptyStateCard
           icon="albums-outline"
-          title="No sessions yet"
+          title="No tours yet"
           subtitle="Start a new tour to get started."
         >
           <View style={slst.emptyActions}>
@@ -3981,7 +3978,7 @@ function SessionsListScreen({
             >
               <Ionicons name="play-circle-outline" size={20} color={CARD} />
               <CustomText textStyle="title" style={slst.samplePrimaryText}>
-                View sample sessions
+                View sample tours
               </CustomText>
               <Ionicons name="arrow-forward" size={18} color={CARD} />
             </MotionPressable>
@@ -4007,8 +4004,8 @@ function SessionsListScreen({
         }
         title={
           search || statusFilter !== "all"
-            ? "No matching sessions"
-            : "No sessions yet"
+            ? "No matching tours"
+            : "No tours yet"
         }
         subtitle="Recent tours will appear here"
       />
@@ -4059,7 +4056,7 @@ function SessionsListScreen({
         keyboardShouldPersistTaps="handled"
       />
       <LargeTitleHeader
-        title={showSamples ? "Sample sessions" : "Sessions"}
+        title={showSamples ? "Sample tours" : "Tours"}
         scrollY={scrollY}
         hideCompactTitle={showSearch}
         trailing={
@@ -4074,8 +4071,8 @@ function SessionsListScreen({
                   setShowSearch(false);
                   Keyboard.dismiss();
                 }}
-                placeholder="Search sessions"
-                accessibilityLabel="Search sessions"
+                placeholder="Search tours"
+                accessibilityLabel="Search tours"
               />
               <View style={slst.filterHeaderSlot}>
                 <LiquidGlassIconButton
@@ -5417,11 +5414,11 @@ function SessionOptionsMenu({
       dragHeader={
         <View style={assetSt.addTitleRow}>
           <View style={assetSt.addHeaderCopy}>
-            <CustomText textStyle="hero">Session options</CustomText>
+            <CustomText textStyle="hero">Tour options</CustomText>
           </View>
           <LiquidGlassIconButton
             icon="close"
-            accessibilityLabel="Close session options"
+            accessibilityLabel="Close tour options"
             onPress={onClose}
           />
         </View>
@@ -6891,7 +6888,7 @@ function CreateSessionScreen({
             />
           </View>
         </View>
-        <GlassNavHeader title="Enter Session Details" onBack={onBack} />
+        <GlassNavHeader title="Enter tour details" onBack={onBack} />
       </View>
     );
   }
@@ -6935,14 +6932,14 @@ function CreateSessionScreen({
         </View>
 
         <CustomText textStyle="caption" style={createSessionSt.sectionHeader}>
-          Session details
+          Tour details
         </CustomText>
         <View style={createSessionSt.group}>
           <CreateSessionField
             label="Title"
             value={title}
             onChangeText={setTitle}
-            placeholder="Session title"
+            placeholder="Tour title"
           />
           <CreateSessionField
             label="Prospect"
@@ -7052,7 +7049,7 @@ function CreateSessionScreen({
         </Pressable>
       </View>
 
-      <GlassNavHeader title="Enter Session Details" onBack={onBack} />
+      <GlassNavHeader title="Enter tour details" onBack={onBack} />
 
       <RubricPickerModal
         visible={rubricOpen}
@@ -7467,9 +7464,9 @@ function SampleSessionDetailScreen({
         <CustomText style={[st.emptyTitle, { textAlign: "center" }]}>
           {sampleQuery.error instanceof Error
             ? sampleQuery.error.message
-            : "Sample session not found"}
+            : "Sample tour not found"}
         </CustomText>
-        <BackBtn label="Sample sessions" onPress={onBack} />
+        <BackBtn label="Sample tours" onPress={onBack} />
       </View>
     );
   }
@@ -7681,9 +7678,9 @@ function SessionDetailScreen({
       <View style={[st.flex1, st.center, { gap: 12 }]}>
         <Ionicons name="alert-circle-outline" size={48} color={C.red} />
         <CustomText style={st.emptyTitle}>
-          {error instanceof Error ? error.message : "Session not found"}
+          {error instanceof Error ? error.message : "Tour not found"}
         </CustomText>
-        <BackBtn label="Sessions" onPress={onBack} />
+        <BackBtn label="Tours" onPress={onBack} />
       </View>
     );
 
@@ -8748,7 +8745,7 @@ function SessionReviewExperience({
         onBack={handleReviewBack}
         title={session.title}
         onMorePress={openSessionMoreMenu}
-        moreAccessibilityLabel="Session options"
+        moreAccessibilityLabel="Tour options"
       />
       <SessionOptionsMenu
         visible={sessionMenuOpen}
@@ -9630,7 +9627,7 @@ function UploadProcessCard({
       <View style={[st.card, { position: "relative", padding: 20, gap: 14 }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Session options"
+          accessibilityLabel="Tour options"
           hitSlop={10}
           onPress={openIdleSessionOptions}
           style={({ pressed }) => [st.resumeSessionMoreButton, pressed && st.pressed]}
@@ -9677,7 +9674,7 @@ function UploadProcessCard({
               <View style={st.sheetHandle} />
               <View style={st.sheetHeader}>
                 <View style={st.flex1}>
-                  <Text style={st.sheetTitle}>Session options</Text>
+                  <Text style={st.sheetTitle}>Tour options</Text>
                   <Text style={st.sheetSubtitle}>
                     Additional ways to configure or continue this tour.
                   </Text>
@@ -9875,12 +9872,12 @@ function UploadProcessCard({
 
         {/* Session details form */}
         <View style={{ padding: 18, gap: 14 }}>
-          <CustomText textStyle="title">Session details</CustomText>
+          <CustomText textStyle="title">Tour details</CustomText>
           <CustomText textStyle="caption" style={{ color: C.textSec, marginTop: -6 }}>
             Add context before processing — optional.
           </CustomText>
           <Input
-            placeholder="Session title"
+            placeholder="Tour title"
             value={dTitle}
             onChangeText={setDTitle}
             icon="text-outline"
@@ -11281,334 +11278,6 @@ function CommentsTab({
           </View>
         ))
       )}
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════
-// Rubrics
-// ═══════════════════════════════════════
-
-function RubricsScreen({
-  session,
-  onBack,
-  onSession,
-}: {
-  session: MobileAuthSession;
-  onBack: () => void;
-  onSession: (id: string) => void;
-}) {
-  const [selected, setSelected] = useState<Rubric | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const rubricsQuery = useRubricsQuery();
-  const sessionsQuery = useSessionsQuery({ limit: 100 });
-  const rubrics = rubricsQuery.data?.rubrics ?? [];
-  const sessions = sessionsQuery.data?.sessions ?? [];
-  const loading = rubricsQuery.isLoading || sessionsQuery.isLoading;
-  const error = rubricsQuery.error ?? sessionsQuery.error ?? null;
-
-  useEffect(() => {
-    if (!selected) return;
-    setSelected(rubrics.find((rubric) => rubric.id === selected.id) ?? null);
-  }, [rubrics, selected]);
-
-  const load = useCallback(async () => {
-    await Promise.all([rubricsQuery.refetch(), sessionsQuery.refetch()]);
-  }, [rubricsQuery, sessionsQuery]);
-
-  async function refresh() {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  }
-
-  async function openRubricSettings() {
-    const url = `${getSiteBaseUrl()}/rubrics`;
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert(
-        "Could not open Tour.you",
-        `Open ${url} in your browser to manage rubric settings.`,
-      );
-    }
-  }
-
-  function applicationsFor(rubricId: string) {
-    return sessions.filter((item) => item.rubricId === rubricId);
-  }
-
-  const defaultRubric =
-    rubrics.find((rubric) => rubric.isDefault) ?? rubrics[0] ?? null;
-  const otherRubrics = defaultRubric
-    ? rubrics.filter((rubric) => rubric.id !== defaultRubric.id)
-    : rubrics;
-
-  return (
-    <View style={st.flex1}>
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={st.scroll}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => void refresh()}
-            tintColor={C.brand}
-          />
-        }
-      >
-        <View style={st.page}>
-          <View style={st.pageHeadingRow}>
-            <BackBtn label="Settings" onPress={onBack} />
-            <View style={st.flex1} />
-          </View>
-          <View>
-            <Text style={st.pageTitle}>Rubrics</Text>
-            <Text style={st.pageHeadingSub}>
-              {session.workspace.community.name}
-            </Text>
-          </View>
-          {error && (
-            <ErrorBanner
-              message={
-                error instanceof Error
-                  ? error.message
-                  : "Could not load rubrics"
-              }
-              onRetry={load}
-            />
-          )}
-          <MotionPressable
-            onPress={() => void openRubricSettings()}
-            haptic="selection"
-            style={st.defaultRubricCard}
-          >
-            <View
-              style={[
-                st.defaultRubricIcon,
-                { backgroundColor: C.brand + "10" },
-              ]}
-            >
-              <Ionicons name="open-outline" size={22} color={C.brand} />
-            </View>
-            <View style={st.flex1}>
-              <Text style={st.defaultRubricTitle}>
-                Manage rubric settings on Tour.you
-              </Text>
-              <Text style={st.materialMeta}>
-                Clone frozen templates, edit criteria, and manage this
-                property’s rubrics on the web.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-          </MotionPressable>
-          {loading ? (
-            <LoadingBox />
-          ) : rubrics.length === 0 ? (
-            <EmptyState
-              icon="clipboard-outline"
-              title="No rubrics"
-              subtitle="Evaluation templates will appear here"
-            />
-          ) : (
-            <>
-              {defaultRubric && (
-                <MotionPressable
-                  onPress={() => setSelected(defaultRubric)}
-                  haptic="selection"
-                  style={st.defaultRubricCard}
-                >
-                  <View style={st.defaultRubricIcon}>
-                    <Ionicons
-                      name="clipboard-outline"
-                      size={23}
-                      color={C.purple}
-                    />
-                  </View>
-                  <View style={st.flex1}>
-                    <View style={st.rubricTitleRow}>
-                      <Text style={st.defaultRubricTitle} numberOfLines={2}>
-                        {defaultRubric.name}
-                      </Text>
-                      <View style={st.defaultBadge}>
-                        <Text style={st.defaultBadgeText}>Default</Text>
-                      </View>
-                    </View>
-                    <Text style={st.materialMeta}>
-                      {defaultRubric.definition.sections.length} sections ·{" "}
-                      {rubricItemCount(defaultRubric.definition)} items ·{" "}
-                      {rubricTotalPoints(defaultRubric.definition)} pts
-                    </Text>
-                    <Text style={st.rubricAppliedText}>
-                      {applicationsFor(defaultRubric.id).length} session
-                      {applicationsFor(defaultRubric.id).length === 1
-                        ? ""
-                        : "s"}
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={C.textMuted}
-                  />
-                </MotionPressable>
-              )}
-
-              <Text style={st.sectionTitle}>All rubrics</Text>
-              <View style={st.rubricGrid}>
-                {otherRubrics.map((rubric) => {
-                  const applications = applicationsFor(rubric.id);
-                  return (
-                    <MotionPressable
-                      key={rubric.id}
-                      onPress={() => setSelected(rubric)}
-                      haptic="selection"
-                      style={st.rubricCard}
-                    >
-                      <View style={st.rubricListIcon}>
-                        <Ionicons
-                          name="clipboard-outline"
-                          size={19}
-                          color={C.purple}
-                        />
-                      </View>
-                      <View style={st.rubricCardBody}>
-                        <Text style={st.rubricCardTitle} numberOfLines={2}>
-                          {rubric.name}
-                        </Text>
-                        <Text style={st.materialMeta} numberOfLines={1}>
-                          {rubric.definition.sections.length} sections ·{" "}
-                          {rubricItemCount(rubric.definition)} items
-                        </Text>
-                        <Text style={st.rubricAppliedText}>
-                          {applications.length} session
-                          {applications.length === 1 ? "" : "s"}
-                        </Text>
-                      </View>
-                    </MotionPressable>
-                  );
-                })}
-              </View>
-            </>
-          )}
-        </View>
-      </ScrollView>
-
-      <Modal
-        visible={Boolean(selected)}
-        animationType="slide"
-        onRequestClose={() => setSelected(null)}
-      >
-        {selected && (
-          <ScrollView
-            contentInsetAdjustmentBehavior="automatic"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={st.scroll}
-          >
-            <View style={st.page}>
-              <View style={st.pageHeadingRow}>
-                <BackBtn label="Rubrics" onPress={() => setSelected(null)} />
-                <View style={st.flex1} />
-                {selected.isDefault && (
-                  <View style={st.defaultBadge}>
-                    <Text style={st.defaultBadgeText}>Default</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={st.detailTitle}>{selected.name}</Text>
-              <Text style={st.pageHeadingSub}>
-                {rubricItemCount(selected.definition)} criteria ·{" "}
-                {rubricTotalPoints(selected.definition)} points
-              </Text>
-              {selected.definition.sections.map((section) => (
-                <View key={section.name} style={st.card}>
-                  <View style={st.rubricSectionHeader}>
-                    <View style={st.flex1}>
-                      <Text style={st.cardTitle}>{section.name}</Text>
-                      <Text style={st.materialMeta}>
-                        {section.items.length} items
-                      </Text>
-                    </View>
-                    <Text style={st.rubricPoints}>
-                      {section.items.reduce(
-                        (sum, item) => sum + item.points,
-                        0,
-                      )}{" "}
-                      pts
-                    </Text>
-                  </View>
-                  {section.items.map((item, index) => (
-                    <View
-                      key={item.id}
-                      style={[st.rubricItem, index > 0 && st.rowBorder]}
-                    >
-                      <View style={st.rubricItemNumber}>
-                        <Text style={st.rubricItemNumberText}>{index + 1}</Text>
-                      </View>
-                      <View style={st.flex1}>
-                        <Text style={st.rubricItemText}>{item.text}</Text>
-                        {item.note && (
-                          <Text style={st.rubricItemNote}>{item.note}</Text>
-                        )}
-                      </View>
-                      <Text style={st.rubricPoints}>{item.points}</Text>
-                    </View>
-                  ))}
-                </View>
-              ))}
-              {selected.definition.compliance &&
-                selected.definition.compliance.length > 0 && (
-                  <View style={st.card}>
-                    <View style={st.rubricSectionHeader}>
-                      <Text style={st.cardTitle}>Compliance</Text>
-                    </View>
-                    {selected.definition.compliance.map((item, index) => (
-                      <View
-                        key={item.id}
-                        style={[st.rubricItem, index > 0 && st.rowBorder]}
-                      >
-                        <Ionicons
-                          name="shield-checkmark-outline"
-                          size={18}
-                          color={C.green}
-                        />
-                        <View style={st.flex1}>
-                          <Text style={st.rubricItemText}>{item.text}</Text>
-                          {item.note && (
-                            <Text style={st.rubricItemNote}>{item.note}</Text>
-                          )}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              <Text style={st.sectionTitle}>Applied sessions</Text>
-              {applicationsFor(selected.id).length === 0 ? (
-                <EmptyState
-                  icon="albums-outline"
-                  title="No applications yet"
-                  subtitle="Choose this rubric when starting or opening a scheduled session"
-                />
-              ) : (
-                <View style={st.card}>
-                  {applicationsFor(selected.id).map((item, index, list) => (
-                    <SessionRow
-                      key={item.id}
-                      session={item}
-                      isLast={index === list.length - 1}
-                      onPress={() => {
-                        setSelected(null);
-                        onSession(item.id);
-                      }}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-          </ScrollView>
-        )}
-      </Modal>
     </View>
   );
 }
@@ -13692,8 +13361,7 @@ const st = StyleSheet.create({
     left: 14,
     right: 14,
     zIndex: 999,
-    borderRadius: LARGE_CORNER,
-    overflow: "hidden",
+    overflow: "visible",
     shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
@@ -13702,12 +13370,15 @@ const st = StyleSheet.create({
   },
   toastGlass: {
     minHeight: 62,
+    borderRadius: LARGE_CORNER,
+    overflow: "visible",
+  },
+  toastRow: {
+    minHeight: 62,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    overflow: "hidden",
     padding: 11,
-    borderRadius: LARGE_CORNER,
   },
   toastIcon: {
     width: 36,

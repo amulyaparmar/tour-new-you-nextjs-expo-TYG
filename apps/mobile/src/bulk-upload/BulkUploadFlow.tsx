@@ -296,7 +296,7 @@ export function BulkUploadFlow({
 
   async function discardBatch() {
     if (!batch) return;
-    Alert.alert("Discard this batch?", "The saved device copies will be removed. Sessions already uploaded will remain.", [
+    Alert.alert("Discard this batch?", "The saved device copies will be removed. Tours already uploaded will remain.", [
       { text: "Keep batch", style: "cancel" },
       {
         text: "Discard",
@@ -623,13 +623,13 @@ function ConfigureStep({
               ) : null}
             </View>
             <TextInput
-              accessibilityLabel={`Session title for ${item.fileName}`}
+              accessibilityLabel={`Tour title for ${item.fileName}`}
               value={itemDraft.title}
               onChangeText={(title) => onDraft({
                 ...draft,
                 items: { ...draft.items, [item.id]: { ...itemDraft, title } },
               })}
-              placeholder="Session title (optional)"
+              placeholder="Tour title (optional)"
               placeholderTextColor={C.textMuted}
               style={styles.compactInput}
             />
@@ -700,10 +700,10 @@ function ReviewStep({
       <LinearGradient colors={["#f7fbff", "#f5f3ff"]} style={styles.reviewHero}>
         <View style={styles.reviewHeroIcon}><Ionicons name="checkmark-done" size={25} color={C.brand} /></View>
         <Text style={styles.reviewHeroTitle}>Ready when you are</Text>
-        <Text style={styles.reviewHeroCopy}>Tour will create {batch.items.length} independent sessions and upload up to two recordings at a time.</Text>
+        <Text style={styles.reviewHeroCopy}>Tour will create {batch.items.length} independent tours and upload up to two recordings at a time.</Text>
       </LinearGradient>
       <View style={styles.reviewStats}>
-        <Stat value={String(batch.items.length)} label="Sessions" />
+        <Stat value={String(batch.items.length)} label="Tours" />
         <Stat value={formatBytes(totalBytes).replace("Size unavailable", "—")} label="Total size" />
         <Stat value="2" label="At a time" />
       </View>

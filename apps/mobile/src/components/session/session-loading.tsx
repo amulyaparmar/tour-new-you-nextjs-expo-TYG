@@ -25,7 +25,7 @@ export function SessionReviewSkeleton({ onBack }: { onBack?: () => void }) {
         <Skeleton style={styles.cardSkeleton} />
         <Skeleton style={styles.cardSkeletonTall} />
       </View>
-      <GlassNavHeader title="Session" onBack={onBack} />
+      <GlassNavHeader title="Tour" onBack={onBack} />
     </Reanimated.View>
   );
 }

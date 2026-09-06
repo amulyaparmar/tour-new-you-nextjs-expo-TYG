@@ -2072,7 +2072,7 @@ export function RecordingExperience({
         }
         title={title?.trim() || "Live Mystery Shopping Calls"}
         onMorePress={recorderStarting ? undefined : () => setOptionsMenuOpen(true)}
-        moreAccessibilityLabel="Session options"
+        moreAccessibilityLabel="Tour options"
       />
       <RecordingOptionsMenu
         visible={optionsMenuOpen}
@@ -2132,11 +2132,11 @@ function RecordingOptionsMenu({
       dragHeader={
         <View style={s.optionsTitleRow}>
           <View style={s.optionsHeaderCopy}>
-            <CustomText textStyle="hero">Session options</CustomText>
+            <CustomText textStyle="hero">Tour options</CustomText>
           </View>
           <LiquidGlassIconButton
             icon="close"
-            accessibilityLabel="Close session options"
+            accessibilityLabel="Close tour options"
             onPress={onClose}
           />
         </View>

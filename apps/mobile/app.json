@@ -21,21 +21,14 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocalNetworkUsageDescription": "Tour needs local network access to reach your development server on this Mac.",
-        "NSBonjourServices": [
-          "_http._tcp",
-          "_expo._tcp"
-        ],
+        "NSBonjourServices": ["_http._tcp", "_expo._tcp"],
         "NSCameraUsageDescription": "Allow Tour to use your camera when you take photos, record video, or capture a 360° asset.",
         "NSMotionUsageDescription": "Allow Tour to use motion sensors to keep 360° panorama photos level and evenly spaced.",
         "NSMicrophoneUsageDescription": "Allow Tour to record leasing conversations for session analysis and coaching.",
         "NSPhotoLibraryUsageDescription": "Allow Tour to choose photos or videos from your library for tour media and community assets.",
         "NSPhotoLibraryAddUsageDescription": "Allow Tour to save tour media and shared assets to your photo library when you request it.",
         "NSSpeechRecognitionUsageDescription": "Allow Tour to transcribe leasing conversations live for in-tour coaching.",
-        "UIBackgroundModes": [
-          "audio",
-          "voip",
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["audio", "voip", "remote-notification"]
       }
     },
     "android": {
@@ -101,9 +94,7 @@
         {
           "photosPermission": "Allow Tour to access videos you choose from your photo library.",
           "savePhotosPermission": "Allow Tour to save recorded video assets to your photo library.",
-          "granularPermissions": [
-            "video"
-          ]
+          "granularPermissions": ["video"]
         }
       ],
       [

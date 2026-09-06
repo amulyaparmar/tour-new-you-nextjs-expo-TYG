@@ -1,4 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
 import {
   Alert,
@@ -22,10 +23,11 @@ import {
   glassNavContentInset,
 } from "@/components/glass-nav-header";
 import { BottomSheetModal } from "@/components/bottom-sheet-modal";
+import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { SecondaryButton } from "@/components/secondary-button";
 import { MotionPressable } from "@/components/ui/motion";
 import { useProfileQuery, useUpdateProfileMutation } from "@/queries";
-import { ACCENT, BACKGROUND, CARD, SMALL_CORNER, TEXT } from "@/theme/tokens";
+import { ACCENT, BACKGROUND, CARD, LARGE_CORNER, SMALL_CORNER, TEXT } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
 
 export function SettingsScreen({
@@ -162,7 +164,7 @@ export function SettingsScreen({
         <SettingsRow
           icon="clipboard-outline"
           title="Rubrics"
-          sub="Templates, criteria, and session applications"
+          sub="Templates, criteria, and applied tours"
           onPress={onRubrics}
         />
 
@@ -251,60 +253,54 @@ export function SettingsScreen({
         onClose={() => setFeedbackOpen(false)}
         sheetHeight={430}
         keyboardAvoiding
-        dragHeader={
-          <View style={styles.sheetHeader}>
-            <View style={styles.iconWrap}>
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={20}
-                color={ACCENT}
+        sheetStyle={styles.sheet}
+        contentStyle={styles.sheetContent}
+      >
+        <View style={styles.sheetInner}>
+          <View pointerEvents="box-none" style={styles.sheetHeaderWrap}>
+            <LinearGradient
+              colors={[BACKGROUND, "rgba(242, 242, 247, 0.62)", "rgba(242, 242, 247, 0)"]}
+              locations={[0, 0.5, 1]}
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+            />
+            <View pointerEvents="box-none" style={styles.sheetTitleRow}>
+              <View style={styles.flex}>
+                <CustomText textStyle="hero">Share Feedback</CustomText>
+              </View>
+              <LiquidGlassIconButton
+                icon="close"
+                accessibilityLabel="Close feedback"
+                onPress={() => setFeedbackOpen(false)}
               />
             </View>
-            <View style={styles.flex}>
-              <CustomText textStyle="title">Share Feedback</CustomText>
-              <CustomText textStyle="caption" style={styles.rowSub}>
-                Tell us what would make the next Tour better.
-              </CustomText>
-            </View>
           </View>
-        }
-      >
-        <View style={styles.sheetBody}>
-          <CustomText textStyle="title">What should we improve?</CustomText>
-          <TextInput
-            multiline
-            maxLength={4000}
-            value={feedbackText}
-            onChangeText={setFeedbackText}
-            placeholder="What do you love, need help with, found, or feel is missing?"
-            placeholderTextColor={C.textMuted}
-            style={[customTextVariants.body, styles.input]}
-            textAlignVertical="top"
-          />
-          <CustomText textStyle="micro" style={styles.counter}>
-            {feedbackText.length}/4000
-          </CustomText>
-          <MotionPressable
-            accessibilityRole="button"
-            haptic="medium"
-            onPress={() => void sendFeedback()}
-            style={styles.primaryButton}
-          >
-            <Ionicons name="send-outline" size={17} color={CARD} />
-            <CustomText textStyle="title" style={styles.primaryButtonText}>
-              Send feedback
+          <View style={styles.sheetBody}>
+            <CustomText textStyle="title">What should we improve?</CustomText>
+            <TextInput
+              multiline
+              maxLength={4000}
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              placeholder="What do you love, need help with, found, or feel is missing?"
+              placeholderTextColor={C.textMuted}
+              style={[customTextVariants.body, styles.input]}
+              textAlignVertical="top"
+            />
+            <CustomText textStyle="micro" style={styles.counter}>
+              {feedbackText.length}/4000
             </CustomText>
-          </MotionPressable>
-          <MotionPressable
-            accessibilityRole="button"
-            haptic="selection"
-            onPress={() => setFeedbackOpen(false)}
-            style={styles.cancelButton}
-          >
-            <CustomText textStyle="label" style={styles.cancelText}>
-              Not now
-            </CustomText>
-          </MotionPressable>
+            <MotionPressable
+              accessibilityRole="button"
+              haptic="medium"
+              onPress={() => void sendFeedback()}
+              style={styles.primaryButton}
+            >
+              <CustomText textStyle="title" style={styles.primaryButtonText}>
+                Send feedback
+              </CustomText>
+            </MotionPressable>
+          </View>
         </View>
       </BottomSheetModal>
     </View>
@@ -451,15 +447,43 @@ const styles = StyleSheet.create({
     color: C.textMuted,
     textAlign: "center",
   },
-  sheetHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  sheetBody: { flex: 1, gap: 10, paddingTop: 16 },
+  sheet: {
+    overflow: "hidden",
+    paddingTop: 2,
+    paddingHorizontal: 0,
+    borderTopLeftRadius: LARGE_CORNER,
+    borderTopRightRadius: LARGE_CORNER,
+    borderCurve: "continuous",
+    backgroundColor: BACKGROUND,
+  },
+  sheetContent: { overflow: "visible" },
+  sheetInner: { flex: 1 },
+  sheetHeaderWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 44 + 56,
+    zIndex: 20,
+    overflow: "visible",
+    backgroundColor: "transparent",
+  },
+  sheetTitleRow: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 18,
+    overflow: "visible",
+  },
+  sheetBody: { flex: 1, gap: 10, paddingTop: 52, paddingHorizontal: 18 },
   input: {
     flex: 1,
     minHeight: 120,
     padding: 14,
-    borderRadius: SMALL_CORNER,
+    borderRadius: LARGE_CORNER,
     borderCurve: "continuous",
-    backgroundColor: BACKGROUND,
+    backgroundColor: CARD,
     color: TEXT,
     lineHeight: 20,
   },
@@ -469,21 +493,14 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   primaryButton: {
-    minHeight: 50,
-    flexDirection: "row",
+    minHeight: 58,
+    alignSelf: "stretch",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
     paddingHorizontal: 16,
-    borderRadius: 25,
+    borderRadius: 29,
     backgroundColor: ACCENT,
     boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
   primaryButtonText: { color: CARD },
-  cancelButton: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelText: { color: C.textSec },
 });
