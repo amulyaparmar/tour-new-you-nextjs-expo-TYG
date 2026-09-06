@@ -1932,6 +1932,9 @@ export default function App() {
                           scenario={stackedPractice.scenario}
                           attemptId={stackedPractice.attemptId}
                           active={screen.type === "practice-session"}
+                          onAttemptPersisted={() =>
+                            setPracticeListEpoch((epoch) => epoch + 1)
+                          }
                           onBack={() => {
                             setPracticeListEpoch((epoch) => epoch + 1);
                             nav({ type: "main", tab: "practice" });

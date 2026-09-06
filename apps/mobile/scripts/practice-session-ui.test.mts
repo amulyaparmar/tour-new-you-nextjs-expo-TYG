@@ -73,6 +73,15 @@ test("ended practice scrolls to the screen bottom instead of reserving a footer 
   assert.match(session, /callState === "ended"\s*\n\s*\? insets\.bottom \+ 8/);
 });
 
+test("ended practice saves a pending history item before analysis finishes", () => {
+  assert.match(session, /gradeStatus: "needs-review"/);
+  assert.match(session, /onAttemptPersisted/);
+  assert.match(session, /vapi_call_id/);
+  assert.match(session, /setResumeCallId\(pendingCallId\)/);
+  const cancelled = [...session.matchAll(/analysisCancelledRef\.current = true/g)];
+  assert.equal(cancelled.length, 1);
+});
+
 test("the practice list opens a native stack session instead of swapping in place", () => {
   const list = readFileSync(new URL("../src/practice/PracticeSessionsScreen.tsx", import.meta.url), "utf8");
   const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");

@@ -49,6 +49,7 @@ export type PracticeSessionOpen = {
 export type NativePracticeSessionHostProps = PracticeSessionOpen & {
   onBack: () => void;
   active?: boolean;
+  onAttemptPersisted?: () => void;
 };
 
 const canUseNativePractice = Platform.OS !== "web" && !isExpoGo();

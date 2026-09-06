@@ -54,6 +54,7 @@ type Launch = {
 };
 
 type StoredAttempt = {
+  vapi_call_id?: string | null;
   scenario_id?: string | null;
   scenario_name?: string | null;
   scenario_difficulty?: string | null;
@@ -63,6 +64,13 @@ type StoredAttempt = {
   summary?: string | null;
   transcript_json?: unknown;
   evaluations?: unknown;
+};
+
+type Scorecard = {
+  score: number | null;
+  status: "passed" | "not-passed" | "needs-review";
+  summary: string | null;
+  saved: boolean;
 };
 
 const WAYPOINTS_EVAL_KEYWORD = "roleplay_waypoints";
@@ -330,11 +338,13 @@ export function NativePracticeSession({
   attemptId,
   onBack,
   active = true,
+  onAttemptPersisted,
 }: {
   scenario: Scenario | null;
   attemptId?: string;
   onBack: () => void;
   active?: boolean;
+  onAttemptPersisted?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -355,6 +365,9 @@ export function NativePracticeSession({
   const [reviewTab, setReviewTab] = useState<PracticeReviewTab>("transcript");
   const endedFromLiveRef = useRef(false);
   const completedWaypointIdsRef = useRef<string[]>([]);
+  const secondsRef = useRef(0);
+  const resumeStartedRef = useRef<string | null>(null);
+  const [resumeCallId, setResumeCallId] = useState<string | null>(null);
 
   const dailyCallRef = useRef<any>(null);
   const callIdRef = useRef<string | null>(null);
@@ -414,6 +427,17 @@ export function NativePracticeSession({
         });
         setSeconds(Math.max(0, Math.round(Number(attempt.duration_seconds) || 0)));
         setCallState("ended");
+        const pendingCallId =
+          typeof attempt.vapi_call_id === "string" ? attempt.vapi_call_id.trim() : "";
+        if (attempt.score == null && pendingCallId) {
+          callIdRef.current = pendingCallId;
+          analysisCancelledRef.current = false;
+          setResumeCallId(pendingCallId);
+          setGrading(true);
+        } else {
+          setResumeCallId(null);
+          setGrading(false);
+        }
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Could not load this practice session.");
       } finally {
@@ -453,6 +477,10 @@ export function NativePracticeSession({
   }, [completedWaypointIds]);
 
   useEffect(() => {
+    secondsRef.current = seconds;
+  }, [seconds]);
+
+  useEffect(() => {
     if (!startedAt || callState !== "live") return;
     const timer = setInterval(() => setSeconds(elapsed(startedAt)), 1000);
     return () => clearInterval(timer);
@@ -487,39 +515,40 @@ export function NativePracticeSession({
     setTranscript(merged);
   }, [startedAt]);
 
-  const saveAttempt = useCallback(async (call: any, structuredData: any, resolvedLaunch: Launch) => {
-    const score = Number(structuredData?.overallScore);
-    const normalizedScore = Number.isFinite(score) ? Math.round(Math.max(0, Math.min(100, score))) : null;
-    const threshold = Number(resolvedLaunch.scenario.passThreshold ?? 70);
-    const status: Scorecard["status"] = normalizedScore === null
-      ? "needs-review"
-      : normalizedScore >= threshold ? "passed" : "not-passed";
-    const liveTranscriptJson = transcriptRef.current.map((line) => ({
-      type: line.role === "agent" ? "user" : "assistant",
-      message: line.text,
-      time: line.seconds,
-    }));
-    const transcriptJson = Array.isArray(call?.transcriptJson) && call.transcriptJson.length
-      ? call.transcriptJson
-      : liveTranscriptJson;
+  const persistAttempt = useCallback(async ({
+    vapiCallId,
+    resolvedLaunch,
+    score,
+    gradeStatus,
+    durationSeconds,
+    summary,
+    transcriptJson,
+  }: {
+    vapiCallId: string;
+    resolvedLaunch: Launch;
+    score: number | null;
+    gradeStatus: Scorecard["status"];
+    durationSeconds: number;
+    summary: string | null;
+    transcriptJson: unknown[];
+  }) => {
     const transcriptText = transcriptJson
       .map((line: any) => `${line.type === "user" || line.type === "agent" ? "Agent" : "Prospect"}: ${line.message ?? ""}`)
       .filter((line: string) => !line.endsWith(": "))
       .join("\n");
-    let saved = false;
     try {
       const response = await authenticatedFetch("/api/roleplay/attempts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vapiCallId: call.id,
+          vapiCallId,
           scenarioId: resolvedLaunch.scenario.id,
           scenarioName: resolvedLaunch.scenario.name,
           scenarioDifficulty: resolvedLaunch.scenario.difficulty,
-          score: normalizedScore,
-          gradeStatus: status,
-          durationSeconds: call.durationSeconds ?? seconds,
-          summary: call.analysis?.summary ?? null,
+          score,
+          gradeStatus,
+          durationSeconds,
+          summary,
           transcript: transcriptText,
           transcriptJson,
           evaluations: [{
@@ -538,12 +567,42 @@ export function NativePracticeSession({
         }),
       });
       const body = await response.json().catch(() => null) as { success?: boolean } | null;
-      saved = response.ok && Boolean(body?.success);
+      const saved = response.ok && Boolean(body?.success);
+      if (saved) onAttemptPersisted?.();
+      return saved;
     } catch {
-      saved = false;
+      return false;
     }
+  }, [onAttemptPersisted]);
+
+  const liveTranscriptJson = () =>
+    transcriptRef.current.map((line) => ({
+      type: line.role === "agent" ? "user" : "assistant",
+      message: line.text,
+      time: line.seconds,
+    }));
+
+  const saveAttempt = useCallback(async (call: any, structuredData: any, resolvedLaunch: Launch) => {
+    const score = Number(structuredData?.overallScore);
+    const normalizedScore = Number.isFinite(score) ? Math.round(Math.max(0, Math.min(100, score))) : null;
+    const threshold = Number(resolvedLaunch.scenario.passThreshold ?? 70);
+    const status: Scorecard["status"] = normalizedScore === null
+      ? "needs-review"
+      : normalizedScore >= threshold ? "passed" : "not-passed";
+    const transcriptJson = Array.isArray(call?.transcriptJson) && call.transcriptJson.length
+      ? call.transcriptJson
+      : liveTranscriptJson();
+    const saved = await persistAttempt({
+      vapiCallId: call.id,
+      resolvedLaunch,
+      score: normalizedScore,
+      gradeStatus: status,
+      durationSeconds: call.durationSeconds ?? secondsRef.current,
+      summary: call.analysis?.summary ?? null,
+      transcriptJson,
+    });
     setScorecard({ score: normalizedScore, status, summary: call.analysis?.summary ?? null, saved });
-  }, [seconds]);
+  }, [persistAttempt]);
 
   const resolveAnalysis = useCallback(async (callId: string, resolvedLaunch: Launch) => {
     setGrading(true);
@@ -587,9 +646,34 @@ export function NativePracticeSession({
     setCallState("ended");
     if (shouldGrade && !endedRef.current && callIdRef.current) {
       endedRef.current = true;
-      void resolveAnalysis(callIdRef.current, resolvedLaunch);
+      const callId = callIdRef.current;
+      const durationSeconds = secondsRef.current;
+      setGrading(true);
+      const transcriptJson = liveTranscriptJson();
+      void (async () => {
+        await persistAttempt({
+          vapiCallId: callId,
+          resolvedLaunch,
+          score: null,
+          gradeStatus: "needs-review",
+          durationSeconds,
+          summary: null,
+          transcriptJson,
+        });
+        if (analysisCancelledRef.current) return;
+        await resolveAnalysis(callId, resolvedLaunch);
+      })();
     }
-  }, [resolveAnalysis]);
+  }, [persistAttempt, resolveAnalysis]);
+
+  useEffect(() => {
+    if (!resumeCallId || !launch) return;
+    if (resumeStartedRef.current === resumeCallId) return;
+    resumeStartedRef.current = resumeCallId;
+    analysisCancelledRef.current = false;
+    endedRef.current = true;
+    void resolveAnalysis(resumeCallId, launch);
+  }, [launch, resolveAnalysis, resumeCallId]);
 
   useEffect(() => () => {
     analysisCancelledRef.current = true;
@@ -601,7 +685,6 @@ export function NativePracticeSession({
 
   useEffect(() => {
     if (active) return;
-    analysisCancelledRef.current = true;
     clearConnectionTimer();
     if (assistantSpeakingTimerRef.current) clearTimeout(assistantSpeakingTimerRef.current);
     try { dailyCallRef.current?.destroy?.(); } catch {}
@@ -621,6 +704,8 @@ export function NativePracticeSession({
     setMuted(false);
     endedRef.current = false;
     analysisCancelledRef.current = false;
+    resumeStartedRef.current = null;
+    setResumeCallId(null);
     callIdRef.current = null;
     agentReadyRef.current = false;
     clearConnectionTimer();
