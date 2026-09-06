@@ -47,6 +47,17 @@ export type SampleSessionBundle = {
   actions: FollowUpAction[];
 };
 
+export type SessionTranscriptSegment = SampleSessionBundle["transcript"][number];
+
+export type SessionReviewBundle = {
+  session: SessionDetail;
+  analysis: AnalysisResult | null;
+  phases: ConversationPhaseSegmentation | null;
+  transcript: SessionTranscriptSegment[];
+  actions: FollowUpAction[];
+  comments: SessionComment[];
+};
+
 export async function fetchSessions(params?: FetchSessionsParams): Promise<PaginatedSessions> {
   const sp = new URLSearchParams();
   if (params?.page) sp.set("page", String(params.page));
@@ -288,6 +299,14 @@ export async function fetchSession(sessionId: string) {
   };
 }
 
+export async function fetchSessionReview(sessionId: string): Promise<SessionReviewBundle> {
+  const res = await authenticatedFetch(`/api/sessions/${sessionId}?view=review`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch session review.");
+  }
+  return (await res.json()) as SessionReviewBundle;
+}
+
 export async function getRecordingSignedPlaybackUrl(sessionId: string) {
   const res = await authenticatedFetch(`/api/sessions/${sessionId}/recording/url`);
   if (!res.ok) {
@@ -456,14 +475,7 @@ export async function fetchTranscript(sessionId: string) {
     throw new Error("Failed to fetch transcript.");
   }
   return (await res.json()) as {
-    transcript: Array<{
-      id: string;
-      sessionId: string;
-      speaker: string;
-      startTime: number;
-      endTime: number;
-      text: string;
-    }>;
+    transcript: SessionTranscriptSegment[];
   };
 }
 

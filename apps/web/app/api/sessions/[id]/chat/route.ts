@@ -22,13 +22,15 @@ export async function POST(request: Request, context: Context) {
 
   try {
     const { messages, model }: { messages: UIMessage[]; model?: string } = await request.json();
-    const analysis = await getAnalysisBySessionId(sessionId);
+    const [analysis, transcript] = await Promise.all([
+      getAnalysisBySessionId(sessionId),
+      getTranscriptForSession(sessionId),
+    ]);
 
     if (!analysis) {
       return Response.json({ error: "Analysis not available for this session." }, { status: 404 });
     }
 
-    const transcript = await getTranscriptForSession(sessionId);
     const instructions = buildSessionAiInstructions(analysis, transcript);
     const analysisModel = normalizeAnalysisModelId(model);
 

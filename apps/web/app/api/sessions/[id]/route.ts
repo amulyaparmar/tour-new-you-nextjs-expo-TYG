@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 
 import { normalizeSessionCustomerInterests, type SessionStatus } from "@tour/shared";
-import { deleteSession, getAnalysisBySessionId, getConversationPhases, getSessionById, setSessionStatus, updateSession } from "@/lib/sessions";
+import { listComments } from "@/lib/comments";
+import { getTranscriptForSession } from "@/lib/evidence";
+import {
+  deleteSession,
+  getAnalysisBySessionId,
+  getConversationPhases,
+  getSessionById,
+  listFollowUpActions,
+  setSessionStatus,
+  updateSession,
+} from "@/lib/sessions";
 import { getRecordingPlaybackPath, getRecordingUrl, isLegacyLocalUrl } from "@/lib/storage";
 import { AdminAuthError } from "@/lib/admin-auth";
 import { requireSessionReadAccess, requireSessionWriteAccess } from "@/lib/session-access";
@@ -44,13 +54,23 @@ export async function GET(request: Request, context: Context) {
 
   try {
     const { session } = await requireSessionReadAccess(request, id);
+    const includeReview = new URL(request.url).searchParams.get("view") === "review";
 
-    await attachPlaybackUrls(session);
+    const [, analysis, phases, transcript, actions, comments] = await Promise.all([
+      attachPlaybackUrls(session),
+      getAnalysisBySessionId(id),
+      getConversationPhases(id),
+      includeReview ? getTranscriptForSession(id) : Promise.resolve(null),
+      includeReview ? listFollowUpActions(id) : Promise.resolve(null),
+      includeReview ? listComments(id) : Promise.resolve(null),
+    ]);
 
-    const analysis = await getAnalysisBySessionId(id);
-    const phases = await getConversationPhases(id);
-
-    return NextResponse.json({ session, analysis, phases });
+    return NextResponse.json({
+      session,
+      analysis,
+      phases,
+      ...(includeReview ? { transcript, actions, comments } : {}),
+    });
   } catch (error) {
     const status = error instanceof AdminAuthError ? error.status : 500;
     return NextResponse.json(

@@ -21,6 +21,7 @@ import {
   fetchSampleSession,
   fetchSampleSessions,
   fetchSession,
+  fetchSessionReview,
   fetchSessions,
   fetchTranscript,
   postComment,
@@ -31,6 +32,7 @@ import {
   type ProfileResponse,
   type ProfileUpdatePayload,
   type SessionComment,
+  type SessionReviewBundle,
 } from "./api";
 import { getCurrentSession, replaceStoredSession } from "./auth";
 
@@ -43,6 +45,7 @@ export const queryKeys = {
   sessions: (params?: FetchSessionsParams) => [...queryKeys.all(), "sessions", params ?? {}] as const,
   sessionPages: (params?: FetchSessionsParams) => [...queryKeys.all(), "sessionPages", params ?? {}] as const,
   session: (sessionId: string) => [...queryKeys.all(), "session", sessionId] as const,
+  sessionReview: (sessionId: string) => [...queryKeys.session(sessionId), "review"] as const,
   sampleSessions: () => [...queryKeys.all(), "sampleSessions"] as const,
   sampleSession: (sessionId: string) => [...queryKeys.all(), "sampleSession", sessionId] as const,
   analysis: (sessionId: string) => [...queryKeys.session(sessionId), "analysis"] as const,
@@ -80,6 +83,15 @@ export function useSessionQuery(sessionId: string, enabled = true) {
     queryKey: queryKeys.session(sessionId),
     queryFn: () => fetchSession(sessionId),
     enabled,
+  });
+}
+
+export function useSessionReviewQuery(sessionId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.sessionReview(sessionId),
+    queryFn: () => fetchSessionReview(sessionId),
+    enabled,
+    staleTime: 60_000,
   });
 }
 
@@ -306,21 +318,32 @@ export function useUpdateActionStatusMutation(sessionId: string) {
     mutationFn: ({ actionId, status }: { actionId: string; status: "completed" | "dismissed" }) =>
       updateActionStatus(sessionId, actionId, status),
     onMutate: async ({ actionId, status }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.actions(sessionId) });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.actions(sessionId) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.sessionReview(sessionId) }),
+      ]);
       const previous = queryClient.getQueryData<{ actions: FollowUpAction[] }>(queryKeys.actions(sessionId));
+      const previousReview = queryClient.getQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId));
       queryClient.setQueryData<{ actions: FollowUpAction[] }>(queryKeys.actions(sessionId), (data) =>
         data ? {
           actions: data.actions.map((action) => action.id === actionId ? { ...action, status } : action),
         } : data,
       );
-      return { previous };
+      queryClient.setQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId), (data) =>
+        data ? {
+          ...data,
+          actions: data.actions.map((action) => action.id === actionId ? { ...action, status } : action),
+        } : data,
+      );
+      return { previous, previousReview };
     },
     onError: (_error, _vars, context) => {
       queryClient.setQueryData(queryKeys.actions(sessionId), context?.previous);
+      queryClient.setQueryData(queryKeys.sessionReview(sessionId), context?.previousReview);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.actions(sessionId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionReview(sessionId) });
     },
   });
 }
@@ -330,8 +353,12 @@ export function usePostCommentMutation(sessionId: string) {
   return useMutation({
     mutationFn: (payload: Parameters<typeof postComment>[1]) => postComment(sessionId, payload),
     onMutate: async (payload) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.comments(sessionId) });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.comments(sessionId) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.sessionReview(sessionId) }),
+      ]);
       const previous = queryClient.getQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId));
+      const previousReview = queryClient.getQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId));
       const session = getCurrentSession();
       const optimistic: SessionComment = {
         id: `optimistic-${Date.now()}`,
@@ -347,10 +374,14 @@ export function usePostCommentMutation(sessionId: string) {
       queryClient.setQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId), (data) => ({
         comments: [...(data?.comments ?? []), optimistic],
       }));
-      return { previous };
+      queryClient.setQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId), (data) =>
+        data ? { ...data, comments: [...data.comments, optimistic] } : data,
+      );
+      return { previous, previousReview };
     },
     onError: (_error, _payload, context) => {
       queryClient.setQueryData(queryKeys.comments(sessionId), context?.previous);
+      queryClient.setQueryData(queryKeys.sessionReview(sessionId), context?.previousReview);
     },
     onSuccess: (result) => {
       queryClient.setQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId), (data) => ({
@@ -359,9 +390,19 @@ export function usePostCommentMutation(sessionId: string) {
           result.comment,
         ],
       }));
+      queryClient.setQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId), (data) =>
+        data ? {
+          ...data,
+          comments: [
+            ...data.comments.filter((comment) => !comment.id.startsWith("optimistic-")),
+            result.comment,
+          ],
+        } : data,
+      );
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.comments(sessionId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionReview(sessionId) });
     },
   });
 }
@@ -371,18 +412,30 @@ export function useDeleteCommentMutation(sessionId: string) {
   return useMutation({
     mutationFn: (commentId: string) => deleteComment(sessionId, commentId),
     onMutate: async (commentId) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.comments(sessionId) });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.comments(sessionId) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.sessionReview(sessionId) }),
+      ]);
       const previous = queryClient.getQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId));
+      const previousReview = queryClient.getQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId));
       queryClient.setQueryData<{ comments: SessionComment[] }>(queryKeys.comments(sessionId), (data) => ({
         comments: (data?.comments ?? []).filter((comment) => comment.id !== commentId && comment.parentId !== commentId),
       }));
-      return { previous };
+      queryClient.setQueryData<SessionReviewBundle>(queryKeys.sessionReview(sessionId), (data) =>
+        data ? {
+          ...data,
+          comments: data.comments.filter((comment) => comment.id !== commentId && comment.parentId !== commentId),
+        } : data,
+      );
+      return { previous, previousReview };
     },
     onError: (_error, _commentId, context) => {
       queryClient.setQueryData(queryKeys.comments(sessionId), context?.previous);
+      queryClient.setQueryData(queryKeys.sessionReview(sessionId), context?.previousReview);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.comments(sessionId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessionReview(sessionId) });
     },
   });
 }

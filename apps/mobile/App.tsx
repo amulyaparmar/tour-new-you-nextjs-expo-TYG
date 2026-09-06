@@ -310,9 +310,9 @@ import {
   useRubricsQuery,
   useSampleSessionQuery,
   useSampleSessionsQuery,
+  useSessionReviewQuery,
   useSessionQuery,
   useSessionsQuery,
-  useTranscriptQuery,
   useUpdateActionStatusMutation,
 } from "./src/queries";
 import { useAppStore } from "./src/stores/app-store";
@@ -7555,17 +7555,18 @@ function SessionDetailScreen({
     uploadDifferent: () => void;
   } | null>(null);
   const insets = useSafeAreaInsets();
-  const sessionQuery = useSessionQuery(sessionId);
-  const analysisQuery = useAnalysisQuery(sessionId);
-  const actionsQuery = useActionsQuery(sessionId);
-  const transcriptQuery = useTranscriptQuery(sessionId);
-  const commentsQuery = useCommentsQuery(sessionId);
-  const session = sessionQuery.data?.session ?? null;
-  const analysis = analysisQuery.data?.analysis ?? null;
-  const actions = actionsQuery.data?.actions ?? [];
-  const transcript = transcriptQuery.data?.transcript ?? [];
-  const phases = sessionQuery.data?.phases ?? null;
-  const comments = commentsQuery.data?.comments ?? [];
+  const reviewQuery = useSessionReviewQuery(sessionId);
+  const refetchReview = reviewQuery.refetch;
+  const session = reviewQuery.data?.session ?? null;
+  const analysis = reviewQuery.data?.analysis ?? null;
+  const actions = reviewQuery.data?.actions ?? [];
+  const transcript = reviewQuery.data?.transcript ?? [];
+  const phases = reviewQuery.data?.phases ?? null;
+  const comments = reviewQuery.data?.comments ?? [];
+  const isProcessingReview =
+    Boolean(session) &&
+    !analysis &&
+    PROCESSING_STATUSES.has(session?.status ?? "");
   const shouldFetchAudioInsights =
     session?.audioInsightsStatus === "ready" ||
     session?.audioInsightsStatus === "processing";
@@ -7573,19 +7574,14 @@ function SessionDetailScreen({
     sessionId,
     shouldFetchAudioInsights,
   );
+  const refetchAudioInsights = audioInsightsQuery.refetch;
   const audioInsightsStatus =
     audioInsightsQuery.data?.status ??
     session?.audioInsightsStatus ??
     "pending";
   const audioInsights = audioInsightsQuery.data?.insights ?? null;
-  const loading = sessionQuery.isLoading;
-  const error =
-    sessionQuery.error ??
-    analysisQuery.error ??
-    actionsQuery.error ??
-    transcriptQuery.error ??
-    commentsQuery.error ??
-    null;
+  const loading = reviewQuery.isLoading;
+  const error = reviewQuery.error ?? null;
 
   useEffect(() => {
     liveHandoffRef.current = false;
@@ -7652,36 +7648,26 @@ function SessionDetailScreen({
 
   const load = useCallback(async () => {
     await Promise.all([
-      sessionQuery.refetch(),
-      analysisQuery.refetch(),
-      actionsQuery.refetch(),
-      transcriptQuery.refetch(),
-      commentsQuery.refetch(),
+      refetchReview(),
       shouldFetchAudioInsights
-        ? audioInsightsQuery.refetch()
+        ? refetchAudioInsights()
         : Promise.resolve(),
     ]);
   }, [
-    actionsQuery,
-    analysisQuery,
-    audioInsightsQuery,
-    commentsQuery,
-    sessionQuery,
+    refetchAudioInsights,
+    refetchReview,
     shouldFetchAudioInsights,
-    transcriptQuery,
   ]);
 
   useEffect(() => {
-    if (!session || analysis || !PROCESSING_STATUSES.has(session.status))
-      return;
+    if (!isProcessingReview) return;
     const poll = setInterval(() => {
       if (AppState.currentState === "active") {
-        void sessionQuery.refetch();
-        void analysisQuery.refetch();
+        void refetchReview();
       }
     }, 4000);
     return () => clearInterval(poll);
-  }, [analysis, analysisQuery, session, sessionQuery]);
+  }, [isProcessingReview, refetchReview]);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await load();

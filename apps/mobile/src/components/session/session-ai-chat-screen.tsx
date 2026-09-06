@@ -6,7 +6,7 @@ import { glassNavContentInset } from "@/components/glass-nav-header";
 import { LoadingDots } from "@/components/loading-dots";
 import { ACCENT, BACKGROUND } from "@/theme/tokens";
 import { useSessionPlayback } from "@/hooks/use-session-playback";
-import { useAnalysisQuery } from "@/queries";
+import { useSessionReviewQuery } from "@/queries";
 
 import { SessionMiniPlayer } from "./session-mini-player";
 import { TourScreenHeader } from "./tour-screen-header";
@@ -23,9 +23,9 @@ export function SessionAiChatScreen({
   onBack: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const analysisQuery = useAnalysisQuery(sessionId);
-  const analysis = analysisQuery.data?.analysis ?? null;
-  const loading = analysisQuery.isLoading;
+  const reviewQuery = useSessionReviewQuery(sessionId);
+  const analysis = reviewQuery.data?.analysis ?? null;
+  const loading = reviewQuery.isLoading;
   const playback = useSessionPlayback(sessionId);
 
   return (
