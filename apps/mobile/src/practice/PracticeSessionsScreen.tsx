@@ -8,7 +8,6 @@ import {
   LargeTitleHeader,
   largeTitleContentInset,
 } from "@/components/large-title-header";
-import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { LoadingDots } from "@/components/loading-dots";
 import { MotionPressable } from "@/components/ui/motion";
 import { impactHaptic, selectionHaptic } from "@/lib/haptics";
@@ -42,21 +41,25 @@ type Attempt = {
   created_at?: string;
 };
 
-type NativePracticeSessionProps = {
+export type PracticeSessionOpen = {
   scenario: Scenario | null;
   attemptId?: string;
+};
+
+export type NativePracticeSessionHostProps = PracticeSessionOpen & {
   onBack: () => void;
+  active?: boolean;
 };
 
 const canUseNativePractice = Platform.OS !== "web" && !isExpoGo();
 const PRACTICE_SWIPE_DELETE_WIDTH = 88;
 
-function NativePracticeSessionHost(props: NativePracticeSessionProps) {
+export function NativePracticeSessionHost(props: NativePracticeSessionHostProps) {
   const insets = useSafeAreaInsets();
   const Session = React.useMemo(() => {
     try {
       const loaded = require("./NativePracticeSession") as {
-        NativePracticeSession?: React.ComponentType<NativePracticeSessionProps>;
+        NativePracticeSession?: React.ComponentType<NativePracticeSessionHostProps>;
       };
       return loaded.NativePracticeSession ?? null;
     } catch (error) {
@@ -89,15 +92,15 @@ function NativePracticeSessionHost(props: NativePracticeSessionProps) {
 }
 
 export function PracticeSessionsScreen({
-  onBack,
-  onLiveChange,
+  onOpenSession,
   initialScenarioId,
   property,
+  resumeEpoch = 0,
 }: {
-  onBack?: () => void;
-  onLiveChange?: (live: boolean) => void;
+  onOpenSession: (session: PracticeSessionOpen) => void;
   initialScenarioId?: string;
   property?: string;
+  resumeEpoch?: number;
 }) {
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(0);
@@ -111,21 +114,10 @@ export function PracticeSessionsScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [livePractice, setLivePractice] = useState(false);
-  const [reviewAttemptId, setReviewAttemptId] = useState<string | null>(null);
-  const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const initialScenarioOpenedRef = useRef<string | null>(null);
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
-
-  useEffect(() => {
-    onLiveChange?.(livePractice);
-  }, [livePractice, onLiveChange]);
-
-  useEffect(() => {
-    return () => onLiveChange?.(false);
-  }, [onLiveChange]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -148,6 +140,11 @@ export function PracticeSessionsScreen({
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (resumeEpoch === 0) return;
+    void load();
+  }, [load, resumeEpoch]);
 
   const openPicker = useCallback(() => {
     if (!canUseNativePractice) {
@@ -177,9 +174,8 @@ export function PracticeSessionsScreen({
       return;
     }
     setPickerOpen(false);
-    setSelectedScenario(scenario);
-    setLivePractice(true);
-  }, []);
+    onOpenSession({ scenario });
+  }, [onOpenSession]);
 
   useEffect(() => {
     if (!initialScenarioId || loading || error) return;
@@ -260,16 +256,17 @@ export function PracticeSessionsScreen({
       const matched = attempt.scenario_id
         ? scenarios.find((item) => item.id === attempt.scenario_id)
         : undefined;
-      setSelectedScenario(
-        matched ?? {
-          id: attempt.scenario_id || "",
-          name: attempt.scenario_name || "Practice",
-          difficulty: (attempt.scenario_difficulty as Scenario["difficulty"]) || undefined,
-        },
-      );
-      setReviewAttemptId(attempt.id);
+      onOpenSession({
+        scenario:
+          matched ?? {
+            id: attempt.scenario_id || "",
+            name: attempt.scenario_name || "Practice",
+            difficulty: (attempt.scenario_difficulty as Scenario["difficulty"]) || undefined,
+          },
+        attemptId: attempt.id,
+      });
     },
-    [scenarios],
+    [onOpenSession, scenarios],
   );
 
   const refresh = async () => {
@@ -277,33 +274,6 @@ export function PracticeSessionsScreen({
     await load();
     setRefreshing(false);
   };
-
-  if (reviewAttemptId) {
-    return (
-      <NativePracticeSessionHost
-        scenario={selectedScenario}
-        attemptId={reviewAttemptId}
-        onBack={() => {
-          setReviewAttemptId(null);
-          setSelectedScenario(null);
-        }}
-      />
-    );
-  }
-
-  if (livePractice && canUseNativePractice) {
-    return (
-      <NativePracticeSessionHost
-        scenario={selectedScenario}
-        onBack={() => {
-          setLivePractice(false);
-          setSelectedScenario(null);
-          void load();
-          if (initialScenarioId) onBack?.();
-        }}
-      />
-    );
-  }
 
   const scenarioLabel = scenarios.length === 1 ? "scenario" : "scenarios";
   const subtitle = property
@@ -410,15 +380,6 @@ export function PracticeSessionsScreen({
       <LargeTitleHeader
         title="Practice"
         scrollY={scrollY}
-        leading={
-          onBack ? (
-            <LiquidGlassIconButton
-              icon="arrow-back"
-              accessibilityLabel="Back"
-              onPress={onBack}
-            />
-          ) : undefined
-        }
       />
 
       <ScenarioPickerModal

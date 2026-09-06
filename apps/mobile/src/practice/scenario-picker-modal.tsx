@@ -42,6 +42,7 @@ export type PracticeScenario = {
   difficulty?: "easy" | "medium" | "hard";
   firstMessage?: string;
   passThreshold?: number;
+  waypoints?: { id: string; title: string; cue?: string }[];
 };
 
 export function ScenarioPickerModal({

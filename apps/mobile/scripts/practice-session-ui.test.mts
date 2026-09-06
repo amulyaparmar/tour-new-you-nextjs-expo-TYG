@@ -51,3 +51,35 @@ test("the live speaking dock floats above the footer controls", () => {
   assert.doesNotMatch(session, /agentLine/);
   assert.doesNotMatch(session, /transcriptCard/);
 });
+
+test("ended practice uses Transcript and Report tabs instead of a score card", () => {
+  assert.match(session, /SessionModeTabs/);
+  assert.match(session, /label: "Transcript"/);
+  assert.match(session, /label: "Report"/);
+  assert.doesNotMatch(session, /Back to practice/);
+  assert.doesNotMatch(session, /scoreCard/);
+});
+
+test("the practice report uses Score, Summary, and Goals cards", () => {
+  assert.match(session, /Score/);
+  assert.match(session, /Summary/);
+  assert.match(session, /reportLabel/);
+  assert.match(session, /WAYPOINTS_EVAL_KEYWORD/);
+  assert.doesNotMatch(session, /Practice complete/);
+});
+
+test("ended practice scrolls to the screen bottom instead of reserving a footer inset", () => {
+  assert.doesNotMatch(session, /paddingBottom:\s*footer \? 0 : footerPad/);
+  assert.match(session, /callState === "ended"\s*\n\s*\? insets\.bottom \+ 8/);
+});
+
+test("the practice list opens a native stack session instead of swapping in place", () => {
+  const list = readFileSync(new URL("../src/practice/PracticeSessionsScreen.tsx", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+  assert.match(list, /onOpenSession/);
+  assert.doesNotMatch(list, /if \(reviewAttemptId\)/);
+  assert.doesNotMatch(list, /setLivePractice/);
+  assert.match(app, /name="PracticeSession"/);
+  assert.match(app, /type: "practice-session"/);
+  assert.match(app, /animation: "slide_from_right"/);
+});

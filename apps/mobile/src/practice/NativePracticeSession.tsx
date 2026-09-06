@@ -8,6 +8,7 @@ import { GlassNavHeader, glassNavContentInset } from "@/components/glass-nav-hea
 import { getLiquidGlassView } from "@/components/liquid-glass";
 import { LiquidGlassIconButton } from "@/components/liquid-glass-icon-button";
 import { LoadingDots } from "@/components/loading-dots";
+import { SessionModeTabs } from "@/components/session/session-mode-tabs";
 import { MotionPressable } from "@/components/ui/motion";
 import { ACCENT, BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER, TEXT } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
@@ -19,6 +20,12 @@ import { Alert, Animated, Platform, ScrollView, StyleSheet, View, useWindowDimen
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PracticeSessionSkeleton } from "./practice-loading";
 
+type PracticeReviewTab = "transcript" | "report";
+
+const PRACTICE_REVIEW_TABS: { id: PracticeReviewTab; label: string }[] = [
+  { id: "transcript", label: "Transcript" },
+  { id: "report", label: "Report" },
+];
 const FOOTER_FADE = 56;
 const FOOTER_CONTROLS = 58;
 const LIVE_DOCK = 76;
@@ -27,14 +34,14 @@ const GOALS_HEADER_BAR = 44;
 const GOALS_HEADER_FADE = 56;
 const GOALS_HEADER_INSET = GOALS_HEADER_BAR + 8;
 
+type Waypoint = { id: string; title: string; cue?: string; type?: string };
 type Scenario = {
   id: string;
   name: string;
   description?: string;
   difficulty?: "easy" | "medium" | "hard";
+  waypoints?: Waypoint[];
 };
-
-type Waypoint = { id: string; title: string; cue?: string; type?: string };
 type TranscriptLine = { id: string; role: "agent" | "prospect"; text: string; seconds: number };
 
 type Launch = {
@@ -55,7 +62,35 @@ type StoredAttempt = {
   duration_seconds?: number | null;
   summary?: string | null;
   transcript_json?: unknown;
+  evaluations?: unknown;
 };
+
+const WAYPOINTS_EVAL_KEYWORD = "roleplay_waypoints";
+
+function waypointsFromEvaluations(evaluations: unknown): { waypoints: Waypoint[]; completedIds: string[] } {
+  if (!Array.isArray(evaluations)) return { waypoints: [], completedIds: [] };
+  const entry = evaluations.find((item) => {
+    if (!item || typeof item !== "object") return false;
+    return (item as { keyword?: string }).keyword === WAYPOINTS_EVAL_KEYWORD;
+  }) as { details?: { waypoints?: unknown; completedIds?: unknown } } | undefined;
+  const rawWaypoints = Array.isArray(entry?.details?.waypoints) ? entry.details.waypoints : [];
+  const waypoints = rawWaypoints.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const waypoint = item as { id?: unknown; title?: unknown; cue?: unknown };
+    const id = typeof waypoint.id === "string" ? waypoint.id.trim() : "";
+    const title = typeof waypoint.title === "string" ? waypoint.title.trim() : "";
+    if (!id || !title) return [];
+    return [{
+      id,
+      title,
+      cue: typeof waypoint.cue === "string" && waypoint.cue.trim() ? waypoint.cue.trim() : undefined,
+    }];
+  });
+  const completedIds = Array.isArray(entry?.details?.completedIds)
+    ? entry.details.completedIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+    : [];
+  return { waypoints, completedIds };
+}
 
 function linesFromStoredAttempt(raw: unknown): TranscriptLine[] {
   if (!Array.isArray(raw)) return [];
@@ -175,10 +210,7 @@ function PracticeSessionShell({
       <View
         style={[
           styles.page,
-          {
-            paddingTop: glassNavContentInset(insets.top),
-            paddingBottom: footer ? 0 : footerPad,
-          },
+          { paddingTop: glassNavContentInset(insets.top) },
         ]}
       >
         {children}
@@ -297,10 +329,12 @@ export function NativePracticeSession({
   scenario,
   attemptId,
   onBack,
+  active = true,
 }: {
   scenario: Scenario | null;
   attemptId?: string;
   onBack: () => void;
+  active?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -318,6 +352,9 @@ export function NativePracticeSession({
   const [grading, setGrading] = useState(false);
   const [scorecard, setScorecard] = useState<Scorecard | null>(null);
   const [goalsOpen, setGoalsOpen] = useState(false);
+  const [reviewTab, setReviewTab] = useState<PracticeReviewTab>("transcript");
+  const endedFromLiveRef = useRef(false);
+  const completedWaypointIdsRef = useRef<string[]>([]);
 
   const dailyCallRef = useRef<any>(null);
   const callIdRef = useRef<string | null>(null);
@@ -349,6 +386,9 @@ export function NativePracticeSession({
           attempt.grade_status === "passed" || attempt.grade_status === "not-passed"
             ? attempt.grade_status
             : "needs-review";
+        const storedGoals = waypointsFromEvaluations(attempt.evaluations);
+        const scenarioWaypoints = Array.isArray(scenario?.waypoints) ? scenario.waypoints : [];
+        const reportWaypoints = storedGoals.waypoints.length ? storedGoals.waypoints : scenarioWaypoints;
         setLaunch({
           success: true,
           vapiPublicKey: "",
@@ -360,9 +400,12 @@ export function NativePracticeSession({
             name: attempt.scenario_name || scenario?.name || "Practice",
             description: scenario?.description,
             difficulty: (attempt.scenario_difficulty as Scenario["difficulty"]) || scenario?.difficulty,
+            waypoints: reportWaypoints,
           },
         });
         setTranscript(linesFromStoredAttempt(attempt.transcript_json));
+        setCompletedWaypointIds(storedGoals.completedIds);
+        completedWaypointIdsRef.current = storedGoals.completedIds;
         setScorecard({
           score: attempt.score == null ? null : Math.round(Number(attempt.score)),
           status,
@@ -401,15 +444,27 @@ export function NativePracticeSession({
     } finally {
       setLoading(false);
     }
-  }, [attemptId, scenario?.description, scenario?.difficulty, scenario?.id, scenario?.name]);
+  }, [attemptId, scenario?.description, scenario?.difficulty, scenario?.id, scenario?.name, scenario?.waypoints]);
 
   useEffect(() => { void prepare(); }, [prepare]);
+
+  useEffect(() => {
+    completedWaypointIdsRef.current = completedWaypointIds;
+  }, [completedWaypointIds]);
 
   useEffect(() => {
     if (!startedAt || callState !== "live") return;
     const timer = setInterval(() => setSeconds(elapsed(startedAt)), 1000);
     return () => clearInterval(timer);
   }, [callState, startedAt]);
+
+  useEffect(() => {
+    if (callState === "live") endedFromLiveRef.current = true;
+    if (callState === "ended" && endedFromLiveRef.current) {
+      endedFromLiveRef.current = false;
+      setReviewTab("report");
+    }
+  }, [callState]);
 
   const appendTranscript = useCallback((message: any) => {
     const text = textFromMessage(message);
@@ -467,7 +522,19 @@ export function NativePracticeSession({
           summary: call.analysis?.summary ?? null,
           transcript: transcriptText,
           transcriptJson,
-          evaluations: [],
+          evaluations: [{
+            keyword: WAYPOINTS_EVAL_KEYWORD,
+            score: completedWaypointIdsRef.current.length,
+            comments: [],
+            details: {
+              waypoints: (resolvedLaunch.scenario.waypoints ?? []).map((waypoint) => ({
+                id: waypoint.id,
+                title: waypoint.title,
+                cue: waypoint.cue ?? "",
+              })),
+              completedIds: completedWaypointIdsRef.current,
+            },
+          }],
         }),
       });
       const body = await response.json().catch(() => null) as { success?: boolean } | null;
@@ -531,6 +598,15 @@ export function NativePracticeSession({
     try { dailyCallRef.current?.destroy?.(); } catch {}
     dailyCallRef.current = null;
   }, []);
+
+  useEffect(() => {
+    if (active) return;
+    analysisCancelledRef.current = true;
+    clearConnectionTimer();
+    if (assistantSpeakingTimerRef.current) clearTimeout(assistantSpeakingTimerRef.current);
+    try { dailyCallRef.current?.destroy?.(); } catch {}
+    dailyCallRef.current = null;
+  }, [active]);
 
   const startCall = async () => {
     if (!launch) return;
@@ -675,7 +751,7 @@ export function NativePracticeSession({
   const footerPad = Math.max(insets.bottom, 16);
   const scrollBottomPad =
     callState === "ended"
-      ? footerPad + 8
+      ? insets.bottom + 8
       : FOOTER_CONTROLS +
         footerPad +
         (callState === "live" ? LIVE_DOCK_GAP : FOOTER_FADE) +
@@ -786,17 +862,15 @@ export function NativePracticeSession({
         ]}
         showsVerticalScrollIndicator
       >
-        <View style={styles.callCard}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="person" size={22} color={ACCENT} />
+        {callState === "ended" ? (
+          <View style={styles.tabWrap}>
+            <SessionModeTabs
+              value={reviewTab}
+              onChange={setReviewTab}
+              items={PRACTICE_REVIEW_TABS}
+            />
           </View>
-          <CustomText textStyle="title" style={styles.prospectName}>
-            About your prospect
-          </CustomText>
-          <CustomText textStyle="caption" style={styles.callHint}>
-            {prospectDescription(launch.scenario.description)}
-          </CustomText>
-        </View>
+        ) : null}
         {error ? (
           <View style={styles.error}>
             <Ionicons name="alert-circle-outline" size={18} color={C.red} />
@@ -805,84 +879,117 @@ export function NativePracticeSession({
             </CustomText>
           </View>
         ) : null}
-        {transcript.length ? (
-          <View>
-            {transcript.map((line) => (
-              <View key={line.id} style={styles.turnRow}>
-                <View style={styles.turnMeta}>
-                  <CustomText
-                    textStyle="caption"
-                    style={line.role === "agent" ? styles.agentMeta : styles.prospectMeta}
-                  >
-                    {line.role === "agent" ? "You" : "AI prospect"}
-                  </CustomText>
-                  <CustomText textStyle="caption" style={styles.turnTime}>
-                    {timeLabel(line.seconds)}
-                  </CustomText>
-                </View>
-                <CustomText textStyle="body" style={styles.turnText}>
-                  {line.text}
+        {callState === "ended" && reviewTab === "report" ? (
+          <View style={styles.report}>
+            {grading ? (
+              <View style={styles.reportCard}>
+                <LoadingDots color={ACCENT} />
+                <CustomText textStyle="title">Reviewing your practice…</CustomText>
+                <CustomText textStyle="caption" style={styles.scoreCopy}>
+                  Your result will appear here as soon as it is ready.
                 </CustomText>
               </View>
-            ))}
-          </View>
-        ) : null}
-          {callState === "ended" ? (
-            <View style={styles.scoreCard}>
-              {grading ? (
-                <>
-                  <LoadingDots color={ACCENT} />
-                  <CustomText textStyle="title" style={styles.centerCopy}>
-                    Reviewing your practice…
+            ) : (
+              <>
+                <View style={styles.reportSection}>
+                  <CustomText textStyle="micro" style={styles.reportLabel}>
+                    Score
                   </CustomText>
-                  <CustomText textStyle="caption" style={styles.scoreCopy}>
-                    Your result will appear here as soon as it is ready.
-                  </CustomText>
-                </>
-              ) : (
-                <>
-                  {scorecard?.score != null ? (
-                    <CustomText textStyle="hero" style={styles.score}>
-                      {scorecard.score}%
+                  <View style={styles.reportCard}>
+                    {scorecard?.score != null ? (
+                      <CustomText textStyle="hero" style={styles.score}>
+                        {scorecard.score}%
+                      </CustomText>
+                    ) : (
+                      <CustomText textStyle="title" style={styles.scoreCopy}>
+                        Analysis is still processing
+                      </CustomText>
+                    )}
+                  </View>
+                </View>
+                {scorecard?.summary ? (
+                  <View style={styles.reportSection}>
+                    <CustomText textStyle="micro" style={styles.reportLabel}>
+                      Summary
                     </CustomText>
-                  ) : (
-                    <View style={styles.emptyIcon}>
-                      <Ionicons name="time-outline" size={22} color={C.amber} />
+                    <View style={styles.reportCard}>
+                      <CustomText textStyle="body" style={styles.summaryText}>
+                        {scorecard.summary}
+                      </CustomText>
                     </View>
-                  )}
-                  <CustomText textStyle="title" style={styles.centerCopy}>
-                    {scorecard?.status === "passed"
-                      ? "Practice passed"
-                      : scorecard?.score != null
-                        ? "Practice complete"
-                        : "Analysis is still processing"}
-                  </CustomText>
-                  {scorecard?.summary ? (
-                    <CustomText textStyle="caption" style={styles.scoreCopy}>
-                      {scorecard.summary}
+                  </View>
+                ) : null}
+                {waypoints.length ? (
+                  <View style={styles.reportSection}>
+                    <CustomText textStyle="micro" style={styles.reportLabel}>
+                      Goals
                     </CustomText>
-                  ) : null}
-                  {attemptId ? null : (
-                    <CustomText textStyle="micro" style={styles.scoreSaved}>
-                      {scorecard?.saved
-                        ? "Saved to your practice history."
-                        : "You can return to practice history for the full result."}
-                    </CustomText>
-                  )}
-                  <MotionPressable
-                    accessibilityRole="button"
-                    haptic="selection"
-                    onPress={onBack}
-                    style={styles.primaryBtn}
-                  >
-                    <CustomText textStyle="title" style={styles.primaryBtnText}>
-                      Back to practice
-                    </CustomText>
-                  </MotionPressable>
-                </>
-              )}
+                    <View style={styles.reportCard}>
+                      {waypoints.map((waypoint) => {
+                        const done = completedWaypointIds.includes(waypoint.id);
+                        return (
+                          <View key={waypoint.id} style={styles.reportGoalRow}>
+                            <View style={[styles.iconWrap, done && styles.iconWrapDone]}>
+                              <Ionicons
+                                name={done ? "checkmark" : "flag-outline"}
+                                size={16}
+                                color={done ? CARD : ACCENT}
+                              />
+                            </View>
+                            <View style={styles.flex}>
+                              <CustomText textStyle="body">{waypoint.title}</CustomText>
+                              {waypoint.cue ? (
+                                <CustomText textStyle="caption" style={styles.muted}>
+                                  {waypoint.cue}
+                                </CustomText>
+                              ) : null}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            )}
+          </View>
+        ) : (
+          <>
+            <View style={styles.callCard}>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="person" size={22} color={ACCENT} />
+              </View>
+              <CustomText textStyle="title" style={styles.prospectName}>
+                About your prospect
+              </CustomText>
+              <CustomText textStyle="caption" style={styles.callHint}>
+                {prospectDescription(launch.scenario.description)}
+              </CustomText>
             </View>
-          ) : null}
+            {transcript.length ? (
+              <View>
+                {transcript.map((line) => (
+                  <View key={line.id} style={styles.turnRow}>
+                    <View style={styles.turnMeta}>
+                      <CustomText
+                        textStyle="caption"
+                        style={line.role === "agent" ? styles.agentMeta : styles.prospectMeta}
+                      >
+                        {line.role === "agent" ? "You" : "AI prospect"}
+                      </CustomText>
+                      <CustomText textStyle="caption" style={styles.turnTime}>
+                        {timeLabel(line.seconds)}
+                      </CustomText>
+                    </View>
+                    <CustomText textStyle="body" style={styles.turnText}>
+                      {line.text}
+                    </CustomText>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </>
+        )}
         </ScrollView>
 
       <BottomSheetModal
@@ -1052,6 +1159,7 @@ const styles = StyleSheet.create({
   liveDotQuiet: { backgroundColor: C.textSec },
   transcriptScroll: { flex: 1 },
   transcriptContent: { gap: 14, paddingHorizontal: 16 },
+  tabWrap: { marginHorizontal: -16 },
   turnRow: { paddingVertical: 10 },
   turnMeta: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 3 },
   turnTime: { color: C.textMuted, fontVariant: ["tabular-nums"] },
@@ -1077,18 +1185,28 @@ const styles = StyleSheet.create({
     backgroundColor: C.redBg,
   },
   errorText: { flex: 1, color: C.red, lineHeight: 17 },
-  scoreCard: {
-    alignItems: "center",
-    gap: 8,
-    padding: 22,
+  report: { gap: 18, paddingTop: 4 },
+  reportSection: { gap: 8 },
+  reportLabel: {
+    color: C.textMuted,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  reportCard: {
+    gap: 14,
+    padding: 16,
     borderRadius: LARGE_CORNER,
     borderCurve: "continuous",
-    backgroundColor: HINT,
+    backgroundColor: CARD,
   },
+  reportGoalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  summaryText: { lineHeight: 20 },
   score: { color: ACCENT },
-  centerCopy: { textAlign: "center" },
-  scoreCopy: { color: C.textSec, textAlign: "center", lineHeight: 18 },
-  scoreSaved: { color: C.textMuted, textAlign: "center" },
+  scoreCopy: { color: C.textSec, lineHeight: 18 },
   readyControls: { flexDirection: "row", alignItems: "center", gap: 8 },
   readyStart: { flex: 1 },
   connecting: {

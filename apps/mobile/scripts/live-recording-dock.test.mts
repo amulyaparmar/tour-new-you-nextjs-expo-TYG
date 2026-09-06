@@ -240,7 +240,6 @@ test("App stacks the live dock with the tab bar inside MainTabs", () => {
   assert.ok(dockIndex >= 0, "LiveRecordingDock should render inside MainTabs");
   assert.ok(tabIndex >= 0, "MainTabs should still render the tab bar");
   assert.ok(dockIndex < tabIndex, "The dock should sit directly above the tab bar");
-  assert.match(mainTabs[0], /!practiceLive/);
   assert.doesNotMatch(
     appSource,
     /<RecordingExperienceHost \/>\s*<BulkUploadDock[\s\S]{0,400}<LiveRecordingDock/,

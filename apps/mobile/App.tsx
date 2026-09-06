@@ -326,7 +326,11 @@ import {
   BulkUploadFlow,
 } from "./src/bulk-upload/BulkUploadFlow";
 import { SessionReportScreen } from "./src/reports/SessionReportScreen";
-import { PracticeSessionsScreen } from "./src/practice/PracticeSessionsScreen";
+import {
+  NativePracticeSessionHost,
+  PracticeSessionsScreen,
+  type PracticeSessionOpen,
+} from "./src/practice/PracticeSessionsScreen";
 
 const loginBackground = require("./assets/videos/login-bg.mp4");
 
@@ -381,6 +385,7 @@ type Screen =
   | { type: "settings" }
   | { type: "profile" }
   | { type: "start-tour" }
+  | { type: "practice-session"; scenario: PracticeSessionOpen["scenario"]; attemptId?: string }
   | { type: "tour" };
 
 type TourStep = "contact" | "preferences" | "ready";
@@ -866,6 +871,7 @@ function screenRank(screen: Screen) {
   if (screen.type === "rubrics") return 12;
   if (screen.type === "settings") return 12;
   if (screen.type === "start-tour") return 12;
+  if (screen.type === "practice-session") return 12;
   if (screen.type === "profile") return 12;
   if (screen.type === "session-detail") return 13;
   if (screen.type === "session-comments") return 14;
@@ -1176,6 +1182,7 @@ type MainStackParamList = {
   Profile: undefined;
   Rubrics: undefined;
   StartTour: undefined;
+  PracticeSession: undefined;
 };
 
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -1198,6 +1205,7 @@ function MainStackNavigation({
   settings,
   rubrics,
   startTour,
+  practiceSession,
   children,
 }: {
   activeScreen: keyof MainStackParamList;
@@ -1209,6 +1217,7 @@ function MainStackNavigation({
   settings: React.ReactNode;
   rubrics: React.ReactNode;
   startTour: React.ReactNode;
+  practiceSession: React.ReactNode;
   children: React.ReactNode;
 }) {
   const navigationRef =
@@ -1279,6 +1288,14 @@ function MainStackNavigation({
         <MainStack.Screen name="StartTour">
           {({ navigation }: { navigation: { goBack: () => void } }) =>
             withNativeBack(startTour, () => {
+              onCloseToMain();
+              navigation.goBack();
+            })
+          }
+        </MainStack.Screen>
+        <MainStack.Screen name="PracticeSession">
+          {({ navigation }: { navigation: { goBack: () => void } }) =>
+            withNativeBack(practiceSession, () => {
               onCloseToMain();
               navigation.goBack();
             })
@@ -1638,6 +1655,11 @@ export default function App() {
   const [pendingCreateUpload, setPendingCreateUpload] =
     useState<PendingCreateSessionUpload | null>(null);
   const [readyTourId, setReadyTourId] = useState<string | null>(null);
+  const [practiceListEpoch, setPracticeListEpoch] = useState(0);
+  const [stackedPractice, setStackedPractice] = useState<
+    (PracticeSessionOpen & { token: number }) | null
+  >(null);
+  const practiceOpenTokenRef = useRef(0);
   const screenRef = useRef<Screen>(screen);
   const lastMainTabRef = useRef<MainTab>("home");
 
@@ -1681,7 +1703,8 @@ export default function App() {
     screen.type === "profile" ||
     screen.type === "settings" ||
     screen.type === "start-tour" ||
-    screen.type === "rubrics"
+    screen.type === "rubrics" ||
+    screen.type === "practice-session"
       ? screen.type === "main" && screen.tab === "sessions"
         ? "sessions-stack"
         : "main-profile-stack"
@@ -1782,6 +1805,12 @@ export default function App() {
       onProfile={() => nav({ type: "profile" })}
       onOpenSettings={() => nav({ type: "settings" })}
       onOpenStartTour={() => nav({ type: "start-tour" })}
+      onOpenPracticeSession={(session) => {
+        practiceOpenTokenRef.current += 1;
+        setStackedPractice({ ...session, token: practiceOpenTokenRef.current });
+        nav({ type: "practice-session", ...session });
+      }}
+      practiceListEpoch={practiceListEpoch}
       readyTourId={readyTourId}
       authSession={authSession}
       onAuthSession={setAuthSession}
@@ -1810,7 +1839,8 @@ export default function App() {
                   screen.type === "profile" ||
                   screen.type === "settings" ||
                   screen.type === "start-tour" ||
-                  screen.type === "rubrics") && (
+                  screen.type === "rubrics" ||
+                  screen.type === "practice-session") && (
                   <MainStackNavigation
                     activeScreen={
                       screen.type === "rubrics"
@@ -1821,11 +1851,18 @@ export default function App() {
                             ? "Profile"
                             : screen.type === "start-tour"
                               ? "StartTour"
-                              : "Main"
+                              : screen.type === "practice-session"
+                                ? "PracticeSession"
+                                : "Main"
                     }
-                    onCloseToMain={() =>
-                      nav({ type: "main", tab: lastMainTabRef.current })
-                    }
+                    onCloseToMain={() => {
+                      if (screenRef.current.type === "practice-session") {
+                        setPracticeListEpoch((epoch) => epoch + 1);
+                        nav({ type: "main", tab: "practice" });
+                        return;
+                      }
+                      nav({ type: "main", tab: lastMainTabRef.current });
+                    }}
                     onCloseRubrics={() => nav({ type: "settings" })}
                     session={authSession}
                     onSaved={setAuthSession}
@@ -1888,11 +1925,27 @@ export default function App() {
                         }
                       />
                     }
+                    practiceSession={
+                      stackedPractice ? (
+                        <NativePracticeSessionHost
+                          key={stackedPractice.token}
+                          scenario={stackedPractice.scenario}
+                          attemptId={stackedPractice.attemptId}
+                          active={screen.type === "practice-session"}
+                          onBack={() => {
+                            setPracticeListEpoch((epoch) => epoch + 1);
+                            nav({ type: "main", tab: "practice" });
+                          }}
+                        />
+                      ) : null
+                    }
                   >
                     {renderMainTabs(
                       screen.type === "main"
                         ? screen.tab
-                        : lastMainTabRef.current,
+                        : screen.type === "practice-session"
+                          ? "practice"
+                          : lastMainTabRef.current,
                     )}
                   </MainStackNavigation>
                 )}
@@ -2143,6 +2196,8 @@ function MainTabs({
   onProfile,
   onOpenSettings,
   onOpenStartTour,
+  onOpenPracticeSession,
+  practiceListEpoch,
   readyTourId,
   authSession,
   onAuthSession,
@@ -2159,6 +2214,8 @@ function MainTabs({
   onProfile: () => void;
   onOpenSettings: () => void;
   onOpenStartTour: () => void;
+  onOpenPracticeSession: (session: PracticeSessionOpen) => void;
+  practiceListEpoch: number;
   readyTourId: string | null;
   authSession: MobileAuthSession;
   onAuthSession: (session: MobileAuthSession) => void;
@@ -2211,7 +2268,6 @@ function MainTabs({
     enabled: Boolean(readyTourId),
   });
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
-  const [practiceLive, setPracticeLive] = useState(false);
   const tabIndicatorX = useSharedValue(
     (tabBarWidth / TAB_ITEMS.length) *
       Math.max(
@@ -2232,10 +2288,6 @@ function MainTabs({
       { duration: 220, easing: Easing.out(Easing.cubic) },
     );
   }, [tab, tabBarWidth, tabIndicatorX]);
-
-  useEffect(() => {
-    if (tab !== "practice") setPracticeLive(false);
-  }, [tab]);
 
   useEffect(() => {
     if (!profile) return;
@@ -2431,7 +2483,8 @@ function MainTabs({
         >
           <PracticeSessionsScreen
             property={property}
-            onLiveChange={setPracticeLive}
+            resumeEpoch={practiceListEpoch}
+            onOpenSession={onOpenPracticeSession}
           />
         </ScreenTransition>
       )}
@@ -2474,15 +2527,12 @@ function MainTabs({
         </ScreenTransition>
       )}
 
-      {!practiceLive ? (
-        <View pointerEvents="box-none" style={st.liveDockSlot}>
+      <View pointerEvents="box-none" style={st.liveDockSlot}>
           <LiveRecordingDock />
         </View>
-      ) : null}
       </View>
 
-      {!practiceLive ? (
-        <View style={st.tabBar}>
+      <View style={st.tabBar}>
           <Reanimated.View
             pointerEvents="none"
             style={[st.tabBarIndicator, tabIndicatorStyle]}
@@ -2513,7 +2563,6 @@ function MainTabs({
             </Pressable>
           ))}
         </View>
-      ) : null}
       <ProfileEditorModal
         visible={profileEditorOpen}
         session={authSession}
