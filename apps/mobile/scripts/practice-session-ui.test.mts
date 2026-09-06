@@ -12,6 +12,18 @@ test("the live practice session uses the Start New Tour glass header", () => {
   assert.doesNotMatch(skeleton, /TourBackButton/);
 });
 
+test("the practice session skeleton matches the Start New Tour pulse and ready layout", () => {
+  const sessionFn = skeleton.slice(skeleton.indexOf("export function PracticeSessionSkeleton"));
+  assert.match(sessionFn, /useSkeletonPulse/);
+  assert.match(sessionFn, /SkeletonPulse/);
+  assert.match(sessionFn, /styles\.callCard/);
+  assert.match(sessionFn, /styles\.startBtn/);
+  assert.match(sessionFn, /styles\.goalsBtn/);
+  assert.doesNotMatch(sessionFn, /<Skeleton /);
+  assert.doesNotMatch(sessionFn, /transcriptCard/);
+  assert.doesNotMatch(sessionFn, /ShimmerGroup/);
+});
+
 test("the live practice session uses CustomText and shared UI tokens", () => {
   assert.match(session, /<CustomText /);
   assert.match(session, /BACKGROUND/);

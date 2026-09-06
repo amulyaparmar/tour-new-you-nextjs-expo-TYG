@@ -101,6 +101,7 @@ export function LoginScreen({
   const [step, setStep] = useState<LoginStep>("welcome");
   const [transitionDirection, setTransitionDirection] =
     useState<TransitionDirection>("forward");
+  const [animateStep, setAnimateStep] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [challengeId, setChallengeId] = useState("");
@@ -115,6 +116,7 @@ export function LoginScreen({
 
   const transitionTo = useCallback(
     (nextStep: LoginStep, direction: TransitionDirection) => {
+      setAnimateStep(true);
       setTransitionDirection(direction);
       requestAnimationFrame(() => {
         setStep(nextStep);
@@ -261,9 +263,11 @@ export function LoginScreen({
               <Reanimated.View
                 key={step}
                 entering={
-                  transitionDirection === "forward"
-                    ? forwardEntering
-                    : backEntering
+                  animateStep
+                    ? transitionDirection === "forward"
+                      ? forwardEntering
+                      : backEntering
+                    : undefined
                 }
                 exiting={
                   transitionDirection === "forward"
@@ -381,6 +385,7 @@ export function LoginScreen({
           subtitle="Your sessions, assets, and integrations will match this property."
           closeButtonVisible={false}
           dismissDisabled
+          highlightActive={false}
           onPropertyAdded={onAuthenticated}
           onQueryChange={setPropertyQuery}
           onClose={() => undefined}

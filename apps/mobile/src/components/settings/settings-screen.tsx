@@ -1,14 +1,17 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Keyboard,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,6 +33,12 @@ import { useProfileQuery, useUpdateProfileMutation } from "@/queries";
 import { ACCENT, BACKGROUND, CARD, LARGE_CORNER, SMALL_CORNER, TEXT } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
 
+const FEEDBACK_SHEET_REST_HEIGHT = 430;
+const FEEDBACK_SHEET_HEIGHT_RATIO = 0.74;
+const FEEDBACK_BUTTON_HEIGHT = 58;
+const FEEDBACK_BUTTON_GAP = 12;
+const FEEDBACK_KEYBOARD_CLEARANCE = 12;
+
 export function SettingsScreen({
   session,
   onBack,
@@ -46,10 +55,24 @@ export function SettingsScreen({
   onNotify: (message: string, type?: "error" | "success" | "info") => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const profileQuery = useProfileQuery();
   const updateProfileMutation = useUpdateProfileMutation();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const feedbackInputRef = useRef<TextInput>(null);
+  const sheetPad = Math.max(insets.bottom, 16);
+  const buttonLift = keyboardHeight > 0
+    ? Math.max(0, keyboardHeight - sheetPad + FEEDBACK_KEYBOARD_CLEARANCE)
+    : 0;
+  const feedbackSheetHeight = Math.min(
+    windowHeight,
+    Math.max(
+      FEEDBACK_SHEET_REST_HEIGHT,
+      Math.round(windowHeight * FEEDBACK_SHEET_HEIGHT_RATIO),
+    ),
+  );
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const aiTrainingDataFeedback =
@@ -97,6 +120,25 @@ export function SettingsScreen({
       setDeletingAccount(false);
     }
   }
+
+  useEffect(() => {
+    if (!feedbackOpen) {
+      setKeyboardHeight(0);
+      return;
+    }
+    const focusTimer = setTimeout(() => feedbackInputRef.current?.focus(), 280);
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      clearTimeout(focusTimer);
+      show.remove();
+      hide.remove();
+    };
+  }, [feedbackOpen]);
 
   async function sendFeedback() {
     const message = feedbackText.trim();
@@ -251,8 +293,7 @@ export function SettingsScreen({
       <BottomSheetModal
         visible={feedbackOpen}
         onClose={() => setFeedbackOpen(false)}
-        sheetHeight={430}
-        keyboardAvoiding
+        sheetHeight={feedbackSheetHeight}
         sheetStyle={styles.sheet}
         contentStyle={styles.sheetContent}
       >
@@ -275,9 +316,19 @@ export function SettingsScreen({
               />
             </View>
           </View>
-          <View style={styles.sheetBody}>
+          <View
+            style={[
+              styles.sheetBody,
+              {
+                paddingBottom:
+                  FEEDBACK_BUTTON_HEIGHT + FEEDBACK_BUTTON_GAP + buttonLift,
+              },
+            ]}
+          >
             <CustomText textStyle="title">What should we improve?</CustomText>
             <TextInput
+              ref={feedbackInputRef}
+              autoFocus
               multiline
               maxLength={4000}
               value={feedbackText}
@@ -290,6 +341,11 @@ export function SettingsScreen({
             <CustomText textStyle="micro" style={styles.counter}>
               {feedbackText.length}/4000
             </CustomText>
+          </View>
+          <View
+            pointerEvents="box-none"
+            style={[styles.sheetFooter, { bottom: buttonLift }]}
+          >
             <MotionPressable
               accessibilityRole="button"
               haptic="medium"
@@ -477,6 +533,12 @@ const styles = StyleSheet.create({
     overflow: "visible",
   },
   sheetBody: { flex: 1, gap: 10, paddingTop: 52, paddingHorizontal: 18 },
+  sheetFooter: {
+    position: "absolute",
+    left: 18,
+    right: 18,
+    bottom: 0,
+  },
   input: {
     flex: 1,
     minHeight: 120,
@@ -493,7 +555,7 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   primaryButton: {
-    minHeight: 58,
+    minHeight: FEEDBACK_BUTTON_HEIGHT,
     alignSelf: "stretch",
     alignItems: "center",
     justifyContent: "center",

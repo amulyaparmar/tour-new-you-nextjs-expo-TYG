@@ -527,6 +527,10 @@ function Field({
   keyboardType?: "default" | "phone-pad" | "email-address";
   autoCapitalize?: "none" | "sentences" | "words";
 }) {
+  const [focused, setFocused] = useState(false);
+  const resolvedKeyboard =
+    keyboardType === "phone-pad" && !focused ? "default" : keyboardType;
+
   return (
     <View style={styles.field}>
       <CustomText textStyle="caption" style={styles.label}>{label}</CustomText>
@@ -535,8 +539,10 @@ function Field({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={MUTED}
-        keyboardType={keyboardType}
+        keyboardType={resolvedKeyboard}
         autoCapitalize={autoCapitalize}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         style={[customTextVariants.title, styles.input]}
       />
     </View>
@@ -562,6 +568,12 @@ function NativeField({
   editable?: boolean;
   last?: boolean;
 }) {
+  const [focused, setFocused] = useState(false);
+  // iOS phone-pad applies huge letter-spacing to placeholders; keep default
+  // until focus so "Phone" renders normally.
+  const resolvedKeyboard =
+    keyboardType === "phone-pad" && !focused ? "default" : keyboardType;
+
   return (
     <>
       <View style={styles.groupedRow}>
@@ -572,8 +584,10 @@ function NativeField({
             onChangeText={onChangeText}
             placeholder={placeholder}
             placeholderTextColor={MUTED}
-            keyboardType={keyboardType}
+            keyboardType={resolvedKeyboard}
             autoCapitalize={autoCapitalize}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             style={[customTextVariants.title, styles.nativeInput]}
           />
         ) : (

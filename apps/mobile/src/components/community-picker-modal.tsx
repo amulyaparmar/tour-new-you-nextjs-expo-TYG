@@ -59,6 +59,8 @@ type CommunityPickerModalProps = {
   subtitle?: string;
   closeButtonVisible?: boolean;
   dismissDisabled?: boolean;
+  /** When false, no assigned property is shown as the current selection. */
+  highlightActive?: boolean;
   onPropertyAdded?: (session: MobileAuthSession) => void;
   onQueryChange: (query: string) => void;
   onClose: () => void;
@@ -73,6 +75,7 @@ export function CommunityPickerModal({
   title = "Choose a property",
   closeButtonVisible = true,
   dismissDisabled = false,
+  highlightActive = true,
   onPropertyAdded,
   onQueryChange,
   onClose,
@@ -135,9 +138,10 @@ export function CommunityPickerModal({
     staleTime: 30_000,
     retry: 1,
   });
-  const activeCommunityId = session.workspace.community.id;
+  const activeCommunityId = highlightActive ? session.workspace.community.id : null;
   const assignedProperties = useMemo(() => {
     const items = assignedSearchQuery.data ?? [];
+    if (!activeCommunityId) return items;
     const selected = items.filter((item) => item.id === activeCommunityId);
     const rest = items.filter((item) => item.id !== activeCommunityId);
     return selected.length ? [...selected, ...rest] : items;

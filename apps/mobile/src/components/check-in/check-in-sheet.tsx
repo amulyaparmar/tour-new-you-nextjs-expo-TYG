@@ -10,6 +10,7 @@ import React, {
 import QRCodeStyled from "react-native-qrcode-styled";
 import { LinearGradient } from "expo-linear-gradient";
 import {
+  Animated,
   View,
   Pressable,
   ScrollView,
@@ -34,6 +35,7 @@ import {
   CARD,
   HINT,
   LARGE_CORNER,
+  SMALL_CORNER,
   TEXT,
 } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
@@ -287,6 +289,7 @@ export function CheckInSheet({
                 style={{
                   flex: 1,
                   paddingTop: glassNavContentInset(insets.top),
+                  paddingBottom: footerClearance,
                 }}
               >
                 <CheckInPanelSkeleton />
@@ -440,12 +443,44 @@ export function CheckInSheet({
 }
 
 function CheckInPanelSkeleton() {
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 0.58,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
   return (
-    <View style={styles.panelSkeleton} accessibilityLabel="Loading QR code">
-      <View style={styles.skeletonQr} />
-      <View style={styles.skeletonLineWide} />
-      <View style={styles.skeletonLineShort} />
-      <View style={styles.skeletonButton} />
+    <View style={styles.panelSkeleton} accessibilityLabel="Loading check-in">
+      <View style={styles.topStack}>
+        <Animated.View style={[styles.skeletonInfo, { opacity: pulse }]} />
+        <View style={styles.skeletonQrCard}>
+          <Animated.View style={[styles.skeletonQr, { opacity: pulse }]} />
+        </View>
+        <View style={styles.skeletonShare} />
+      </View>
+      <View style={styles.skeletonPeople}>
+        <Animated.View style={[styles.skeletonPeopleTitle, { opacity: pulse }]} />
+        <View style={styles.peopleStrip}>
+          <View style={styles.personBubbleWrap}>
+            <Animated.View style={[styles.skeletonAvatar, { opacity: pulse }]} />
+            <Animated.View style={[styles.skeletonPersonLabel, { opacity: pulse }]} />
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -469,35 +504,58 @@ const styles = StyleSheet.create({
   },
   panelSkeleton: {
     flex: 1,
-    gap: 10,
-    paddingTop: 4,
-    paddingHorizontal: 16,
+    gap: 16,
   },
-  skeletonQr: {
+  skeletonInfo: {
+    minHeight: 54,
+    borderRadius: SMALL_CORNER,
+    backgroundColor: HINT,
+  },
+  skeletonQrCard: {
     alignSelf: "stretch",
-    height: 240,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 18,
     borderRadius: LARGE_CORNER,
     borderCurve: "continuous",
-    backgroundColor: HINT,
-  },
-  skeletonLineWide: {
-    width: "72%",
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: HINT,
-  },
-  skeletonLineShort: {
-    width: "48%",
-    height: 12,
-    borderRadius: 6,
     backgroundColor: CARD,
   },
-  skeletonButton: {
-    width: "100%",
-    height: 58,
-    marginTop: "auto",
-    borderRadius: 29,
+  skeletonQr: {
+    width: 220,
+    height: 220,
+    borderRadius: 22,
+    backgroundColor: BACKGROUND,
+  },
+  skeletonShare: {
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: CARD,
+  },
+  skeletonPeople: {
+    gap: 10,
+    marginTop: 6,
+    paddingTop: 16,
+    paddingBottom: 16,
+    backgroundColor: CARD,
+  },
+  skeletonPeopleTitle: {
+    width: 92,
+    height: 16,
+    marginHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: BACKGROUND,
+  },
+  skeletonAvatar: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: HINT,
+  },
+  skeletonPersonLabel: {
+    width: 40,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: BACKGROUND,
   },
   bindingErrorPanel: {
     flex: 1,

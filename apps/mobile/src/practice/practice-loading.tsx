@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import Reanimated, {
@@ -13,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassNavHeader, glassNavContentInset } from "@/components/glass-nav-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonPulse, useSkeletonPulse } from "@/components/ui/use-skeleton-pulse";
 import { BACKGROUND, CARD, HINT, LARGE_CORNER, SMALL_CORNER } from "@/theme/tokens";
 
 function ShimmerGroup({ children }: { children: React.ReactNode }) {
@@ -63,24 +65,29 @@ export function PracticeSessionSkeleton({
   onBack: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const pulse = useSkeletonPulse();
+  const footerPad = Math.max(insets.bottom, 16);
   return (
     <View accessibilityLabel="Preparing practice session" style={styles.sessionRoot}>
-      <ShimmerGroup>
-        <View style={[styles.sessionBody, { paddingTop: glassNavContentInset(insets.top) }]}>
-          <View style={styles.callCard}>
-            <Skeleton style={styles.avatar} />
-            <Skeleton style={styles.prospectName} />
-            <Skeleton style={styles.callCopy} />
-          </View>
-
-          <View style={styles.transcriptCard}>
-            <Skeleton style={styles.transcriptTitle} />
-            <Skeleton style={styles.transcriptLineLong} />
-            <Skeleton style={styles.transcriptLineShort} />
-            <Skeleton style={styles.transcriptLineMedium} />
-          </View>
+      <View style={[styles.sessionBody, { paddingTop: glassNavContentInset(insets.top) }]}>
+        <View style={styles.callCard}>
+          <SkeletonPulse pulse={pulse} style={styles.avatar} />
+          <SkeletonPulse pulse={pulse} style={styles.prospectName} />
+          <SkeletonPulse pulse={pulse} style={styles.callCopy} />
         </View>
-      </ShimmerGroup>
+      </View>
+      <View pointerEvents="none" style={[styles.footer, { paddingBottom: footerPad }]}>
+        <LinearGradient
+          colors={["rgba(242, 242, 247, 0)", "rgba(242, 242, 247, 0.62)", BACKGROUND]}
+          locations={[0, 0.5, 1]}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.readyControls}>
+          <View style={styles.startBtn} />
+          <View style={styles.goalsBtn} />
+        </View>
+      </View>
       <GlassNavHeader title={title} onBack={onBack} />
     </View>
   );
@@ -107,29 +114,39 @@ const styles = StyleSheet.create({
   metaLine: { width: 66, height: 8 },
   score: { width: 38, height: 19, borderRadius: 7 },
   sessionRoot: { flex: 1, backgroundColor: BACKGROUND },
-  sessionBody: { flex: 1, gap: 14, paddingHorizontal: 16 },
+  sessionBody: { flex: 1, paddingHorizontal: 16 },
   callCard: {
     alignItems: "center",
     gap: 11,
-    paddingVertical: 26,
-    paddingHorizontal: 20,
+    paddingVertical: 22,
+    paddingHorizontal: 18,
     borderRadius: LARGE_CORNER,
     borderCurve: "continuous",
     backgroundColor: CARD,
   },
   avatar: { width: 44, height: 44, borderRadius: 14, backgroundColor: HINT },
-  prospectName: { width: 168, height: 17, borderRadius: 7 },
-  callCopy: { width: "66%", height: 10, borderRadius: 6 },
-  transcriptCard: {
-    minHeight: 188,
-    gap: 12,
-    padding: 16,
-    borderRadius: SMALL_CORNER,
-    borderCurve: "continuous",
+  prospectName: { width: 168, height: 17, borderRadius: 7, backgroundColor: BACKGROUND },
+  callCopy: { width: "66%", height: 10, borderRadius: 6, backgroundColor: BACKGROUND },
+  footer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    paddingHorizontal: 16,
+    paddingTop: 56,
+  },
+  readyControls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  startBtn: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 29,
     backgroundColor: CARD,
   },
-  transcriptTitle: { width: 86, height: 12, borderRadius: 6 },
-  transcriptLineLong: { width: "92%", height: 36, borderRadius: 11 },
-  transcriptLineShort: { width: "62%", height: 36, alignSelf: "flex-end", borderRadius: 11 },
-  transcriptLineMedium: { width: "76%", height: 36, borderRadius: 11 },
+  goalsBtn: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: CARD,
+  },
 });

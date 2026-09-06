@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
-import { Keyboard, Modal, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { MobileAuthSession } from "../../auth";
@@ -69,15 +69,23 @@ export function ProfileEditorModal({
       onRequestClose={onClose}
     >
       <View style={styles.root}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
         <ScrollView
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[
             styles.scroll,
             {
               paddingTop: HEADER_TOP + BAR_HEIGHT + 8,
-              paddingBottom: Math.max(insets.bottom, 16) + keyboardHeight,
+              paddingBottom:
+                Math.max(insets.bottom, 16) +
+                keyboardHeight +
+                (keyboardHeight > 0 ? 120 : 0),
             },
           ]}
         >
@@ -94,6 +102,7 @@ export function ProfileEditorModal({
             />
           ) : null}
         </ScrollView>
+        </KeyboardAvoidingView>
         <View pointerEvents="box-none" style={[styles.headerWrap, { height: headerHeight }]}>
           <LinearGradient
             colors={[...FADE_COLORS]}
@@ -131,6 +140,7 @@ const styles = StyleSheet.create({
     overflow: "visible",
     backgroundColor: BACKGROUND,
   },
+  flex: { flex: 1 },
   headerWrap: {
     position: "absolute",
     top: 0,
