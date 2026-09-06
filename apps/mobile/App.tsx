@@ -4977,7 +4977,6 @@ const assetSt = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   titleText: { flex: 1, minWidth: 0 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  cardWrap: { width: (Dimensions.get("window").width - 40) / 2 },
   card: {
     overflow: "hidden",
     borderRadius: SMALL_CORNER,
@@ -5469,6 +5468,10 @@ function MaterialsScreen({
   property: string;
 }) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const assetColumns = Platform.OS === "ios" && Platform.isPad ? 3 : 2;
+  const assetCardWidth =
+    (windowWidth - 32 - 8 * (assetColumns - 1)) / assetColumns;
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -5638,7 +5641,7 @@ function MaterialsScreen({
               );
               const canOpen = Boolean(assetUrl);
               return (
-                <View key={material.id} style={assetSt.cardWrap}>
+                <View key={material.id} style={{ width: assetCardWidth }}>
                   <Pressable
                     onPress={() => setSelected(material)}
                     style={({ pressed }) => [
