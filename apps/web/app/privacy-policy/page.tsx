@@ -37,6 +37,7 @@ export default function PrivacyPolicyPage() {
             const id = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return <section key={title} id={id}><h2>{title}</h2><p>{body}</p></section>;
           })}
+          <section><h2>Delete your account</h2><p>To request deletion of your Tour account and associated personal data, visit <a href="/delete-account">Delete your account</a>. You do not need to sign in or reinstall the app.</p></section>
           <section><h2>Contact us</h2><p>Questions or privacy requests may be sent to <a href="mailto:privacy@tour.you">privacy@tour.you</a>. You may also write to Host Your Voice 501(c)(3) through <a href="https://tour.you">tour.you</a>.</p></section>
         </article>
       </div>
