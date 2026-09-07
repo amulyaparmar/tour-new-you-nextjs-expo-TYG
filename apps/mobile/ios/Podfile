@@ -20,6 +20,9 @@ platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 
 prepare_react_native_project!
 
+$RNFirebaseDisableSPM = true
+$RNFirebaseAsStaticFramework = true
+
 target 'Tour' do
   use_expo_modules!
 

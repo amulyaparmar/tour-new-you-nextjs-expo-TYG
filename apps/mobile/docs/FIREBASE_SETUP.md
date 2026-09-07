@@ -1,4 +1,4 @@
-# Firebase setup (push + analytics)
+# Firebase setup (push + analytics + crash reporting)
 
 Firebase is not committed. Create a project, then drop the config files into `apps/mobile/`.
 
@@ -6,7 +6,8 @@ Firebase is not committed. Create a project, then drop the config files into `ap
 
 1. Open [Firebase Console](https://console.firebase.google.com/) → Add project.
 2. Enable **Google Analytics** when prompted.
-3. Enable **Cloud Messaging**.
+3. Enable **Crashlytics**.
+4. Enable **Cloud Messaging**.
 
 ## 2. Register apps
 
@@ -26,6 +27,19 @@ eas credentials
 - Upload **FCM** server key / Google service account for Android push
 - Upload **APNs** key for iOS push (Expo Notifications)
 
+Add the two ignored Firebase files to the EAS `preview` and `production`
+environments as file variables:
+
+- `GOOGLE_SERVICE_INFO_PLIST` from `GoogleService-Info.plist`
+- `GOOGLE_SERVICES_JSON` from `google-services.json`
+
+The dynamic app config uses the EAS-provided file paths in cloud builds and the
+local files during local builds. The EAS post-install hook copies them into the
+checked-in native projects without committing the Firebase files.
+
+The iOS app uses Firebase through CocoaPods with static frameworks. Firebase
+SPM is disabled to remain compatible with the app's existing native modules.
+
 ## 4. Rebuild native app
 
 ```bash
@@ -36,19 +50,23 @@ npx expo run:ios
 eas build --profile development
 ```
 
-OTA updates cannot add native Firebase / notification modules — a new binary is required after this setup.
+When opening Xcode or Android Studio directly, run `npm run
+sync:firebase-config` from `apps/mobile` first.
+
+OTA updates cannot add native Firebase, Crashlytics, or notification modules —
+a new binary is required after this setup.
 
 ## Analytics in DebugView
 
-Native debug builds (`expo run:ios`) now collect analytics. Events appear in Firebase **DebugView** after enabling debug mode once:
+Native debug builds (`expo run:ios`) collect analytics. Events appear in
+Firebase **DebugView** after enabling debug mode once. Realtime Console reports
+can lag, so use DebugView for immediate confirmation.
 
-```bash
-# iOS Simulator
-xcrun simctl spawn booted log config --mode "level:debug" --subsystem com.google.firebase.analytics
-# Or launch with -FIRDebugEnabled via scheme
-```
+## Verify Crashlytics
 
-Realtime Console reports can lag up to ~24h; use DebugView for immediate confirmation.
+Crash reporting is disabled in development builds. Verify with a release build,
+trigger one intentional test crash, reopen the app, and confirm it appears in
+the Firebase Crashlytics dashboard. Remove the test crash before distribution.
 
 ## Related env (web)
 

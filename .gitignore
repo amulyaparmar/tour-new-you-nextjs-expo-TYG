@@ -24,3 +24,4 @@ apps/mobile/GoogleService-Info.plist
 apps/mobile/google-services.json
 
 apps/mobile/ios/**/GoogleService-Info.plist
+apps/mobile/android/**/google-services.json
