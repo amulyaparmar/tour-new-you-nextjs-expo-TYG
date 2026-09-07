@@ -18,6 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.leasemagnets.tournewtouryou.tyg",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocalNetworkUsageDescription": "Tour needs local network access to reach your development server on this Mac.",
@@ -33,6 +34,7 @@
     },
     "android": {
       "package": "com.leasemagnets.tournewtouryou.tyg",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -47,6 +49,15 @@
       "bundler": "metro"
     },
     "plugins": [
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "disableSPM": true
+          }
+        }
+      ],
+      "@react-native-firebase/crashlytics",
       "expo-asset",
       "expo-sharing",
       "expo-status-bar",
@@ -85,7 +96,8 @@
             "minSdkVersion": 24
           },
           "ios": {
-            "deploymentTarget": "16.4"
+            "deploymentTarget": "16.4",
+            "useFrameworks": "static"
           }
         }
       ],

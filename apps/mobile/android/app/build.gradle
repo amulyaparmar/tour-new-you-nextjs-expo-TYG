@@ -184,3 +184,6 @@ dependencies {
 android.packagingOptions.jniLibs.useLegacyPackaging = true
 
 android.packagingOptions.jniLibs.useLegacyPackaging = true
+
+apply plugin: 'com.google.gms.google-services'
+apply plugin: 'com.google.firebase.crashlytics'

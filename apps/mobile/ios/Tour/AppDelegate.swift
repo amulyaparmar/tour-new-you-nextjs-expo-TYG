@@ -1,4 +1,5 @@
 internal import Expo
+import FirebaseCore
 import React
 import ReactAppDependencyProvider
 
@@ -22,6 +23,7 @@ class AppDelegate: ExpoAppDelegate {
 
 #if os(iOS) || os(tvOS)
     window = UIWindow(frame: UIScreen.main.bounds)
+    FirebaseApp.configure()
     factory.startReactNative(
       withModuleName: "main",
       in: window,

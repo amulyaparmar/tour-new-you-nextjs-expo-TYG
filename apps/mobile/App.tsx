@@ -164,6 +164,7 @@ import {
   addNotificationReceivedListener,
 } from "./src/push-notifications";
 import { trackAnalyticsEvent, setAnalyticsUserId } from "./src/analytics";
+import { setCrashReportingContext } from "./src/crash-reporting";
 import { LoginScreen } from "./src/LoginScreen";
 import { TourLogo, TourMark } from "./src/components/TourLogo";
 import { CustomText, customTextVariants } from "./src/components/custom-text";
@@ -1682,10 +1683,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    void setCrashReportingContext(authSession);
     if (!authSession) return;
     setAnalyticsUserId(authSession.workspace.user.id);
     void registerForPushNotifications();
-  }, [authSession?.workspace.user.id]);
+  }, [
+    authSession?.workspace.community.id,
+    authSession?.workspace.community.propertyTygId,
+    authSession?.workspace.user.id,
+  ]);
 
   useEffect(() => {
     setReadyTourId(null);
