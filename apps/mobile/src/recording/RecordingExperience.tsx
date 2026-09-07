@@ -74,6 +74,7 @@ import { isExpoGo, isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
 import { mergeTranscriptLines, speakerInitial } from "./liveTranscript";
 import { useRecording } from "./RecordingProvider";
+import type { RecordingStartFailure } from "./recordingStartFailure";
 import { useMuseLiveTranscription } from "./useMuseLiveTranscription";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
 import {
@@ -108,6 +109,26 @@ function LiveWaveBar({ height, opacity }: { height: number; opacity: number }) {
   }));
 
   return <Reanimated.View style={[s.waveBar, { opacity }, animatedStyle]} />;
+}
+
+function RecordingStartError({ failure }: { failure: RecordingStartFailure | null }) {
+  if (!failure) return null;
+
+  return (
+    <View style={s.startErrorBlock}>
+      <CustomText textStyle="label" style={s.startError}>{failure.message}</CustomText>
+      {failure.action === "open-settings" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open microphone settings"
+          hitSlop={8}
+          onPress={() => void Linking.openSettings()}
+        >
+          <CustomText textStyle="label" style={s.startErrorAction}>Open Settings</CustomText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
 }
 const PERMISSION_TIP_KEY = "tour.recording.permissionTip.dismissed";
 const SUGGESTION_REFRESH_MS = 18_000;
@@ -600,7 +621,7 @@ export function RecordingExperience({
   const [activeTab, setActiveTab] = useState<Tab>("summary");
   const [hasStarted, setHasStarted] = useState(rec.isRecording);
   const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<RecordingStartFailure | null>(null);
   const [selectedAssetPreview, setSelectedAssetPreview] = useState<RecordingAssetPreview | null>(null);
   const [uploadSheetOpen, setUploadSheetOpen] = useState(false);
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
@@ -1204,20 +1225,23 @@ export function RecordingExperience({
     setStartError(null);
     setTranscriptionStatus(null);
     try {
-      const activationPromise = Promise.resolve()
-        .then(() => onBeforeRecordingStart?.())
-        .catch((error) => {
-          setStartError(error instanceof Error ? error.message : "Recording started, but the session could not be updated.");
-        });
-
       // Start file recording first. Live capture starts afterward via its own lifecycle.
-      const started = await rec.start();
-      if (!started) {
-        setStartError("Could not start recording.");
+      const result = await rec.start();
+      if (!result.ok) {
+        setStartError(result.failure);
         return;
       }
 
       setHasStarted(true);
+      const activationPromise = Promise.resolve()
+        .then(() => onBeforeRecordingStart?.())
+        .catch((error) => {
+          setStartError({
+            code: "initialization-failed",
+            message: error instanceof Error ? error.message : "Recording started, but the session could not be updated.",
+            action: "retry",
+          });
+        });
       void activationPromise;
       void ensureLiveSessionId();
       // Let the recorder settle before opening the live PCM stream.
@@ -1225,7 +1249,11 @@ export function RecordingExperience({
       if (cancelledRef.current) return;
       setTranscriptionRequested(true);
     } catch (error) {
-      setStartError(error instanceof Error ? error.message : "Could not start recording.");
+      setStartError({
+        code: "initialization-failed",
+        message: error instanceof Error ? error.message : "Recording couldn’t start. Check your microphone and try again.",
+        action: "retry",
+      });
     } finally {
       setStarting(false);
     }
@@ -1710,7 +1738,7 @@ export function RecordingExperience({
           exiting={SlideOutRight.springify().damping(18).stiffness(140).mass(0.9)}
           style={s.bottomDockOverlay}
         >
-          {startError ? <CustomText textStyle="label" style={s.startError}>{startError}</CustomText> : null}
+          <RecordingStartError failure={startError} />
           {permissionTipVisible ? (
             <Reanimated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(140)} style={s.permissionPopover} pointerEvents="box-none">
               <View style={s.permissionCard}>
@@ -1789,7 +1817,7 @@ export function RecordingExperience({
                 ) : (
                   <>
                     <Ionicons name="mic" size={22} color={CARD} />
-                    <CustomText textStyle="title" style={s.startRecordingText}>Start Session</CustomText>
+                    <CustomText textStyle="title" style={s.startRecordingText}>{startError ? "Try Again" : "Start Session"}</CustomText>
                   </>
                 )}
               </Pressable>
@@ -2463,7 +2491,9 @@ const s = StyleSheet.create({
     overflow: "visible",
   },
   bottomDock: { paddingHorizontal: 18, paddingBottom: Platform.OS === "ios" ? 20 : 14, gap: 10, backgroundColor: BACKGROUND },
+  startErrorBlock: { alignItems: "center", gap: 3 },
   startError: { color: C.red, fontSize: 12, fontWeight: "800", textAlign: "center" },
+  startErrorAction: { color: ACCENT, fontSize: 12, fontWeight: "800" },
   permissionPopover: {
     position: "absolute",
     left: 18,
