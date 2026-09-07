@@ -273,8 +273,6 @@ PODS:
     - ExpoModulesCore
   - ExpoSharing (57.0.18):
     - ExpoModulesCore
-  - ExpoSpeechTranscriber (0.1.9):
-    - ExpoModulesCore
   - ExpoSystemUI (57.0.3):
     - ExpoModulesCore
   - ExpoVideo (57.0.3):
@@ -2723,7 +2721,6 @@ DEPENDENCIES:
   - ExpoSecureStore (from `../../../node_modules/expo-secure-store/ios`)
   - ExpoSensors (from `../../../node_modules/expo-sensors/ios`)
   - ExpoSharing (from `../../../node_modules/expo-sharing/ios`)
-  - ExpoSpeechTranscriber (from `../../../node_modules/expo-speech-transcriber/ios`)
   - ExpoSystemUI (from `../../../node_modules/expo-system-ui/ios`)
   - ExpoVideo (from `../../../node_modules/expo-video/ios`)
   - EXStructuredHeaders (from `../../../node_modules/expo-structured-headers/ios`)
@@ -2912,8 +2909,6 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-sensors/ios"
   ExpoSharing:
     :path: "../../../node_modules/expo-sharing/ios"
-  ExpoSpeechTranscriber:
-    :path: "../../../node_modules/expo-speech-transcriber/ios"
   ExpoSystemUI:
     :path: "../../../node_modules/expo-system-ui/ios"
   ExpoVideo:
@@ -3150,7 +3145,6 @@ SPEC CHECKSUMS:
   ExpoSecureStore: 536804a6aea15cafa49dc969609cd6636d506e68
   ExpoSensors: e71c7b6cb0c09d3427ef6ae29c69532a10c86b05
   ExpoSharing: 250366db14d83fe7916e1be308c6c7f111b82b7d
-  ExpoSpeechTranscriber: 429160b0766c7f2ec6122988e2d22e1c19b53e06
   ExpoSystemUI: e5f9a81b45481222f6b8b45b86fa37b18d0a86c9
   ExpoVideo: fad16dd734258a757b78c6287988ab7beb4e2f16
   EXStructuredHeaders: 1423c3602a30eb078e03b63b251ef912267dd4c0

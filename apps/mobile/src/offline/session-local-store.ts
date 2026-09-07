@@ -48,7 +48,8 @@ export type LocalSessionCheckpoint = {
 const SESSIONS_ROOT = "sessions";
 const META_FILE = "meta.json";
 const CHECKPOINT_FILE = "checkpoint.json";
-const RECORDING_FILE = "recording.m4a";
+const M4A_RECORDING_FILE = "recording.m4a";
+const WAV_RECORDING_FILE = "recording.wav";
 
 function newLocalId(): string {
   return `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -74,14 +75,20 @@ function checkpointFile(localId: string): File {
   return new File(sessionDir(localId), CHECKPOINT_FILE);
 }
 
+function recordingFileName(localId: string): string {
+  return readLocalSessionMeta(localId)?.mimeType === "audio/wav"
+    ? WAV_RECORDING_FILE
+    : M4A_RECORDING_FILE;
+}
+
 export function recordingFile(localId: string): File {
-  return new File(sessionDir(localId), RECORDING_FILE);
+  return new File(sessionDir(localId), recordingFileName(localId));
 }
 
 /** Stable legacy URI for a session recording (documents directory). */
 export function durableRecordingUri(localId: string): string | null {
   if (!documentDirectory) return null;
-  return `${documentDirectory}sessions/${localId}/${RECORDING_FILE}`;
+  return `${documentDirectory}sessions/${localId}/${recordingFileName(localId)}`;
 }
 
 export function getRecordingUri(localId: string): string | null {

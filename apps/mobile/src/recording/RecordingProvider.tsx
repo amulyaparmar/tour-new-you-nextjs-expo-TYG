@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
-  useAudioRecorder,
-  type RecordingOptions,
-  type RecordingStatus,
+  useAudioStream,
+  type AudioStreamBuffer,
 } from "expo-audio";
+import { FileMode, type FileHandle } from "expo-file-system";
 import { AppState, type AppStateStatus } from "react-native";
 import type { Material } from "../api";
 import type { SessionAttachment, SessionLead } from "@tour/shared";
@@ -15,6 +14,7 @@ import {
   createLocalSession,
   deleteLocalSession,
   ensureDurableRecording,
+  recordingFile,
   updateLocalSession,
   writeCheckpoint,
 } from "../offline/session-local-store";
@@ -30,9 +30,21 @@ import {
   permissionStartFailure,
   type RecordingStartResult,
 } from "./recordingStartFailure";
+import { createPcm16WavHeader } from "./museAudioRecovery";
+import { publishLivePcm } from "./live-pcm-bus";
 
 const CHECKPOINT_INTERVAL_MS = 30_000;
 const DRAFT_CHECKPOINT_DEBOUNCE_MS = 1_000;
+const PCM_SAMPLE_RATE = 16_000;
+const PCM_CHANNELS = 1;
+
+type PcmRecording = {
+  fileUri: string;
+  handle: FileHandle;
+  dataBytes: number;
+  sampleRate: number;
+  channels: number;
+};
 
 export type LiveRecordingMeta = {
   sessionId: string | null;
@@ -159,24 +171,13 @@ const EMPTY_CTX: RecordingCtx = {
 
 const RecordingContext = React.createContext<RecordingCtx>(EMPTY_CTX);
 
-const RECORDING_OPTIONS: RecordingOptions = {
-  ...RecordingPresets.HIGH_QUALITY,
-  isMeteringEnabled: true,
-  numberOfChannels: 1,
-  bitRate: 48000,
-  android: RecordingPresets.HIGH_QUALITY.android,
-  ios: RecordingPresets.HIGH_QUALITY.ios,
-  web: {
-    ...RecordingPresets.HIGH_QUALITY.web,
-    bitsPerSecond: 48000,
-  },
-};
-
-/** Map expo-audio dB metering (~-160..0) into a 0..1 speech-friendly level. */
-function normalizeMetering(db: number | undefined): number {
-  if (db == null || !Number.isFinite(db)) return 0;
-  const clamped = Math.max(-55, Math.min(0, db));
-  return Math.pow((clamped + 55) / 55, 1.35);
+function normalizePcmMetering(data: ArrayBuffer): number {
+  const samples = new Int16Array(data);
+  let peak = 0;
+  for (let index = 0; index < samples.length; index += 1) {
+    peak = Math.max(peak, Math.abs(samples[index] ?? 0));
+  }
+  return Math.min(1, peak / 32_767);
 }
 
 async function configureRecordingAudioMode(active: boolean) {
@@ -184,8 +185,7 @@ async function configureRecordingAudioMode(active: boolean) {
     allowsRecording: active,
     shouldPlayInBackground: active,
     playsInSilentMode: true,
-    // mixWithOthers so live speech recognition can share the mic session
-    // with expo-audio recording (doNotMix blocks SFSpeechRecognizer).
+    // One PCM recorder owns the microphone for local audio and Muse streaming.
     interruptionMode: "mixWithOthers" as const,
   };
 
@@ -224,7 +224,6 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   const [transcriptPreview, setTranscriptPreviewState] = useState("");
 
   const startingRef = useRef(false);
-  const stoppingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const checkpointTimerRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const draftCheckpointTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -233,7 +232,9 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   const isPausedRef = useRef(false);
   const meteringRef = useRef(0);
   const meteringActiveRef = useRef(false);
-  const recorderRef = useRef<ReturnType<typeof useAudioRecorder> | null>(null);
+  const lastPcmInputLogAtRef = useRef(0);
+  const activeRecordingUriRef = useRef<string | null>(null);
+  const pcmRecordingRef = useRef<PcmRecording | null>(null);
   const beforeStartHandlerRef = useRef<(() => void | Promise<void>) | null>(null);
   const uploadFileHandlerRef = useRef<((draft: LiveRecordingDraft) => void | Promise<void>) | null>(null);
   const minimizeHandlerRef = useRef<(() => void) | null>(null);
@@ -259,17 +260,13 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     finishHandlerRef.current = null;
     liveMetaRef.current = null;
     draftRef.current = null;
+    activeRecordingUriRef.current = null;
   }, []);
 
   const persistCheckpoint = useCallback((forceAudioCopy = false) => {
     const id = localIdRef.current;
     if (!id) return;
-    let sourceUri: string | null = null;
-    try {
-      sourceUri = recorderRef.current?.uri ?? null;
-    } catch {
-      // The native recorder can already be released after stop/refresh.
-    }
+    let sourceUri = activeRecordingUriRef.current;
     writeCheckpoint(id, elapsedRef.current, sourceUri);
     const draftSnapshot = draftRef.current;
     const metaSnapshot = liveMetaRef.current;
@@ -318,69 +315,117 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     }, DRAFT_CHECKPOINT_DEBOUNCE_MS);
   }, [persistCheckpoint]);
 
-  const handleRecorderStatus = useCallback(
-    (status: RecordingStatus) => {
-      if (!status.isFinished || stoppingRef.current) return;
+  const handlePcmBuffer = useCallback((buffer: AudioStreamBuffer) => {
+    const active = pcmRecordingRef.current;
+    if (!active) return;
 
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = undefined;
-      clearCheckpointTimer();
-      persistCheckpoint(true);
+    const data = buffer.data.slice(0);
+    if (!data.byteLength) return;
 
-      stopRecordingLiveActivity(elapsedRef.current);
-      setIsRecording(false);
-      setIsPaused(false);
-      setElapsed(0);
-      elapsedRef.current = 0;
-      isPausedRef.current = false;
-      meteringRef.current = 0;
-      setMetering(0);
-      meteringActiveRef.current = false;
-      resetLiveUi();
-      void configureRecordingAudioMode(false).catch(() => {});
-    },
-    [clearCheckpointTimer, persistCheckpoint, resetLiveUi],
-  );
+    try {
+      active.handle.writeBytes(new Uint8Array(data));
+      active.dataBytes += data.byteLength;
+      active.sampleRate = buffer.sampleRate;
+      active.channels = buffer.channels;
+      const nextMetering = normalizePcmMetering(data);
+      meteringRef.current = nextMetering;
+      setMetering((current) => Math.abs(current - nextMetering) > 0.01 ? nextMetering : current);
 
-  const recorder = useAudioRecorder(RECORDING_OPTIONS, handleRecorderStatus);
-  recorderRef.current = recorder;
+      if (__DEV__ && Date.now() - lastPcmInputLogAtRef.current >= 2_000) {
+        lastPcmInputLogAtRef.current = Date.now();
+        console.info("[recording] PCM input", {
+          bytes: data.byteLength,
+          sampleRate: buffer.sampleRate,
+          channels: buffer.channels,
+          peak: Math.round(nextMetering * 1_000) / 1_000,
+        });
+      }
+    } catch {
+      // Audio persistence must not interrupt the active microphone capture.
+    }
+    publishLivePcm({ ...buffer, data });
+  }, []);
+
+  const { stream: pcmStream } = useAudioStream({
+    sampleRate: PCM_SAMPLE_RATE,
+    channels: PCM_CHANNELS,
+    encoding: "int16",
+    onBuffer: handlePcmBuffer,
+  });
+
+  const startPcmRecording = useCallback(async () => {
+    const id = localIdRef.current;
+    if (!id) throw new Error("A local session is required before recording.");
+
+    updateLocalSession(id, {
+      mimeType: "audio/wav",
+      fileName: `tour-${Date.now()}.wav`,
+      recordingSourceUri: null,
+    });
+    const file = recordingFile(id);
+    try {
+      if (file.exists) file.delete();
+      file.create({ intermediates: true, overwrite: true });
+      const handle = file.open(FileMode.ReadWrite);
+      handle.writeBytes(createPcm16WavHeader(0));
+      pcmRecordingRef.current = {
+        fileUri: file.uri,
+        handle,
+        dataBytes: 0,
+        sampleRate: PCM_SAMPLE_RATE,
+        channels: PCM_CHANNELS,
+      };
+      activeRecordingUriRef.current = file.uri;
+      await pcmStream.start();
+    } catch (error) {
+      const active = pcmRecordingRef.current;
+      pcmRecordingRef.current = null;
+      activeRecordingUriRef.current = null;
+      try {
+        active?.handle.close();
+        if (file.exists) file.delete();
+      } catch {
+        // Best-effort cleanup after a failed microphone start.
+      }
+      throw error;
+    }
+  }, [pcmStream]);
+
+  const finalizePcmRecording = useCallback((): string | null => {
+    const active = pcmRecordingRef.current;
+    pcmRecordingRef.current = null;
+    try {
+      pcmStream.stop();
+    } catch {
+      // The stream can already be stopped after an interruption.
+    }
+    if (!active) return null;
+
+    try {
+      active.handle.offset = 0;
+      active.handle.writeBytes(createPcm16WavHeader(
+        active.dataBytes,
+        active.sampleRate,
+        active.channels,
+      ));
+      active.handle.close();
+      return active.dataBytes > 0 ? active.fileUri : null;
+    } catch {
+      try {
+        active.handle.close();
+      } catch {
+        // Best-effort cleanup.
+      }
+      return null;
+    }
+  }, [pcmStream]);
 
   useEffect(() => {
-    // Expo Go can recycle expo-audio shared objects during Fast Refresh. Its
-    // synchronous getStatus() poll then targets a released native object.
-    // Metering is enabled in the development/production build used by Tour.
     if (!isRecording) {
       meteringActiveRef.current = false;
       meteringRef.current = 0;
       setMetering(0);
-      return;
     }
-
-    meteringActiveRef.current = true;
-    let timer: ReturnType<typeof setInterval> | undefined;
-    const updateMetering = () => {
-      if (!meteringActiveRef.current) return;
-      const activeRecorder = recorderRef.current;
-      if (!activeRecorder) return;
-      try {
-        const nextMetering = normalizeMetering(activeRecorder.getStatus().metering);
-        meteringRef.current = nextMetering;
-        setMetering((current) => Math.abs(current - nextMetering) > 0.01 ? nextMetering : current);
-      } catch {
-        // The native recorder can be released before React finishes an
-        // unmount/refresh. Stop polling that stale shared object immediately.
-        meteringActiveRef.current = false;
-        if (timer) clearInterval(timer);
-        timer = undefined;
-      }
-    };
-
-    updateMetering();
-    timer = setInterval(updateMetering, 80);
-    return () => {
-      meteringActiveRef.current = false;
-      if (timer) clearInterval(timer);
-    };
   }, [isRecording]);
 
   useEffect(() => {
@@ -418,8 +463,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
   }, [isRecording, persistCheckpoint]);
 
   const start = useCallback(async (): Promise<RecordingStartResult> => {
-    const activeRecorder = recorderRef.current;
-    if (!activeRecorder || startingRef.current || isRecording) {
+    if (startingRef.current || isRecording) {
       return {
         ok: false,
         failure: classifyRecordingStartError(null),
@@ -435,8 +479,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       }
 
       await configureRecordingAudioMode(true);
-      await activeRecorder.prepareToRecordAsync(RECORDING_OPTIONS);
-      activeRecorder.record();
+      await startPcmRecording();
       meteringActiveRef.current = true;
 
       setIsRecording(true);
@@ -481,30 +524,27 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       setMetering(0);
       stopRecordingLiveActivity(0);
 
-      try {
-        if (activeRecorder.getStatus().isRecording) {
-          stoppingRef.current = true;
-          await activeRecorder.stop();
-        }
-      } catch {
-        // The native recorder may never have reached a stoppable state.
-      } finally {
-        stoppingRef.current = false;
-      }
+      finalizePcmRecording();
 
       await configureRecordingAudioMode(false).catch(() => {});
       return { ok: false, failure: classifyRecordingStartError(error) };
     } finally {
       startingRef.current = false;
     }
-  }, [clearCheckpointTimer, isRecording, persistCheckpoint, startCheckpointTimer]);
+  }, [
+    clearCheckpointTimer,
+    finalizePcmRecording,
+    isRecording,
+    persistCheckpoint,
+    startPcmRecording,
+    startCheckpointTimer,
+  ]);
 
   const togglePause = useCallback(async () => {
-    const activeRecorder = recorderRef.current;
-    if (!activeRecorder || !isRecording) return;
+    if (!isRecording) return;
 
     if (isPaused) {
-      activeRecorder.record();
+      await pcmStream.start();
       timerRef.current = setInterval(() => {
         setElapsed((current) => {
           const next = current + 1;
@@ -521,7 +561,7 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       updateRecordingLiveActivity(elapsedRef.current, false);
       persistCheckpoint(false);
     } else {
-      activeRecorder.pause();
+      pcmStream.stop();
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = undefined;
       setIsPaused(true);
@@ -529,14 +569,11 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       updateRecordingLiveActivity(elapsedRef.current, true);
       persistCheckpoint(true);
     }
-  }, [isPaused, isRecording, persistCheckpoint]);
+  }, [isPaused, isRecording, pcmStream, persistCheckpoint]);
 
   const stop = useCallback(async (): Promise<{ uri: string; durationSec: number } | null> => {
-    const activeRecorder = recorderRef.current;
-    if (!activeRecorder || !isRecording) return null;
+    if (!isRecording) return null;
 
-    stoppingRef.current = true;
-    // Invalidate the poll before releasing the native recorder object.
     meteringActiveRef.current = false;
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = undefined;
@@ -546,20 +583,8 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     stopRecordingLiveActivity(durationSec);
 
     try {
-      let uriBeforeStop: string | null = null;
-      try {
-        uriBeforeStop = activeRecorder.uri;
-      } catch {
-        uriBeforeStop = null;
-      }
-      await activeRecorder.stop();
+      const uri = finalizePcmRecording();
       await configureRecordingAudioMode(false);
-      let uri: string | null = uriBeforeStop;
-      try {
-        uri = activeRecorder.uri ?? uriBeforeStop;
-      } catch {
-        uri = uriBeforeStop;
-      }
       const id = localIdRef.current;
       let durableUri = uri;
       if (id && uri) {
@@ -590,10 +615,8 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
       meteringActiveRef.current = false;
       setExperienceVisible(false);
       return null;
-    } finally {
-      stoppingRef.current = false;
     }
-  }, [clearCheckpointTimer, isRecording]);
+  }, [clearCheckpointTimer, finalizePcmRecording, isRecording]);
 
   const clearLiveSession = useCallback(() => {
     clearCheckpointTimer();

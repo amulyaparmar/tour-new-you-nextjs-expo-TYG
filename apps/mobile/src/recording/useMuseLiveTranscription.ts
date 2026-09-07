@@ -1,16 +1,17 @@
 import NetInfo from "@react-native-community/netinfo";
-import { useAudioStream, type AudioStreamBuffer } from "expo-audio";
+import type { AudioStreamBuffer } from "expo-audio";
 import { File, FileMode, Paths, type FileHandle } from "expo-file-system";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { TranscriptRange } from "./liveTranscript";
+import { subscribeToLivePcm } from "./live-pcm-bus";
 import {
   createPcm16WavHeader,
   recoveredLinesFromResponse,
   type MuseFileResponse,
 } from "./museAudioRecovery";
 
-export type RealtimeTranscriptionStatus = "idle" | "connecting" | "streaming" | "fallback";
+export type RealtimeTranscriptionStatus = "idle" | "connecting" | "streaming" | "recovering";
 
 export type RealtimeTranscriptLine = {
   id: string;
@@ -298,7 +299,7 @@ export function useMuseLiveTranscription({
   const handleAudioBuffer = useCallback((buffer: AudioStreamBuffer) => {
     if (buffer.sampleRate !== PCM_SAMPLE_RATE || buffer.channels !== 1) {
       setCaptureFailed(true);
-      setStatus("fallback");
+      setStatus("recovering");
       return;
     }
 
@@ -346,12 +347,12 @@ export function useMuseLiveTranscription({
     lastAudioSentAtRef.current = Date.now();
   }, [appendGapAudio]);
 
-  const { stream: audioStream } = useAudioStream({
-    sampleRate: PCM_SAMPLE_RATE,
-    channels: 1,
-    encoding: "int16",
-    onBuffer: handleAudioBuffer,
-  });
+  const shouldCapture = enabled && !captureFailed;
+
+  useEffect(() => {
+    if (!shouldCapture) return;
+    return subscribeToLivePcm(handleAudioBuffer);
+  }, [handleAudioBuffer, shouldCapture]);
 
   useEffect(() => {
     return () => {
@@ -417,7 +418,7 @@ export function useMuseLiveTranscription({
 
   useEffect(() => {
     if (!enabled || captureFailed || !MUSE_API_KEY) {
-      setStatus(enabled ? "fallback" : "idle");
+      setStatus(enabled ? "recovering" : "idle");
       setPartial(null);
       const socket = socketRef.current;
       socketRef.current = null;
@@ -431,7 +432,7 @@ export function useMuseLiveTranscription({
       upstreamReadyRef.current = false;
       backfillReadyRef.current = false;
       beginGap();
-      setStatus("fallback");
+      setStatus("recovering");
       setPartial(null);
       const socket = socketRef.current;
       socketRef.current = null;
@@ -579,7 +580,7 @@ export function useMuseLiveTranscription({
             upstreamReadyRef.current = false;
             backfillReadyRef.current = false;
             beginGap();
-            setStatus("fallback");
+            setStatus("recovering");
             partialTurnIdRef.current = null;
             setPartial(null);
             socket.close();
@@ -591,7 +592,7 @@ export function useMuseLiveTranscription({
           upstreamReadyRef.current = false;
           backfillReadyRef.current = false;
           beginGap();
-          setStatus("fallback");
+          setStatus("recovering");
         };
         socket.onclose = () => {
           if (socketRef.current === socket) socketRef.current = null;
@@ -601,7 +602,7 @@ export function useMuseLiveTranscription({
           setPartial(null);
           if (cancelled) return;
           beginGap();
-          setStatus("fallback");
+          setStatus("recovering");
           reconnectAttempt += 1;
           const delay = Math.min(10_000, 750 * 2 ** Math.min(reconnectAttempt, 4));
           reconnectTimer = setTimeout(() => void connect(), delay);
@@ -611,7 +612,7 @@ export function useMuseLiveTranscription({
         upstreamReadyRef.current = false;
         backfillReadyRef.current = false;
         beginGap();
-        setStatus("fallback");
+        setStatus("recovering");
         reconnectAttempt += 1;
         const delay = Math.min(10_000, 750 * 2 ** Math.min(reconnectAttempt, 4));
         reconnectTimer = setTimeout(() => void connect(), delay);
@@ -645,65 +646,10 @@ export function useMuseLiveTranscription({
     processBackfillQueue,
   ]);
 
-  const streamStartedRef = useRef(false);
-
   useEffect(() => {
     if (!internetAvailable || !backfillReadyRef.current) return;
     void processBackfillQueue();
   }, [internetAvailable, processBackfillQueue]);
-
-  const shouldCapture = enabled && !captureFailed;
-
-  useEffect(() => {
-    const stopIfStarted = () => {
-      if (!streamStartedRef.current) return;
-      streamStartedRef.current = false;
-      try {
-        audioStream.stop();
-      } catch {
-        // stop() can throw if Fast Refresh already released the native stream.
-      }
-    };
-
-    if (!shouldCapture) {
-      stopIfStarted();
-      return;
-    }
-
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      void (async () => {
-        try {
-          await audioStream.start();
-          if (cancelled) {
-            try {
-              audioStream.stop();
-            } catch {
-              // The start completed after unmount; the native object may already be gone.
-            }
-            return;
-          }
-          streamStartedRef.current = true;
-        } catch {
-          if (cancelled) return;
-          streamStartedRef.current = false;
-          try {
-            audioStream.stop();
-          } catch {
-            // start() may have already released the native stream.
-          }
-          setCaptureFailed(true);
-          setStatus("fallback");
-        }
-      })();
-    }, 400);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      stopIfStarted();
-    };
-  }, [audioStream, shouldCapture]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -723,12 +669,9 @@ export function useMuseLiveTranscription({
     return () => clearInterval(interval);
   }, [enabled]);
 
-  const shouldUseNativeFallback = enabled && status === "fallback";
-
   return {
     status,
     internetAvailable,
-    shouldUseNativeFallback,
     turns,
     partial,
     recoveredRanges,

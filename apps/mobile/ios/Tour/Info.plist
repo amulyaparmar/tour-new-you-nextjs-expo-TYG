@@ -72,8 +72,6 @@
     <string>Allow Tour to save recorded video assets to your photo library.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Allow Tour to access videos you choose from your photo library.</string>
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>Allow Tour to transcribe leasing conversations live for in-tour coaching.</string>
     <key>NSSupportsLiveActivities</key>
     <true/>
     <key>NSSupportsLiveActivitiesFrequentUpdates</key>
