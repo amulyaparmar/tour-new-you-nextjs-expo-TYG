@@ -25,6 +25,11 @@ import {
   updateRecordingLiveActivity,
 } from "./recordingLiveActivity";
 import { isExpoGo, supportsBackgroundRecording } from "../runtime";
+import {
+  classifyRecordingStartError,
+  permissionStartFailure,
+  type RecordingStartResult,
+} from "./recordingStartFailure";
 
 const CHECKPOINT_INTERVAL_MS = 30_000;
 const DRAFT_CHECKPOINT_DEBOUNCE_MS = 1_000;
@@ -82,7 +87,7 @@ export type RecordingCtx = {
   draft: LiveRecordingDraft | null;
   localId: string | null;
   transcriptPreview: string;
-  start: () => Promise<boolean>;
+  start: () => Promise<RecordingStartResult>;
   togglePause: () => Promise<void>;
   stop: () => Promise<{ uri: string; durationSec: number } | null>;
   openExperience: (input: OpenLiveExperienceInput) => void;
@@ -127,7 +132,10 @@ const EMPTY_CTX: RecordingCtx = {
   draft: null,
   localId: null,
   transcriptPreview: "",
-  start: async () => false,
+  start: async () => ({
+    ok: false,
+    failure: classifyRecordingStartError(null),
+  }),
   togglePause: async () => {},
   stop: async () => null,
   openExperience: () => {},
@@ -192,8 +200,9 @@ async function configureRecordingAudioMode(active: boolean) {
 
   try {
     await setAudioModeAsync(baseMode);
-  } catch {
-    // Ignore audio mode failures in Expo Go so recording can still be tested.
+  } catch (error) {
+    // Expo Go does not support every audio-mode option used by native builds.
+    if (!isExpoGo()) throw error;
   }
 }
 
@@ -408,16 +417,21 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
     return () => sub.remove();
   }, [isRecording, persistCheckpoint]);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (): Promise<RecordingStartResult> => {
     const activeRecorder = recorderRef.current;
-    if (!activeRecorder || startingRef.current || isRecording) return false;
+    if (!activeRecorder || startingRef.current || isRecording) {
+      return {
+        ok: false,
+        failure: classifyRecordingStartError(null),
+      } satisfies RecordingStartResult;
+    }
 
     startingRef.current = true;
     try {
-      const { granted } = await requestRecordingPermissionsAsync();
-      if (!granted) {
-        onNotify?.("Microphone permission required", "error");
-        return false;
+      const permission = await requestRecordingPermissionsAsync();
+      const permissionFailure = permissionStartFailure(permission);
+      if (permissionFailure) {
+        return { ok: false, failure: permissionFailure };
       }
 
       await configureRecordingAudioMode(true);
@@ -452,15 +466,38 @@ export function RecordingProvider({ children, onNotify }: RecordingProviderProps
         });
       }, 1000);
 
-      return true;
-    } catch {
-      onNotify?.("Could not start recording", "error");
+      return { ok: true };
+    } catch (error) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = undefined;
+      clearCheckpointTimer();
+      meteringActiveRef.current = false;
+      meteringRef.current = 0;
+      elapsedRef.current = 0;
+      isPausedRef.current = false;
+      setIsRecording(false);
+      setIsPaused(false);
+      setElapsed(0);
+      setMetering(0);
+      stopRecordingLiveActivity(0);
+
+      try {
+        if (activeRecorder.getStatus().isRecording) {
+          stoppingRef.current = true;
+          await activeRecorder.stop();
+        }
+      } catch {
+        // The native recorder may never have reached a stoppable state.
+      } finally {
+        stoppingRef.current = false;
+      }
+
       await configureRecordingAudioMode(false).catch(() => {});
-      return false;
+      return { ok: false, failure: classifyRecordingStartError(error) };
     } finally {
       startingRef.current = false;
     }
-  }, [isRecording, onNotify, persistCheckpoint, startCheckpointTimer]);
+  }, [clearCheckpointTimer, isRecording, persistCheckpoint, startCheckpointTimer]);
 
   const togglePause = useCallback(async () => {
     const activeRecorder = recorderRef.current;
