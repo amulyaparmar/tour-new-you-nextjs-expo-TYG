@@ -1350,41 +1350,6 @@
   font-weight: 600;
 }
 
-.transcriptEmotionSignal {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
-  color: #71717a;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.01em;
-  line-height: 1;
-  text-transform: capitalize;
-}
-
-.transcriptEmotionSignal svg {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 auto;
-}
-
-.transcriptEmotionSignal[data-emotion="happy"] {
-  color: #16a34a;
-}
-.transcriptEmotionSignal[data-emotion="excited"] {
-  color: #2563eb;
-}
-.transcriptEmotionSignal[data-emotion="concerned"] {
-  color: #b45309;
-}
-.transcriptEmotionSignal[data-emotion="sad"] {
-  color: #7c3aed;
-}
-.transcriptEmotionSignal[data-emotion="angry"] {
-  color: #dc2626;
-}
-
 .transcriptText {
   display: block;
   font-size: 14px;

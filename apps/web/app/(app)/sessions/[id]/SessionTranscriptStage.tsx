@@ -10,9 +10,6 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import type {
-  AudioEmotion,
-  AudioInsightSegment,
-  AudioInsights,
   ConversationPhaseSegmentation,
   ConversationPhaseSpan,
   SessionParticipants,
@@ -55,7 +52,6 @@ type Props = {
   transcript: TranscriptSegment[];
   participants: SessionParticipants;
   phases?: ConversationPhaseSegmentation | null;
-  audioInsights?: AudioInsights | null;
   currentTime: number;
   duration: number;
   isPlaying: boolean;
@@ -134,7 +130,6 @@ export function SessionTranscriptStage({
   transcript,
   participants,
   phases,
-  audioInsights = null,
   currentTime,
   duration,
   isPlaying,
@@ -299,37 +294,6 @@ export function SessionTranscriptStage({
     }
     return map;
   }, [phases, transcript]);
-
-  const emotionByTranscriptId = useMemo(() => {
-    const resolved = new Map<string, AudioInsightSegment>();
-    if (!audioInsights?.segments.length) return resolved;
-
-    for (const transcriptSegment of transcript) {
-      const transcriptCenter =
-        (transcriptSegment.startTime + transcriptSegment.endTime) / 2;
-      let match: AudioInsightSegment | undefined;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      for (const audioSegment of audioInsights.segments) {
-        const overlaps =
-          audioSegment.startTime <= transcriptSegment.endTime &&
-          audioSegment.endTime >= transcriptSegment.startTime;
-        const nearby =
-          Math.abs(audioSegment.startTime - transcriptSegment.startTime) <= 4;
-        if (!overlaps && !nearby) continue;
-        const distance = Math.abs(
-          (audioSegment.startTime + audioSegment.endTime) / 2 -
-            transcriptCenter,
-        );
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          match = audioSegment;
-        }
-      }
-      if (match) resolved.set(transcriptSegment.id, match);
-    }
-
-    return resolved;
-  }, [audioInsights?.segments, transcript]);
 
   const phaseCount = phases?.spans.length ?? 0;
   const viewedPositionTime = isFollowingPlayback
@@ -969,7 +933,6 @@ export function SessionTranscriptStage({
                 speakerMap.get(seg.speaker || "Speaker") ?? SPEAKER_PALETTE[0]!;
               const active = activeSegment?.id === seg.id;
               const segMoments = momentsBySegment.get(seg.id) ?? [];
-              const emotionalSignal = emotionByTranscriptId.get(seg.id);
               const segComments = commentsBySegment.get(seg.id) ?? [];
               const phase = phaseBySegmentId.get(seg.id);
               const prevPhase =
@@ -1074,12 +1037,6 @@ export function SessionTranscriptStage({
                               <span className={styles.transcriptTimestamp}>
                                 {formatTime(seg.startTime)}
                               </span>
-                              {emotionalSignal ? (
-                                <TranscriptEmotionSignal
-                                  emotion={emotionalSignal.emotion}
-                                  energy={emotionalSignal.energy}
-                                />
-                              ) : null}
                             </span>
                             <span className={styles.transcriptText}>
                               {seg.text}
@@ -1297,82 +1254,5 @@ export function SessionTranscriptStage({
         <span>{formatTime(duration)}</span>
       </div>
     </div>
-  );
-}
-
-function TranscriptEmotionSignal({
-  emotion,
-  energy,
-}: {
-  emotion: AudioEmotion;
-  energy: "low" | "medium" | "high";
-}) {
-  const label = `${emotion[0]!.toUpperCase()}${emotion.slice(1)}${energy === "high" ? " · high energy" : ""}`;
-
-  return (
-    <span
-      className={styles.transcriptEmotionSignal}
-      data-emotion={emotion}
-      title={label}
-      aria-label={`Emotional signal: ${label}`}
-    >
-      <EmotionFace emotion={emotion} />
-      <span>{emotion}</span>
-    </span>
-  );
-}
-
-function EmotionFace({ emotion }: { emotion: AudioEmotion }) {
-  const mouth =
-    emotion === "happy" || emotion === "excited"
-      ? "M8 12.4c1.25 1.25 2.75 1.25 4 0"
-      : emotion === "sad" || emotion === "concerned"
-        ? "M8 14c1.25-1.15 2.75-1.15 4 0"
-        : emotion === "angry"
-          ? "M8.15 13.25h3.7"
-          : "M8.3 13.1h3.4";
-
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <circle
-        cx="10"
-        cy="10"
-        r="7.25"
-        stroke="currentColor"
-        strokeWidth="1.55"
-      />
-      {emotion === "angry" ? (
-        <>
-          <path
-            d="m6.55 7.8 1.65.5M13.45 7.8l-1.65.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          <circle cx="7.45" cy="10.05" r=".65" fill="currentColor" />
-          <circle cx="12.55" cy="10.05" r=".65" fill="currentColor" />
-        </>
-      ) : (
-        <>
-          <circle cx="7.45" cy="8.75" r=".72" fill="currentColor" />
-          <circle cx="12.55" cy="8.75" r=".72" fill="currentColor" />
-        </>
-      )}
-      {emotion === "excited" ? (
-        <path
-          d="M7.8 12.1c1.35 1.65 3.05 1.65 4.4 0"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      ) : (
-        <path
-          d={mouth}
-          stroke="currentColor"
-          strokeWidth="1.45"
-          strokeLinecap="round"
-        />
-      )}
-    </svg>
   );
 }

@@ -467,7 +467,6 @@ export function SessionDetailExperience({
           transcript={transcript}
           participants={participants}
           phases={phases}
-          audioInsights={initialAudioInsights}
           currentTime={currentTime}
           duration={effectiveDuration}
           isPlaying={isPlaying}
