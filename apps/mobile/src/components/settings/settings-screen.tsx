@@ -35,7 +35,7 @@ import { tourColors as C } from "@/theme/tour-brand";
 
 const FEEDBACK_SHEET_REST_HEIGHT = 430;
 const FEEDBACK_SHEET_HEIGHT_RATIO = 0.74;
-const FEEDBACK_BUTTON_HEIGHT = 58;
+const FEEDBACK_BUTTON_HEIGHT = 50;
 const FEEDBACK_BUTTON_GAP = 12;
 const FEEDBACK_KEYBOARD_CLEARANCE = 12;
 
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
-    borderRadius: 29,
+    borderRadius: 25,
     backgroundColor: ACCENT,
     boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },

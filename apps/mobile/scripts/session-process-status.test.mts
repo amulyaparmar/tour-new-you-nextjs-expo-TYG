@@ -33,6 +33,6 @@ test("failed session card uses a page footer and analysis-failed title", () => {
   assert.match(app, /<SessionFailedFooter/);
   assert.match(app, /onFailedFooterChange=\{setFailedFooter\}/);
   assert.match(card, /Retry Analysis/);
-  assert.match(card, /minHeight: 58/);
-  assert.match(card, /borderRadius: 29/);
+  assert.match(card, /minHeight: 50/);
+  assert.match(card, /borderRadius: 25/);
 });

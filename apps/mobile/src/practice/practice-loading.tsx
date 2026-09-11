@@ -139,8 +139,8 @@ const styles = StyleSheet.create({
   readyControls: { flexDirection: "row", alignItems: "center", gap: 8 },
   startBtn: {
     flex: 1,
-    minHeight: 58,
-    borderRadius: 29,
+    minHeight: 50,
+    borderRadius: 25,
     backgroundColor: CARD,
   },
   goalsBtn: {

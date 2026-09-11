@@ -4,7 +4,7 @@ import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 
 import { CustomText } from "@/components/custom-text";
 import { MotionPressable } from "@/components/ui/motion";
-import { CARD, TEXT } from "@/theme/tokens";
+import { CARD, PRIMARY_BUTTON_HEIGHT, PRIMARY_BUTTON_RADIUS, TEXT } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
 
 export function SecondaryButton({
@@ -44,12 +44,12 @@ export function SecondaryButton({
 
 const styles = StyleSheet.create({
   button: {
-    height: 50,
+    height: PRIMARY_BUTTON_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    borderRadius: 25,
+    borderRadius: PRIMARY_BUTTON_RADIUS,
     backgroundColor: CARD,
   },
 });

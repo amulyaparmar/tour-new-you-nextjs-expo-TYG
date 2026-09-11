@@ -83,11 +83,11 @@ const styles = StyleSheet.create({
   copy: { color: "rgba(0, 0, 0, 0.45)", textAlign: "center", lineHeight: 20 },
   primaryBtn: {
     alignSelf: "stretch",
-    minHeight: 58,
+    minHeight: 50,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
-    borderRadius: 29,
+    borderRadius: 25,
     backgroundColor: ACCENT,
     boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },

@@ -9,6 +9,9 @@ export const TEXT = "#000000";
 export const HINT = "#E8F1FC";
 export const LARGE_CORNER = 32;
 export const SMALL_CORNER = 16;
+/** Pill primary CTA. Pair with `PRIMARY_BUTTON_RADIUS`. */
+export const PRIMARY_BUTTON_HEIGHT = 50;
+export const PRIMARY_BUTTON_RADIUS = 25;
 
 /**
  * Plus Jakarta Sans (Google Fonts).

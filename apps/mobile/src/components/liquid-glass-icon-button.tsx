@@ -14,6 +14,7 @@ export function LiquidGlassIconButton({
   onPress,
   size = BUTTON_SIZE,
   iconSize = ICON_SIZE,
+  iconColor = TEXT,
   disabled = false,
   accessibilityLabel,
   iconStyle,
@@ -22,6 +23,7 @@ export function LiquidGlassIconButton({
   onPress: () => void;
   size?: number;
   iconSize?: number;
+  iconColor?: string;
   disabled?: boolean;
   accessibilityLabel: string;
   iconStyle?: React.ComponentProps<typeof Reanimated.View>["style"];
@@ -43,7 +45,11 @@ export function LiquidGlassIconButton({
       }}
     >
       <Reanimated.View style={iconStyle}>
-        <Ionicons name={icon} size={iconSize} color={disabled ? `${TEXT}73` : TEXT} />
+        <Ionicons
+          name={icon}
+          size={iconSize}
+          color={disabled ? `${TEXT}73` : iconColor}
+        />
       </Reanimated.View>
     </Pressable>
   );
@@ -51,7 +57,11 @@ export function LiquidGlassIconButton({
   if (GlassView) {
     return (
       <View pointerEvents="box-none" style={styles.slot}>
-        <GlassView isInteractive borderRadius={radius} style={{ width: size, height: size }}>
+        <GlassView
+          isInteractive
+          borderRadius={radius}
+          style={{ width: size, height: size }}
+        >
           {hit}
         </GlassView>
       </View>

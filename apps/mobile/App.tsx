@@ -296,6 +296,7 @@ import {
   type RecordedPanoramaAsset,
 } from "./src/assets/PanoramaAssetRecorder";
 import { PanoramaImageViewer } from "./src/assets/PanoramaImageViewer";
+import { VideoTourDetailsScreen } from "./src/assets/VideoTourDetailsScreen";
 import {
   queryKeys,
   useDeleteCommentMutation,
@@ -387,6 +388,7 @@ type Screen =
   | { type: "profile" }
   | { type: "start-tour" }
   | { type: "practice-session"; scenario: PracticeSessionOpen["scenario"]; attemptId?: string }
+  | { type: "video-tour-details" }
   | { type: "tour" };
 
 type TourStep = "contact" | "preferences" | "ready";
@@ -874,6 +876,7 @@ function screenRank(screen: Screen) {
   if (screen.type === "start-tour") return 12;
   if (screen.type === "practice-session") return 12;
   if (screen.type === "profile") return 12;
+  if (screen.type === "video-tour-details") return 12;
   if (screen.type === "session-detail") return 13;
   if (screen.type === "session-comments") return 14;
   if (screen.type === "session-coaching") return 14;
@@ -1180,6 +1183,7 @@ type MainStackParamList = {
   Rubrics: undefined;
   StartTour: undefined;
   PracticeSession: undefined;
+  VideoTourDetails: undefined;
 };
 
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -1203,6 +1207,7 @@ function MainStackNavigation({
   rubrics,
   startTour,
   practiceSession,
+  videoTourDetails,
   children,
 }: {
   activeScreen: keyof MainStackParamList;
@@ -1215,6 +1220,7 @@ function MainStackNavigation({
   rubrics: React.ReactNode;
   startTour: React.ReactNode;
   practiceSession: React.ReactNode;
+  videoTourDetails: React.ReactNode;
   children: React.ReactNode;
 }) {
   const navigationRef =
@@ -1293,6 +1299,14 @@ function MainStackNavigation({
         <MainStack.Screen name="PracticeSession">
           {({ navigation }: { navigation: { goBack: () => void } }) =>
             withNativeBack(practiceSession, () => {
+              onCloseToMain();
+              navigation.goBack();
+            })
+          }
+        </MainStack.Screen>
+        <MainStack.Screen name="VideoTourDetails">
+          {({ navigation }: { navigation: { goBack: () => void } }) =>
+            withNativeBack(videoTourDetails, () => {
               onCloseToMain();
               navigation.goBack();
             })
@@ -1701,7 +1715,8 @@ export default function App() {
     screen.type === "settings" ||
     screen.type === "start-tour" ||
     screen.type === "rubrics" ||
-    screen.type === "practice-session"
+    screen.type === "practice-session" ||
+    screen.type === "video-tour-details"
       ? screen.type === "main" && screen.tab === "sessions"
         ? "sessions-stack"
         : "main-profile-stack"
@@ -1802,6 +1817,7 @@ export default function App() {
       onProfile={() => nav({ type: "profile" })}
       onOpenSettings={() => nav({ type: "settings" })}
       onOpenStartTour={() => nav({ type: "start-tour" })}
+      onOpenVideoTourDetails={() => nav({ type: "video-tour-details" })}
       onOpenPracticeSession={(session) => {
         practiceOpenTokenRef.current += 1;
         setStackedPractice({ ...session, token: practiceOpenTokenRef.current });
@@ -1837,7 +1853,8 @@ export default function App() {
                   screen.type === "settings" ||
                   screen.type === "start-tour" ||
                   screen.type === "rubrics" ||
-                  screen.type === "practice-session") && (
+                  screen.type === "practice-session" ||
+                  screen.type === "video-tour-details") && (
                   <MainStackNavigation
                     activeScreen={
                       screen.type === "rubrics"
@@ -1850,7 +1867,9 @@ export default function App() {
                               ? "StartTour"
                               : screen.type === "practice-session"
                                 ? "PracticeSession"
-                                : "Main"
+                                : screen.type === "video-tour-details"
+                                  ? "VideoTourDetails"
+                                  : "Main"
                     }
                     onCloseToMain={() => {
                       if (screenRef.current.type === "practice-session") {
@@ -1938,6 +1957,13 @@ export default function App() {
                           }}
                         />
                       ) : null
+                    }
+                    videoTourDetails={
+                      <VideoTourDetailsScreen
+                        onBack={() =>
+                          nav({ type: "main", tab: lastMainTabRef.current })
+                        }
+                      />
                     }
                   >
                     {renderMainTabs(
@@ -2196,6 +2222,7 @@ function MainTabs({
   onProfile,
   onOpenSettings,
   onOpenStartTour,
+  onOpenVideoTourDetails,
   onOpenPracticeSession,
   practiceListEpoch,
   readyTourId,
@@ -2214,6 +2241,7 @@ function MainTabs({
   onProfile: () => void;
   onOpenSettings: () => void;
   onOpenStartTour: () => void;
+  onOpenVideoTourDetails: () => void;
   onOpenPracticeSession: (session: PracticeSessionOpen) => void;
   practiceListEpoch: number;
   readyTourId: string | null;
@@ -2523,6 +2551,7 @@ function MainTabs({
               await materialsQuery.refetch();
             }}
             property={property}
+            onOpenVideoTourDetails={onOpenVideoTourDetails}
           />
         </ScreenTransition>
       )}
@@ -5170,6 +5199,8 @@ const assetSt = StyleSheet.create({
     borderCurve: "continuous",
     backgroundColor: CARD,
   },
+  addOptionsFollow: { marginTop: 10 },
+  assetMenuIconTour: { backgroundColor: "#e0f2fe" },
   assetMenuItem: {
     minHeight: 64,
     flexDirection: "row",
@@ -5195,6 +5226,7 @@ const assetSt = StyleSheet.create({
 function AssetTypeMenu({
   visible,
   onClose,
+  onVideoTour,
   onPhoto,
   onCamera,
   onVideo,
@@ -5203,6 +5235,7 @@ function AssetTypeMenu({
 }: {
   visible: boolean;
   onClose: () => void;
+  onVideoTour: () => void;
   onPhoto: () => void;
   onCamera: () => void;
   onVideo: () => void;
@@ -5210,7 +5243,7 @@ function AssetTypeMenu({
   onDismiss?: () => void;
 }) {
   const { height: windowHeight } = useWindowDimensions();
-  const sheetHeight = Math.min(430, Math.round(windowHeight * 0.52));
+  const sheetHeight = Math.min(510, Math.round(windowHeight * 0.6));
 
   return (
     <BottomSheetModal
@@ -5233,6 +5266,16 @@ function AssetTypeMenu({
       }
     >
       <View style={assetSt.addOptions}>
+        <AssetTypeMenuItem
+          icon="film-outline"
+          iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconTour]}
+          iconColor="#0284c7"
+          title="Video Tour"
+          meta="Film a walkthrough of the apartment"
+          onPress={onVideoTour}
+        />
+      </View>
+      <View style={[assetSt.addOptions, assetSt.addOptionsFollow]}>
         <AssetTypeMenuItem
           icon="image-outline"
           iconStyle={assetSt.assetMenuIcon}
@@ -5455,6 +5498,7 @@ function MaterialsScreen({
   onRefresh,
   onReload,
   property,
+  onOpenVideoTourDetails,
 }: {
   materials: Material[];
   tourLibrary: TourLibraryLink | null;
@@ -5463,6 +5507,7 @@ function MaterialsScreen({
   onRefresh: () => Promise<void>;
   onReload: () => Promise<void>;
   property: string;
+  onOpenVideoTourDetails: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -5566,6 +5611,11 @@ function MaterialsScreen({
     await uploadPanoramaMaterial(asset);
     await onReload().catch(() => undefined);
     showToast("360° photo added to this community", "success");
+  }
+
+  function chooseVideoTour() {
+    pendingAddActionRef.current = () => onOpenVideoTourDetails();
+    setAssetMenuOpen(false);
   }
 
   function choosePhoto() {
@@ -5787,6 +5837,7 @@ function MaterialsScreen({
           pendingAddActionRef.current = null;
           action?.();
         }}
+        onVideoTour={chooseVideoTour}
         onPhoto={choosePhoto}
         onCamera={chooseCamera}
         onVideo={chooseVideo}
@@ -7398,13 +7449,13 @@ const createSessionSt = StyleSheet.create({
     paddingTop: 56,
   },
   primaryBtn: {
-    minHeight: 58,
+    minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     paddingHorizontal: 14,
-    borderRadius: 29,
+    borderRadius: 25,
     backgroundColor: ACCENT,
     boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
@@ -11502,23 +11553,23 @@ const audioTestSt = StyleSheet.create({
   },
   controls: { gap: 10 },
   recordButton: {
-    minHeight: 58,
+    minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
     paddingHorizontal: 18,
-    borderRadius: 29,
+    borderRadius: 25,
     backgroundColor: C.red,
   },
   stopButton: {
-    minHeight: 58,
+    minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
     paddingHorizontal: 18,
-    borderRadius: 29,
+    borderRadius: 25,
     backgroundColor: C.red,
   },
   primaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
@@ -11655,13 +11706,13 @@ const homeSt = StyleSheet.create({
   actionPillRow: { flexDirection: "row", gap: 10 },
   checkInPill: {
     flex: 1,
-    minHeight: 58,
+    minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
     paddingHorizontal: 14,
-    borderRadius: 29,
+    borderRadius: 25,
     backgroundColor: "#2f343c",
     boxShadow: "0 6px 14px rgba(47, 52, 60, 0.28)",
   },
@@ -12548,25 +12599,25 @@ const reviewSt = StyleSheet.create({
     padding: 14,
   },
   sheetPrimaryBtn: {
-    minHeight: 58,
+    minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
     paddingHorizontal: 14,
-    borderRadius: 29,
+    borderRadius: 25,
     backgroundColor: ACCENT,
     boxShadow: "0 6px 14px rgba(0, 108, 229, 0.28)",
   },
   sheetPrimaryBtnText: { color: CARD },
   sheetSecondaryBtn: {
-    minHeight: 58,
+    minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
     paddingHorizontal: 14,
-    borderRadius: 29,
+    borderRadius: 25,
     backgroundColor: BACKGROUND,
   },
   sheetEmpty: {
