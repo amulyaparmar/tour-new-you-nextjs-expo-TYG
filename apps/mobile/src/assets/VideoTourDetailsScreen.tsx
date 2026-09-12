@@ -26,6 +26,8 @@ import {
   VideoTourShotListScreen,
   type VideoTourShotListDraft,
 } from "@/assets/VideoTourShotListScreen";
+import { VideoTourFootageScreen } from "@/assets/VideoTourFootageScreen";
+import { VideoTourFootageRecorderScreen } from "@/assets/VideoTourFootageRecorderScreen";
 import {
   ACCENT,
   BACKGROUND,
@@ -72,6 +74,8 @@ type FloorPlanDraft = {
 type VideoTourStackParamList = {
   Details: undefined;
   ShotList: VideoTourShotListDraft;
+  Footage: VideoTourShotListDraft & { selectedIds: string[] };
+  Recorder: VideoTourShotListDraft & { selectedIds: string[]; shotId: string };
 };
 
 const VideoTourStack = createNativeStackNavigator<VideoTourStackParamList>();
@@ -117,6 +121,35 @@ export function VideoTourDetailsScreen({ onBack }: { onBack: () => void }) {
         {({ navigation, route }) => (
           <VideoTourShotListScreen
             draft={route.params}
+            onBack={() => navigation.goBack()}
+            onNext={(selectedIds) =>
+              navigation.navigate("Footage", {
+                ...route.params,
+                selectedIds,
+              })
+            }
+          />
+        )}
+      </VideoTourStack.Screen>
+      <VideoTourStack.Screen name="Footage">
+        {({ navigation, route }) => (
+          <VideoTourFootageScreen
+            draft={route.params}
+            onBack={() => navigation.goBack()}
+            onOpenRecorder={(nextShotId: string) =>
+              navigation.navigate("Recorder", {
+                ...route.params,
+                shotId: nextShotId,
+              })
+            }
+          />
+        )}
+      </VideoTourStack.Screen>
+      <VideoTourStack.Screen name="Recorder">
+        {({ navigation, route }) => (
+          <VideoTourFootageRecorderScreen
+            draft={route.params}
+            shotId={route.params.shotId}
             onBack={() => navigation.goBack()}
           />
         )}

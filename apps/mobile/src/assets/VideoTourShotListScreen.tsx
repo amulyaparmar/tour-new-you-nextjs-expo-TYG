@@ -35,13 +35,22 @@ const EXTERIOR_AMENITIES = new Set([
   "courtyard",
 ]);
 
-type ShotType = {
+export type ShotType = {
   key: string;
   label: string;
+  description: string;
+  detail: string;
   icon: React.ComponentProps<typeof Ionicons>["name"];
+  recordsAudio: boolean;
 };
 
-type ShotSection = {
+export type SelectedShot = ShotType & {
+  id: string;
+  sectionId: string;
+  sectionTitle: string;
+};
+
+export type ShotSection = {
   id: string;
   title: string;
   shots: ShotType[];
@@ -54,30 +63,90 @@ export type VideoTourShotListDraft = {
 };
 
 const INTRO_SHOTS: ShotType[] = [
-  { key: "a-roll", label: "A-Roll Shots", icon: "videocam-outline" },
+  {
+    key: "a-roll",
+    label: "A-Roll Shots",
+    description: "You introducing the property.",
+    detail:
+      "Look at the camera and introduce the community by name. Say who you are, what makes the property special, and invite the viewer to come along on the tour.",
+    icon: "videocam-outline",
+    recordsAudio: true,
+  },
   {
     key: "b-roll",
     label: "B-Roll (Property/Welcome Area)",
+    description: "Exterior, lobby, and arrival shots.",
+    detail:
+      "Film the exterior, main entrance, and lobby in slow, steady moves. These clips will cover your spoken introduction.",
     icon: "film-outline",
+    recordsAudio: false,
   },
   {
     key: "interviews",
     label: "Neighbor/Resident Interviews",
+    description: "Residents sharing why they live here.",
+    detail:
+      "Ask a resident why they chose this community and what they love about living here. Keep the mic close and let them speak in their own words.",
     icon: "mic-outline",
+    recordsAudio: true,
   },
   {
     key: "testimonials",
     label: "Resident Testimonials",
+    description: "Residents talking about community life.",
+    detail:
+      "Capture a resident talking about daily life here—neighbors, amenities, or a favorite moment. Film them in a real setting, not a blank wall.",
     icon: "chatbubbles-outline",
+    recordsAudio: true,
   },
 ];
 
 const MISC_SHOTS: ShotType[] = [
-  { key: "fun", label: "Fun Property Shots", icon: "happy-outline" },
-  { key: "seasonal", label: "Seasonal/Marketing", icon: "calendar-outline" },
-  { key: "events", label: "Resident Events", icon: "people-outline" },
-  { key: "offers", label: "Special Offers", icon: "pricetag-outline" },
-  { key: "security", label: "Security", icon: "shield-checkmark-outline" },
+  {
+    key: "fun",
+    label: "Fun Property Shots",
+    description: "Playful community personality shots.",
+    detail:
+      "Grab playful personality shots around the property—signs, pets, murals, or anything that feels like this community.",
+    icon: "happy-outline",
+    recordsAudio: false,
+  },
+  {
+    key: "seasonal",
+    label: "Seasonal/Marketing",
+    description: "Holiday or seasonal curb appeal.",
+    detail:
+      "Film holiday decor, seasonal landscaping, or current marketing moments that show the property at this time of year.",
+    icon: "calendar-outline",
+    recordsAudio: false,
+  },
+  {
+    key: "events",
+    label: "Resident Events",
+    description: "People at community gatherings.",
+    detail:
+      "Capture people at a community gathering. Get wide coverage of the event, then a few closer shots of conversation and energy.",
+    icon: "people-outline",
+    recordsAudio: false,
+  },
+  {
+    key: "offers",
+    label: "Special Offers",
+    description: "Current specials and promotions.",
+    detail:
+      "Film current specials, signage, or leasing desk details so prospects can see what’s available right now.",
+    icon: "pricetag-outline",
+    recordsAudio: false,
+  },
+  {
+    key: "security",
+    label: "Security",
+    description: "Access, cameras, and safety features.",
+    detail:
+      "Show access control, cameras, lighting, and other safety features. Keep the shots factual and easy to understand.",
+    icon: "shield-checkmark-outline",
+    recordsAudio: false,
+  },
 ];
 
 const DESIGN_AMENITIES: {
@@ -100,16 +169,46 @@ const DESIGN_AMENITIES: {
   { title: "Courtyard", match: ["courtyard"], exterior: true },
 ];
 
-function spaceShots(kind: "interior" | "exterior"): ShotType[] {
+function spaceShots(kind: "interior" | "exterior", spaceName: string): ShotType[] {
   return [
-    { key: "a-roll", label: "A-Roll Shots", icon: "videocam-outline" },
-    { key: "wide", label: "Wide Angle Shots", icon: "scan-outline" },
-    { key: "detail", label: "Detail Shots", icon: "aperture-outline" },
+    {
+      key: "a-roll",
+      label: "A-Roll Shots",
+      description: "Walk-and-talk through the space.",
+      detail: `Walk through ${spaceName} while talking about the layout, finishes, and who this space is for.`,
+      icon: "videocam-outline",
+      recordsAudio: true,
+    },
+    {
+      key: "wide",
+      label: "Wide Angle Shots",
+      description: "Full view of the room or area.",
+      detail: `Hold a wide, level shot of ${spaceName} so the full room or area is easy to read. Pan slowly if you need more coverage.`,
+      icon: "scan-outline",
+      recordsAudio: false,
+    },
+    {
+      key: "detail",
+      label: "Detail Shots",
+      description: "Close-ups of finishes and features.",
+      detail: `Get close on finishes and features in ${spaceName}—counters, fixtures, views, and anything that feels premium.`,
+      icon: "aperture-outline",
+      recordsAudio: false,
+    },
     {
       key: "lifestyle",
       label:
         kind === "exterior" ? "Lifestyle (Exterior)" : "Lifestyle (Interior)",
+      description:
+        kind === "exterior"
+          ? "People enjoying the outdoor space."
+          : "People using the space naturally.",
+      detail:
+        kind === "exterior"
+          ? `Film people using ${spaceName} naturally—arriving, sitting, or enjoying the outdoor space.`
+          : `Film people using ${spaceName} the way residents would—working, relaxing, or gathering.`,
       icon: kind === "exterior" ? "sunny-outline" : "people-outline",
+      recordsAudio: false,
     },
   ];
 }
@@ -119,7 +218,7 @@ function floorPlanPlaceholder(index: number) {
   return `Plan ${index + 1}${letter}`;
 }
 
-function buildSections(draft: VideoTourShotListDraft): ShotSection[] {
+export function buildSections(draft: VideoTourShotListDraft): ShotSection[] {
   const floorPlanSections = draft.floorPlans.map((plan, index) => {
     const name = (plan.name.trim() || floorPlanPlaceholder(index)).replace(
       /^floor\s*plans?\s*:?\s*/i,
@@ -128,7 +227,7 @@ function buildSections(draft: VideoTourShotListDraft): ShotSection[] {
     return {
       id: `floor:${plan.id}`,
       title: `Floor Plan: ${name}`,
-      shots: spaceShots("interior"),
+      shots: spaceShots("interior", name),
     };
   });
 
@@ -144,6 +243,7 @@ function buildSections(draft: VideoTourShotListDraft): ShotSection[] {
         (known?.exterior ?? EXTERIOR_AMENITIES.has(key))
           ? "exterior"
           : "interior",
+        known?.title ?? amenity,
       ),
     };
   });
@@ -156,8 +256,25 @@ function buildSections(draft: VideoTourShotListDraft): ShotSection[] {
   ];
 }
 
-function shotId(sectionId: string, shotKey: string) {
+export function shotId(sectionId: string, shotKey: string) {
   return `${sectionId}:${shotKey}`;
+}
+
+export function listSelectedShots(
+  draft: VideoTourShotListDraft,
+  selectedIds: string[],
+): SelectedShot[] {
+  const selected = new Set(selectedIds);
+  return buildSections(draft).flatMap((section) =>
+    section.shots
+      .filter((shot) => selected.has(shotId(section.id, shot.key)))
+      .map((shot) => ({
+        ...shot,
+        id: shotId(section.id, shot.key),
+        sectionId: section.id,
+        sectionTitle: section.title,
+      })),
+  );
 }
 
 function formatClock(totalSeconds: number) {
@@ -194,9 +311,11 @@ function lengthGuidance(totalSeconds: number) {
 export function VideoTourShotListScreen({
   draft,
   onBack,
+  onNext,
 }: {
   draft: VideoTourShotListDraft;
   onBack: () => void;
+  onNext: (selectedIds: string[]) => void;
 }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -317,7 +436,7 @@ export function VideoTourShotListScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Next: Record Tour"
-          onPress={() => undefined}
+          onPress={() => onNext([...selected])}
           style={({ pressed }) => [
             styles.primaryBtn,
             pressed && styles.pressed,
