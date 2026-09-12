@@ -27,7 +27,6 @@
         "NSMicrophoneUsageDescription": "Allow Tour to record leasing conversations for session analysis and coaching.",
         "NSPhotoLibraryUsageDescription": "Allow Tour to choose photos or videos from your library for tour media and community assets.",
         "NSPhotoLibraryAddUsageDescription": "Allow Tour to save tour media and shared assets to your photo library when you request it.",
-        "NSSpeechRecognitionUsageDescription": "Allow Tour to transcribe leasing conversations live for in-tour coaching.",
         "UIBackgroundModes": ["audio", "voip", "remote-notification"]
       }
     },
@@ -35,8 +34,11 @@
       "package": "com.leasemagnets.tournewtouryou.tyg",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.HIGH_SAMPLING_RATE_SENSORS"
+        "android.permission.RECORD_AUDIO"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.FOREGROUND_SERVICE_CAMERA"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -61,13 +63,6 @@
         {
           "microphonePermission": "Allow Tour to record leasing conversations for session analysis and coaching.",
           "enableBackgroundRecording": true
-        }
-      ],
-      [
-        "expo-speech-transcriber",
-        {
-          "speechRecognitionPermission": "Allow Tour to transcribe leasing conversations live for in-tour coaching.",
-          "microphonePermission": "Allow Tour to listen during a tour so it can show live transcription and coaching prompts."
         }
       ],
       "expo-live-activity",

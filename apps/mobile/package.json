@@ -78,7 +78,6 @@
     "expo-secure-store": "~57.0.3",
     "expo-sensors": "~57.0.2",
     "expo-sharing": "~57.0.18",
-    "expo-speech-transcriber": "^0.1.9",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.3",
     "expo-updates": "~57.0.21",
@@ -126,7 +125,6 @@
           "@daily-co/react-native-daily-js",
           "@daily-co/react-native-webrtc",
           "expo-live-activity",
-          "expo-speech-transcriber",
           "react-native-background-timer"
         ]
       }

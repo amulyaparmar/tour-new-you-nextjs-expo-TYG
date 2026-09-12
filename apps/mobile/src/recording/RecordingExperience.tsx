@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { setAudioModeAsync } from "expo-audio";
 import { LinearGradient } from "expo-linear-gradient";
 import * as SecureStore from "expo-secure-store";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -70,9 +69,8 @@ import { getApiBaseUrl } from "../config";
 import { isOnline } from "../offline/sync-outbox";
 import { aiResponseCompleteHaptic, aiResponseStartHaptic } from "../lib/haptics";
 import { ChatTypingIndicator, LiveChatMarkdown } from "./LiveChatMarkdown";
-import { isExpoGo, isSimulator, supportsBackgroundRecording } from "../runtime";
 import { formatElapsed } from "./formatElapsed";
-import { mergeTranscriptLines, speakerInitial } from "./liveTranscript";
+import { speakerInitial } from "./liveTranscript";
 import { useRecording } from "./RecordingProvider";
 import type { RecordingStartFailure } from "./recordingStartFailure";
 import { useMuseLiveTranscription } from "./useMuseLiveTranscription";
@@ -133,92 +131,7 @@ function RecordingStartError({ failure }: { failure: RecordingStartFailure | nul
 const PERMISSION_TIP_KEY = "tour.recording.permissionTip.dismissed";
 const SUGGESTION_REFRESH_MS = 18_000;
 
-const IS_SIMULATOR = isSimulator();
-
-type SpeechTranscriberModule = {
-  requestPermissions: () => Promise<"authorized" | "denied" | "restricted" | "notDetermined">;
-  requestMicrophonePermissions: () => Promise<"granted" | "denied">;
-  recordRealTimeAndTranscribe: () => Promise<void>;
-  stopListening: () => void;
-  isRecording: () => boolean;
-  ExpoSpeechTranscriberModule?: {
-    addListener: (
-      event: "onTranscriptionProgress" | "onTranscriptionError",
-      listener: (payload: Record<string, unknown>) => void
-    ) => { remove: () => void };
-    isRecording: () => boolean;
-  };
-};
 type NoteAccessory = "ai" | "reminders" | null;
-
-function loadSpeechTranscriber(): SpeechTranscriberModule | null {
-  if (isExpoGo()) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("expo-speech-transcriber") as SpeechTranscriberModule & {
-      default?: SpeechTranscriberModule["ExpoSpeechTranscriberModule"];
-    };
-    // Prefer named native module export; fall back to requireNativeModule.
-    if (!mod.ExpoSpeechTranscriberModule) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { requireNativeModule } = require("expo-modules-core");
-        mod.ExpoSpeechTranscriberModule = requireNativeModule("ExpoSpeechTranscriber");
-      } catch {
-        // Expo Go / missing native binary
-      }
-    }
-    return mod;
-  } catch {
-    return null;
-  }
-}
-
-const SpeechTranscriber = loadSpeechTranscriber();
-let speechStartInFlight: Promise<string | null> | null = null;
-
-function speechErrorMessage(payload: unknown): string | null {
-  if (!payload) return null;
-  if (typeof payload === "string") return humanizeSpeechError(payload);
-  if (typeof payload === "object") {
-    const record = payload as { error?: unknown; message?: unknown };
-    if (typeof record.error === "string" && record.error.trim()) return humanizeSpeechError(record.error);
-    if (typeof record.message === "string" && record.message.trim()) return humanizeSpeechError(record.message);
-  }
-  return null;
-}
-
-/** Apple's "Failed to initialize recognizer" is opaque — map it to something actionable. */
-function humanizeSpeechError(raw: string): string {
-  const lower = raw.toLowerCase();
-  if (lower.includes("failed to initialize recognizer") || lower.includes("recognizer is unavailable")) {
-    if (IS_SIMULATOR) {
-      return (
-        "Simulator speech isn’t ready. In Simulator: Settings → Accessibility → Spoken Content → Voices → download English. " +
-        "Or try on a physical iPhone."
-      );
-    }
-    return "Speech recognition failed to start. Check Speech Recognition is allowed for Tour in Settings, then try again.";
-  }
-  return raw;
-}
-
-function isFatalSpeechInitError(message: string | null | undefined): boolean {
-  if (!message) return false;
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("failed to initialize recognizer") ||
-    lower.includes("recognizer is unavailable") ||
-    lower.includes("spoken content") ||
-    lower.includes("microphone format not ready")
-  );
-}
-
-function isRecoverableSpeechSilence(message: string | null | undefined): boolean {
-  if (!message) return false;
-  const lower = message.toLowerCase();
-  return lower.includes("no speech detected") || lower.includes("no speech was detected");
-}
 
 type LiveTranscriptLine = {
   id: string;
@@ -278,12 +191,6 @@ type RecordingExperienceProps = {
 
 function transcriptText(lines: LiveTranscriptLine[]) {
   return lines.map((line) => `[${formatElapsed(line.time)}] ${line.speaker}: ${line.text}`).join("\n");
-}
-
-function estimatedUtteranceStart(text: string, elapsed: number) {
-  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-  const estimatedDuration = Math.min(8, Math.max(0.8, wordCount / 2.5));
-  return Math.max(0, elapsed - estimatedDuration);
 }
 
 function personInitials(name: string) {
@@ -455,138 +362,6 @@ function RecordingAssetWebPreview({ source }: { source: string }) {
   );
 }
 
-/** Own listeners — package hook drops native `{ message }` errors. */
-function useLiveSpeechTranscription() {
-  const [text, setText] = useState("");
-  const [isFinal, setIsFinal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-
-  useEffect(() => {
-    if (!SpeechTranscriber) return;
-
-    const native = SpeechTranscriber.ExpoSpeechTranscriberModule;
-    if (!native?.addListener) {
-      // Fall back to package hook if native export isn't available.
-      return;
-    }
-
-    const progress = native.addListener("onTranscriptionProgress", (payload) => {
-      const next = typeof payload.text === "string" ? payload.text : "";
-      setText(next);
-      setIsFinal(Boolean(payload.isFinal));
-      if (next) setError(null);
-    });
-
-    const failures = native.addListener("onTranscriptionError", (payload) => {
-      const message = speechErrorMessage(payload) || "Live transcription failed.";
-      if (isRecoverableSpeechSilence(message)) {
-        // Apple reports ordinary silence (including an intentional pause/stop)
-        // through its error channel. Treat it as an ended utterance so the
-        // restart lifecycle can recover without alarming the user.
-        setError(null);
-        setIsFinal(true);
-        setIsRecording(false);
-        return;
-      }
-      setError(message);
-      setIsRecording(false);
-    });
-
-    const interval = setInterval(() => {
-      try {
-        const active = Boolean(native.isRecording?.() ?? SpeechTranscriber.isRecording?.());
-        setIsRecording((prev) => (prev !== active ? active : prev));
-      } catch {
-        // ignore
-      }
-    }, 400);
-
-    return () => {
-      clearInterval(interval);
-      progress.remove();
-      failures.remove();
-    };
-  }, []);
-
-  return { text, isFinal, error, isRecording };
-}
-
-async function ensureSpeechPermissions(): Promise<string | null> {
-  if (!SpeechTranscriber) {
-    return "Live transcription requires a development build with expo-speech-transcriber.";
-  }
-
-  if (Platform.OS === "ios") {
-    const speechPermission = await SpeechTranscriber.requestPermissions();
-    if (speechPermission !== "authorized") {
-      return "Speech recognition permission was not granted.";
-    }
-  }
-
-  const micPermission = await SpeechTranscriber.requestMicrophonePermissions();
-  if (micPermission !== "granted") {
-    return "Microphone permission was not granted for live transcription.";
-  }
-
-  return null;
-}
-
-async function prepareSpeechAudioSession(): Promise<string | null> {
-  try {
-    // Keep mixWithOthers so SFSpeechRecognizer can share the mic with expo-audio.
-    // Preserve background recording when the file recorder already owns the session.
-    await setAudioModeAsync({
-      allowsRecording: true,
-      playsInSilentMode: true,
-      shouldPlayInBackground: supportsBackgroundRecording(),
-      interruptionMode: "mixWithOthers",
-    });
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    return null;
-  } catch (error) {
-    return error instanceof Error ? error.message : "Could not configure audio session for speech.";
-  }
-}
-
-function stopSpeechEngineSafely() {
-  try {
-    SpeechTranscriber?.stopListening();
-  } catch {
-    // Native stop can throw if the engine never started.
-  }
-}
-
-/** Single-flight start — never overlap AVAudioEngine starts (native crash). */
-async function startSpeechEngine(): Promise<string | null> {
-  if (!SpeechTranscriber) {
-    return "Live transcription requires a development build with expo-speech-transcriber.";
-  }
-  if (speechStartInFlight) return speechStartInFlight;
-
-  speechStartInFlight = (async () => {
-    const permissionError = await ensureSpeechPermissions();
-    if (permissionError) return permissionError;
-
-    const sessionError = await prepareSpeechAudioSession();
-    if (sessionError) return sessionError;
-
-    try {
-      // Tear down any previous engine before installing a new tap.
-      stopSpeechEngineSafely();
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      await SpeechTranscriber.recordRealTimeAndTranscribe();
-      return null;
-    } catch (error) {
-      return error instanceof Error ? error.message : "Live transcription could not start.";
-    } finally {
-      speechStartInFlight = null;
-    }
-  })();
-
-  return speechStartInFlight;
-}
-
 export function RecordingExperience({
   title,
   notes,
@@ -645,34 +420,23 @@ export function RecordingExperience({
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [waveformHistory, setWaveformHistory] = useState<number[]>(() => Array.from({ length: LIVE_WAVE_BARS_PER_SIDE }, () => 0.08));
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([...DEFAULT_PROMPTS]);
-  const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
   const [transcriptionRequested, setTranscriptionRequested] = useState(false);
-  const [finalTranscriptLines, setFinalTranscriptLines] = useState<LiveTranscriptLine[]>([]);
   const [permissionTipVisible, setPermissionTipVisible] = useState(false);
   const [resolvedSessionId, setResolvedSessionId] = useState<string | null>(sessionId ?? null);
   const summaryRef = useAnimatedRef<ScrollView>();
   const listRef = useRef<FlatList<LiveTranscriptLine>>(null);
   const chatListRef = useAnimatedRef<ScrollView>();
-  const lastFinalTextRef = useRef("");
-  const localUtteranceStartedAtRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
-  const speechStartedRef = useRef(false);
   const ensuringSessionRef = useRef<Promise<string | null> | null>(null);
   const dictationPausedSessionRef = useRef(false);
-  const liveSpeech = useLiveSpeechTranscription();
   const sessionPaused = rec.isPaused;
-  const wasSessionPausedRef = useRef(sessionPaused);
   const sessionElapsed = rec.elapsed;
   const muse = useMuseLiveTranscription({
     enabled: transcriptionRequested && hasStarted && !sessionPaused,
     sessionId: resolvedSessionId,
     elapsed: sessionElapsed,
   });
-  const nativeFallbackRequested = transcriptionRequested
-    && hasStarted
-    && !sessionPaused
-    && muse.shouldUseNativeFallback;
   const chatFocused = activeTab === "ai";
   const chatComposerMode = chatFocused && hasStarted;
   const recorderStarting = preparing || starting || (autoStart && !hasStarted && !startError);
@@ -725,7 +489,6 @@ export function RecordingExperience({
 
   const pauseTourForDictation = useCallback(async () => {
     if (!rec.isRecording || rec.isPaused) return;
-    stopSpeechEngineSafely();
     await rec.togglePause();
     dictationPausedSessionRef.current = true;
     await new Promise((resolve) => setTimeout(resolve, 400));
@@ -772,166 +535,11 @@ export function RecordingExperience({
     };
   }, [chatFocused]);
 
-  useEffect(() => {
-    if (!nativeFallbackRequested) {
-      stopSpeechEngineSafely();
-      speechStartedRef.current = false;
-      if (sessionPaused) setTranscriptionStatus("Transcription paused. Resume to continue.");
-      return;
-    }
-
-    let cancelled = false;
-
-    async function startNativeTranscription() {
-      if (speechStartedRef.current || liveSpeech.isRecording) return;
-      setTranscriptionStatus("Connecting speech recognition…");
-      const engineError = await startSpeechEngine();
-      if (cancelled) return;
-      if (engineError) {
-        speechStartedRef.current = false;
-        setTranscriptionStatus(engineError);
-        return;
-      }
-      speechStartedRef.current = true;
-      setTranscriptionStatus(null);
-    }
-
-    void startNativeTranscription();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [nativeFallbackRequested, sessionPaused, liveSpeech.isRecording]);
-
-  useEffect(() => {
-    if (!nativeFallbackRequested) return;
-    const text = liveSpeech.text.trim();
-    if (!text || liveSpeech.isFinal || localUtteranceStartedAtRef.current !== null) return;
-    localUtteranceStartedAtRef.current = sessionElapsed;
-  }, [liveSpeech.isFinal, liveSpeech.text, nativeFallbackRequested, sessionElapsed]);
-
-  // Apple may not emit a final utterance before its engine is stopped. Keep the
-  // visible interim as a placeholder until Muse replaces the recovered range.
-  const wasNativeFallbackRequestedRef = useRef(nativeFallbackRequested);
-  useEffect(() => {
-    const justPaused = sessionPaused && !wasSessionPausedRef.current;
-    const fallbackWasActive = wasNativeFallbackRequestedRef.current;
-    const fallbackJustEnded = fallbackWasActive && !nativeFallbackRequested && !sessionPaused;
-    wasSessionPausedRef.current = sessionPaused;
-    wasNativeFallbackRequestedRef.current = nativeFallbackRequested;
-    if ((!justPaused && !fallbackJustEnded) || !fallbackWasActive) return;
-
-    const text = liveSpeech.text.trim();
-    if (!text || text === lastFinalTextRef.current) return;
-    lastFinalTextRef.current = text;
-    setFinalTranscriptLines((current) => [
-      ...current,
-      {
-        id: `fallback-final-${Date.now()}-${current.length}`,
-        speaker: "Speaker",
-        time: localUtteranceStartedAtRef.current ?? estimatedUtteranceStart(text, sessionElapsed),
-        text,
-      },
-    ]);
-    localUtteranceStartedAtRef.current = null;
-  }, [liveSpeech.text, nativeFallbackRequested, sessionElapsed, sessionPaused]);
-
-  // Some native recognizers stop after each final utterance. Restart only while
-  // local fallback owns transcription and the engine reports stopped.
-  useEffect(() => {
-    if (!nativeFallbackRequested || !SpeechTranscriber || sessionPaused) return;
-    if (!liveSpeech.isFinal) return;
-    if (liveSpeech.isRecording) return;
-    if (isFatalSpeechInitError(liveSpeech.error) || isFatalSpeechInitError(transcriptionStatus)) return;
-
-    speechStartedRef.current = false;
-    setTranscriptionStatus("Restarting speech recognition…");
-
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      if (cancelled || sessionPaused || !nativeFallbackRequested) return;
-      if (SpeechTranscriber.isRecording()) return;
-      void startSpeechEngine().then((engineError) => {
-        if (cancelled) return;
-        if (engineError) {
-          speechStartedRef.current = false;
-          setTranscriptionStatus(engineError);
-          return;
-        }
-        speechStartedRef.current = true;
-        setTranscriptionStatus(null);
-      });
-    }, 1200);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [
-    nativeFallbackRequested,
-    liveSpeech.isFinal,
-    liveSpeech.isRecording,
-    liveSpeech.error,
-    sessionPaused,
-    transcriptionStatus,
-  ]);
-
-  useEffect(() => {
-    if (!nativeFallbackRequested) return;
-    if (!liveSpeech.error) return;
-    if (isRecoverableSpeechSilence(liveSpeech.error)) return;
-    setTranscriptionStatus(liveSpeech.error);
-    if (isFatalSpeechInitError(liveSpeech.error)) {
-      // Don't keep hammering Apple's recognizer — it won't recover without device setup.
-      speechStartedRef.current = false;
-    }
-  }, [liveSpeech.error, nativeFallbackRequested]);
-
-  useEffect(() => {
-    if (!nativeFallbackRequested) return;
-    if (liveSpeech.isRecording) {
-      speechStartedRef.current = true;
-      setTranscriptionStatus(null);
-    }
-  }, [nativeFallbackRequested, liveSpeech.isRecording]);
-
-  useEffect(() => {
-    if (!nativeFallbackRequested) return;
-    const text = liveSpeech.text.trim();
-    if (!text || !liveSpeech.isFinal || text === lastFinalTextRef.current) return;
-
-    lastFinalTextRef.current = text;
-    setFinalTranscriptLines((current) => [
-      ...current,
-      {
-        id: `final-${Date.now()}-${current.length}`,
-        speaker: "Speaker",
-        time: localUtteranceStartedAtRef.current ?? estimatedUtteranceStart(text, sessionElapsed),
-        text,
-      },
-    ]);
-    localUtteranceStartedAtRef.current = null;
-  }, [liveSpeech.isFinal, liveSpeech.text, nativeFallbackRequested, sessionElapsed]);
-
-  const completedTranscriptLines = useMemo(
-    () => mergeTranscriptLines(finalTranscriptLines, muse.turns, muse.recoveredRanges),
-    [finalTranscriptLines, muse.recoveredRanges, muse.turns]
+  const completedTranscriptLines = muse.turns;
+  const currentTranscriptLine = useMemo<LiveTranscriptLine | null>(
+    () => muse.partial?.text.trim() ? muse.partial : null,
+    [muse.partial],
   );
-  const currentTranscriptLine = useMemo<LiveTranscriptLine | null>(() => {
-    if (muse.partial?.text.trim()) return muse.partial;
-    const currentText = liveSpeech.text.trim();
-    const shouldShowLocalInterim = nativeFallbackRequested
-      && currentText
-      && (!liveSpeech.isFinal || currentText !== lastFinalTextRef.current);
-    if (!shouldShowLocalInterim) return null;
-    return {
-      id: "local-interim",
-      speaker: "Speaker",
-      time: localUtteranceStartedAtRef.current ?? sessionElapsed,
-      text: currentText,
-      isInterim: true,
-    };
-  }, [liveSpeech.isFinal, liveSpeech.text, muse.partial, nativeFallbackRequested, sessionElapsed]);
   const liveTranscript = useMemo<LiveTranscriptLine[]>(
     () => currentTranscriptLine
       ? [...completedTranscriptLines, currentTranscriptLine]
@@ -1211,9 +819,7 @@ export function RecordingExperience({
     }
   }
 
-  function stopNativeTranscription() {
-    stopSpeechEngineSafely();
-    speechStartedRef.current = false;
+  function stopLiveTranscription() {
     setTranscriptionRequested(false);
   }
 
@@ -1223,9 +829,8 @@ export function RecordingExperience({
     cancelledRef.current = false;
     setStarting(true);
     setStartError(null);
-    setTranscriptionStatus(null);
     try {
-      // Start file recording first. Live capture starts afterward via its own lifecycle.
+      // Start the recording capture before enabling the live transcript.
       const result = await rec.start();
       if (!result.ok) {
         setStartError(result.failure);
@@ -1244,8 +849,6 @@ export function RecordingExperience({
         });
       void activationPromise;
       void ensureLiveSessionId();
-      // Let the recorder settle before opening the live PCM stream.
-      await new Promise((resolve) => setTimeout(resolve, 400));
       if (cancelledRef.current) return;
       setTranscriptionRequested(true);
     } catch (error) {
@@ -1277,7 +880,7 @@ export function RecordingExperience({
     }
     cancelledRef.current = true;
     setStarting(false);
-    stopNativeTranscription();
+    stopLiveTranscription();
     void onCancel();
   }
 
@@ -1286,7 +889,7 @@ export function RecordingExperience({
   function completeSessionRecording() {
     if (finishRequestedRef.current) return;
     finishRequestedRef.current = true;
-    stopNativeTranscription();
+    stopLiveTranscription();
     void onFinish();
   }
 
@@ -1308,7 +911,7 @@ export function RecordingExperience({
   }
 
   function deleteRecording() {
-    stopNativeTranscription();
+    stopLiveTranscription();
     void onCancel();
   }
 
@@ -1542,52 +1145,6 @@ export function RecordingExperience({
 
           {activeTab === "transcript" && (
             <View style={s.transcriptPane}>
-              <View style={s.liveTranscriptToolbar}>
-                <View style={s.liveTranscriptWave}>
-                  {[...waveformBars.left, ...waveformBars.right].map((height, index) => (
-                    <LiveWaveBar
-                      key={`transcript-wave-${index}`}
-                      height={height}
-                      opacity={hasStarted ? (sessionPaused ? 0.36 : 0.82) : 0.28}
-                    />
-                  ))}
-                </View>
-                <View
-                  accessible
-                  accessibilityLabel={
-                    !muse.internetAvailable
-                      ? "Offline. Using device transcription."
-                      : muse.status === "streaming"
-                        ? "Internet transcription active."
-                        : muse.status === "connecting"
-                          ? "Connecting internet transcription."
-                          : "Using device transcription."
-                  }
-                  style={s.liveConnectionIndicator}
-                >
-                  <Ionicons
-                    name={
-                      !muse.internetAvailable
-                        ? "cloud-offline-outline"
-                        : muse.status === "streaming"
-                          ? "radio-outline"
-                          : muse.status === "connecting"
-                            ? "sync-outline"
-                            : "phone-portrait-outline"
-                    }
-                    size={16}
-                    color={muse.status === "streaming" ? ACCENT : C.textMuted}
-                  />
-                  <View
-                    style={[
-                      s.liveConnectionDot,
-                      muse.status === "streaming" && s.liveConnectionDotActive,
-                      !muse.internetAvailable && s.liveConnectionDotOffline,
-                    ]}
-                  />
-                </View>
-              </View>
-
               <FlatList
                 ref={listRef}
                 scrollEventThrottle={16}
@@ -1604,7 +1161,7 @@ export function RecordingExperience({
                       {hasStarted ? "Listening…" : "Waiting to start"}
                     </CustomText>
                     <CustomText textStyle="caption" style={s.emptySubtitle}>
-                      {transcriptionStatus ?? "The live transcript will appear here as people speak."}
+                      The live transcript will appear here as people speak.
                     </CustomText>
                   </View>
                 }
@@ -2367,36 +1924,6 @@ const s = StyleSheet.create({
   promptCard: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: CARD },
   promptCardText: { flex: 1, color: TEXT, fontSize: 13, fontWeight: "800" },
   transcriptPane: { flex: 1, minHeight: 0 },
-  liveTranscriptToolbar: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.border,
-    backgroundColor: BACKGROUND,
-  },
-  liveConnectionIndicator: {
-    minWidth: 34,
-    height: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-  },
-  liveConnectionDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: C.textMuted },
-  liveConnectionDotActive: { backgroundColor: ACCENT },
-  liveConnectionDotOffline: { backgroundColor: C.amber },
-  liveTranscriptWave: {
-    flex: 1,
-    height: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 3,
-    overflow: "hidden",
-  },
   transcriptList: { paddingHorizontal: 16, paddingTop: 6, gap: 4, paddingBottom: 20 },
   transcriptListEmpty: { flexGrow: 1, justifyContent: "center" },
   transcriptRow: { flexDirection: "row", gap: 10, paddingVertical: 9 },

@@ -1015,10 +1015,12 @@ export function PanoramaAssetRecorder({ visible, onClose, onUpload }: PanoramaAs
         setError("Motion sensors are unavailable on this device. Use a physical phone for 360° capture.");
         return;
       }
-      const motionPermission = await DeviceMotion.requestPermissionsAsync();
-      if (!motionPermission.granted) {
-        setError("Motion access is required to keep the panorama level. Enable Motion & Fitness access in Settings.");
-        return;
+      if (Platform.OS === "ios") {
+        const motionPermission = await DeviceMotion.requestPermissionsAsync();
+        if (!motionPermission.granted) {
+          setError("Motion access is required to keep the panorama level. Enable Motion & Fitness access in Settings.");
+          return;
+        }
       }
 
       reset("capture");
