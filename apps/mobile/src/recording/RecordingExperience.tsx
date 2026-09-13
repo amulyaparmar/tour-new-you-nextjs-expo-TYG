@@ -17,6 +17,7 @@ import {
   Share,
   ScrollView,
   StyleSheet,
+  Switch,
   TextInput,
   useWindowDimensions,
   View,
@@ -54,6 +55,7 @@ import {
   appendDictationText,
   formatRecordingUploadTitle,
   isRecordingUploadTitle,
+  type CoachingItem,
   type SessionAttachment,
   type SessionLead,
 } from "@tour/shared";
@@ -76,6 +78,11 @@ import { mergeTranscriptLines, speakerInitial } from "./liveTranscript";
 import { useRecording } from "./RecordingProvider";
 import type { RecordingStartFailure } from "./recordingStartFailure";
 import { useMuseLiveTranscription } from "./useMuseLiveTranscription";
+import { useLiveCoaching } from "./useLiveCoaching";
+import { TourCoach } from "./TourCoach";
+import { CoachGuidanceSheet } from "./CoachGuidanceSheet";
+import { CoachIcon } from "@/components/coach-icon";
+import { useCoachingStore } from "@/stores/coaching-store";
 import { ElevenLabsDictationButton } from "../components/ElevenLabsDictationButton";
 import {
   useSessionParticipantRealtime,
@@ -96,6 +103,16 @@ const DEFAULT_PROMPTS = [
 const WAVE_MIN_HEIGHT = 4;
 const WAVE_MAX_HEIGHT = 28;
 const LIVE_WAVE_BARS_PER_SIDE = 24;
+
+function coachingContextEntry(item: CoachingItem) {
+  const detail = item.preparedGuidance;
+  return [
+    `Tour Coach: ${item.text}`,
+    detail?.feedback ? `What the coach noticed: ${detail.feedback}` : null,
+    detail?.whyNow ? `Why now: ${detail.whyNow}` : item.whyNow ? `Why now: ${item.whyNow}` : null,
+    ...(detail?.options?.map((option) => `${option.type.toUpperCase()} - ${option.label}: ${option.sayThis}`) ?? []),
+  ].filter(Boolean).join("\n");
+}
 
 function LiveWaveBar({ height, opacity }: { height: number; opacity: number }) {
   const animatedHeight = useSharedValue(height);
@@ -645,6 +662,13 @@ export function RecordingExperience({
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [waveformHistory, setWaveformHistory] = useState<number[]>(() => Array.from({ length: LIVE_WAVE_BARS_PER_SIDE }, () => 0.08));
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([...DEFAULT_PROMPTS]);
+  const coachingEnabled = useCoachingStore((state) => state.enabled);
+  const setCoachingEnabled = useCoachingStore((state) => state.setEnabled);
+  const coachingReady = useCoachingStore((state) => state.hydrated);
+  const coachingEagerness = useCoachingStore((state) => state.eagerness);
+  const [coachingPreviewVisible, setCoachingPreviewVisible] = useState(false);
+  const [focusedCoachingId, setFocusedCoachingId] = useState<string | null>(null);
+  const [coachingGuidanceItem, setCoachingGuidanceItem] = useState<CoachingItem | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
   const [transcriptionRequested, setTranscriptionRequested] = useState(false);
   const [finalTranscriptLines, setFinalTranscriptLines] = useState<LiveTranscriptLine[]>([]);
@@ -655,6 +679,7 @@ export function RecordingExperience({
   const chatListRef = useAnimatedRef<ScrollView>();
   const lastFinalTextRef = useRef("");
   const localUtteranceStartedAtRef = useRef<number | null>(null);
+  const coachingPositions = useRef(new Map<string, number>());
   const cancelledRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
   const speechStartedRef = useRef(false);
@@ -1011,6 +1036,33 @@ export function RecordingExperience({
 
   const transcriptSnapshot = useMemo(() => transcriptText(liveTranscript), [liveTranscript]);
 
+  const coaching = useLiveCoaching({
+    sessionId: resolvedSessionId,
+    recordingId: rec.localId,
+    enabled: coachingReady
+      && coachingEnabled
+      && rec.isRecording
+      && !sessionPaused
+      && muse.internetAvailable,
+    turns: completedTranscriptLines,
+    elapsed: sessionElapsed,
+    notes,
+    eagerness: coachingEagerness,
+  });
+  const coachingItems = useMemo(
+    () => coaching.history.flatMap((entry) => entry.items),
+    [coaching.history],
+  );
+  const coachingChatContext = useMemo(
+    () => coachingItems.slice(-10).map(coachingContextEntry).join("\n\n"),
+    [coachingItems],
+  );
+
+  function dismissCoachingNote() {
+    setCoachingPreviewVisible(false);
+    coaching.dismiss();
+  }
+
   useEffect(() => {
     if (!chatFocused || !resolvedSessionId) return;
 
@@ -1179,7 +1231,10 @@ export function RecordingExperience({
         {
           messages: nextMessages,
           liveTranscript: transcriptSnapshot,
-          propertyContext,
+          propertyContext: [
+            propertyContext,
+            coachingChatContext ? `LIVE COACHING ALREADY GENERATED:\n${coachingChatContext}` : null,
+          ].filter(Boolean).join("\n\n"),
         },
         (partial) => {
           if (!responseStarted) {
@@ -1624,16 +1679,49 @@ export function RecordingExperience({
                 keyboardDismissMode="interactive"
                 showsVerticalScrollIndicator={false}
               >
-                {chatMessages.length === 0 ? (
+                {chatMessages.length === 0 && coachingItems.length === 0 ? (
                   <View style={s.emptyChat}>
-                    <Ionicons name="sparkles-outline" size={26} color={ACCENT} />
+                    <CoachIcon size={28} color={ACCENT} />
                     <CustomText textStyle="title" style={s.emptyChatTitle}>Ask Tour AI during the tour</CustomText>
                     <CustomText textStyle="caption" style={s.emptyChatBody}>
                       It uses the session, community, notes, selected assets, and live transcript context.
                     </CustomText>
                   </View>
-                ) : (
-                  chatMessages.map((message, index) => {
+                ) : null}
+                {coachingItems.map((item, index) => {
+                  const detail = item.preparedGuidance;
+                  const focused = item.coachingId === focusedCoachingId;
+                  return (
+                    <Pressable
+                      key={item.coachingId ?? `coach-${index}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open guidance: ${item.text}`}
+                      onPress={() => setCoachingGuidanceItem(item)}
+                      onLayout={({ nativeEvent: { layout } }) => {
+                        if (item.coachingId) coachingPositions.current.set(item.coachingId, layout.y);
+                        if (!focused) return;
+                        requestAnimationFrame(() => chatListRef.current?.scrollTo({ y: Math.max(0, layout.y - 12), animated: true }));
+                      }}
+                      style={[s.coachingChatEntry, focused && s.coachingChatEntryFocused]}
+                    >
+                      <View style={s.coachingChatRoleRow}>
+                        <CoachIcon size={15} color={ACCENT} />
+                        <CustomText textStyle="micro" style={s.coachingChatLabel}>
+                          Coach{item.coachingKind === "checkpoint" ? " · Progress" : ""}
+                          {typeof item.coachingAt === "number" ? ` · ${formatElapsed(item.coachingAt)}` : ""}
+                        </CustomText>
+                      </View>
+                      <CustomText textStyle="title" style={s.coachingChatHeadline}>{item.text}</CustomText>
+                      {detail?.feedback ? (
+                        <View style={s.coachingChatSection}>
+                          <CustomText textStyle="micro" style={s.coachingChatLabel}>What I noticed</CustomText>
+                          <CustomText textStyle="body" style={s.coachingChatCopy}>{detail.feedback}</CustomText>
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+                {chatMessages.map((message, index) => {
                     const isStreamingAssistant =
                       chatStreaming &&
                       message.role === "assistant" &&
@@ -1655,8 +1743,7 @@ export function RecordingExperience({
                         )}
                       </View>
                     );
-                  })
-                )}
+                  })}
                 {chatError && <CustomText textStyle="label" style={s.chatError}>{chatError}</CustomText>}
               </Reanimated.ScrollView>
 
@@ -2102,11 +2189,47 @@ export function RecordingExperience({
         onMorePress={recorderStarting ? undefined : () => setOptionsMenuOpen(true)}
         moreAccessibilityLabel="Tour options"
       />
+      <TourCoach
+        enabled={coachingEnabled}
+        ready={coachingReady}
+        active={hasStarted}
+        recordingId={rec.localId}
+        tip={coaching.tip}
+        history={coaching.history}
+        onInteraction={coaching.interaction}
+        preview={__DEV__ && coachingPreviewVisible}
+        hidden={chatFocused || keyboardOpen || optionsMenuOpen || assetSheetOpen || checkInFormOpen || checkInQrOpen || uploadSheetOpen || Boolean(coachingGuidanceItem)}
+        top={glassNavContentInset(insets.top) + 64}
+        bottom={Math.max(insets.bottom, 16) + (showBottomDock ? 180 : 90)}
+        onEnable={() => setCoachingEnabled(true)}
+        onDismiss={dismissCoachingNote}
+        onOpenGuidance={(item) => {
+          setCoachingGuidanceItem(item);
+          setCoachingPreviewVisible(false);
+        }}
+      />
+      <CoachGuidanceSheet
+        item={coachingGuidanceItem}
+        onClose={() => setCoachingGuidanceItem(null)}
+        onOpenChat={(item) => {
+          setFocusedCoachingId(item.coachingId ?? null);
+          setCoachingGuidanceItem(null);
+          selectTab("ai");
+          const y = item.coachingId ? coachingPositions.current.get(item.coachingId) : undefined;
+          if (y !== undefined) {
+            requestAnimationFrame(() => chatListRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true }));
+          }
+          dismissCoachingNote();
+        }}
+      />
       <RecordingOptionsMenu
         visible={optionsMenuOpen}
         onClose={() => setOptionsMenuOpen(false)}
         onUploadRecording={() => setUploadSheetOpen(true)}
         onDeleteRecording={confirmDeleteRecording}
+        coachingEnabled={coachingEnabled}
+        onCoachingChange={setCoachingEnabled}
+        onPreviewCoaching={__DEV__ ? () => setCoachingPreviewVisible(true) : undefined}
       />
     </View>
   );
@@ -2117,11 +2240,17 @@ function RecordingOptionsMenu({
   onClose,
   onUploadRecording,
   onDeleteRecording,
+  coachingEnabled,
+  onCoachingChange,
+  onPreviewCoaching,
 }: {
   visible: boolean;
   onClose: () => void;
   onUploadRecording: () => void;
   onDeleteRecording: () => void;
+  coachingEnabled: boolean;
+  onCoachingChange: (enabled: boolean) => void;
+  onPreviewCoaching?: () => void;
 }) {
   const { height: windowHeight } = useWindowDimensions();
   const items = [
@@ -2148,7 +2277,7 @@ function RecordingOptionsMenu({
       },
     },
   ];
-  const sheetHeight = Math.min(150 + items.length * 64, Math.round(windowHeight * 0.62));
+  const sheetHeight = Math.min(214 + (items.length + (onPreviewCoaching ? 1 : 0)) * 64, Math.round(windowHeight * 0.72));
 
   return (
     <BottomSheetModal
@@ -2171,6 +2300,33 @@ function RecordingOptionsMenu({
       }
     >
       <View style={s.optionsList}>
+        <View style={s.optionsItem}>
+          <View style={s.optionsItemIcon}><CoachIcon size={23} color={ACCENT} /></View>
+          <CustomText textStyle="title" style={s.flex1}>Live coaching</CustomText>
+          <View style={s.optionsSwitch}>
+            <Switch
+              value={coachingEnabled}
+              onValueChange={onCoachingChange}
+              accessibilityLabel="Live coaching"
+              trackColor={{ true: ACCENT }}
+            />
+          </View>
+        </View>
+        {onPreviewCoaching ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Preview Tour Coach"
+            onPress={() => {
+              onClose();
+              onPreviewCoaching();
+            }}
+            style={s.optionsItem}
+          >
+            <View style={s.optionsItemIcon}><Ionicons name="eye-outline" size={21} color={ACCENT} /></View>
+            <CustomText textStyle="title" style={s.flex1}>Preview Tour Coach</CustomText>
+            <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+          </Pressable>
+        ) : null}
         {items.map((item) => (
           <Pressable
             key={item.key}
@@ -2422,6 +2578,27 @@ const s = StyleSheet.create({
   chatBubble: { maxWidth: "92%", borderRadius: SMALL_CORNER, borderCurve: "continuous", padding: 12, gap: 4 },
   chatUser: { alignSelf: "flex-end", backgroundColor: HINT },
   chatAssistant: { alignSelf: "flex-start", width: "92%", backgroundColor: CARD },
+  coachingChatEntry: {
+    alignSelf: "stretch",
+    gap: 10,
+    padding: 14,
+    borderRadius: SMALL_CORNER,
+    borderCurve: "continuous",
+    borderWidth: 1,
+    borderColor: "rgba(0, 108, 229, 0.12)",
+    backgroundColor: "#EDF5FF",
+  },
+  coachingChatEntryFocused: { borderColor: ACCENT, backgroundColor: "rgba(0, 108, 229, 0.06)" },
+  coachingChatRoleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  coachingChatHeadline: { color: TEXT, fontSize: 15, lineHeight: 22, fontWeight: "600" },
+  coachingChatSection: {
+    gap: 3,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(60, 60, 67, 0.12)",
+  },
+  coachingChatLabel: { color: C.textSec, fontSize: 12, fontWeight: "500" },
+  coachingChatCopy: { color: TEXT, fontSize: 15, lineHeight: 21, fontWeight: "600" },
   chatRole: { color: C.textMuted, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   chatCopy: { color: TEXT, fontSize: 15, lineHeight: 22, fontWeight: "600" },
   chatError: { color: C.red, fontSize: 13, fontWeight: "800" },
@@ -2584,6 +2761,7 @@ const s = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 12,
   },
+  optionsSwitch: { width: 54, height: 44, justifyContent: "center", alignItems: "center" },
   optionsItemPressed: { backgroundColor: BACKGROUND },
   optionsItemIcon: {
     width: 40,
