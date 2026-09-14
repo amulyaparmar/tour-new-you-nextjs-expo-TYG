@@ -124,7 +124,9 @@ function linesFromStoredAttempt(raw: unknown): TranscriptLine[] {
 const POLL_DELAYS_MS = [2000, 3000, 5000, 8000, 10000, 15000, 20000, 30000, 45000];
 const SLOW_ANALYSIS_POLL_DELAY_MS = 30000;
 
-function loadDaily() {
+function loadDaily(): {
+  createCallObject: (options: { audioSource: boolean; videoSource: boolean }) => any;
+} {
   const loaded = require("@daily-co/react-native-daily-js") as {
     default?: { createCallObject: (options: { audioSource: boolean; videoSource: boolean }) => any };
     createCallObject?: (options: { audioSource: boolean; videoSource: boolean }) => any;
@@ -133,7 +135,9 @@ function loadDaily() {
   if (typeof Daily.createCallObject !== "function") {
     throw new Error("Live practice could not load the call SDK.");
   }
-  return Daily;
+  return Daily as {
+    createCallObject: (options: { audioSource: boolean; videoSource: boolean }) => any;
+  };
 }
 
 const elapsed = (startedAt: number | null) =>
