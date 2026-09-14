@@ -38,6 +38,14 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.HIGH_SAMPLING_RATE_SENSORS"
       ],
+      "blockedPermissions": [
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#087f8c"
@@ -60,7 +68,8 @@
         "expo-audio",
         {
           "microphonePermission": "Allow Tour to record leasing conversations for session analysis and coaching.",
-          "enableBackgroundRecording": true
+          "enableBackgroundRecording": true,
+          "enableBackgroundPlayback": false
         }
       ],
       [
@@ -94,7 +103,7 @@
         {
           "photosPermission": "Allow Tour to access videos you choose from your photo library.",
           "savePhotosPermission": "Allow Tour to save recorded video assets to your photo library.",
-          "granularPermissions": ["video"]
+          "granularPermissions": []
         }
       ],
       [
