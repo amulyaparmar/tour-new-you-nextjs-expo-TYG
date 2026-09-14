@@ -39,6 +39,8 @@
         "android.permission.HIGH_SAMPLING_RATE_SENSORS"
       ],
       "blockedPermissions": [
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
@@ -66,7 +68,8 @@
         "expo-audio",
         {
           "microphonePermission": "Allow Tour to record leasing conversations for session analysis and coaching.",
-          "enableBackgroundRecording": true
+          "enableBackgroundRecording": true,
+          "enableBackgroundPlayback": false
         }
       ],
       [
