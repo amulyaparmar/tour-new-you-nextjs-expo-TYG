@@ -13,7 +13,6 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
-import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -138,8 +137,6 @@ import {
   materialUrl,
   updateActionStatus,
   uploadRecording,
-  uploadMaterial,
-  uploadPanoramaMaterial,
   uploadRubric,
 } from "./src/api";
 import { getApiBaseUrl, getSiteBaseUrl } from "./src/config";
@@ -283,20 +280,7 @@ import {
   ProfileEditorScreen,
   resolveCardAccent,
 } from "./src/components/profile/profile-editor-screen";
-import {
-  PhotoAssetRecorder,
-  type RecordedPhotoAsset,
-} from "./src/assets/PhotoAssetRecorder";
-import {
-  VideoAssetRecorder,
-  type RecordedVideoAsset,
-} from "./src/assets/VideoAssetRecorder";
-import {
-  PanoramaAssetRecorder,
-  type RecordedPanoramaAsset,
-} from "./src/assets/PanoramaAssetRecorder";
 import { PanoramaImageViewer } from "./src/assets/PanoramaImageViewer";
-import { VideoTourDetailsScreen } from "./src/assets/VideoTourDetailsScreen";
 import {
   queryKeys,
   useDeleteCommentMutation,
@@ -388,7 +372,6 @@ type Screen =
   | { type: "profile" }
   | { type: "start-tour" }
   | { type: "practice-session"; scenario: PracticeSessionOpen["scenario"]; attemptId?: string }
-  | { type: "video-tour-details" }
   | { type: "tour" };
 
 type TourStep = "contact" | "preferences" | "ready";
@@ -876,7 +859,6 @@ function screenRank(screen: Screen) {
   if (screen.type === "start-tour") return 12;
   if (screen.type === "practice-session") return 12;
   if (screen.type === "profile") return 12;
-  if (screen.type === "video-tour-details") return 12;
   if (screen.type === "session-detail") return 13;
   if (screen.type === "session-comments") return 14;
   if (screen.type === "session-coaching") return 14;
@@ -1183,7 +1165,6 @@ type MainStackParamList = {
   Rubrics: undefined;
   StartTour: undefined;
   PracticeSession: undefined;
-  VideoTourDetails: undefined;
 };
 
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -1207,7 +1188,6 @@ function MainStackNavigation({
   rubrics,
   startTour,
   practiceSession,
-  videoTourDetails,
   children,
 }: {
   activeScreen: keyof MainStackParamList;
@@ -1220,7 +1200,6 @@ function MainStackNavigation({
   rubrics: React.ReactNode;
   startTour: React.ReactNode;
   practiceSession: React.ReactNode;
-  videoTourDetails: React.ReactNode;
   children: React.ReactNode;
 }) {
   const navigationRef =
@@ -1299,14 +1278,6 @@ function MainStackNavigation({
         <MainStack.Screen name="PracticeSession">
           {({ navigation }: { navigation: { goBack: () => void } }) =>
             withNativeBack(practiceSession, () => {
-              onCloseToMain();
-              navigation.goBack();
-            })
-          }
-        </MainStack.Screen>
-        <MainStack.Screen name="VideoTourDetails">
-          {({ navigation }: { navigation: { goBack: () => void } }) =>
-            withNativeBack(videoTourDetails, () => {
               onCloseToMain();
               navigation.goBack();
             })
@@ -1715,8 +1686,7 @@ export default function App() {
     screen.type === "settings" ||
     screen.type === "start-tour" ||
     screen.type === "rubrics" ||
-    screen.type === "practice-session" ||
-    screen.type === "video-tour-details"
+    screen.type === "practice-session"
       ? screen.type === "main" && screen.tab === "sessions"
         ? "sessions-stack"
         : "main-profile-stack"
@@ -1817,7 +1787,6 @@ export default function App() {
       onProfile={() => nav({ type: "profile" })}
       onOpenSettings={() => nav({ type: "settings" })}
       onOpenStartTour={() => nav({ type: "start-tour" })}
-      onOpenVideoTourDetails={() => nav({ type: "video-tour-details" })}
       onOpenPracticeSession={(session) => {
         practiceOpenTokenRef.current += 1;
         setStackedPractice({ ...session, token: practiceOpenTokenRef.current });
@@ -1853,8 +1822,7 @@ export default function App() {
                   screen.type === "settings" ||
                   screen.type === "start-tour" ||
                   screen.type === "rubrics" ||
-                  screen.type === "practice-session" ||
-                  screen.type === "video-tour-details") && (
+                  screen.type === "practice-session") && (
                   <MainStackNavigation
                     activeScreen={
                       screen.type === "rubrics"
@@ -1867,8 +1835,6 @@ export default function App() {
                               ? "StartTour"
                               : screen.type === "practice-session"
                                 ? "PracticeSession"
-                                : screen.type === "video-tour-details"
-                                  ? "VideoTourDetails"
                                   : "Main"
                     }
                     onCloseToMain={() => {
@@ -1957,13 +1923,6 @@ export default function App() {
                           }}
                         />
                       ) : null
-                    }
-                    videoTourDetails={
-                      <VideoTourDetailsScreen
-                        onBack={() =>
-                          nav({ type: "main", tab: lastMainTabRef.current })
-                        }
-                      />
                     }
                   >
                     {renderMainTabs(
@@ -2222,7 +2181,6 @@ function MainTabs({
   onProfile,
   onOpenSettings,
   onOpenStartTour,
-  onOpenVideoTourDetails,
   onOpenPracticeSession,
   practiceListEpoch,
   readyTourId,
@@ -2241,7 +2199,6 @@ function MainTabs({
   onProfile: () => void;
   onOpenSettings: () => void;
   onOpenStartTour: () => void;
-  onOpenVideoTourDetails: () => void;
   onOpenPracticeSession: (session: PracticeSessionOpen) => void;
   practiceListEpoch: number;
   readyTourId: string | null;
@@ -2547,11 +2504,7 @@ function MainTabs({
             loading={materialsLoading}
             refreshing={refreshing}
             onRefresh={onRefresh}
-            onReload={async () => {
-              await materialsQuery.refetch();
-            }}
             property={property}
-            onOpenVideoTourDetails={onOpenVideoTourDetails}
           />
         </ScreenTransition>
       )}
@@ -5199,8 +5152,6 @@ const assetSt = StyleSheet.create({
     borderCurve: "continuous",
     backgroundColor: CARD,
   },
-  addOptionsFollow: { marginTop: 10 },
-  assetMenuIconTour: { backgroundColor: "#e0f2fe" },
   assetMenuItem: {
     minHeight: 64,
     flexDirection: "row",
@@ -5217,101 +5168,10 @@ const assetSt = StyleSheet.create({
     borderRadius: 13,
     backgroundColor: BACKGROUND,
   },
-  assetMenuIconCamera: { backgroundColor: "#fff7ed" },
   assetMenuIconVideo: { backgroundColor: "#f3e8ff" },
   assetMenuIcon360: { backgroundColor: "#ecfdf5" },
   assetMenuItemMeta: { marginTop: 2, color: C.textSec },
 });
-
-function AssetTypeMenu({
-  visible,
-  onClose,
-  onVideoTour,
-  onPhoto,
-  onCamera,
-  onVideo,
-  onPanorama,
-  onDismiss,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onVideoTour: () => void;
-  onPhoto: () => void;
-  onCamera: () => void;
-  onVideo: () => void;
-  onPanorama: () => void;
-  onDismiss?: () => void;
-}) {
-  const { height: windowHeight } = useWindowDimensions();
-  const sheetHeight = Math.min(510, Math.round(windowHeight * 0.6));
-
-  return (
-    <BottomSheetModal
-      visible={visible}
-      onClose={onClose}
-      onDismiss={onDismiss}
-      sheetHeight={sheetHeight}
-      sheetStyle={assetSt.addSheet}
-      dragHeader={
-        <View style={assetSt.addTitleRow}>
-          <View style={assetSt.addHeaderCopy}>
-            <CustomText textStyle="hero">Add New Asset</CustomText>
-          </View>
-          <LiquidGlassIconButton
-            icon="close"
-            accessibilityLabel="Close add asset"
-            onPress={onClose}
-          />
-        </View>
-      }
-    >
-      <View style={assetSt.addOptions}>
-        <AssetTypeMenuItem
-          icon="film-outline"
-          iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconTour]}
-          iconColor="#0284c7"
-          title="Video Tour"
-          meta="Film a walkthrough of the apartment"
-          onPress={onVideoTour}
-        />
-      </View>
-      <View style={[assetSt.addOptions, assetSt.addOptionsFollow]}>
-        <AssetTypeMenuItem
-          icon="image-outline"
-          iconStyle={assetSt.assetMenuIcon}
-          iconColor={ACCENT}
-          title="Photo library"
-          meta="Choose an existing photo"
-          onPress={onPhoto}
-        />
-        <AssetTypeMenuItem
-          icon="camera-outline"
-          iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconCamera]}
-          iconColor="#ea580c"
-          title="Camera"
-          meta="Take a new photo"
-          onPress={onCamera}
-        />
-        <AssetTypeMenuItem
-          icon="videocam-outline"
-          iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIconVideo]}
-          iconColor={C.purple}
-          title="Video"
-          meta="Record a new video asset"
-          onPress={onVideo}
-        />
-        <AssetTypeMenuItem
-          icon="scan-outline"
-          iconStyle={[assetSt.assetMenuIcon, assetSt.assetMenuIcon360]}
-          iconColor="#059669"
-          title="360° photo"
-          meta="Choose 1× detail or 0.5× fast capture"
-          onPress={onPanorama}
-        />
-      </View>
-    </BottomSheetModal>
-  );
-}
 
 function AssetTypeMenuItem({
   icon,
@@ -5496,18 +5356,14 @@ function MaterialsScreen({
   loading,
   refreshing,
   onRefresh,
-  onReload,
   property,
-  onOpenVideoTourDetails,
 }: {
   materials: Material[];
   tourLibrary: TourLibraryLink | null;
   loading: boolean;
   refreshing: boolean;
   onRefresh: () => Promise<void>;
-  onReload: () => Promise<void>;
   property: string;
-  onOpenVideoTourDetails: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -5520,15 +5376,9 @@ function MaterialsScreen({
       scrollY.value = event.contentOffset.y;
     },
   });
-  const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<Material | null>(null);
-  const [assetMenuOpen, setAssetMenuOpen] = useState(false);
-  const [photoRecorderOpen, setPhotoRecorderOpen] = useState(false);
-  const [videoRecorderOpen, setVideoRecorderOpen] = useState(false);
-  const [panoramaRecorderOpen, setPanoramaRecorderOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const pendingAddActionRef = useRef<(() => void) | null>(null);
   const tourLibraryAssetCount = materials.filter((material) =>
     material.id.startsWith("tour-api-"),
   ).length;
@@ -5539,104 +5389,6 @@ function MaterialsScreen({
       material.name.toLowerCase().includes(query),
     );
   }, [materials, searchQuery]);
-
-  async function addLibraryPhoto() {
-    try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          "Photo access is off",
-          "Allow Tour to access your photo library in Settings, then try again.",
-          [
-            { text: "Not now", style: "cancel" },
-            {
-              text: "Open Settings",
-              onPress: () => void Linking.openSettings(),
-            },
-          ],
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: false,
-        quality: 0.9,
-        selectionLimit: 1,
-      });
-      const photo = result.assets?.[0];
-      if (result.canceled || !photo) return;
-      const mimeType = photo.mimeType ?? "image/jpeg";
-      const mimeExtension =
-        mimeType.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
-      const fileName =
-        photo.fileName ?? `tour-photo-${Date.now()}.${mimeExtension}`;
-
-      setUploading(true);
-      await uploadMaterial(photo.uri, mimeType, fileName);
-      await onReload();
-      showToast("Photo added to this community", "success");
-    } catch (caught) {
-      showToast(
-        caught instanceof Error ? caught.message : "Could not upload photo",
-        "error",
-      );
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function uploadRecordedVideo(asset: RecordedVideoAsset) {
-    await uploadMaterial(asset.uri, asset.mimeType, asset.fileName, {
-      name: asset.name,
-      description: asset.description,
-      type: "other",
-    });
-    await onReload().catch(() => undefined);
-    showToast("Video asset added to this community", "success");
-  }
-
-  async function uploadRecordedPhoto(asset: RecordedPhotoAsset) {
-    await uploadMaterial(asset.uri, asset.mimeType, asset.fileName, {
-      name: asset.name,
-      description: asset.description,
-      type: "other",
-    });
-    await onReload().catch(() => undefined);
-    showToast("Photo asset added to this community", "success");
-  }
-
-  async function uploadRecordedPanorama(asset: RecordedPanoramaAsset) {
-    await uploadPanoramaMaterial(asset);
-    await onReload().catch(() => undefined);
-    showToast("360° photo added to this community", "success");
-  }
-
-  function chooseVideoTour() {
-    pendingAddActionRef.current = () => onOpenVideoTourDetails();
-    setAssetMenuOpen(false);
-  }
-
-  function choosePhoto() {
-    pendingAddActionRef.current = () => void addLibraryPhoto();
-    setAssetMenuOpen(false);
-  }
-
-  function chooseCamera() {
-    pendingAddActionRef.current = () => setPhotoRecorderOpen(true);
-    setAssetMenuOpen(false);
-  }
-
-  function chooseVideo() {
-    pendingAddActionRef.current = () => setVideoRecorderOpen(true);
-    setAssetMenuOpen(false);
-  }
-
-  function choosePanorama() {
-    pendingAddActionRef.current = () => setPanoramaRecorderOpen(true);
-    setAssetMenuOpen(false);
-  }
 
   return (
     <View style={[st.flex1, homeSt.pageBg]}>
@@ -5801,26 +5553,17 @@ function MaterialsScreen({
         scrollY={scrollY}
         hideCompactTitle={searchOpen}
         trailing={
-          <>
-            <LiquidGlassSearch
-              expanded={searchOpen}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onExpand={() => setSearchOpen(true)}
-              onCollapse={() => {
-                setSearchOpen(false);
-                setSearchQuery("");
-                Keyboard.dismiss();
-              }}
-            />
-            <LiquidGlassIconButton
-              icon="add"
-              iconSize={32}
-              accessibilityLabel="Add new asset"
-              disabled={uploading}
-              onPress={() => setAssetMenuOpen(true)}
-            />
-          </>
+          <LiquidGlassSearch
+            expanded={searchOpen}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onExpand={() => setSearchOpen(true)}
+            onCollapse={() => {
+              setSearchOpen(false);
+              setSearchQuery("");
+              Keyboard.dismiss();
+            }}
+          />
         }
       />
 
@@ -5828,35 +5571,6 @@ function MaterialsScreen({
         material={selected}
         property={property}
         onClose={() => setSelected(null)}
-      />
-      <AssetTypeMenu
-        visible={assetMenuOpen}
-        onClose={() => setAssetMenuOpen(false)}
-        onDismiss={() => {
-          const action = pendingAddActionRef.current;
-          pendingAddActionRef.current = null;
-          action?.();
-        }}
-        onVideoTour={chooseVideoTour}
-        onPhoto={choosePhoto}
-        onCamera={chooseCamera}
-        onVideo={chooseVideo}
-        onPanorama={choosePanorama}
-      />
-      <VideoAssetRecorder
-        visible={videoRecorderOpen}
-        onClose={() => setVideoRecorderOpen(false)}
-        onUpload={uploadRecordedVideo}
-      />
-      <PhotoAssetRecorder
-        visible={photoRecorderOpen}
-        onClose={() => setPhotoRecorderOpen(false)}
-        onUpload={uploadRecordedPhoto}
-      />
-      <PanoramaAssetRecorder
-        visible={panoramaRecorderOpen}
-        onClose={() => setPanoramaRecorderOpen(false)}
-        onUpload={uploadRecordedPanorama}
       />
     </View>
   );
