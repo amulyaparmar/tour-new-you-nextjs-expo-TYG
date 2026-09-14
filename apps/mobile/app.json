@@ -22,21 +22,27 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocalNetworkUsageDescription": "Tour needs local network access to reach your development server on this Mac.",
         "NSBonjourServices": ["_http._tcp", "_expo._tcp"],
-        "NSCameraUsageDescription": "Allow Tour to use your camera when you take photos, record video, or capture a 360° asset.",
-        "NSMotionUsageDescription": "Allow Tour to use motion sensors to keep 360° panorama photos level and evenly spaced.",
         "NSMicrophoneUsageDescription": "Allow Tour to record leasing conversations for session analysis and coaching.",
-        "NSPhotoLibraryUsageDescription": "Allow Tour to choose photos or videos from your library for tour media and community assets.",
-        "NSPhotoLibraryAddUsageDescription": "Allow Tour to save tour media and shared assets to your photo library when you request it.",
-        "NSSpeechRecognitionUsageDescription": "Allow Tour to transcribe leasing conversations live for in-tour coaching.",
+        "NSSpeechRecognitionUsageDescription": "Allow Tour to transcribe leasing conversations during tours.",
         "UIBackgroundModes": ["audio", "voip", "remote-notification"]
       }
     },
     "android": {
       "package": "com.leasemagnets.tournewtouryou.tyg",
-      "permissions": [
+      "permissions": ["android.permission.RECORD_AUDIO"],
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.HIGH_SAMPLING_RATE_SENSORS"
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
+        "android.permission.HIGH_SAMPLING_RATE_SENSORS",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -60,24 +66,19 @@
         "expo-audio",
         {
           "microphonePermission": "Allow Tour to record leasing conversations for session analysis and coaching.",
-          "enableBackgroundRecording": true
+          "enableBackgroundRecording": true,
+          "enableBackgroundPlayback": false
         }
       ],
       [
         "expo-speech-transcriber",
         {
-          "speechRecognitionPermission": "Allow Tour to transcribe leasing conversations live for in-tour coaching.",
-          "microphonePermission": "Allow Tour to listen during a tour so it can show live transcription and coaching prompts."
+          "speechRecognitionPermission": "Allow Tour to transcribe leasing conversations during tours.",
+          "microphonePermission": "Allow Tour to listen during a tour for live transcription."
         }
       ],
       "expo-live-activity",
       "expo-video",
-      [
-        "expo-sensors",
-        {
-          "motionPermission": "Allow Tour to use motion sensors to keep 360° panorama photos level and evenly spaced."
-        }
-      ],
       [
         "expo-build-properties",
         {
@@ -87,22 +88,6 @@
           "ios": {
             "deploymentTarget": "16.4"
           }
-        }
-      ],
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "Allow Tour to access videos you choose from your photo library.",
-          "savePhotosPermission": "Allow Tour to save recorded video assets to your photo library.",
-          "granularPermissions": ["video"]
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow Tour to choose photos from your library for community assets.",
-          "cameraPermission": "Allow Tour to use your camera when you take photos, record video, or capture a 360° asset.",
-          "microphonePermission": "Allow Tour to record audio when you capture video assets."
         }
       ],
       "expo-secure-store",

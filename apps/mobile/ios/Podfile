@@ -60,16 +60,5 @@ target 'Tour' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
 
-    # Xcode 26's Swift optimizer can crash when VisionCamera 5 compiles its
-    # large generated Swift surface as one whole module. Keep Release
-    # optimization enabled, but compile this pod file-by-file instead.
-    installer.pods_project.targets.each do |target|
-      next unless target.name == 'VisionCamera'
-
-      target.build_configurations.each do |build_configuration|
-        build_configuration.build_settings['SWIFT_COMPILATION_MODE'] = 'singlefile'
-        build_configuration.build_settings['SWIFT_ENABLE_BATCH_MODE'] = 'NO'
-      end
-    end
   end
 end

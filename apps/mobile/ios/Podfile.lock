@@ -188,12 +188,6 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (57.0.2):
     - ExpoModulesCore
-  - ExpoCamera (57.0.4):
-    - ExpoModulesCore
-  - ExpoCameraBarcodeScanning (57.0.4):
-    - ExpoCamera
-    - ZXingObjC/OneD
-    - ZXingObjC/PDF417
   - ExpoClipboard (57.0.1):
     - ExpoModulesCore
   - ExpoDevice (57.0.1):
@@ -206,18 +200,9 @@ PODS:
     - ExpoModulesCore
   - ExpoFont (57.0.3):
     - ExpoModulesCore
-  - ExpoGL (57.0.2):
-    - ExpoModulesCore
-    - ExpoModulesJSI
-    - ReactCommon/turbomodule/core
   - ExpoGlassEffect (57.0.1):
     - ExpoModulesCore
   - ExpoHaptics (57.0.2):
-    - ExpoModulesCore
-  - ExpoImageManipulator (57.0.16):
-    - ExpoModulesCore
-    - SDWebImageWebPCoder
-  - ExpoImagePicker (57.0.16):
     - ExpoModulesCore
   - ExpoKeepAwake (57.0.1):
     - ExpoModulesCore
@@ -226,9 +211,6 @@ PODS:
   - ExpoLiveActivity (0.4.2):
     - ExpoModulesCore
   - ExpoLogBox (57.0.4):
-    - React-Core
-  - ExpoMediaLibrary (57.0.4):
-    - ExpoModulesCore
     - React-Core
   - ExpoModulesCore (57.0.16):
     - ExpoModulesJSI
@@ -268,8 +250,6 @@ PODS:
   - ExpoNotifications (57.0.17):
     - ExpoModulesCore
   - ExpoSecureStore (57.0.3):
-    - ExpoModulesCore
-  - ExpoSensors (57.0.2):
     - ExpoModulesCore
   - ExpoSharing (57.0.18):
     - ExpoModulesCore
@@ -315,65 +295,6 @@ PODS:
     - hermes-engine/Pre-built (= 250829098.0.17)
   - hermes-engine/Pre-built (250829098.0.17)
   - JitsiWebRTC (124.0.2)
-  - libwebp (1.6.0):
-    - libwebp/demux (= 1.6.0)
-    - libwebp/mux (= 1.6.0)
-    - libwebp/sharpyuv (= 1.6.0)
-    - libwebp/webp (= 1.6.0)
-  - libwebp/demux (1.6.0):
-    - libwebp/webp
-  - libwebp/mux (1.6.0):
-    - libwebp/demux
-  - libwebp/sharpyuv (1.6.0)
-  - libwebp/webp (1.6.0):
-    - libwebp/sharpyuv
-  - NitroImage (0.15.1):
-    - hermes-engine
-    - NitroModules
-    - RCTRequired
-    - RCTTypeSafety
-    - React-callinvoker
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - Yoga
-  - NitroModules (0.36.5):
-    - hermes-engine
-    - RCTRequired
-    - RCTTypeSafety
-    - React-callinvoker
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - Yoga
   - RCTDeprecation (0.86.3)
   - RCTRequired (0.86.3)
   - RCTSwiftUI (0.86.3)
@@ -2647,41 +2568,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - SDWebImage/Core (5.21.7)
-  - SDWebImageWebPCoder (0.15.0):
-    - libwebp (~> 1.0)
-    - SDWebImage/Core (~> 5.17)
-  - VisionCamera (5.1.1):
-    - hermes-engine
-    - NitroImage
-    - NitroModules
-    - RCTRequired
-    - RCTTypeSafety
-    - React-callinvoker
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - Yoga
   - Yoga (0.0.0)
-  - ZXingObjC/Core (3.6.9)
-  - ZXingObjC/OneD (3.6.9):
-    - ZXingObjC/Core
-  - ZXingObjC/PDF417 (3.6.9):
-    - ZXingObjC/Core
 
 DEPENDENCIES:
   - EASClient (from `../../../node_modules/expo-eas-client/ios`)
@@ -2697,31 +2584,24 @@ DEPENDENCIES:
   - ExpoAsset (from `../../../node_modules/expo-asset/ios`)
   - ExpoAudio (from `../../../node_modules/expo-audio/ios`)
   - ExpoBlur (from `../../../node_modules/expo-blur/ios`)
-  - ExpoCamera (from `../../../node_modules/expo-camera/ios`)
-  - ExpoCameraBarcodeScanning (from `../../../node_modules/expo-camera/ios`)
   - ExpoClipboard (from `../../../node_modules/expo-clipboard/ios`)
   - ExpoDevice (from `../../../node_modules/expo-device/ios`)
   - ExpoDocumentPicker (from `../../../node_modules/expo-document-picker/ios`)
   - "ExpoDomWebView (from `../../../node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../../../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../../../node_modules/expo-font/ios`)
-  - ExpoGL (from `../../../node_modules/expo-gl`)
   - ExpoGlassEffect (from `../../../node_modules/expo-glass-effect/ios`)
   - ExpoHaptics (from `../../../node_modules/expo-haptics/ios`)
-  - ExpoImageManipulator (from `../../../node_modules/expo-image-manipulator/ios`)
-  - ExpoImagePicker (from `../../../node_modules/expo-image-picker/ios`)
   - ExpoKeepAwake (from `../../../node_modules/expo-keep-awake/ios`)
   - ExpoLinearGradient (from `../../../node_modules/expo-linear-gradient/ios`)
   - ExpoLiveActivity (from `../../../node_modules/expo-live-activity/ios`)
   - "ExpoLogBox (from `../../../node_modules/@expo/log-box`)"
-  - ExpoMediaLibrary (from `../../../node_modules/expo-media-library/ios`)
   - ExpoModulesCore (from `../../../node_modules/expo-modules-core`)
   - ExpoModulesJSI (from `../../../node_modules/expo-modules-jsi/apple`)
   - ExpoModulesWorklets (from `../../../node_modules/expo-modules-core`)
   - ExpoModulesWorkletsAdapter (from `../../../node_modules/expo-modules-core`)
   - ExpoNotifications (from `../../../node_modules/expo-notifications/ios`)
   - ExpoSecureStore (from `../../../node_modules/expo-secure-store/ios`)
-  - ExpoSensors (from `../../../node_modules/expo-sensors/ios`)
   - ExpoSharing (from `../../../node_modules/expo-sharing/ios`)
   - ExpoSpeechTranscriber (from `../../../node_modules/expo-speech-transcriber/ios`)
   - ExpoSystemUI (from `../../../node_modules/expo-system-ui/ios`)
@@ -2731,8 +2611,6 @@ DEPENDENCIES:
   - EXUpdatesInterface (from `../../../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../../../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
-  - NitroImage (from `../../../node_modules/react-native-nitro-image`)
-  - NitroModules (from `../../../node_modules/react-native-nitro-modules`)
   - RCTDeprecation (from `../../../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../../../node_modules/react-native/Libraries/Required`)
   - RCTSwiftUI (from `../../../node_modules/react-native/ReactApple/RCTSwiftUI`)
@@ -2820,18 +2698,13 @@ DEPENDENCIES:
   - RNScreens (from `../../../node_modules/react-native-screens`)
   - RNSVG (from `../../../node_modules/react-native-svg`)
   - RNWorklets (from `../../../node_modules/react-native-worklets`)
-  - VisionCamera (from `../../../node_modules/react-native-vision-camera`)
   - Yoga (from `../../../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
   trunk:
     - JitsiWebRTC
-    - libwebp
     - ReachabilitySwift
     - ReactNativeDailyJSScreenShareExtension
-    - SDWebImage
-    - SDWebImageWebPCoder
-    - ZXingObjC
 
 EXTERNAL SOURCES:
   EASClient:
@@ -2860,10 +2733,6 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-audio/ios"
   ExpoBlur:
     :path: "../../../node_modules/expo-blur/ios"
-  ExpoCamera:
-    :path: "../../../node_modules/expo-camera/ios"
-  ExpoCameraBarcodeScanning:
-    :path: "../../../node_modules/expo-camera/ios"
   ExpoClipboard:
     :path: "../../../node_modules/expo-clipboard/ios"
   ExpoDevice:
@@ -2876,16 +2745,10 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-file-system/ios"
   ExpoFont:
     :path: "../../../node_modules/expo-font/ios"
-  ExpoGL:
-    :path: "../../../node_modules/expo-gl"
   ExpoGlassEffect:
     :path: "../../../node_modules/expo-glass-effect/ios"
   ExpoHaptics:
     :path: "../../../node_modules/expo-haptics/ios"
-  ExpoImageManipulator:
-    :path: "../../../node_modules/expo-image-manipulator/ios"
-  ExpoImagePicker:
-    :path: "../../../node_modules/expo-image-picker/ios"
   ExpoKeepAwake:
     :path: "../../../node_modules/expo-keep-awake/ios"
   ExpoLinearGradient:
@@ -2894,8 +2757,6 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-live-activity/ios"
   ExpoLogBox:
     :path: "../../../node_modules/@expo/log-box"
-  ExpoMediaLibrary:
-    :path: "../../../node_modules/expo-media-library/ios"
   ExpoModulesCore:
     :path: "../../../node_modules/expo-modules-core"
   ExpoModulesJSI:
@@ -2908,8 +2769,6 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-notifications/ios"
   ExpoSecureStore:
     :path: "../../../node_modules/expo-secure-store/ios"
-  ExpoSensors:
-    :path: "../../../node_modules/expo-sensors/ios"
   ExpoSharing:
     :path: "../../../node_modules/expo-sharing/ios"
   ExpoSpeechTranscriber:
@@ -2929,10 +2788,6 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v250829098.0.17
-  NitroImage:
-    :path: "../../../node_modules/react-native-nitro-image"
-  NitroModules:
-    :path: "../../../node_modules/react-native-nitro-modules"
   RCTDeprecation:
     :path: "../../../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation"
   RCTRequired:
@@ -3105,8 +2960,6 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native-svg"
   RNWorklets:
     :path: "../../../node_modules/react-native-worklets"
-  VisionCamera:
-    :path: "../../../node_modules/react-native-vision-camera"
   Yoga:
     :path: "../../../node_modules/react-native/ReactCommon/yoga"
 
@@ -3124,31 +2977,24 @@ SPEC CHECKSUMS:
   ExpoAsset: bea9115098b9f4ddfb0456961c8a7d2779ccc8f5
   ExpoAudio: bd075db379c5a70b7f9a7b5b541d5c67f59b5dca
   ExpoBlur: 69e67b4fbfed6f7325377af2aefa8aa4f00cd2af
-  ExpoCamera: 00a098da25adbc6013f051b5db47279cb10a716c
-  ExpoCameraBarcodeScanning: 14c72e1f522eb69f7a672d757eb294c096756faa
   ExpoClipboard: 95055b11758f339b61d4d8064dd799df1cf03b7f
   ExpoDevice: 93a72d7c2bd656a4f0c0d580523e390e9ee7fba5
   ExpoDocumentPicker: 6fb67a6f39ba9beb53a4b4a3f2949e0b5e9bc3bf
   ExpoDomWebView: beaec034e51bd028428b98bb1f2633ab79c6d095
   ExpoFileSystem: cc500f33804065aacc7b3366007267b84deca8c8
   ExpoFont: d5b77d74f8d5d1a248de70955bfad847079e9074
-  ExpoGL: 4f9233cd8fcbbd4d4eab2665d1fa600362eeae09
   ExpoGlassEffect: 4b62afb489e6b84357701737ce002137c9d5fdbc
   ExpoHaptics: bc5461002fc97e53c213a1af6c88c8f95965b734
-  ExpoImageManipulator: 6ef20bed2da7cb3897f1e434552275e4dcd74eb1
-  ExpoImagePicker: 2286f2bcb81240cf66208dacddc2367fd4a1b715
   ExpoKeepAwake: c26f14275017370cc8a4b7b43a0e23361f2053a5
   ExpoLinearGradient: 903b3f5fe566c666ff78b2599add51d094483613
   ExpoLiveActivity: d0dd0e8e1460b6b26555b611c4826cdb1036eea2
   ExpoLogBox: 80957303325cd4439137765c90a87d7f22aaf2ff
-  ExpoMediaLibrary: 344f5b528a71f34794e9d7396e32589531df146e
   ExpoModulesCore: bf0f447c9164035bdc8d58b939cddfb07b64b608
   ExpoModulesJSI: 1a6f80255963c29cdf9a11d59cbdc12b3558d585
   ExpoModulesWorklets: 161e2e951499cdbadb74acf4af86ff19d02919c9
   ExpoModulesWorkletsAdapter: 1120c275ef670601f2ae95b097a2eaca5d61eb7a
   ExpoNotifications: 42cba361a6b378e6e54b795f55932e4eba058829
   ExpoSecureStore: 536804a6aea15cafa49dc969609cd6636d506e68
-  ExpoSensors: e71c7b6cb0c09d3427ef6ae29c69532a10c86b05
   ExpoSharing: 250366db14d83fe7916e1be308c6c7f111b82b7d
   ExpoSpeechTranscriber: 429160b0766c7f2ec6122988e2d22e1c19b53e06
   ExpoSystemUI: e5f9a81b45481222f6b8b45b86fa37b18d0a86c9
@@ -3159,9 +3005,6 @@ SPEC CHECKSUMS:
   FBLazyVector: 2138c6c2ab66c31bf5754dc18097fbc498a49c7f
   hermes-engine: 8930e5f68b09f76e00ab617da3f7587e7262efd0
   JitsiWebRTC: b47805ab5668be38e7ee60e2258f49badfe8e1d0
-  libwebp: af5937a13536ef73f3784d69cc342b98961acf33
-  NitroImage: 2f592086cbdecbbaa1c10dd97e0cdd43b1bb0817
-  NitroModules: 452230d9b63c6c3f59dd97eeaa27ec3449271d4a
   RCTDeprecation: 96f68ebf33f8762466b01d57d6e873c4f30efb07
   RCTRequired: 166eed8ad6d8440e73e56d09a9090366609823d2
   RCTSwiftUI: e818198d11928a78c2b2afe281d072171dab617f
@@ -3250,12 +3093,8 @@ SPEC CHECKSUMS:
   RNScreens: 7118cd7715c226856125b5bece3c4d9abec90356
   RNSVG: 3fe8590403ac9f107b4d14591bc6e54da4894e5c
   RNWorklets: 63cb8f15b2886288da888ac65cc21934c9ebc80a
-  SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
-  SDWebImageWebPCoder: 0e06e365080397465cc73a7a9b472d8a3bd0f377
-  VisionCamera: 75a318cb4f1cfc0400524ae01afa7f8e43346116
   Yoga: 18b74b3ade30bebc1904004dfaceae1dd02a330a
-  ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
-PODFILE CHECKSUM: 5f422ac3dd284ba0df9ee9a6965b1db5de03cbdc
+PODFILE CHECKSUM: c7f0f9a112da1ea660982f36504116e957e834a0
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0
