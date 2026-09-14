@@ -90,7 +90,9 @@ function useIsLandscape() {
         setReady(true);
         return;
       }
-      await Accelerometer.requestPermissionsAsync();
+      if (Platform.OS !== "android") {
+        await Accelerometer.requestPermissionsAsync();
+      }
       if (cancelled) return;
       Accelerometer.setUpdateInterval(250);
       sub = Accelerometer.addListener(({ x, y }) => {
