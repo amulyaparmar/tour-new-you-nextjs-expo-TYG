@@ -32,16 +32,7 @@ const stateSchema = z.object({
   signals: z.array(signalSchema).max(10),
   observations: z.array(observationSchema).max(10),
 });
-// A response carries only per-call changes; smaller patch bounds also keep
-// Gemini's nested structured-output schema within its complexity limit.
-const statePatchSchema = stateSchema.extend({
-  needs: stateSchema.shape.needs.max(5),
-  questions: stateSchema.shape.questions.max(5),
-  handledTopics: stateSchema.shape.handledTopics.max(5),
-  signals: stateSchema.shape.signals.max(5),
-  observations: stateSchema.shape.observations.max(5),
-  removeIds: z.array(z.string().min(1).max(100)).max(8),
-});
+const statePatchSchema = stateSchema.extend({ removeIds: z.array(z.string().min(1).max(100)).max(8) });
 const optionSchema = z.object({
   type: z.enum(["ask", "say", "try", "remember"]),
   label: z.string().min(1).max(80),
@@ -116,7 +107,7 @@ COACHING CONTRACT
 - Suggestions remain in coach history. Optimize for relevance now rather than waiting for silence.
 
 STATE
-- CURRENT STATE contains retained earlier understanding. statePatch arrays MUST contain only entries added or changed because of NEW TURNS. Return [] for every unchanged collection and never restate unchanged CURRENT STATE entries. Use removeIds for invalid or irrelevant entries.
+- CURRENT STATE contains retained earlier understanding. Return only additions or updates in the statePatch arrays; use removeIds for invalid or irrelevant entries.
 - Every state entry must cite exact IDs from NEW TURNS or RECENT TURNS. Reuse stable IDs when updating an entry.
 - Track explicit needs, questions, objections, buying intent, meaningful reactions, handled topics, and specific coaching observations.
 - A need is handled only when the representative meaningfully connects the conversation or a benefit to it. Acknowledgment or a bare factual answer does not handle the underlying need.
