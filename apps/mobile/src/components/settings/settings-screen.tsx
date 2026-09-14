@@ -32,8 +32,6 @@ import { MotionPressable } from "@/components/ui/motion";
 import { useProfileQuery, useUpdateProfileMutation } from "@/queries";
 import { ACCENT, BACKGROUND, CARD, LARGE_CORNER, SMALL_CORNER, TEXT } from "@/theme/tokens";
 import { tourColors as C } from "@/theme/tour-brand";
-import { useCoachingStore } from "@/stores/coaching-store";
-import { CoachIcon } from "@/components/coach-icon";
 
 const FEEDBACK_SHEET_REST_HEIGHT = 430;
 const FEEDBACK_SHEET_HEIGHT_RATIO = 0.74;
@@ -57,11 +55,6 @@ export function SettingsScreen({
   onNotify: (message: string, type?: "error" | "success" | "info") => void;
 }) {
   const insets = useSafeAreaInsets();
-  const coachingEnabled = useCoachingStore((state) => state.enabled);
-  const setCoachingEnabled = useCoachingStore((state) => state.setEnabled);
-  const coachingEagerness = useCoachingStore((state) => state.eagerness);
-  const setCoachingEagerness = useCoachingStore((state) => state.setEagerness);
-  const coachingHydrated = useCoachingStore((state) => state.hydrated);
   const { height: windowHeight } = useWindowDimensions();
   const profileQuery = useProfileQuery();
   const updateProfileMutation = useUpdateProfileMutation();
@@ -210,35 +203,6 @@ export function SettingsScreen({
         <CustomText textStyle="caption" style={styles.sectionHeader}>
           Evaluation
         </CustomText>
-        <SettingsRow
-          iconElement={<CoachIcon size={23} color={ACCENT} />}
-          title="Tour Coach"
-          sub="Live coaching during tours"
-          accessibilityRole="switch"
-          accessibilityState={{ checked: coachingEnabled }}
-          disabled={!coachingHydrated}
-          onPress={() => setCoachingEnabled(!coachingEnabled)}
-          trailing={<View pointerEvents="none"><Switch accessible={false} value={coachingEnabled} trackColor={{ true: ACCENT }} /></View>}
-        />
-        <View style={styles.paceCard} accessibilityRole="radiogroup" accessibilityLabel="Coaching pace">
-          <CustomText textStyle="caption" style={styles.paceLabel}>Coaching pace</CustomText>
-          <View style={styles.paceControl}>
-            {(["calm", "balanced", "active"] as const).map((value) => (
-              <Pressable
-                key={value}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: coachingEagerness === value }}
-                onPress={() => setCoachingEagerness(value)}
-                style={[styles.paceOption, coachingEagerness === value && styles.paceOptionSelected]}
-              >
-                <CustomText textStyle="caption" style={[styles.paceOptionText, coachingEagerness === value && styles.paceOptionTextSelected]}>
-                  {value[0]!.toUpperCase() + value.slice(1)}
-                </CustomText>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-        <View style={styles.evaluationSpacer} />
         <SettingsRow
           icon="clipboard-outline"
           title="Rubrics"
@@ -401,7 +365,6 @@ export function SettingsScreen({
 
 function SettingsRow({
   icon,
-  iconElement,
   title,
   sub,
   onPress,
@@ -412,7 +375,6 @@ function SettingsRow({
   accessibilityState,
 }: {
   icon?: keyof typeof Ionicons.glyphMap;
-  iconElement?: React.ReactNode;
   title: string;
   sub?: string;
   onPress: () => void;
@@ -424,9 +386,9 @@ function SettingsRow({
 }) {
   const row = (
     <>
-      {iconElement || icon ? (
+      {icon ? (
         <View style={styles.iconWrap}>
-          {iconElement ?? <Ionicons name={icon} size={20} color={ACCENT} />}
+          <Ionicons name={icon} size={20} color={ACCENT} />
         </View>
       ) : null}
       <View style={styles.flex}>
@@ -487,14 +449,6 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     backgroundColor: CARD,
   },
-  paceCard: { marginTop: 8, padding: 12, borderRadius: SMALL_CORNER, backgroundColor: CARD },
-  paceLabel: { color: C.textSec, marginBottom: 8 },
-  paceControl: { minHeight: 38, flexDirection: "row", padding: 3, borderRadius: 8, backgroundColor: BACKGROUND },
-  paceOption: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, borderRadius: 6 },
-  paceOptionSelected: { backgroundColor: CARD, boxShadow: "0 1px 3px rgba(20, 33, 50, 0.14)" },
-  paceOptionText: { color: C.textSec },
-  paceOptionTextSelected: { color: TEXT, fontWeight: "600" },
-  evaluationSpacer: { height: 10 },
   group: {
     backgroundColor: CARD,
     borderRadius: SMALL_CORNER,

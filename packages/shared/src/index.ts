@@ -16,5 +16,3 @@ export * from "./conversation-stats";
 export * from "./speaker-labels";
 export * from "./presigned-upload";
 export * from "./dictation";
-export * from "./live-coaching";
-export * from "./live-coaching-protocol";
