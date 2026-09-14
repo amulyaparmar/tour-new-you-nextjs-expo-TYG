@@ -5542,23 +5542,6 @@ function MaterialsScreen({
 
   async function addLibraryPhoto() {
     try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          "Photo access is off",
-          "Allow Tour to access your photo library in Settings, then try again.",
-          [
-            { text: "Not now", style: "cancel" },
-            {
-              text: "Open Settings",
-              onPress: () => void Linking.openSettings(),
-            },
-          ],
-        );
-        return;
-      }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: false,
