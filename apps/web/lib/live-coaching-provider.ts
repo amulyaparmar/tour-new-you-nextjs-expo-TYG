@@ -18,6 +18,14 @@ export function liveCoachingModel(provider = configuredProvider()) {
     || (provider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-5.6-luna");
 }
 
+export function geminiResponseJsonSchema(schema: z.ZodType) {
+  return z.toJSONSchema(schema, { override: ({ jsonSchema }) => {
+    delete jsonSchema.minLength;
+    delete jsonSchema.maxLength;
+    delete jsonSchema.pattern;
+  } });
+}
+
 export async function generateLiveCoachingObject(input: {
   instructions: string;
   prompt: string;
@@ -32,13 +40,7 @@ export async function generateLiveCoachingObject(input: {
   if (provider === "gemini") {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("Gemini is not configured");
-    const responseJsonSchema = z.toJSONSchema(input.schema, { override: ({ jsonSchema }) => {
-      delete jsonSchema.minLength;
-      delete jsonSchema.maxLength;
-      delete jsonSchema.minItems;
-      delete jsonSchema.maxItems;
-      delete jsonSchema.pattern;
-    } });
+    const responseJsonSchema = geminiResponseJsonSchema(input.schema);
     const result = await new GoogleGenAI({ apiKey }).models.generateContent({
       model,
       contents: input.prompt,
