@@ -5,9 +5,14 @@
     "slug": "tour-new-tour-you-tyg",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/images/tour-logo.png",
+    "icon": "./assets/images/app-icon.png",
     "scheme": "tournewtouryoutyg",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/tour-splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "experiments": {
       "reactCompiler": true
     },
@@ -46,7 +51,7 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#087f8c"
+        "backgroundColor": "#4D8AE5"
       }
     },
     "web": {
@@ -59,7 +64,8 @@
       [
         "expo-notifications",
         {
-          "color": "#087f8c"
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#4D8AE5"
         }
       ],
       [
