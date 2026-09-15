@@ -1542,52 +1542,6 @@ export function RecordingExperience({
 
           {activeTab === "transcript" && (
             <View style={s.transcriptPane}>
-              <View style={s.liveTranscriptToolbar}>
-                <View style={s.liveTranscriptWave}>
-                  {[...waveformBars.left, ...waveformBars.right].map((height, index) => (
-                    <LiveWaveBar
-                      key={`transcript-wave-${index}`}
-                      height={height}
-                      opacity={hasStarted ? (sessionPaused ? 0.36 : 0.82) : 0.28}
-                    />
-                  ))}
-                </View>
-                <View
-                  accessible
-                  accessibilityLabel={
-                    !muse.internetAvailable
-                      ? "Offline. Using device transcription."
-                      : muse.status === "streaming"
-                        ? "Internet transcription active."
-                        : muse.status === "connecting"
-                          ? "Connecting internet transcription."
-                          : "Using device transcription."
-                  }
-                  style={s.liveConnectionIndicator}
-                >
-                  <Ionicons
-                    name={
-                      !muse.internetAvailable
-                        ? "cloud-offline-outline"
-                        : muse.status === "streaming"
-                          ? "radio-outline"
-                          : muse.status === "connecting"
-                            ? "sync-outline"
-                            : "phone-portrait-outline"
-                    }
-                    size={16}
-                    color={muse.status === "streaming" ? ACCENT : C.textMuted}
-                  />
-                  <View
-                    style={[
-                      s.liveConnectionDot,
-                      muse.status === "streaming" && s.liveConnectionDotActive,
-                      !muse.internetAvailable && s.liveConnectionDotOffline,
-                    ]}
-                  />
-                </View>
-              </View>
-
               <FlatList
                 ref={listRef}
                 scrollEventThrottle={16}
@@ -2367,36 +2321,6 @@ const s = StyleSheet.create({
   promptCard: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: CARD },
   promptCardText: { flex: 1, color: TEXT, fontSize: 13, fontWeight: "800" },
   transcriptPane: { flex: 1, minHeight: 0 },
-  liveTranscriptToolbar: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.border,
-    backgroundColor: BACKGROUND,
-  },
-  liveConnectionIndicator: {
-    minWidth: 34,
-    height: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-  },
-  liveConnectionDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: C.textMuted },
-  liveConnectionDotActive: { backgroundColor: ACCENT },
-  liveConnectionDotOffline: { backgroundColor: C.amber },
-  liveTranscriptWave: {
-    flex: 1,
-    height: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 3,
-    overflow: "hidden",
-  },
   transcriptList: { paddingHorizontal: 16, paddingTop: 6, gap: 4, paddingBottom: 20 },
   transcriptListEmpty: { flexGrow: 1, justifyContent: "center" },
   transcriptRow: { flexDirection: "row", gap: 10, paddingVertical: 9 },
