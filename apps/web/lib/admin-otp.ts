@@ -12,10 +12,14 @@ import { getSupabaseServiceClient } from "@/lib/supabase";
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_TABLE = "admin_otp_challenges";
 
-export function appReviewOtpConfig() {
-  const email = process.env.TOUR_APP_REVIEW_EMAIL?.trim().toLowerCase() ?? "";
+export function appReviewOtpConfig(requestedEmail: string) {
+  const emails = (process.env.TOUR_APP_REVIEW_EMAIL ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  const email = requestedEmail.trim().toLowerCase();
   const code = process.env.TOUR_APP_REVIEW_OTP?.trim() ?? "";
-  return email && /^\d{6}$/.test(code) ? { email, code } : null;
+  return emails.includes(email) && /^\d{6}$/.test(code) ? { email, code } : null;
 }
 
 type StoredOtpChallenge = {

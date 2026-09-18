@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
   let issuedChallengeId = "";
   try {
-    const reviewConfig = appReviewOtpConfig();
+    const reviewConfig = appReviewOtpConfig(email);
     const isAppReviewUser = reviewConfig?.email === email;
     const challengeCode = isAppReviewUser ? reviewConfig.code : createAdminOtpCode();
     const challenge = await createAdminOtpChallenge(
